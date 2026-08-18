@@ -22,7 +22,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar"><div><h1 id="pageTitle">Dashboard</h1><div class="muted">D2D Rep Efficiency Project</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">SECURE BLIND TEST V8.1</span></div></header>
+      <header class="topbar"><div><h1 id="pageTitle">Dashboard</h1><div class="muted">D2D Rep Efficiency Project</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">SERVER ANALYTICS V9</span></div></header>
 
       <section id="dashboard" class="view active">
         <div class="cards">
@@ -44,21 +44,21 @@
 
       <section id="field" class="view">
         <div class="grid-2">
-          <div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box"><strong>Property Presence:</strong> Unknown<br><strong>Door Confidence:</strong> Not Established</div><div class="geo-box"><strong>Admin diagnostics:</strong> GPS quality, property presence, learned door confidence, customer-comfort distance, walking speed, stop frequency, door-zone time, and off-route idle.</div><div id="telemetryStatus" class="geo-box">Telemetry not started.</div></div></div>
+          <div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box"><strong>Server Analytics:</strong> Protected</div><div class="geo-box"><strong>Admin diagnostics:</strong> competitive analytics are computed server-side and are not shipped in the field client.</div><div id="telemetryStatus" class="geo-box">Telemetry not started.</div></div></div>
           <div class="card"><div class="card-head"><h2>Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">00:00:00</strong></div><div><span>Doors</span><strong id="doorsCount">0</strong></div><div><span>Contacts</span><strong id="contactsCount">0</strong></div><div><span>Sales</span><strong id="salesCount">0</strong></div></div></div>
         </div>
 
         <div class="card">
-          <div class="card-head"><div><h2>Door Disposition Test</h2><p class="muted">Admin sees full diagnostics. Test users see only the normal field workflow while telemetry continues in the background.</p></div></div>
+          <div class="card-head"><div><h2>Door Disposition Test</h2><p class="muted">Admin sees server-returned summaries. Test users see only the normal field workflow while raw telemetry is collected.</p></div></div>
           <select id="fieldLeadSelect"></select>
           <div class="calibration-panel"><div><strong>Local Address Reference</strong><div class="muted small">Admin-only controlled-test calibration.</div></div><button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS ADDRESS REFERENCE</button><div id="calibrationStatus" class="geo-box">Address reference not set.</div></div>
-          <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVE AT DOOR / START VISIT</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">Admin diagnostics remain visible here. Blind testers receive only the physical-knock action.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
+          <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVE AT DOOR / START VISIT</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">Blind testers receive only the physical-knock action.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
           <div class="disposition-grid"><button data-disp="Not Home">Not Home</button><button data-disp="Contacted">Contacted</button><button data-disp="Interested">Interested</button><button data-disp="Follow Up">Follow Up</button><button data-disp="Sale" class="success">Sale</button><button data-disp="Not Interested">Not Interested</button><button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button><button data-disp="Bad Address">Bad Address</button></div>
           <div id="activityLog" class="activity-log"></div><div id="efficiencySummary" class="efficiency-summary"></div>
         </div>
       </section>
 
-      <section id="settings" class="view"><div class="card"><div class="card-head"><h2>Supabase Connection</h2></div><p>This build is configured for the existing <strong>D2D Rep Efficiency Project</strong>.</p><div class="connection-box"><div><span>Project URL</span><code id="projectUrl"></code></div><div><span>Mode</span><strong>Authenticated role-based test telemetry</strong></div></div><p class="muted">Publishable client key + Supabase Auth + Row Level Security. Elevated keys remain server-side only.</p></div></section>
+      <section id="settings" class="view"><div class="card"><div class="card-head"><h2>Supabase Connection</h2></div><p>This build is configured for the existing <strong>D2D Rep Efficiency Project</strong>.</p><div class="connection-box"><div><span>Project URL</span><code id="projectUrl"></code></div><div><span>Mode</span><strong>Authenticated raw telemetry + server-side analytics</strong></div></div><p class="muted">Publishable client key + Supabase Auth + Row Level Security. Competitive analytics execute only on the server.</p></div></section>
     </main>
   </div>
 
@@ -67,5 +67,6 @@
   <script src="app-part3.js"></script>
   <script src="app-auth.js"></script>
   <script src="app-security.js"></script>
+  <script src="app-session-init.js"></script>
 </body>
 </html>
