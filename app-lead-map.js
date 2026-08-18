@@ -30,6 +30,7 @@
   let lassoPreview=null;
   let lassoPolygon=null;
   let lastLassoPoint=null;
+  let lassoStartPoint=null;
 
   function currentRealFiltered(){
     const team=document.getElementById('teamFilter')?.value||'';
@@ -47,7 +48,9 @@
     const leads=currentRealFiltered(),bounds=[];
     for(const l of leads){
       const selected=selectedIds.has(l.dbId);const m=L.circleMarker([Number(l.lat),Number(l.lng)],markerStyle(selected));
-      m.bindTooltip(`${l.address}${l.rep?' · '+l.rep:''}`);m.on('click',()=>window.MCCOY_SELECT_MAP_LEAD?.(l.id));m.addTo(layer);markerByLead.set(l.dbId,m);bounds.push([Number(l.lat),Number(l.lng)]);
+      m.bindTooltip(`${l.address}${l.rep?' · '+l.rep:''}`);
+      m.on('click',e=>{if(lassoMode){L.DomEvent.stopPropagation(e);return;}window.MCCOY_SELECT_MAP_LEAD?.(l.id)});
+      m.addTo(layer);markerByLead.set(l.dbId,m);bounds.push([Number(l.lat),Number(l.lng)]);
     }
     updateSelectionStatus();
     if(bounds.length&&(fit||firstFit)){map.fitBounds(bounds,{padding:[18,18],maxZoom:16});firstFit=false;}
@@ -57,7 +60,7 @@
   function clearLassoShape(){
     if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}
     if(lassoPolygon){map.removeLayer(lassoPolygon);lassoPolygon=null;}
-    lassoPoints=[];lastLassoPoint=null;
+    lassoPoints=[];lastLassoPoint=null;lassoStartPoint=null;
   }
   function clearSelection(){
     selectedIds.clear();clearLassoShape();renderPins(false);updateSelectionStatus('Selection cleared');
@@ -84,8 +87,9 @@
       btn.textContent='DRAW LASSO…';btn.className='primary';
       canvas.style.cursor='crosshair';map.dragging.disable();
       map.doubleClickZoom.disable();map.boxZoom.disable();
-      updateSelectionStatus('Drag around the leads you want, then release');
+      updateSelectionStatus('Hold the mouse button and drag around the leads, then release');
     }else{
+      lassoDrawing=false;
       btn.textContent='LASSO SELECT';btn.className='assign-btn';
       canvas.style.cursor='';map.dragging.enable();
       map.doubleClickZoom.enable();map.boxZoom.enable();
@@ -94,24 +98,32 @@
   function beginLasso(e){
     if(!lassoMode)return;
     const oe=e.originalEvent;if(oe&&typeof oe.button==='number'&&oe.button!==0)return;
-    lassoDrawing=true;lassoPoints=[e.latlng];lastLassoPoint=e.containerPoint;
+    lassoDrawing=true;lassoPoints=[e.latlng];lastLassoPoint=e.containerPoint;lassoStartPoint=e.containerPoint;
     if(lassoPreview)map.removeLayer(lassoPreview);
     lassoPreview=L.polyline(lassoPoints,{weight:2,dashArray:'6 4',interactive:false}).addTo(map);
-    oe?.preventDefault?.();
+    oe?.preventDefault?.();oe?.stopPropagation?.();
   }
   function extendLasso(e){
     if(!lassoMode||!lassoDrawing)return;
     const p=e.containerPoint;
-    if(lastLassoPoint&&p.distanceTo(lastLassoPoint)<4)return;
+    if(lastLassoPoint&&p.distanceTo(lastLassoPoint)<3)return;
     lastLassoPoint=p;lassoPoints.push(e.latlng);lassoPreview?.setLatLngs(lassoPoints);
   }
-  function finishLasso(){
+  function finishLasso(e){
     if(!lassoMode||!lassoDrawing)return;
     lassoDrawing=false;
+    const endPoint=e?.containerPoint||lastLassoPoint;
+    const dragDistance=(lassoStartPoint&&endPoint)?lassoStartPoint.distanceTo(endPoint):0;
     if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}
-    if(lassoPoints.length<3){
-      clearLassoShape();setLassoMode(false);updateSelectionStatus('Lasso was too small; draw a closed area');return;
+
+    // A normal click should never cancel lasso mode. Keep it armed until the user actually drags a usable polygon.
+    if(lassoPoints.length<3||dragDistance<12){
+      lassoPoints=[];lastLassoPoint=null;lassoStartPoint=null;
+      updateSelectionStatus('Lasso is still active — hold the mouse button and drag a shape around the leads');
+      return;
     }
+
+    if(lassoPolygon){map.removeLayer(lassoPolygon);lassoPolygon=null;}
     lassoPolygon=L.polygon(lassoPoints,{weight:2,fillOpacity:.12,interactive:false}).addTo(map);
     selectedIds=new Set(currentRealFiltered().filter(l=>pointInPolygon(Number(l.lat),Number(l.lng),lassoPoints)).map(l=>l.dbId));
     setLassoMode(false);renderPins(false);
@@ -121,7 +133,6 @@
   map.on('mousedown',beginLasso);
   map.on('mousemove',extendLasso);
   map.on('mouseup',finishLasso);
-  map.on('mouseout',()=>{if(lassoMode&&lassoDrawing)finishLasso();});
 
   async function geocodeStatus(){
     if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}
