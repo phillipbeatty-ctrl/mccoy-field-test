@@ -13,16 +13,18 @@
     if(!access){
       btn.style.display='inline-block';
       btn.disabled=true;
-      btn.textContent='GEOCODE REAL LEADS';
-      if(progress)progress.textContent='Waiting for account permissions…';
+      if(!window.MCCOY_RESUME_GEOCODING) btn.textContent='GEOCODE REAL LEADS';
+      if(progress&&!window.MCCOY_RESUME_GEOCODING)progress.textContent='Waiting for account permissions…';
       if(checks<MAX_CHECKS)setTimeout(syncGeocodeControl,500);
       return;
     }
     if(access.active&&access.role==='admin'){
       btn.style.display='inline-block';
       btn.disabled=false;
-      btn.textContent='GEOCODE REAL LEADS';
-      if(progress&&/managed by Admin|Waiting for account permissions/i.test(progress.textContent||''))progress.textContent='Admin geocoding controls ready.';
+      if(!window.MCCOY_RESUME_GEOCODING){
+        btn.textContent='GEOCODE REAL LEADS';
+        if(progress&&/managed by Admin|Waiting for account permissions/i.test(progress.textContent||''))progress.textContent='Admin geocoding controls ready.';
+      }
       return;
     }
     btn.style.display='none';
