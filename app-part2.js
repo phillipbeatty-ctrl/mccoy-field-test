@@ -12,6 +12,31 @@ function startDoorTimer(){
   },100);
 }
 
+// V7: GPS quality and door presence are deliberately separate concepts.
+// We only make a door-presence assertion when the GPS fix itself is Verified.
+function classifyDoorPresence(gps, distanceMeters){
+  const gpsQuality=classifyGps(gps);
+  if(distanceMeters==null || !gpsQuality.verified){
+    return {status:"Unknown", verified:false, reason:distanceMeters==null?"No lead coordinate":"GPS fix not verified"};
+  }
+  if(distanceMeters<=15) return {status:"At Door", verified:true, reason:`${distanceMeters.toFixed(1)}m from lead`};
+  if(distanceMeters<=30) return {status:"Near Door", verified:false, reason:`${distanceMeters.toFixed(1)}m from lead`};
+  return {status:"Outside Door Radius", verified:false, reason:`${distanceMeters.toFixed(1)}m from lead`};
+}
+
+function updateDoorPresenceBox(gps, distanceMeters){
+  const p=classifyDoorPresence(gps,distanceMeters);
+  const box=document.getElementById("doorPresenceBox");
+  if(box){
+    box.innerHTML=`<strong>Door Presence:</strong> ${p.status}${p.verified?" ✓":""} — ${p.reason}`;
+    if(p.status==="At Door") box.style.color="#166534";
+    else if(p.status==="Near Door") box.style.color="#92400e";
+    else if(p.status==="Outside Door Radius") box.style.color="#991b1b";
+    else box.style.color="#4b5563";
+  }
+  return p;
+}
+
 document.getElementById("setCalibrationLeadBtn").addEventListener("click", async ()=>{
   if(!state.session){
     alert("Start a field session first so GPS tracking is active.");
@@ -32,6 +57,7 @@ document.getElementById("setCalibrationLeadBtn").addEventListener("click", async
 
   if(!gps){
     status.textContent="Could not obtain a GPS location.";
+    updateDoorPresenceBox(null,null);
     return;
   }
 
@@ -39,6 +65,7 @@ document.getElementById("setCalibrationLeadBtn").addEventListener("click", async
   state.calibrationLead={lat:gps.lat,lng:gps.lng,setAt:Date.now(),accuracy:gps.accuracy};
   status.innerHTML=`Test lead set at ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)} • ${q.quality} • ±${Math.round(gps.accuracy)}m`;
   updateGpsQualityBox(gps);
+  const doorPresence=updateDoorPresenceBox(gps,0);
 
   saveTestEvent({
     eventType:"calibration_lead_set",
@@ -50,7 +77,13 @@ document.getElementById("setCalibrationLeadBtn").addEventListener("click", async
     leadLat:gps.lat,
     leadLng:gps.lng,
     distanceMeters:0,
-    payload:{purpose:"Known-location calibration lead"}
+    payload:{
+      purpose:"Known-location calibration lead",
+      testAppVersion:"7.0-door-verification",
+      doorPresence:doorPresence.status,
+      doorPresenceVerified:doorPresence.verified,
+      doorThresholdsMeters:{atDoor:15,nearDoor:30}
+    }
   });
 });
 
@@ -62,20 +95,16 @@ document.getElementById("arriveDoorBtn").addEventListener("click", ()=>{
   const arrivedAt=Date.now();
   const gps=snapshotGpsInstant();
 
-  // Start timing and update the UI immediately.
-  state.activeDoorVisit={
-    lead,
-    arrivedAt,
-    arrivalGps:gps
-  };
+  state.activeDoorVisit={lead,arrivedAt,arrivalGps:gps};
   document.getElementById("doorElapsed").textContent="00:00";
   const gpsQuality=classifyGps(gps);
   const dist=distanceToCalibrationLead(gps);
+  const doorPresence=classifyDoorPresence(gps,dist);
   updateGpsQualityBox(gps);
-  document.getElementById("doorVisitStatus").innerHTML =
-    gps
-      ? `Arrived: ${lead.address} • <strong>${gpsQuality.quality}${gpsQuality.verified?" ✓":""}</strong> • ${gpsQuality.reason} • ${formatDistance(dist)}`
-      : `Arrived: ${lead.address} • GPS unavailable`;
+  updateDoorPresenceBox(gps,dist);
+  document.getElementById("doorVisitStatus").innerHTML = gps
+    ? `Arrived: ${lead.address} • GPS <strong>${gpsQuality.quality}${gpsQuality.verified?" ✓":""}</strong> • Door <strong>${doorPresence.status}${doorPresence.verified?" ✓":""}</strong> • ${formatDistance(dist)}`
+    : `Arrived: ${lead.address} • GPS unavailable • Door Presence Unknown`;
   startDoorTimer();
 
   if(gps) state.breadcrumbs.push({...gps,eventType:"door_arrival",leadId:lead.id});
@@ -88,10 +117,16 @@ document.getElementById("arriveDoorBtn").addEventListener("click", ()=>{
     isGpsVerified:gpsQuality.verified,
     leadLat:state.calibrationLead?.lat ?? null,
     leadLng:state.calibrationLead?.lng ?? null,
-    distanceMeters:dist
+    distanceMeters:dist,
+    payload:{
+      testAppVersion:"7.0-door-verification",
+      doorPresence:doorPresence.status,
+      doorPresenceVerified:doorPresence.verified,
+      doorPresenceReason:doorPresence.reason,
+      doorThresholdsMeters:{atDoor:15,nearDoor:30}
+    }
   });
 
-  // Improve the live GPS in the background; never block the timer.
   requestFreshGpsInBackground(fresh=>{
     if(state.activeDoorVisit && state.activeDoorVisit.lead.id===lead.id && !state.activeDoorVisit.arrivalGps){
       state.activeDoorVisit.arrivalGps={...fresh,snapshotAt:arrivedAt,ageMs:0};
@@ -111,12 +146,14 @@ document.querySelectorAll("[data-disp]").forEach(btn=>{
     }
 
     const endedAt=Date.now();
-    const gps=snapshotGpsInstant(); // immediate click-time GPS from continuous watch
+    const gps=snapshotGpsInstant();
     const disposition=btn.dataset.disp;
     const dwellMs=endedAt-state.activeDoorVisit.arrivedAt;
     const gpsQuality=classifyGps(gps);
     const dist=distanceToCalibrationLead(gps);
+    const doorPresence=classifyDoorPresence(gps,dist);
     updateGpsQualityBox(gps);
+    updateDoorPresenceBox(gps,dist);
 
     lead.disposition=disposition;
     const activity={
@@ -124,12 +161,14 @@ document.querySelectorAll("[data-disp]").forEach(btn=>{
       disposition,
       at:new Date(endedAt),
       gps,
+      gpsQuality,
+      doorPresence,
+      distanceMeters:dist,
       arrivalGps:state.activeDoorVisit.arrivalGps,
       arrivedAt:new Date(state.activeDoorVisit.arrivedAt),
       dwellMs
     };
 
-    // Update all visible state immediately.
     state.activities.unshift(activity);
     if(gps) state.breadcrumbs.push({...gps,eventType:"disposition",leadId:lead.id,disposition});
     saveTestEvent({
@@ -144,23 +183,26 @@ document.querySelectorAll("[data-disp]").forEach(btn=>{
       leadLat:state.calibrationLead?.lat ?? null,
       leadLng:state.calibrationLead?.lng ?? null,
       distanceMeters:dist,
-      payload:{arrivalGps:state.activeDoorVisit.arrivalGps}
+      payload:{
+        testAppVersion:"7.0-door-verification",
+        arrivalGps:state.activeDoorVisit.arrivalGps,
+        doorPresence:doorPresence.status,
+        doorPresenceVerified:doorPresence.verified,
+        doorPresenceReason:doorPresence.reason,
+        doorThresholdsMeters:{atDoor:15,nearDoor:30}
+      }
     });
 
     state.activeDoorVisit=null;
     clearInterval(doorTimerHandle);
     document.getElementById("doorElapsed").textContent="00:00";
-    document.getElementById("doorVisitStatus").textContent="Visit completed. Select the next lead and mark arrival.";
+    document.getElementById("doorVisitStatus").innerHTML=`Visit completed • GPS <strong>${gpsQuality.quality}</strong> • Door <strong>${doorPresence.status}${doorPresence.verified?" ✓":""}</strong> • ${formatDistance(dist)}`;
     renderActivities();
     renderStats();
     renderLeads();
     renderEfficiency();
 
-    // Ask for a fresh high-accuracy fix in the background for diagnostics,
-    // but do not delay the disposition or alter its click-time audit snapshot.
-    requestFreshGpsInBackground(fresh=>{
-      activity.postClickGps=fresh;
-    });
+    requestFreshGpsInBackground(fresh=>{activity.postClickGps=fresh;});
   });
 });
 
@@ -170,7 +212,7 @@ function renderActivities(){
       <strong>${a.disposition}</strong> — ${a.lead.address}
       <div class="muted">
         ${a.at.toLocaleTimeString()} • Door time ${fmtDoor(a.dwellMs)}
-        ${a.gps?` • ${classifyGps(a.gps).quality} • ${classifyGps(a.gps).reason} • ${formatDistance(distanceToCalibrationLead(a.gps))}`:" • GPS unavailable"}
+        ${a.gps?` • GPS ${a.gpsQuality?.quality||classifyGps(a.gps).quality} • Door ${a.doorPresence?.status||classifyDoorPresence(a.gps,a.distanceMeters).status} • ${formatDistance(a.distanceMeters)}`:" • GPS unavailable • Door Unknown"}
       </div>
     </div>
   `).join("");
@@ -186,14 +228,19 @@ function renderEfficiency(){
   const notHome=avgFor("Not Home");
   const contacted=avgFor("Contacted");
   const sale=avgFor("Sale");
+  const atDoorCount=state.activities.filter(a=>a.doorPresence?.status==="At Door").length;
+  const verifiedGpsCount=state.activities.filter(a=>a.gpsQuality?.verified).length;
+  const total=state.activities.length;
   document.getElementById("efficiencySummary").innerHTML=`
-    <h2 style="margin-bottom:10px">Door-Time Efficiency</h2>
+    <h2 style="margin-bottom:10px">Door-Time & Presence Efficiency</h2>
     <div class="efficiency-grid">
       <div><span>Avg Not Home</span><strong>${displayAvg(notHome)}</strong></div>
       <div><span>Avg Contacted</span><strong>${displayAvg(contacted)}</strong></div>
       <div><span>Avg Sale</span><strong>${displayAvg(sale)}</strong></div>
+      <div><span>GPS Verified</span><strong>${total?Math.round(verifiedGpsCount/total*100):0}%</strong></div>
+      <div><span>At Door</span><strong>${total?Math.round(atDoorCount/total*100):0}%</strong></div>
     </div>
-    <p class="muted small">This lets coaching compare dwell time by outcome instead of treating every door the same.</p>
+    <p class="muted small">GPS Verified means the location fix is trustworthy. At Door separately means a verified fix was within 15 meters of the mapped lead.</p>
   `;
 }
 
