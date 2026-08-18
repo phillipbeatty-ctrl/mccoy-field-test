@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>McCoy Field Coach — V9.2</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="field-coach">
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">M</div><div><div class="brand-title">McCoy Field Coach</div><div class="muted">Rep Efficiency Test</div></div></div>
+      <nav><button class="nav-btn active" data-view="field">Field Coach</button><button class="nav-btn" data-view="dashboard">Dashboard</button><button class="nav-btn" data-view="teams">Teams</button><button class="nav-btn" data-view="leads">Lead Pool</button><button class="nav-btn" data-view="settings">Connection</button></nav>
+      <div class="sidebar-footer"><div class="pill">V9.2</div><div class="muted small">Efficiency Coaching</div></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><h1 id="pageTitle">Field Coach</h1><div class="muted">Your real field-efficiency data</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">SERVER CONTROL V9.2 · FIELD COACH</span></div></header>
+      <section id="dashboard" class="view"><div class="cards"><div class="card stat"><span>Total Leads</span><strong id="statTotalLeads">10,000</strong></div><div class="card stat"><span>Pacific Northwest</span><strong id="statPNW">5,000</strong></div><div class="card stat"><span>North Carolina</span><strong id="statNC">5,000</strong></div><div class="card stat"><span>Active Managers</span><strong id="statManagers">1</strong></div></div><div class="grid-2"><div class="card"><div class="card-head"><h2>Team Allocation</h2></div><div id="allocationBars"></div></div><div class="card"><div class="card-head"><h2>Manager Status</h2></div><div id="managerStatus"></div></div></div></section>
+      <section id="teams" class="view"><div class="card"><div class="card-head"><h2>Teams & Managers</h2></div><div id="teamsTable"></div></div></section>
+      <section id="leads" class="view"><div class="card"><div class="card-head"><h2>Lead Pool</h2><button id="addDemoLeadsBtn" class="primary">Add 10 Demo Leads</button></div><div class="toolbar"><select id="teamFilter"><option value="">All Teams</option><option value="Pacific Northwest">Pacific Northwest</option><option value="North Carolina">North Carolina</option></select><input id="leadSearch" placeholder="Search address or rep..." /></div><div id="leadsTable"></div></div></section>
+      <section id="field" class="view active">
+        <div class="grid-2"><div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box"><strong>Server Analytics:</strong> Protected server calculation</div><div id="telemetryStatus" class="geo-box">Telemetry not started.</div></div></div><div class="card"><div class="card-head"><h2>Live Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">00:00:00</strong></div><div><span>Doors</span><strong id="doorsCount">0</strong></div><div><span>Contacts</span><strong id="contactsCount">0</strong></div><div><span>Sales</span><strong id="salesCount">0</strong></div></div></div></div>
+        <div class="card"><div class="card-head"><div><h2>Door Workflow</h2><p class="muted">Use normal field behavior. Your coaching metrics are shown below.</p></div></div><select id="fieldLeadSelect"></select><div class="calibration-panel"><div><strong>Local Address Reference</strong><div class="muted small">Admin controlled-test calibration.</div></div><button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS ADDRESS REFERENCE</button><div id="calibrationStatus" class="geo-box">Address reference not set.</div></div><div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">PHYSICALLY KNOCKED</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div><div class="disposition-grid"><button data-disp="Not Home">Not Home</button><button data-disp="Contacted">Contacted</button><button data-disp="Interested">Interested</button><button data-disp="Follow Up">Follow Up</button><button data-disp="Sale" class="success">Sale</button><button data-disp="Not Interested">Not Interested</button><button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button><button data-disp="Bad Address">Bad Address</button></div><div id="activityLog" class="activity-log"></div><div id="efficiencySummary" class="efficiency-summary"></div></div>
+        <div id="coachMetrics" class="card"><div class="card-head"><div><h2>My Efficiency Data</h2><p class="muted">Calculated from your own telemetry. Competitive formulas remain server-side.</p></div><button id="coachRefreshBtn" class="assign-btn">Refresh</button></div><div id="coachMetricsBody" class="muted">Start a session or refresh to see your latest data.</div></div>
+      </section>
+      <section id="settings" class="view"><div class="card"><div class="card-head"><h2>Supabase Connection</h2></div><p>This build uses authenticated raw telemetry and server-side V9.2 session control.</p><div class="connection-box"><div><span>Project URL</span><code id="projectUrl"></code></div></div></section>
+    </main>
+  </div>
+  <script src="app-part1.js"></script><script src="app-part2.js"></script><script src="app-part3.js"></script><script src="app-auth.js"></script><script src="app-security.js"></script><script src="app-auto-stop.js"></script><script src="app-session-init.js"></script><script src="app-coach-mode.js"></script>
+</body>
+</html>
