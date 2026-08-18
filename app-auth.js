@@ -1,124 +1,36 @@
-// V8 security + blind tester access layer
-// UI hiding is for test integrity. Database authorization is enforced separately by Supabase RLS.
-window.MCCOY_ACCESS = { user:null, access:null };
-
+// McCoy Field authentication + self-service rep onboarding.
+window.MCCOY_ACCESS={user:null,access:null};
 (function(){
-  const style=document.createElement('style');
-  style.textContent=`
-    #authGate{position:fixed;inset:0;z-index:99999;background:#f4f6f8;display:flex;align-items:center;justify-content:center;padding:20px}
-    #authGate.hidden{display:none!important}
-    .auth-card{width:min(430px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.12)}
-    .auth-card h2{margin:0 0 8px}.auth-card p{color:#6b7280;font-size:13px}.auth-card input{width:100%;padding:12px;margin:6px 0;border:1px solid #d1d5db;border-radius:9px}.auth-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.auth-msg{font-size:12px;margin-top:10px;min-height:18px}.user-strip{position:fixed;right:12px;bottom:12px;z-index:1000;background:#111827;color:#fff;border-radius:999px;padding:7px 10px;font-size:11px;display:flex;gap:8px;align-items:center}.user-strip button{border:0;border-radius:999px;padding:4px 7px;cursor:pointer}
-    body.blind-tester .sidebar{display:none!important}
-    body.blind-tester .main{margin-left:0!important}
-    body.blind-tester #dashboard,body.blind-tester #teams,body.blind-tester #leads,body.blind-tester #settings{display:none!important}
-    body.blind-tester #field{display:block!important;padding:16px!important}
-    body.blind-tester .topbar .muted,body.blind-tester #modeBadge{display:none!important}
-    body.blind-tester .topbar{height:68px;padding:0 16px}
-    body.blind-tester #pageTitle{font-size:20px}
-    body.blind-tester #geoBox,body.blind-tester #gpsQualityBox,body.blind-tester #doorPresenceBox,body.blind-tester #telemetryStatus{display:none!important}
-    body.blind-tester .field-controls>.geo-box:not(#telemetryStatus){display:none!important}
-    body.blind-tester .grid-2>.card:nth-child(2){display:none!important}
-    body.blind-tester .calibration-panel{display:none!important}
-    body.blind-tester #doorVisitStatus,body.blind-tester .door-visit-panel .muted,body.blind-tester .door-timer{display:none!important}
-    body.blind-tester #activityLog,body.blind-tester #efficiencySummary{display:none!important}
-    body.blind-tester #arriveDoorBtn{margin:8px 0 14px}
-    body.blind-tester .card-head p{display:none!important}
-    body.blind-tester .card-head h2{font-size:15px}
-    body.blind-tester .disposition-grid{margin-top:8px}
-  `;
-  document.head.appendChild(style);
+ const css=document.createElement('style');css.textContent=`
+ #authGate{position:fixed;inset:0;z-index:99999;background:#f4f6f8;display:flex;align-items:center;justify-content:center;padding:18px}#authGate.hidden{display:none!important}
+ .auth-card{width:min(460px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:24px;box-shadow:0 14px 44px rgba(0,0,0,.12)}.auth-card h2{margin:0 0 6px}.auth-card p{color:#6b7280;font-size:13px;line-height:1.45}.auth-card input,.auth-card select{box-sizing:border-box;width:100%;padding:12px;margin:6px 0;border:1px solid #d1d5db;border-radius:10px;background:#fff;font-size:16px}.auth-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.auth-msg{font-size:12px;margin-top:10px;min-height:18px}.auth-step{display:none}.auth-step.active{display:block}.auth-link{border:0;background:none;text-decoration:underline;color:#374151;cursor:pointer;padding:8px 0}.user-strip{position:fixed;right:12px;bottom:12px;z-index:1000;background:#111827;color:#fff;border-radius:999px;padding:7px 10px;font-size:11px;display:flex;gap:8px;align-items:center}.user-strip button{border:0;border-radius:999px;padding:4px 7px;cursor:pointer}
+ #accessAdminBtn{position:fixed;right:14px;bottom:14px;z-index:2600;display:none;border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer}#accessAdminPanel{position:fixed;inset:0;z-index:140000;background:rgba(17,24,39,.78);display:none;align-items:center;justify-content:center;padding:16px}#accessAdminPanel.show{display:flex}.access-card{width:min(780px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.access-row{border-top:1px solid #eef0f2;padding:12px 0}.access-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px}.access-actions{display:flex;gap:8px;margin-top:8px}
+ body.blind-tester .sidebar{display:none!important}body.blind-tester .main{margin-left:0!important}body.blind-tester #dashboard,body.blind-tester #teams,body.blind-tester #leads,body.blind-tester #settings{display:none!important}body.blind-tester #field{display:block!important;padding:16px!important}body.blind-tester .topbar .muted,body.blind-tester #modeBadge{display:none!important}body.blind-tester .topbar{height:68px;padding:0 16px}body.blind-tester #pageTitle{font-size:20px}body.blind-tester #geoBox,body.blind-tester #gpsQualityBox,body.blind-tester #doorPresenceBox,body.blind-tester #telemetryStatus{display:none!important}body.blind-tester .field-controls>.geo-box:not(#telemetryStatus){display:none!important}body.blind-tester .grid-2>.card:nth-child(2){display:none!important}body.blind-tester .calibration-panel{display:none!important}body.blind-tester #doorVisitStatus,body.blind-tester .door-visit-panel .muted,body.blind-tester .door-timer{display:none!important}body.blind-tester #activityLog,body.blind-tester #efficiencySummary{display:none!important}body.blind-tester #arriveDoorBtn{margin:8px 0 14px}body.blind-tester .card-head p{display:none!important}body.blind-tester .card-head h2{font-size:15px}body.blind-tester .disposition-grid{margin-top:8px}
+ @media(max-width:600px){.auth-actions{grid-template-columns:1fr}.access-grid{grid-template-columns:1fr}.user-strip{max-width:90vw}}
+ `;document.head.appendChild(css);
 
-  const gate=document.createElement('div');
-  gate.id='authGate';
-  gate.innerHTML=`<div class="auth-card">
-    <h2>McCoy Field</h2>
-    <p>Authorized testing access only.</p>
-    <input id="authEmail" type="email" autocomplete="email" placeholder="Email address" />
-    <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
-    <div class="auth-actions"><button id="signInBtn" class="primary">SIGN IN</button><button id="signUpBtn" class="assign-btn">CREATE ACCOUNT</button></div>
-    <div id="authMsg" class="auth-msg"></div>
-  </div>`;
-  document.body.appendChild(gate);
+ const gate=document.createElement('div');gate.id='authGate';gate.innerHTML=`<div class="auth-card">
+  <div id="loginStep" class="auth-step active"><h2>McCoy Field</h2><p>Sign in with your McCoy Field account. You do not need a Supabase account.</p><input id="authEmail" type="email" autocomplete="email" placeholder="Email address"><input id="authPassword" type="password" autocomplete="current-password" placeholder="Password"><div class="auth-actions"><button id="signInBtn" class="primary">SIGN IN</button><button id="showSignupBtn" class="assign-btn">CREATE ACCOUNT</button></div><div id="authMsg" class="auth-msg"></div></div>
+  <div id="signupStep" class="auth-step"><h2>Create McCoy Account</h2><p>Create your field-app login. After email verification, request rep access and an Admin will approve your team assignment.</p><input id="signupName" autocomplete="name" placeholder="Full name"><input id="signupEmail" type="email" autocomplete="email" placeholder="Email address"><input id="signupPassword" type="password" autocomplete="new-password" placeholder="Password (8+ characters)"><select id="signupTeam"><option value="">Select team (optional)</option><option>Pacific Northwest</option><option>North Carolina</option></select><button id="createAccountBtn" class="primary" style="width:100%;margin-top:8px">CREATE ACCOUNT</button><button id="backLoginBtn" class="auth-link">Back to sign in</button><div id="signupMsg" class="auth-msg"></div></div>
+  <div id="requestStep" class="auth-step"><h2>Request Rep Access</h2><p>Your McCoy login is active. Complete this request so Admin can approve your Field Coach access.</p><input id="requestName" autocomplete="name" placeholder="Full name"><select id="requestTeam"><option value="">Select team (optional)</option><option>Pacific Northwest</option><option>North Carolina</option></select><button id="requestAccessBtn" class="primary" style="width:100%;margin-top:8px">REQUEST ACCESS</button><button id="requestSignOutBtn" class="auth-link">Sign out</button><div id="requestMsg" class="auth-msg"></div></div>
+  <div id="pendingStep" class="auth-step"><h2>Access Request Pending</h2><p>Your McCoy account is working. An Admin still needs to approve your rep access and assignment.</p><button id="checkApprovalBtn" class="primary" style="width:100%">CHECK APPROVAL</button><button id="pendingSignOutBtn" class="auth-link">Sign out</button><div id="pendingMsg" class="auth-msg"></div></div>
+ </div>`;document.body.appendChild(gate);
+ function step(id){document.querySelectorAll('#authGate .auth-step').forEach(x=>x.classList.remove('active'));document.getElementById(id)?.classList.add('active');}
+ function setMsg(id,text,ok=false){const el=document.getElementById(id);if(el){el.textContent=text;el.style.color=ok?'#166534':'#991b1b';}}
+ async function onboarding(action,payload={}){const {data,error}=await sb.functions.invoke('rep-onboarding',{body:{action,...payload}});if(error)throw error;return data;}
+ function applyMode(user,access){window.MCCOY_ACCESS={user,access};gate.classList.add('hidden');document.body.classList.toggle('blind-tester',access.role!=='admin');if(access.role!=='admin'){if(document.getElementById('pageTitle'))document.getElementById('pageTitle').textContent='Field Test';if(document.getElementById('arriveDoorBtn'))document.getElementById('arriveDoorBtn').textContent='PHYSICALLY KNOCKED';document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById('field')?.classList.add('active');}else if(document.getElementById('arriveDoorBtn'))document.getElementById('arriveDoorBtn').textContent='ARRIVE AT DOOR / START VISIT';let strip=document.getElementById('userStrip');if(!strip){strip=document.createElement('div');strip.id='userStrip';strip.className='user-strip';document.body.appendChild(strip);}strip.innerHTML=`<span>${access.display_name||user.email} · ${access.role}</span><button id="signOutBtn">Sign out</button>`;document.getElementById('signOutBtn').onclick=async()=>{await sb.auth.signOut();location.reload();};if(access.role==='admin')setupAdminApprovals();}
+ async function routeAuthenticated(){const {data:{user}}=await sb.auth.getUser();if(!user){step('loginStep');return false;}try{const d=await onboarding('status');if(d?.access?.active){applyMode(user,d.access);return true;}window.MCCOY_ACCESS={user,access:null};gate.classList.remove('hidden');if(d?.request?.status==='pending'){step('pendingStep');setMsg('pendingMsg','Request submitted. You can leave this page and return later.',true);}else if(d?.request?.status==='rejected'){step('requestStep');setMsg('requestMsg','Your prior request was not approved. Contact your McCoy administrator.');}else{step('requestStep');const n=user.user_metadata?.display_name||user.user_metadata?.full_name||'';if(n)document.getElementById('requestName').value=n;}return false;}catch(e){console.error(e);step('loginStep');setMsg('authMsg','Unable to check McCoy access right now.');return false;}}
+ document.getElementById('showSignupBtn').onclick=()=>{document.getElementById('signupEmail').value=document.getElementById('authEmail').value;step('signupStep');};document.getElementById('backLoginBtn').onclick=()=>step('loginStep');
+ document.getElementById('signInBtn').onclick=async()=>{setMsg('authMsg','Signing in...',true);const email=document.getElementById('authEmail').value.trim().toLowerCase(),password=document.getElementById('authPassword').value;const {error}=await sb.auth.signInWithPassword({email,password});if(error){setMsg('authMsg',error.message);return;}await routeAuthenticated();};
+ document.getElementById('createAccountBtn').onclick=async()=>{const name=document.getElementById('signupName').value.trim(),email=document.getElementById('signupEmail').value.trim().toLowerCase(),password=document.getElementById('signupPassword').value,team=document.getElementById('signupTeam').value;if(name.length<2){setMsg('signupMsg','Enter your full name.');return;}if(password.length<8){setMsg('signupMsg','Use a password at least 8 characters long.');return;}setMsg('signupMsg','Creating account...',true);const {data,error}=await sb.auth.signUp({email,password,options:{data:{display_name:name,requested_team:team},emailRedirectTo:location.origin+location.pathname}});if(error){setMsg('signupMsg',error.message);return;}if(data.session){document.getElementById('requestName').value=name;document.getElementById('requestTeam').value=team;await routeAuthenticated();}else setMsg('signupMsg','Account created. Check your email and confirm your address, then return here and sign in.',true);};
+ document.getElementById('requestAccessBtn').onclick=async()=>{const name=document.getElementById('requestName').value.trim(),team=document.getElementById('requestTeam').value;if(name.length<2){setMsg('requestMsg','Enter your full name.');return;}setMsg('requestMsg','Submitting request...',true);try{const d=await onboarding('request_access',{display_name:name,requested_team:team});if(d?.access?.active){await routeAuthenticated();return;}step('pendingStep');setMsg('pendingMsg','Access request sent to Admin.',true);}catch(e){console.error(e);setMsg('requestMsg','Unable to submit access request.');}};
+ document.getElementById('checkApprovalBtn').onclick=async()=>{setMsg('pendingMsg','Checking...',true);await routeAuthenticated();};for(const id of ['requestSignOutBtn','pendingSignOutBtn'])document.getElementById(id).onclick=async()=>{await sb.auth.signOut();location.reload();};
 
-  function msg(text,ok=false){const el=document.getElementById('authMsg');if(el){el.textContent=text;el.style.color=ok?'#166534':'#991b1b';}}
+ function setupAdminApprovals(){let btn=document.getElementById('accessAdminBtn');if(btn)return;btn=document.createElement('button');btn.id='accessAdminBtn';btn.textContent='Access Requests';btn.style.display='block';document.body.appendChild(btn);const panel=document.createElement('div');panel.id='accessAdminPanel';panel.innerHTML='<div class="access-card"><h2>Rep Access Requests</h2><p class="muted">Approve accounts and assign team/manager. New users never need Supabase access.</p><div id="accessRequestsBody">Loading…</div><div style="text-align:right;margin-top:12px"><button id="accessPanelClose" class="assign-btn">Close</button></div></div>';document.body.appendChild(panel);document.getElementById('accessPanelClose').onclick=()=>panel.classList.remove('show');btn.onclick=async()=>{panel.classList.add('show');await loadRequests();};}
+ async function loadRequests(){const root=document.getElementById('accessRequestsBody');root.textContent='Loading…';try{const d=await onboarding('list_pending');const reqs=d?.requests||[],mgrs=d?.managers||[];if(!reqs.length){root.innerHTML='<p class="muted">No pending access requests.</p>';return;}root.innerHTML=reqs.map((r,i)=>`<div class="access-row"><strong>${esc(r.display_name||r.email)}</strong><div class="muted small">${esc(r.email)} · requested ${esc(r.requested_team||'no team')}</div><div class="access-grid"><select id="arRole${i}"><option value="rep">Rep</option><option value="manager">Manager</option></select><select id="arTeam${i}"><option value="">No team</option><option ${r.requested_team==='Pacific Northwest'?'selected':''}>Pacific Northwest</option><option ${r.requested_team==='North Carolina'?'selected':''}>North Carolina</option></select><select id="arMgr${i}"><option value="">No manager</option>${mgrs.map(m=>`<option value="${esc(m.email)}">${esc(m.display_name||m.email)}</option>`).join('')}</select></div><div class="access-actions"><button class="primary" id="arApprove${i}">Approve</button><button class="assign-btn" id="arReject${i}">Reject</button></div></div>`).join('');reqs.forEach((r,i)=>{document.getElementById('arApprove'+i).onclick=async()=>{await onboarding('approve',{request_id:r.id,role:document.getElementById('arRole'+i).value,team_name:document.getElementById('arTeam'+i).value,assigned_manager_email:document.getElementById('arMgr'+i).value});await loadRequests();};document.getElementById('arReject'+i).onclick=async()=>{await onboarding('reject',{request_id:r.id});await loadRequests();};});}catch(e){console.error(e);root.textContent='Unable to load access requests.';}}
+ function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-  async function getAccess(user){
-    if(!user?.email) return null;
-    const {data,error}=await sb.from('app_user_access').select('email,role,active,display_name').eq('email',user.email.toLowerCase()).maybeSingle();
-    if(error){console.error(error);return null;}
-    return data?.active?data:null;
-  }
-
-  function applyMode(user,access){
-    window.MCCOY_ACCESS={user,access};
-    document.getElementById('authGate')?.classList.add('hidden');
-    document.body.classList.toggle('blind-tester',access.role!=='admin');
-    if(access.role!=='admin'){
-      document.getElementById('pageTitle').textContent='Field Test';
-      document.getElementById('arriveDoorBtn').textContent='PHYSICALLY KNOCKED';
-      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-      document.getElementById('field')?.classList.add('active');
-    }else{
-      document.getElementById('arriveDoorBtn').textContent='ARRIVE AT DOOR / START VISIT';
-    }
-    let strip=document.getElementById('userStrip');
-    if(!strip){strip=document.createElement('div');strip.id='userStrip';strip.className='user-strip';document.body.appendChild(strip);}
-    strip.innerHTML=`<span>${access.display_name||user.email} · ${access.role}</span><button id="signOutBtn">Sign out</button>`;
-    document.getElementById('signOutBtn').onclick=async()=>{await sb.auth.signOut();location.reload();};
-  }
-
-  async function authorizeCurrent(){
-    const {data:{user}}=await sb.auth.getUser();
-    if(!user) return false;
-    const access=await getAccess(user);
-    if(!access){
-      await sb.auth.signOut();
-      msg('This email is not authorized for McCoy Field testing.');
-      return false;
-    }
-    applyMode(user,access);return true;
-  }
-
-  document.getElementById('signInBtn').onclick=async()=>{
-    msg('Signing in...',true);
-    const email=document.getElementById('authEmail').value.trim().toLowerCase();
-    const password=document.getElementById('authPassword').value;
-    const {error}=await sb.auth.signInWithPassword({email,password});
-    if(error){msg(error.message);return;}
-    await authorizeCurrent();
-  };
-
-  document.getElementById('signUpBtn').onclick=async()=>{
-    const email=document.getElementById('authEmail').value.trim().toLowerCase();
-    const password=document.getElementById('authPassword').value;
-    if(password.length<8){msg('Use a password at least 8 characters long.');return;}
-    msg('Creating account...',true);
-    const {data,error}=await sb.auth.signUp({email,password});
-    if(error){msg(error.message);return;}
-    if(data.session){await authorizeCurrent();}
-    else msg('Account created. Check your email for the confirmation link, then return here and sign in.',true);
-  };
-
-  // Replace the prototype session writer with the authenticated identity-aware version required by RLS.
-  saveTestSessionStart = async function(startedAt){
-    const {data:{user},error:userError}=await sb.auth.getUser();
-    if(userError||!user){console.error(userError);return false;}
-    const access=window.MCCOY_ACCESS.access || await getAccess(user);
-    if(!access) return false;
-    telemetrySessionId=uuidv4();
-    const {error}=await sb.from('test_sessions').insert({
-      id:telemetrySessionId,
-      tester_name:access.display_name||user.email,
-      tester_user_id:user.id,
-      tester_email:user.email,
-      started_at:new Date(startedAt).toISOString(),
-      user_agent:navigator.userAgent,
-      app_version:'8.1-secure-blind-knock-label'
-    });
-    if(error){console.error('Telemetry session insert failed',error);telemetrySessionId=null;return false;}
-    return true;
-  };
-
-  authorizeCurrent();
+ // Authenticated identity-aware session writer retained for legacy callers.
+ saveTestSessionStart=async function(startedAt){const {data:{user},error:userError}=await sb.auth.getUser();if(userError||!user||!window.MCCOY_ACCESS.access)return false;telemetrySessionId=uuidv4();const {error}=await sb.from('test_sessions').insert({id:telemetrySessionId,tester_name:window.MCCOY_ACCESS.access.display_name||user.email,tester_user_id:user.id,tester_email:user.email,started_at:new Date(startedAt).toISOString(),user_agent:navigator.userAgent,app_version:'9.2-auto-stop'});if(error){console.error('Telemetry session insert failed',error);telemetrySessionId=null;return false;}return true;};
+ sb.auth.onAuthStateChange(()=>setTimeout(routeAuthenticated,0));routeAuthenticated();
 })();
