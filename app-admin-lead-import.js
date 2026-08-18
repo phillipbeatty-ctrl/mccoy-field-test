@@ -1,0 +1,1 @@
+(()=>{const btn=document.getElementById('adminLeadImportBtn');if(!btn)return;btn.addEventListener('click',()=>{if(window.MCCOY_ACCESS?.access?.role==='admin')location.href='spotio-import.html';});})();
