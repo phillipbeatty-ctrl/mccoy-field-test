@@ -10,14 +10,7 @@
 <body>
   <div id="app">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="logo">M</div>
-        <div>
-          <div class="brand-title">McCoy Field</div>
-          <div class="muted">Testing Build</div>
-        </div>
-      </div>
-
+      <div class="brand"><div class="logo">M</div><div><div class="brand-title">McCoy Field</div><div class="muted">Testing Build</div></div></div>
       <nav>
         <button class="nav-btn active" data-view="dashboard">Dashboard</button>
         <button class="nav-btn" data-view="teams">Teams</button>
@@ -25,23 +18,11 @@
         <button class="nav-btn" data-view="field">Field Test</button>
         <button class="nav-btn" data-view="settings">Connection</button>
       </nav>
-
-      <div class="sidebar-footer">
-        <div class="pill">Demo Admin</div>
-        <div class="muted small">Phillip Beatty</div>
-      </div>
+      <div class="sidebar-footer"><div class="pill">Demo Admin</div><div class="muted small">Phillip Beatty</div></div>
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div>
-          <h1 id="pageTitle">Dashboard</h1>
-          <div class="muted">D2D Rep Efficiency Project</div>
-        </div>
-        <div class="top-actions">
-          <span id="modeBadge" class="badge badge-demo">DOOR VERIFICATION TEST V7</span>
-        </div>
-      </header>
+      <header class="topbar"><div><h1 id="pageTitle">Dashboard</h1><div class="muted">D2D Rep Efficiency Project</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">PROPERTY + DOOR LEARNING V7.1</span></div></header>
 
       <section id="dashboard" class="view active">
         <div class="cards">
@@ -50,127 +31,41 @@
           <div class="card stat"><span>North Carolina</span><strong id="statNC">5,000</strong></div>
           <div class="card stat"><span>Active Managers</span><strong id="statManagers">1</strong></div>
         </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-head"><h2>Team Allocation</h2></div>
-            <div id="allocationBars"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h2>Manager Status</h2></div>
-            <div id="managerStatus"></div>
-          </div>
-        </div>
+        <div class="grid-2"><div class="card"><div class="card-head"><h2>Team Allocation</h2></div><div id="allocationBars"></div></div><div class="card"><div class="card-head"><h2>Manager Status</h2></div><div id="managerStatus"></div></div></div>
       </section>
 
-      <section id="teams" class="view">
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>Teams & Managers</h2>
-              <p class="muted">Test the same manager assignment flow the finished app will use.</p>
-            </div>
-          </div>
-          <div id="teamsTable"></div>
-        </div>
-      </section>
+      <section id="teams" class="view"><div class="card"><div class="card-head"><div><h2>Teams & Managers</h2><p class="muted">Test the same manager assignment flow the finished app will use.</p></div></div><div id="teamsTable"></div></div></section>
 
       <section id="leads" class="view">
-        <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>Lead Pool</h2>
-              <p class="muted">Demo lead allocation and rep assignment.</p>
-            </div>
-            <button id="addDemoLeadsBtn" class="primary">Add 10 Demo Leads</button>
-          </div>
-          <div class="toolbar">
-            <select id="teamFilter">
-              <option value="">All Teams</option>
-              <option value="Pacific Northwest">Pacific Northwest</option>
-              <option value="North Carolina">North Carolina</option>
-            </select>
-            <input id="leadSearch" placeholder="Search address or rep..." />
-          </div>
-          <div id="leadsTable"></div>
-        </div>
+        <div class="card"><div class="card-head"><div><h2>Lead Pool</h2><p class="muted">Demo lead allocation and rep assignment.</p></div><button id="addDemoLeadsBtn" class="primary">Add 10 Demo Leads</button></div>
+        <div class="toolbar"><select id="teamFilter"><option value="">All Teams</option><option value="Pacific Northwest">Pacific Northwest</option><option value="North Carolina">North Carolina</option></select><input id="leadSearch" placeholder="Search address or rep..." /></div><div id="leadsTable"></div></div>
       </section>
 
       <section id="field" class="view">
         <div class="grid-2">
-          <div class="card">
-            <div class="card-head"><h2>Field Session</h2></div>
-            <div class="field-controls">
-              <div class="field-state" id="fieldState">Not knocking</div>
-              <button id="startKnockingBtn" class="primary big">START KNOCKING</button>
-              <button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button>
-              <div id="geoBox" class="geo-box">GPS not captured yet.</div>
-              <div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div>
-              <div id="doorPresenceBox" class="geo-box"><strong>Door Presence:</strong> Unknown</div>
-              <div class="geo-box"><strong>V7 verification model:</strong> GPS quality tells us whether the location fix is trustworthy. Door Presence separately tells us whether that verified fix is within 15 m of the mapped lead, 15–30 m nearby, or outside the door radius.</div>
-              <div id="telemetryStatus" class="geo-box">Telemetry not started.</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head"><h2>Session Stats</h2></div>
-            <div class="mini-stats">
-              <div><span>Elapsed</span><strong id="elapsed">00:00:00</strong></div>
-              <div><span>Doors</span><strong id="doorsCount">0</strong></div>
-              <div><span>Contacts</span><strong id="contactsCount">0</strong></div>
-              <div><span>Sales</span><strong id="salesCount">0</strong></div>
-            </div>
-          </div>
+          <div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls">
+            <div class="field-state" id="fieldState">Not knocking</div>
+            <button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button>
+            <div id="geoBox" class="geo-box">GPS not captured yet.</div>
+            <div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div>
+            <div id="doorPresenceBox" class="geo-box"><strong>Property Presence:</strong> Unknown<br><strong>Door Confidence:</strong> Not Established</div>
+            <div class="geo-box"><strong>V7.1 model:</strong> the map pin is treated as an address/property reference, not a front-door coordinate. Verified movement paths can learn a probable neighborhood walkway corridor; repeated verified visit endpoints can learn an observed door location and typical walkway-to-door offset.</div>
+            <div id="telemetryStatus" class="geo-box">Telemetry not started.</div>
+          </div></div>
+          <div class="card"><div class="card-head"><h2>Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">00:00:00</strong></div><div><span>Doors</span><strong id="doorsCount">0</strong></div><div><span>Contacts</span><strong id="contactsCount">0</strong></div><div><span>Sales</span><strong id="salesCount">0</strong></div></div></div>
         </div>
 
         <div class="card">
-          <div class="card-head">
-            <div>
-              <h2>Door Disposition Test</h2>
-              <p class="muted">Select a demo lead, then record a disposition with GPS, door-presence verification, and dwell time.</p>
-            </div>
-          </div>
+          <div class="card-head"><div><h2>Door Disposition Test</h2><p class="muted">Record GPS quality, property confidence, learned door confidence, and dwell time separately.</p></div></div>
           <select id="fieldLeadSelect"></select>
-          <div class="calibration-panel">
-            <div>
-              <strong>Local GPS Calibration Lead</strong>
-              <div class="muted small">While physically at the test address, set the current location as the lead coordinate. Future arrival/disposition events will calculate distance from it.</div>
-            </div>
-            <button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS TEST LEAD</button>
-            <div id="calibrationStatus" class="geo-box">Calibration lead not set.</div>
-          </div>
-          <div class="door-visit-panel">
-            <button id="arriveDoorBtn" class="primary big">ARRIVE AT DOOR / START VISIT</button>
-            <div id="doorVisitStatus" class="geo-box">No active door visit.</div>
-            <div class="muted small">V7 keeps GPS quality and proof-of-presence separate. Only a Verified GPS fix can produce At Door, Near Door, or Outside Door Radius.</div>
-            <div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div>
-          </div>
-          <div class="disposition-grid">
-            <button data-disp="Not Home">Not Home</button>
-            <button data-disp="Contacted">Contacted</button>
-            <button data-disp="Interested">Interested</button>
-            <button data-disp="Follow Up">Follow Up</button>
-            <button data-disp="Sale" class="success">Sale</button>
-            <button data-disp="Not Interested">Not Interested</button>
-            <button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button>
-            <button data-disp="Bad Address">Bad Address</button>
-          </div>
-          <div id="activityLog" class="activity-log"></div>
-          <div id="efficiencySummary" class="efficiency-summary"></div>
+          <div class="calibration-panel"><div><strong>Local Address Reference</strong><div class="muted small">For controlled testing, set the current location as the address reference. Production geocoded address pins will be treated as property references rather than assumed front doors.</div></div><button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS ADDRESS REFERENCE</button><div id="calibrationStatus" class="geo-box">Address reference not set.</div></div>
+          <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVE / START VISIT</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">Property Presence uses a wider 30 m strong-match / 60 m probable-match tolerance around the address reference. Door Confidence is learned separately from repeated verified visit endpoints and probable walkway approach paths.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
+          <div class="disposition-grid"><button data-disp="Not Home">Not Home</button><button data-disp="Contacted">Contacted</button><button data-disp="Interested">Interested</button><button data-disp="Follow Up">Follow Up</button><button data-disp="Sale" class="success">Sale</button><button data-disp="Not Interested">Not Interested</button><button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button><button data-disp="Bad Address">Bad Address</button></div>
+          <div id="activityLog" class="activity-log"></div><div id="efficiencySummary" class="efficiency-summary"></div>
         </div>
       </section>
 
-      <section id="settings" class="view">
-        <div class="card">
-          <div class="card-head"><h2>Supabase Connection</h2></div>
-          <p>This build is configured for the existing <strong>D2D Rep Efficiency Project</strong>.</p>
-          <div class="connection-box">
-            <div><span>Project URL</span><code id="projectUrl"></code></div>
-            <div><span>Mode</span><strong>Demo field UI + live insert-only telemetry</strong></div>
-          </div>
-          <p class="muted">The publishable key is safe for client use. Row Level Security remains the authority for live data access.</p>
-        </div>
-      </section>
+      <section id="settings" class="view"><div class="card"><div class="card-head"><h2>Supabase Connection</h2></div><p>This build is configured for the existing <strong>D2D Rep Efficiency Project</strong>.</p><div class="connection-box"><div><span>Project URL</span><code id="projectUrl"></code></div><div><span>Mode</span><strong>Demo field UI + live insert-only telemetry</strong></div></div><p class="muted">The publishable key is safe for client use. Row Level Security remains the authority for live data access.</p></div></section>
     </main>
   </div>
 
