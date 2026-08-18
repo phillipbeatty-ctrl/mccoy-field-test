@@ -56,7 +56,7 @@ window.MCCOY_ACCESS = { user:null, access:null };
     document.body.classList.toggle('blind-tester',access.role!=='admin');
     if(access.role!=='admin'){
       document.getElementById('pageTitle').textContent='Field Test';
-      document.getElementById('arriveDoorBtn').textContent='I PHYSICALLY KNOCKED THIS DOOR';
+      document.getElementById('arriveDoorBtn').textContent='PHYSICALLY KNOCKED';
       document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
       document.getElementById('field')?.classList.add('active');
     }else{
@@ -114,7 +114,7 @@ window.MCCOY_ACCESS = { user:null, access:null };
       tester_email:user.email,
       started_at:new Date(startedAt).toISOString(),
       user_agent:navigator.userAgent,
-      app_version:'8.0-secure-blind-test'
+      app_version:'8.1-secure-blind-knock-label'
     });
     if(error){console.error('Telemetry session insert failed',error);telemetrySessionId=null;return false;}
     return true;
