@@ -1,23 +1,32 @@
 /*
 McCoy SPOTIO Capture Helper
 Run only from the browser DevTools Console while signed into https://app.spotio2.com/.
-It captures likely lead/pipeline/map JSON responses while you browse SPOTIO and downloads them locally.
-It deliberately ignores URLs containing auth/login/token/session/password terms.
+Captures lead-related JSON responses already delivered to the authenticated SPOTIO page.
 */
 (()=>{
   if(window.MCCOY_SPOTIO_CAPTURE){console.log('McCoy SPOTIO capture is already running.');return;}
   const captures=[];
+  const leadIds=new Set();
+  let expectedLeadCount=null;
   const startedAt=new Date().toISOString();
-  const include=/(lead|pipeline|map|pin|territor|customer|contact|record|prospect|address)/i;
+  const include=/(lead|pipeline|map|pin|territor|customer|contact|record|prospect|address|dataobjectssearch)/i;
   const exclude=/(auth|login|token|session|password|credential|refresh)/i;
   const safeUrl=(u)=>{try{const s=String(u||'');return include.test(s)&&!exclude.test(s);}catch{return false;}};
+  const inspectLeadPage=(url,data)=>{
+    try{
+      if(!String(url||'').includes('/api/dataobjectssearch/list'))return;
+      if(Number.isFinite(Number(data?.totalCount)))expectedLeadCount=Math.max(expectedLeadCount||0,Number(data.totalCount));
+      if(Array.isArray(data?.items)) for(const item of data.items) if(item?.id) leadIds.add(String(item.id));
+      console.log(`[McCoy SPOTIO] lead progress ${leadIds.size}${expectedLeadCount?` / ${expectedLeadCount}`:''}`);
+    }catch{}
+  };
   const add=(url,status,data)=>{
     if(!safeUrl(url))return;
     try{
       const serialized=JSON.stringify(data);
       if(serialized.length>5_000_000)return;
       captures.push({captured_at:new Date().toISOString(),url:String(url),status:Number(status||0),data});
-      console.log('[McCoy SPOTIO] captured',url,'total:',captures.length);
+      inspectLeadPage(url,data);
     }catch{}
   };
   const originalFetch=window.fetch.bind(window);
@@ -42,17 +51,22 @@ It deliberately ignores URLs containing auth/login/token/session/password terms.
   };
   const api={
     count:()=>captures.length,
+    leadCount:()=>leadIds.size,
+    expectedLeadCount:()=>expectedLeadCount,
+    status:()=>({capturedResponses:captures.length,uniqueLeads:leadIds.size,expectedLeads:expectedLeadCount,complete:!!expectedLeadCount&&leadIds.size>=expectedLeadCount}),
     preview:()=>captures,
-    clear:()=>{captures.length=0;console.log('[McCoy SPOTIO] capture cleared');},
+    clear:()=>{captures.length=0;leadIds.clear();expectedLeadCount=null;console.log('[McCoy SPOTIO] capture cleared');},
     download:()=>{
-      const payload={source:'spotio_browser_capture',source_origin:location.origin,started_at:startedAt,finished_at:new Date().toISOString(),captures};
+      const summary={captured_responses:captures.length,unique_leads:leadIds.size,expected_leads:expectedLeadCount,complete:!!expectedLeadCount&&leadIds.size>=expectedLeadCount};
+      const payload={source:'spotio_browser_capture',source_origin:location.origin,started_at:startedAt,finished_at:new Date().toISOString(),summary,captures};
       const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='spotio-mccoy-capture-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
-      console.log('[McCoy SPOTIO] downloaded',captures.length,'captured responses.');
+      console.log('[McCoy SPOTIO] downloaded',summary);
     }
   };
   window.MCCOY_SPOTIO_CAPTURE=api;
   console.log('%cMcCoy SPOTIO capture started','font-weight:bold;color:#166534');
-  console.log('Now browse/open your lead list, pipeline, map, territories, and scroll through leads so SPOTIO loads them.');
-  console.log('When finished run: MCCOY_SPOTIO_CAPTURE.download()');
+  console.log('Open the actual SPOTIO lead list and scroll through it so each page of leads loads.');
+  console.log('Check progress with: MCCOY_SPOTIO_CAPTURE.status()');
+  console.log('Download when uniqueLeads equals expectedLeads: MCCOY_SPOTIO_CAPTURE.download()');
 })();
