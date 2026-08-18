@@ -9,7 +9,7 @@
   const controls=document.createElement('div');
   controls.id='leadGeoControls';
   controls.style.cssText='margin:10px 0;padding:10px;border:1px solid #e5e7eb;border-radius:10px';
-  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">GEOCODE REAL LEADS</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT LEADS IN CURRENT MAP VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking geocode status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No geographic selection yet.</div>`;
+  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">GEOCODE REAL LEADS</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="lassoSelectBtn" class="assign-btn">LASSO SELECT</button><button id="clearMapSelectionBtn" class="assign-btn">CLEAR SELECTION</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT CURRENT VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking geocode status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No geographic selection yet.</div>`;
   leftCard?.insertBefore(controls,canvas);
 
   const rightCard=document.getElementById('mapAssignBtn')?.closest('.card');
@@ -24,13 +24,24 @@
   const markerByLead=new Map();
   let selectedIds=new Set();
   let firstFit=true;
+  let lassoMode=false;
+  let lassoDrawing=false;
+  let lassoPoints=[];
+  let lassoPreview=null;
+  let lassoPolygon=null;
+  let lastLassoPoint=null;
 
   function currentRealFiltered(){
     const team=document.getElementById('teamFilter')?.value||'';
     const q=(document.getElementById('leadSearch')?.value||'').toLowerCase();
     return (state.realLeads||[]).filter(l=>Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng))&&(!team||l.team===team)&&(!q||`${l.address} ${l.city||''} ${l.stateCode||''} ${l.zip||''} ${l.rep||''}`.toLowerCase().includes(q)));
   }
-  function markerStyle(selected=false){return selected?{renderer,radius:6,weight:2,fillOpacity:.85}:{renderer,radius:4,weight:1,fillOpacity:.55};}
+  function markerStyle(selected=false){return selected?{renderer,radius:6,weight:2,fillOpacity:.9}:{renderer,radius:4,weight:1,fillOpacity:.55};}
+  function updateSelectionStatus(prefix=''){
+    const leads=currentRealFiltered();
+    const base=`${leads.length.toLocaleString()} mapped leads in current filters · ${selectedIds.size.toLocaleString()} selected for bulk assignment.`;
+    document.getElementById('mapSelectionStatus').textContent=prefix?`${prefix} · ${base}`:base;
+  }
   function renderPins(fit=false){
     layer.clearLayers();markerByLead.clear();
     const leads=currentRealFiltered(),bounds=[];
@@ -38,14 +49,79 @@
       const selected=selectedIds.has(l.dbId);const m=L.circleMarker([Number(l.lat),Number(l.lng)],markerStyle(selected));
       m.bindTooltip(`${l.address}${l.rep?' · '+l.rep:''}`);m.on('click',()=>window.MCCOY_SELECT_MAP_LEAD?.(l.id));m.addTo(layer);markerByLead.set(l.dbId,m);bounds.push([Number(l.lat),Number(l.lng)]);
     }
-    document.getElementById('mapSelectionStatus').textContent=`${leads.length.toLocaleString()} mapped leads visible in current filters · ${selectedIds.size.toLocaleString()} selected for bulk assignment.`;
+    updateSelectionStatus();
     if(bounds.length&&(fit||firstFit)){map.fitBounds(bounds,{padding:[18,18],maxZoom:16});firstFit=false;}
   }
   window.MCCOY_RENDER_LEAD_MAP=renderPins;
 
-  function selectVisible(){
-    const b=map.getBounds();selectedIds=new Set(currentRealFiltered().filter(l=>b.contains([Number(l.lat),Number(l.lng)])).map(l=>l.dbId));renderPins(false);
+  function clearLassoShape(){
+    if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}
+    if(lassoPolygon){map.removeLayer(lassoPolygon);lassoPolygon=null;}
+    lassoPoints=[];lastLassoPoint=null;
   }
+  function clearSelection(){
+    selectedIds.clear();clearLassoShape();renderPins(false);updateSelectionStatus('Selection cleared');
+  }
+  function selectVisible(){
+    clearLassoShape();
+    const b=map.getBounds();selectedIds=new Set(currentRealFiltered().filter(l=>b.contains([Number(l.lat),Number(l.lng)])).map(l=>l.dbId));renderPins(false);updateSelectionStatus('Current map view selected');
+  }
+
+  function pointInPolygon(lat,lng,poly){
+    let inside=false;
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const yi=poly[i].lat,xi=poly[i].lng,yj=poly[j].lat,xj=poly[j].lng;
+      const crosses=((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi);
+      if(crosses)inside=!inside;
+    }
+    return inside;
+  }
+  function setLassoMode(on){
+    lassoMode=on;
+    const btn=document.getElementById('lassoSelectBtn');
+    if(on){
+      clearLassoShape();
+      btn.textContent='DRAW LASSO…';btn.className='primary';
+      canvas.style.cursor='crosshair';map.dragging.disable();
+      map.doubleClickZoom.disable();map.boxZoom.disable();
+      updateSelectionStatus('Drag around the leads you want, then release');
+    }else{
+      btn.textContent='LASSO SELECT';btn.className='assign-btn';
+      canvas.style.cursor='';map.dragging.enable();
+      map.doubleClickZoom.enable();map.boxZoom.enable();
+    }
+  }
+  function beginLasso(e){
+    if(!lassoMode)return;
+    const oe=e.originalEvent;if(oe&&typeof oe.button==='number'&&oe.button!==0)return;
+    lassoDrawing=true;lassoPoints=[e.latlng];lastLassoPoint=e.containerPoint;
+    if(lassoPreview)map.removeLayer(lassoPreview);
+    lassoPreview=L.polyline(lassoPoints,{weight:2,dashArray:'6 4',interactive:false}).addTo(map);
+    oe?.preventDefault?.();
+  }
+  function extendLasso(e){
+    if(!lassoMode||!lassoDrawing)return;
+    const p=e.containerPoint;
+    if(lastLassoPoint&&p.distanceTo(lastLassoPoint)<4)return;
+    lastLassoPoint=p;lassoPoints.push(e.latlng);lassoPreview?.setLatLngs(lassoPoints);
+  }
+  function finishLasso(){
+    if(!lassoMode||!lassoDrawing)return;
+    lassoDrawing=false;
+    if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}
+    if(lassoPoints.length<3){
+      clearLassoShape();setLassoMode(false);updateSelectionStatus('Lasso was too small; draw a closed area');return;
+    }
+    lassoPolygon=L.polygon(lassoPoints,{weight:2,fillOpacity:.12,interactive:false}).addTo(map);
+    selectedIds=new Set(currentRealFiltered().filter(l=>pointInPolygon(Number(l.lat),Number(l.lng),lassoPoints)).map(l=>l.dbId));
+    setLassoMode(false);renderPins(false);
+    updateSelectionStatus(`Lasso selected ${selectedIds.size.toLocaleString()} leads`);
+  }
+
+  map.on('mousedown',beginLasso);
+  map.on('mousemove',extendLasso);
+  map.on('mouseup',finishLasso);
+  map.on('mouseout',()=>{if(lassoMode&&lassoDrawing)finishLasso();});
 
   async function geocodeStatus(){
     if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}
@@ -71,16 +147,18 @@
     const repEmail=document.getElementById('mapRepSelect').value;const ids=[...selectedIds];msg.textContent=`Assigning ${ids.length.toLocaleString()} leads…`;
     try{
       for(let i=0;i<ids.length;i+=500){const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_leads',lead_ids:ids.slice(i,i+500),rep_email:repEmail}});if(error||!data?.ok)throw error||new Error(data?.error||'bulk_assign_failed');}
-      msg.textContent=`${ids.length.toLocaleString()} leads assigned successfully.`;selectedIds.clear();await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(false),250);
+      msg.textContent=`${ids.length.toLocaleString()} leads assigned successfully.`;selectedIds.clear();clearLassoShape();await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(false),250);
     }catch(e){console.error(e);msg.textContent='Bulk assignment failed. No browser-only assignment was substituted.';}
   }
 
   document.getElementById('geocodeRealLeadsBtn').onclick=geocodeAll;
   document.getElementById('fitAllPinsBtn').onclick=()=>renderPins(true);
+  document.getElementById('lassoSelectBtn').onclick=()=>setLassoMode(!lassoMode);
+  document.getElementById('clearMapSelectionBtn').onclick=clearSelection;
   document.getElementById('selectVisiblePinsBtn').onclick=selectVisible;
   document.getElementById('bulkAssignMapBtn').onclick=bulkAssign;
-  document.getElementById('teamFilter')?.addEventListener('change',()=>setTimeout(()=>renderPins(true),0));
-  document.getElementById('leadSearch')?.addEventListener('input',()=>setTimeout(()=>renderPins(true),100));
+  document.getElementById('teamFilter')?.addEventListener('change',()=>{selectedIds.clear();clearLassoShape();setTimeout(()=>renderPins(true),0)});
+  document.getElementById('leadSearch')?.addEventListener('input',()=>{selectedIds.clear();clearLassoShape();setTimeout(()=>renderPins(true),100)});
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{renderPins(true);geocodeStatus();},200));
   const obs=new MutationObserver(()=>{if(panel.style.display!=='none')setTimeout(()=>{map.invalidateSize();renderPins(firstFit);},50)});obs.observe(panel,{attributes:true,attributeFilter:['style']});
   setTimeout(()=>{map.setView([39.5,-98.35],4);renderPins(true);geocodeStatus();},800);
