@@ -22,7 +22,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar"><div><h1 id="pageTitle">Dashboard</h1><div class="muted">D2D Rep Efficiency Project</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">PROPERTY + DOOR LEARNING V7.1</span></div></header>
+      <header class="topbar"><div><h1 id="pageTitle">Dashboard</h1><div class="muted">D2D Rep Efficiency Project</div></div><div class="top-actions"><span id="modeBadge" class="badge badge-demo">EFFORT + CUSTOMER COMFORT V7.2</span></div></header>
 
       <section id="dashboard" class="view active">
         <div class="cards">
@@ -38,28 +38,21 @@
 
       <section id="leads" class="view">
         <div class="card"><div class="card-head"><div><h2>Lead Pool</h2><p class="muted">Demo lead allocation and rep assignment.</p></div><button id="addDemoLeadsBtn" class="primary">Add 10 Demo Leads</button></div>
-        <div class="toolbar"><select id="teamFilter"><option value="">All Teams</option><option value="Pacific Northwest">Pacific Northwest</option><option value="North Carolina">North Carolina</option></select><input id="leadSearch" placeholder="Search address or rep..." /></div><div id="leadsTable"></div></div>
+          <div class="toolbar"><select id="teamFilter"><option value="">All Teams</option><option value="Pacific Northwest">Pacific Northwest</option><option value="North Carolina">North Carolina</option></select><input id="leadSearch" placeholder="Search address or rep..." /></div><div id="leadsTable"></div>
+        </div>
       </section>
 
       <section id="field" class="view">
         <div class="grid-2">
-          <div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls">
-            <div class="field-state" id="fieldState">Not knocking</div>
-            <button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button>
-            <div id="geoBox" class="geo-box">GPS not captured yet.</div>
-            <div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div>
-            <div id="doorPresenceBox" class="geo-box"><strong>Property Presence:</strong> Unknown<br><strong>Door Confidence:</strong> Not Established</div>
-            <div class="geo-box"><strong>V7.1 model:</strong> the map pin is treated as an address/property reference, not a front-door coordinate. Verified movement paths can learn a probable neighborhood walkway corridor; repeated verified visit endpoints can learn an observed door location and typical walkway-to-door offset.</div>
-            <div id="telemetryStatus" class="geo-box">Telemetry not started.</div>
-          </div></div>
+          <div class="card"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box"><strong>Property Presence:</strong> Unknown<br><strong>Door Confidence:</strong> Not Established</div><div class="geo-box"><strong>V7.2 model:</strong> GPS quality, property presence, learned door confidence, customer-comfort distance, walking speed, stop frequency, and off-route idle are tracked separately.</div><div id="telemetryStatus" class="geo-box">Telemetry not started.</div></div></div>
           <div class="card"><div class="card-head"><h2>Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">00:00:00</strong></div><div><span>Doors</span><strong id="doorsCount">0</strong></div><div><span>Contacts</span><strong id="contactsCount">0</strong></div><div><span>Sales</span><strong id="salesCount">0</strong></div></div></div>
         </div>
 
         <div class="card">
-          <div class="card-head"><div><h2>Door Disposition Test</h2><p class="muted">Record GPS quality, property confidence, learned door confidence, and dwell time separately.</p></div></div>
+          <div class="card-head"><div><h2>Door Disposition Test</h2><p class="muted">Record GPS, property presence, learned door confidence, customer spacing, dwell time, and effort patterns.</p></div></div>
           <select id="fieldLeadSelect"></select>
-          <div class="calibration-panel"><div><strong>Local Address Reference</strong><div class="muted small">For controlled testing, set the current location as the address reference. Production geocoded address pins will be treated as property references rather than assumed front doors.</div></div><button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS ADDRESS REFERENCE</button><div id="calibrationStatus" class="geo-box">Address reference not set.</div></div>
-          <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVE / START VISIT</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">Property Presence uses a wider 30 m strong-match / 60 m probable-match tolerance around the address reference. Door Confidence is learned separately from repeated verified visit endpoints and probable walkway approach paths.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
+          <div class="calibration-panel"><div><strong>Local Address Reference</strong><div class="muted small">While physically at the test property, set the current location as a temporary address reference. Repeated verified visits can learn an observed door location independently from this map/address point.</div></div><button id="setCalibrationLeadBtn" class="assign-btn">SET CURRENT LOCATION AS ADDRESS REFERENCE</button><div id="calibrationStatus" class="geo-box">Address reference not set.</div></div>
+          <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVE AT DOOR / START VISIT</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">The app does not assume the geocoded address point equals the front door. Repeated verified visit endpoints and transit paths are used to learn the physical door and typical walkway-to-door offset.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
           <div class="disposition-grid"><button data-disp="Not Home">Not Home</button><button data-disp="Contacted">Contacted</button><button data-disp="Interested">Interested</button><button data-disp="Follow Up">Follow Up</button><button data-disp="Sale" class="success">Sale</button><button data-disp="Not Interested">Not Interested</button><button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button><button data-disp="Bad Address">Bad Address</button></div>
           <div id="activityLog" class="activity-log"></div><div id="efficiencySummary" class="efficiency-summary"></div>
         </div>
@@ -71,5 +64,6 @@
 
   <script src="app-part1.js"></script>
   <script src="app-part2.js"></script>
+  <script src="app-part3.js"></script>
 </body>
 </html>
