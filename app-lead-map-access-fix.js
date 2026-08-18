@@ -6,7 +6,11 @@
     const select=document.getElementById('mapRepSelect');
     if(select){
       const label=select.previousElementSibling;
-      if(label&&label.tagName==='LABEL')label.textContent='REP';
+      if(label&&label.tagName==='LABEL'){
+        label.textContent='Assign to rep';
+        label.style.display='block';
+        label.style.margin='0 0 2px 0';
+      }
       if(!document.getElementById('mapAssignmentRepWidthFix')){
         const style=document.createElement('style');
         style.id='mapAssignmentRepWidthFix';
