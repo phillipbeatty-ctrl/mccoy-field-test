@@ -3,7 +3,7 @@
   if(!panel||!window.L)return;
   const iframe=document.getElementById('leadMapFrame');
   if(!iframe)return;
-  const canvas=document.createElement('div');canvas.id='leadMapCanvas';canvas.style.cssText='width:100%;height:520px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden';iframe.replaceWith(canvas);
+  const canvas=document.createElement('div');canvas.id='leadMapFrame';canvas.style.cssText='width:100%;height:520px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden';iframe.replaceWith(canvas);
 
   const leftCard=canvas.closest('.card');
   const controls=document.createElement('div');
