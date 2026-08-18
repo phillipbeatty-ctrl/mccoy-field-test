@@ -1,0 +1,29 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {"key":"Content-Security-Policy","value":"default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://athxxrfqxwlfnuvbqadp.supabase.co wss://athxxrfqxwlfnuvbqadp.supabase.co; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"},
+        {"key":"X-Content-Type-Options","value":"nosniff"},
+        {"key":"X-Frame-Options","value":"DENY"},
+        {"key":"Referrer-Policy","value":"no-referrer"},
+        {"key":"Permissions-Policy","value":"geolocation=(self), camera=(), microphone=(), payment=(), usb=()"},
+        {"key":"Cross-Origin-Opener-Policy","value":"same-origin"},
+        {"key":"Cross-Origin-Resource-Policy","value":"same-origin"},
+        {"key":"X-Robots-Tag","value":"noindex, nofollow, noarchive, nosnippet"}
+      ]
+    },
+    {
+      "source": "/(.*\\.js)",
+      "headers": [
+        {"key":"Cache-Control","value":"private, no-store, max-age=0, must-revalidate"}
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {"key":"Cache-Control","value":"private, no-store, max-age=0, must-revalidate"}
+      ]
+    }
+  ]
+}
