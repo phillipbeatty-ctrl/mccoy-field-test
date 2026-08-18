@@ -39,7 +39,7 @@
           <div class="muted">D2D Rep Efficiency Project</div>
         </div>
         <div class="top-actions">
-          <span id="modeBadge" class="badge badge-demo">ADAPTIVE GPS TEST V6</span>
+          <span id="modeBadge" class="badge badge-demo">DOOR VERIFICATION TEST V7</span>
         </div>
       </header>
 
@@ -53,16 +53,11 @@
 
         <div class="grid-2">
           <div class="card">
-            <div class="card-head">
-              <h2>Team Allocation</h2>
-            </div>
+            <div class="card-head"><h2>Team Allocation</h2></div>
             <div id="allocationBars"></div>
           </div>
-
           <div class="card">
-            <div class="card-head">
-              <h2>Manager Status</h2>
-            </div>
+            <div class="card-head"><h2>Manager Status</h2></div>
             <div id="managerStatus"></div>
           </div>
         </div>
@@ -89,7 +84,6 @@
             </div>
             <button id="addDemoLeadsBtn" class="primary">Add 10 Demo Leads</button>
           </div>
-
           <div class="toolbar">
             <select id="teamFilter">
               <option value="">All Teams</option>
@@ -98,7 +92,6 @@
             </select>
             <input id="leadSearch" placeholder="Search address or rep..." />
           </div>
-
           <div id="leadsTable"></div>
         </div>
       </section>
@@ -111,7 +104,11 @@
               <div class="field-state" id="fieldState">Not knocking</div>
               <button id="startKnockingBtn" class="primary big">START KNOCKING</button>
               <button id="stopKnockingBtn" class="danger big hidden">STOP KNOCKING</button>
-              <div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div><div class="geo-box"><strong>Adaptive GPS strategy:</strong> routine tracking stays conservative; door verification uses tighter 15 m / 30 m / 50 m thresholds.</div><div id="telemetryStatus" class="geo-box">Telemetry not started.</div>
+              <div id="geoBox" class="geo-box">GPS not captured yet.</div>
+              <div id="gpsQualityBox" class="gps-quality gps-unverified">GPS: Unverified</div>
+              <div id="doorPresenceBox" class="geo-box"><strong>Door Presence:</strong> Unknown</div>
+              <div class="geo-box"><strong>V7 verification model:</strong> GPS quality tells us whether the location fix is trustworthy. Door Presence separately tells us whether that verified fix is within 15 m of the mapped lead, 15–30 m nearby, or outside the door radius.</div>
+              <div id="telemetryStatus" class="geo-box">Telemetry not started.</div>
             </div>
           </div>
 
@@ -130,7 +127,7 @@
           <div class="card-head">
             <div>
               <h2>Door Disposition Test</h2>
-              <p class="muted">Select a demo lead, then record a disposition with GPS and timestamp.</p>
+              <p class="muted">Select a demo lead, then record a disposition with GPS, door-presence verification, and dwell time.</p>
             </div>
           </div>
           <select id="fieldLeadSelect"></select>
@@ -144,7 +141,8 @@
           </div>
           <div class="door-visit-panel">
             <button id="arriveDoorBtn" class="primary big">ARRIVE AT DOOR / START VISIT</button>
-            <div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="muted small">V6 keeps routine tracking lightweight, but uses the freshest available GPS snapshot at arrival and disposition. Production will increase precision only near a selected lead or door event.</div>
+            <div id="doorVisitStatus" class="geo-box">No active door visit.</div>
+            <div class="muted small">V7 keeps GPS quality and proof-of-presence separate. Only a Verified GPS fix can produce At Door, Near Door, or Outside Door Radius.</div>
             <div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div>
           </div>
           <div class="disposition-grid">
@@ -157,7 +155,8 @@
             <button data-disp="Do Not Knock" class="danger-lite">Do Not Knock</button>
             <button data-disp="Bad Address">Bad Address</button>
           </div>
-          <div id="activityLog" class="activity-log"></div><div id="efficiencySummary" class="efficiency-summary"></div>
+          <div id="activityLog" class="activity-log"></div>
+          <div id="efficiencySummary" class="efficiency-summary"></div>
         </div>
       </section>
 
@@ -167,11 +166,9 @@
           <p>This build is configured for the existing <strong>D2D Rep Efficiency Project</strong>.</p>
           <div class="connection-box">
             <div><span>Project URL</span><code id="projectUrl"></code></div>
-            <div><span>Mode</span><strong>Demo now / Live after Auth login is created</strong></div>
+            <div><span>Mode</span><strong>Demo field UI + live insert-only telemetry</strong></div>
           </div>
-          <p class="muted">
-            The publishable key is safe for client use. Row Level Security remains the authority for live data access.
-          </p>
+          <p class="muted">The publishable key is safe for client use. Row Level Security remains the authority for live data access.</p>
         </div>
       </section>
     </main>
