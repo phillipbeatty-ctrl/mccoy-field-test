@@ -1,8 +1,24 @@
 (()=>{
   let checks=0;
   const MAX_CHECKS=60;
+
+  function polishMapAssignment(){
+    const select=document.getElementById('mapRepSelect');
+    if(select){
+      const label=select.previousElementSibling;
+      if(label&&label.tagName==='LABEL')label.textContent='REP';
+      if(!document.getElementById('mapAssignmentRepWidthFix')){
+        const style=document.createElement('style');
+        style.id='mapAssignmentRepWidthFix';
+        style.textContent=`#mapRepSelect{width:100%!important;max-width:none!important;min-width:0!important;display:block!important}#leadMapPanel>.grid-2>.card:last-child{min-width:205px;max-width:240px}`;
+        document.head.appendChild(style);
+      }
+    }
+  }
+
   function syncGeocodeControl(){
     checks++;
+    polishMapAssignment();
     const btn=document.getElementById('geocodeRealLeadsBtn');
     const progress=document.getElementById('geocodeProgress');
     if(!btn){
