@@ -1,22 +1,42 @@
-// Restrict real-lead imports to McCoy administrators. The control is hidden and inert for every other role.
-(()=> {
-  const btn = document.getElementById('adminLeadImportBtn');
-  if (!btn) return;
+// Keep real-lead importing completely unavailable unless the authenticated account is an active admin.
+(()=>{
+  const button=document.getElementById('adminLeadImportBtn');
+  if(!button)return;
 
-  const isAdmin = window.MCCOY_ACCESS?.access?.role === 'admin';
-  if (!isAdmin) {
-    btn.hidden = true;
-    btn.disabled = true;
-    btn.setAttribute('aria-hidden', 'true');
-    btn.tabIndex = -1;
-    return;
+  function isActiveAdmin(){
+    const access=window.MCCOY_ACCESS?.access;
+    return access?.active===true&&access.role==='admin';
   }
 
-  btn.hidden = false;
-  btn.disabled = false;
-  btn.removeAttribute('aria-hidden');
-  btn.addEventListener('click', () => {
-    if (window.MCCOY_ACCESS?.access?.role !== 'admin') return;
-    location.href = 'spotio-import.html';
+  function syncImportPermission(){
+    const allowed=isActiveAdmin();
+    button.hidden=!allowed;
+    button.disabled=!allowed;
+    if(allowed){
+      button.removeAttribute('aria-hidden');
+      button.removeAttribute('tabindex');
+    }else{
+      button.setAttribute('aria-hidden','true');
+      button.tabIndex=-1;
+    }
+    return allowed;
+  }
+
+  syncImportPermission();
+  window.addEventListener('mccoy-access-ready',syncImportPermission);
+  button.addEventListener('click',event=>{
+    if(!isActiveAdmin()){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      syncImportPermission();
+      return;
+    }
+    location.href='spotio-import.html';
   });
+
+  let checks=0;
+  const pendingAccess=setInterval(()=>{
+    syncImportPermission();
+    if(window.MCCOY_ACCESS?.access||++checks>=80)clearInterval(pendingAccess);
+  },250);
 })();
