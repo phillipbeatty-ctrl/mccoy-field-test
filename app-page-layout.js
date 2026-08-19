@@ -57,13 +57,27 @@
     if(view==='leads')setTimeout(()=>window.MCCOY_RENDER_LEAD_MAP?.(false),60);
   }
 
+  function moveImportButtonToSidebar(){
+    const nav=document.querySelector('.sidebar nav');
+    const importBtn=document.getElementById('adminLeadImportBtn');
+    const systemBtn=nav?.querySelector('.nav-btn[data-view="settings"]');
+    if(!nav||!importBtn||!systemBtn)return;
+    importBtn.textContent='IMPORT REAL LEADS';
+    importBtn.className='assign-btn sidebar-import-leads-btn';
+    importBtn.style.cssText='width:100%;text-align:left;margin:0;padding:10px 12px;box-sizing:border-box';
+    nav.insertBefore(importBtn,systemBtn);
+  }
+
   function reorderNav(){
     const nav=document.querySelector('.sidebar nav');
     if(!nav)return;
-    ['dashboard','field','teams','leads','settings'].forEach(view=>{
+    ['dashboard','field','teams','leads'].forEach(view=>{
       const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);
       if(btn)nav.appendChild(btn);
     });
+    moveImportButtonToSidebar();
+    const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');
+    if(systemBtn)nav.appendChild(systemBtn);
   }
 
   function bindHeaders(){
@@ -79,6 +93,8 @@
     bindHeaders();
     ensureHeaderLayout();
     activate('dashboard');
+    setTimeout(moveImportButtonToSidebar,250);
+    setTimeout(moveImportButtonToSidebar,900);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
