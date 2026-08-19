@@ -7,6 +7,31 @@
     settings:''
   };
 
+  function ensureSidebarImportStyles(){
+    if(document.getElementById('sidebarImportLeadStyles'))return;
+    const style=document.createElement('style');
+    style.id='sidebarImportLeadStyles';
+    style.textContent=`
+      .sidebar-import-leads-btn{
+        border:0!important;
+        background:transparent!important;
+        color:#d1d5db!important;
+        text-align:left!important;
+        padding:11px 12px!important;
+        border-radius:8px!important;
+        cursor:pointer!important;
+        width:100%!important;
+        font-weight:400!important;
+        box-sizing:border-box!important;
+      }
+      .sidebar-import-leads-btn:hover{
+        background:#1f2937!important;
+        color:#fff!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function ensureHeaderLayout(){
     const title=document.getElementById('pageTitle');
     const topbar=title?.closest('.topbar');
@@ -58,13 +83,14 @@
   }
 
   function moveImportButtonToSidebar(){
+    ensureSidebarImportStyles();
     const nav=document.querySelector('.sidebar nav');
     const importBtn=document.getElementById('adminLeadImportBtn');
     const systemBtn=nav?.querySelector('.nav-btn[data-view="settings"]');
     if(!nav||!importBtn||!systemBtn)return;
     importBtn.textContent='IMPORT REAL LEADS';
-    importBtn.className='assign-btn sidebar-import-leads-btn';
-    importBtn.style.cssText='width:100%;text-align:left;margin:0;padding:10px 12px;box-sizing:border-box';
+    importBtn.className='sidebar-import-leads-btn';
+    importBtn.removeAttribute('style');
     nav.insertBefore(importBtn,systemBtn);
   }
 
@@ -89,6 +115,7 @@
   }
 
   function init(){
+    ensureSidebarImportStyles();
     reorderNav();
     bindHeaders();
     ensureHeaderLayout();
