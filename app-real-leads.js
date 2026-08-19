@@ -27,7 +27,7 @@
       rows.push(...chunk);
       if(!chunk.length||chunk.length<PAGE)break;
       page++;
-      if(page>20)throw new Error('real_lead_pagination_guard');
+      if(page>30)throw new Error('real_lead_pagination_guard');
     }
     return {rows,total:Number(total||rows.length),batchId};
   }
@@ -79,10 +79,20 @@
     if(!batchId||!missingCount||fallbackRunning||fallbackAttemptedBatches.has(batchId))return;
     fallbackRunning=true;fallbackAttemptedBatches.add(batchId);
     try{
-      const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'resolve_missing_locations',limit:Math.min(500,missingCount)}});
-      if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'missing_location_resolution_failed');
-      console.log(`McCoy location fallback: ${data.resolved||0} resolved (${data.exact||0} exact, ${data.approx_zip||0} ZIP, ${data.approx_city||0} city); ${data.still_unmatched||0} still unmatched.`);
-      if(Number(data.resolved||0)>0){
+      let remaining=Number(missingCount||0),totalResolved=0,round=0;
+      const maxRounds=Math.min(20,Math.max(1,Math.ceil(remaining/500)+2));
+      while(remaining>0&&round<maxRounds){
+        round++;
+        const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'resolve_missing_locations',limit:Math.min(500,remaining)}});
+        if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'missing_location_resolution_failed');
+        const resolved=Number(data.resolved||0);
+        totalResolved+=resolved;
+        console.log(`McCoy location fallback round ${round}: ${resolved} resolved (${data.exact||0} exact, ${data.approx_zip||0} ZIP, ${data.approx_city||0} city); ${data.still_unmatched||0} still unmatched in this round.`);
+        if(resolved<=0)break;
+        remaining=Math.max(0,remaining-resolved);
+        await sleep(150);
+      }
+      if(totalResolved>0){
         const refreshed=await loadRealLeadRowsFromServer();
         applyLoadedResult(refreshed);
       }
@@ -100,7 +110,7 @@
     const real=applyLoadedResult(result);
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
     if(missing)setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
-    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads from ${result.batchId||'no batch'}; ${missing} awaiting location fallback.`);
+    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting location fallback.`);
     return real;
   }
 
@@ -125,7 +135,7 @@
 
   window.loadMcCoyLeads=loadMcCoyLeads;
   window.MCCOY_RESOLVE_MISSING_LEAD_LOCATIONS=()=>{
-    const batchId=state.realLeads?.[0]?.importBatchId;
+    const batchId=state.realLeads?.find(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng)))?.importBatchId||state.realLeads?.[0]?.importBatchId;
     const missing=(state.realLeads||[]).filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
     fallbackAttemptedBatches.delete(batchId);
     return resolveMissingCoordinates(batchId,missing);
