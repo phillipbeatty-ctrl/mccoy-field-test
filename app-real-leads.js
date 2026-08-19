@@ -37,6 +37,8 @@
       sourceId:r.source_id,
       sourceSystem:r.source_system||'SPOTIO',
       importBatchId:r.import_batch_id,
+      address1:r.address1||'',
+      address2:r.address2||'',
       address:[r.address1,r.address2].filter(Boolean).join(' '),
       city:r.city||'',stateCode:r.state||'',zip:r.zip||'',
       fullAddress:[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', '),
