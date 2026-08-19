@@ -38,9 +38,32 @@
   let latestStatus=null;
   let syncRefreshTimer=null;
   let syncRefreshAttempts=0;
+  let loadedOwner=null;
+  let statusRequest=null;
   const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const setStatus=(value,ok=true)=>{const el=document.getElementById('appleNotesStatus');el.textContent=value;el.style.color=ok?'#166534':'#991b1b';};
   const invoke=async(action,payload={})=>{const {data,error}=await sb.functions.invoke('apple-notes-sync',{body:{action,...payload}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||'apple_notes_request_failed');return data;};
+  const currentOwner=()=>window.MCCOY_ACCESS?.user?.id||window.MCCOY_ACCESS?.user?.email||window.MCCOY_ACCESS?.access?.email||null;
+  const folderStorageKey=()=>{const owner=currentOwner();return owner?'mccoy_apple_notes_folders:'+owner:null;};
+
+  function readSavedFolders(){
+    try{const key=folderStorageKey();if(!key)return[];const parsed=JSON.parse(window.localStorage?.getItem(key)||'[]');return Array.isArray(parsed)?parsed.filter(folder=>folder&&folder.active&&typeof folder.id==='string'&&typeof folder.folder_name==='string'):[];}
+    catch(_error){return[];}
+  }
+
+  function saveAuthorizedFolders(folders){
+    try{const key=folderStorageKey();if(!key)return;const active=(folders||[]).filter(folder=>folder.active).map(folder=>({id:String(folder.id),folder_name:String(folder.folder_name),active:true,last_synced_at:folder.last_synced_at||null}));if(active.length)window.localStorage?.setItem(key,JSON.stringify(active));else window.localStorage?.removeItem(key);}
+    catch(_error){/* Browser storage can be unavailable; the server remains authoritative. */}
+  }
+
+  function restoreSavedFolders(){
+    const saved=readSavedFolders();
+    if(!saved.length)return false;
+    if(!latestStatus)latestStatus={connection:null,folders:saved,note_count:0};
+    else if(!(latestStatus.folders||[]).some(folder=>folder.active))latestStatus={...latestStatus,folders:saved};
+    renderFolders(saved);
+    return true;
+  }
 
   function renderFolders(folders){
     const list=document.getElementById('appleNotesFolderList');
@@ -53,8 +76,20 @@
   }
 
   async function loadStatus(){
-    try{latestStatus=await invoke('status');renderFolders(latestStatus.folders);const count=Number(latestStatus.note_count||0);const lastSync=latestStatus.connection?.last_synced_at?' · Last synced '+new Date(latestStatus.connection.last_synced_at).toLocaleString():'';setStatus((latestStatus.connection?.active?'Apple Shortcuts connection active':'Apple Shortcuts connection not configured')+' · '+count+' synced note'+(count===1?'':'s')+lastSync+'.');loaded=true;}
-    catch(error){console.error('Apple Notes status failed',error);setStatus('Unable to load Apple Notes settings.',false);}
+    if(statusRequest)return statusRequest;
+    const requestOwner=currentOwner();
+    statusRequest=(async()=>{
+      try{
+        const result=await invoke('status');
+        if(requestOwner&&currentOwner()!==requestOwner)return;
+        latestStatus=result;saveAuthorizedFolders(latestStatus.folders);renderFolders(latestStatus.folders);
+        const count=Number(latestStatus.note_count||0);
+        const lastSync=latestStatus.connection?.last_synced_at?' · Last synced '+new Date(latestStatus.connection.last_synced_at).toLocaleString():'';
+        setStatus((latestStatus.connection?.active?'Apple Shortcuts connection active':'Apple Shortcuts connection not configured')+' · '+count+' synced note'+(count===1?'':'s')+lastSync+'.');
+        loaded=true;loadedOwner=requestOwner;
+      }catch(error){console.error('Apple Notes status failed',error);if(restoreSavedFolders())setStatus('Saved folders remain connected. Unable to refresh Apple Notes status right now.',false);else setStatus('Unable to load Apple Notes settings.',false);}
+    })();
+    try{return await statusRequest;}finally{statusRequest=null;}
   }
 
   function refreshAfterSync(){
@@ -93,7 +128,13 @@
   }
 
   async function removeFolder(folderId){
-    try{await invoke('remove_folder',{folder_id:folderId});document.getElementById('appleNotesDocumentList').innerHTML='';await loadStatus();setStatus('Folder disconnected and its imported notes were removed.');}
+    try{
+      await invoke('remove_folder',{folder_id:folderId});
+      const remaining=(latestStatus?.folders||readSavedFolders()).filter(folder=>folder.active&&folder.id!==folderId);
+      latestStatus={...(latestStatus||{}),folders:remaining};saveAuthorizedFolders(remaining);renderFolders(remaining);
+      document.getElementById('appleNotesDocumentList').innerHTML='';await loadStatus();
+      setStatus('Folder disconnected and its imported notes were removed.');
+    }
     catch(error){console.error('Apple Notes folder removal failed',error);setStatus('Unable to remove this folder.',false);}
   }
 
@@ -120,12 +161,29 @@
     catch(error){console.error('Apple Notes disconnection failed',error);setStatus('Unable to disconnect Apple Notes.',false);}
   });
 
-  function showForAdmin(){const admin=window.MCCOY_ACCESS?.access?.active&&window.MCCOY_ACCESS?.access?.role==='admin';card.hidden=!admin;if(admin&&!loaded)loadStatus();}
-  window.addEventListener('mccoy-real-leads-loaded',showForAdmin);
+  function showForAdmin(forceRefresh=false){
+    const admin=window.MCCOY_ACCESS?.access?.active&&window.MCCOY_ACCESS?.access?.role==='admin';
+    card.hidden=!admin;
+    if(!admin)return;
+    const owner=currentOwner();
+    if(loadedOwner&&owner&&loadedOwner!==owner){loaded=false;latestStatus=null;renderFolders([]);}
+    const host=document.getElementById('settings');if(host&&card.parentElement!==host)host.appendChild(card);
+    if(!(latestStatus?.folders||[]).some(folder=>folder.active))restoreSavedFolders();
+    if(!loaded||forceRefresh)loadStatus();
+  }
+
+  document.querySelectorAll('.nav-btn[data-view="settings"]').forEach(button=>{
+    if(button.dataset.mccoyAppleNotesBound==='1')return;
+    button.dataset.mccoyAppleNotesBound='1';
+    button.addEventListener('click',()=>setTimeout(()=>showForAdmin(true),0));
+  });
+  window.addEventListener('hashchange',()=>{if(location.hash==='#settings')showForAdmin(true);});
+  window.addEventListener('pageshow',()=>showForAdmin(true));
+  window.addEventListener('mccoy-real-leads-loaded',()=>showForAdmin(true));
   window.addEventListener('focus',()=>{if(loaded&&!card.hidden){loadStatus();if(syncRefreshTimer)refreshAfterSync();}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&loaded&&!card.hidden){loadStatus();if(syncRefreshTimer)refreshAfterSync();}});
   const callbackStatus=new URLSearchParams(location.search).get('appleNotesSync');
   if(callbackStatus){window.setTimeout(async()=>{if(!loaded||card.hidden)return;await loadStatus();if(callbackStatus==='complete'){const active=(latestStatus?.folders||[]).filter(folder=>folder.active);if(active.length===1)await viewNotes(active[0].id);setStatus('Returned from Apple Notes sync · '+Number(latestStatus?.note_count||0)+' synced notes.');}else setStatus(callbackStatus==='cancelled'?'Apple Notes sync was cancelled.':'Apple Notes sync did not complete. Check your McCoy Notes Sync shortcut.',false);history.replaceState(history.state,'',location.pathname+location.hash);},1200);}
-  sb.auth.onAuthStateChange(()=>setTimeout(showForAdmin,700));
+  sb.auth.onAuthStateChange(()=>setTimeout(()=>showForAdmin(true),700));
   let attempts=0;const timer=setInterval(()=>{showForAdmin();if(loaded||++attempts>=30)clearInterval(timer);},500);
 })();
