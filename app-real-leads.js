@@ -1,6 +1,8 @@
 (()=>{
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   let loadPromise=null;
+  let fallbackRunning=false;
+  const fallbackAttemptedBatches=new Set();
 
   async function waitForAdminAccess(timeoutMs=15000){
     const start=Date.now();
@@ -48,14 +50,44 @@
       address:[r.address1,r.address2].filter(Boolean).join(' '),
       city:r.city||'',stateCode:r.state||'',zip:r.zip||'',
       fullAddress:[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', '),
-      // Never coerce a missing coordinate to numeric zero. Null/blank means unmapped.
       lat:validCoordinate(r.latitude),lng:validCoordinate(r.longitude),
+      geocodeStatus:r.geocode_status||null,
       assignedRepId:r.assigned_rep_id||null,
       team:r.state==='NC'?'North Carolina':(['OR','WA'].includes(r.state)?'Pacific Northwest':'Unassigned'),
       rep:null,
       disposition:r.current_disposition||'Uncontacted',
       isDemo:false
     }));
+  }
+
+  function applyLoadedResult(result){
+    const real=mapLeadRows(result.rows);
+    if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
+    state.realLeads=real;
+    if(!state.demoLeads)state.demoLeads=[];
+    state.leadMode='real';
+    state.leads=state.realLeads;
+    for(const t of state.teams)t.leads=real.filter(l=>l.team===t.name).length;
+    renderAll();
+    if(typeof window.renderLeads==='function')window.renderLeads();
+    window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail:{count:real.length,batchId:result.batchId,total:result.total}}));
+    window.MCCOY_RENDER_LEAD_MAP?.(false);
+    return real;
+  }
+
+  async function resolveMissingCoordinates(batchId,missingCount){
+    if(!batchId||!missingCount||fallbackRunning||fallbackAttemptedBatches.has(batchId))return;
+    fallbackRunning=true;fallbackAttemptedBatches.add(batchId);
+    try{
+      const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'resolve_missing_locations',limit:Math.min(500,missingCount)}});
+      if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'missing_location_resolution_failed');
+      console.log(`McCoy location fallback: ${data.resolved||0} resolved (${data.exact||0} exact, ${data.approx_zip||0} ZIP, ${data.approx_city||0} city); ${data.still_unmatched||0} still unmatched.`);
+      if(Number(data.resolved||0)>0){
+        const refreshed=await loadRealLeadRowsFromServer();
+        applyLoadedResult(refreshed);
+      }
+    }catch(e){console.warn('Automatic missing-coordinate fallback paused',e);}
+    finally{fallbackRunning=false;}
   }
 
   async function performLoad(){
@@ -65,19 +97,10 @@
     if(!access)throw new Error('Admin access did not finish loading');
 
     const result=await loadRealLeadRowsFromServer();
-    const real=mapLeadRows(result.rows);
-    if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
-
-    state.realLeads=real;
-    if(!state.demoLeads)state.demoLeads=[];
-    state.leadMode='real';
-    state.leads=state.realLeads;
-    for(const t of state.teams)t.leads=real.filter(l=>l.team===t.name).length;
-
-    renderAll();
-    if(typeof window.renderLeads==='function')window.renderLeads();
-    window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail:{count:real.length,batchId:result.batchId,total:result.total}}));
-    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads from ${result.batchId||'no batch'}.`);
+    const real=applyLoadedResult(result);
+    const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
+    if(missing)setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
+    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads from ${result.batchId||'no batch'}; ${missing} awaiting location fallback.`);
     return real;
   }
 
@@ -101,6 +124,12 @@
   }
 
   window.loadMcCoyLeads=loadMcCoyLeads;
+  window.MCCOY_RESOLVE_MISSING_LEAD_LOCATIONS=()=>{
+    const batchId=state.realLeads?.[0]?.importBatchId;
+    const missing=(state.realLeads||[]).filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
+    fallbackAttemptedBatches.delete(batchId);
+    return resolveMissingCoordinates(batchId,missing);
+  };
   sb.auth.onAuthStateChange((_event,session)=>{if(session)setTimeout(loadMcCoyLeads,300);});
   window.addEventListener('load',()=>setTimeout(loadMcCoyLeads,600));
   setTimeout(loadMcCoyLeads,1000);
