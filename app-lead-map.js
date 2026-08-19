@@ -56,17 +56,19 @@
     return L.divIcon({html:`<div>${count.toLocaleString()}</div>`,className:`mccoy-lead-cluster ${size}`,iconSize:L.point(px,px)});
   };
   const leadLayer=typeof L.markerClusterGroup==='function'
-    ?L.markerClusterGroup({maxClusterRadius:45,disableClusteringAtZoom:19,showCoverageOnHover:false,zoomToBoundsOnClick:true,spiderfyOnMaxZoom:true,removeOutsideVisibleBounds:true,chunkedLoading:true,iconCreateFunction:clusterIcon})
+    ?L.markerClusterGroup({maxClusterRadius:45,disableClusteringAtZoom:19,showCoverageOnHover:false,zoomToBoundsOnClick:true,spiderfyOnMaxZoom:true,removeOutsideVisibleBounds:true,chunkedLoading:true,chunkInterval:80,chunkDelay:15,iconCreateFunction:clusterIcon})
     :L.layerGroup();
   leadLayer.addTo(map);
-  const markerByLead=new Map();
+  const markerByLead=new Map(),pinIconCache=new Map();
+  let renderedLeadSource=null,renderedFilterKey='',renderedBounds=[],mappedLeadCount=0,searchRenderTimer=null;
 
   let selectedIds=new Set(),firstFit=true,lassoMode=false,lassoDrawing=false,lassoPoints=[],lassoPreview=null,lassoPolygon=null,lastLassoPoint=null,lassoStartPoint=null;
   let correctionLead=null,correctionMarker=null;
 
   function leadPinIcon(selected=false,correction=false){
+    const key=`${selected?'selected':'normal'}:${correction?'correction':'pin'}`;if(pinIconCache.has(key))return pinIconCache.get(key);
     const cls=`lead-house-icon lead-spotio-pin-icon${selected?' selected':''}${correction?' correction':''}`;
-    return L.divIcon({className:cls,html:'<div class="lead-house lead-spotio-pin" aria-hidden="true"></div>',iconSize:correction?[36,38]:[26,29],iconAnchor:correction?[18,33]:[13,25],tooltipAnchor:[0,correction?-30:-23]});
+    const icon=L.divIcon({className:cls,html:'<div class="lead-house lead-spotio-pin" aria-hidden="true"></div>',iconSize:correction?[36,38]:[26,29],iconAnchor:correction?[18,33]:[13,25],tooltipAnchor:[0,correction?-30:-23]});pinIconCache.set(key,icon);return icon;
   }
   function currentRealFiltered(){
     const team=document.getElementById('teamFilter')?.value||'';
@@ -74,24 +76,27 @@
     return (state.realLeads||[]).filter(l=>Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng))&&(!team||l.team===team)&&(!q||`${l.address} ${l.city||''} ${l.stateCode||''} ${l.zip||''} ${l.rep||''}`.toLowerCase().includes(q)));
   }
   function updateSelectionStatus(prefix=''){
-    const leads=currentRealFiltered();const base=`${leads.length.toLocaleString()} mapped leads in current filters · ${selectedIds.size.toLocaleString()} selected.`;const el=document.getElementById('mapSelectionStatus');if(el)el.textContent=prefix?`${prefix} · ${base}`:base;
+    const filterKey=`${document.getElementById('teamFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`,count=renderedLeadSource===state.realLeads&&renderedFilterKey===filterKey?mappedLeadCount:currentRealFiltered().length;const base=`${count.toLocaleString()} mapped leads in current filters · ${selectedIds.size.toLocaleString()} selected.`;const el=document.getElementById('mapSelectionStatus');if(el)el.textContent=prefix?`${prefix} · ${base}`:base;
   }
   function restoreGrabCursor(){
     lassoMode=false;lassoDrawing=false;const btn=document.getElementById('lassoSelectBtn');if(btn){btn.textContent='LASSO SELECT';btn.className='assign-btn';}canvas.style.cursor='grab';map.dragging.enable();map.doubleClickZoom.enable();map.boxZoom.enable();
   }
-  function setMarkerSelectedStyle(id){const m=markerByLead.get(id);if(m)m.setIcon(leadPinIcon(selectedIds.has(id)));}
+  function setMarkerSelectedStyle(id){const marker=markerByLead.get(id);if(!marker)return;const selected=selectedIds.has(id);if(marker._mccoySelected===selected)return;marker._mccoySelected=selected;marker.setIcon(leadPinIcon(selected));}
   function toggleLeadSelection(l){if(selectedIds.has(l.dbId))selectedIds.delete(l.dbId);else selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus(selectedIds.has(l.dbId)?'Lead added to selection':'Lead removed from selection');}
 
   function renderPins(fit=false){
+    const source=state.realLeads||[],filterKey=`${document.getElementById('teamFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`;
+    if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(selected));}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
     leadLayer.clearLayers();markerByLead.clear();
-    const leads=currentRealFiltered(),bounds=[];
-    for(const l of leads){
-      const marker=L.marker([Number(l.lat),Number(l.lng)],{icon:leadPinIcon(selectedIds.has(l.dbId)),keyboard:false,title:l.address||'Lead'});
-      marker.bindTooltip(`${l.address}${l.rep?' · '+l.rep:''}`);
-      marker.on('click',e=>{if(lassoMode){L.DomEvent.stopPropagation(e);return;}toggleLeadSelection(l);selectCorrectionLead(l);});
-      markerByLead.set(l.dbId,marker);leadLayer.addLayer(marker);bounds.push([Number(l.lat),Number(l.lng)]);
+    const leads=currentRealFiltered(),bounds=[],markers=[];
+    for(const lead of leads){
+      const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
+      marker.bindTooltip(`${lead.address}${lead.rep?' · '+lead.rep:''}`);
+      marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);});
+      markerByLead.set(lead.dbId,marker);markers.push(marker);bounds.push([Number(lead.lat),Number(lead.lng)]);
     }
-    updateSelectionStatus();
+    if(typeof leadLayer.addLayers==='function')leadLayer.addLayers(markers);else for(const marker of markers)leadLayer.addLayer(marker);
+    renderedLeadSource=source;renderedFilterKey=filterKey;renderedBounds=bounds;mappedLeadCount=leads.length;updateSelectionStatus();
     if(bounds.length&&(fit||firstFit)){map.fitBounds(bounds,{padding:[18,18],maxZoom:16});firstFit=false;}
   }
   window.MCCOY_RENDER_LEAD_MAP=renderPins;
@@ -142,7 +147,7 @@
   document.getElementById('bulkAssignMapBtn').onclick=assignSelectedLeads;
   document.getElementById('saveLeadAddressBtn').onclick=saveAddress;
   document.getElementById('teamFilter')?.addEventListener('change',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();setTimeout(()=>renderPins(true),0);});
-  document.getElementById('leadSearch')?.addEventListener('input',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();setTimeout(()=>renderPins(true),100);});
+  document.getElementById('leadSearch')?.addEventListener('input',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();clearTimeout(searchRenderTimer);searchRenderTimer=setTimeout(()=>renderPins(true),160);});
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{restoreGrabCursor();renderPins(true);geocodeStatus();},200));
   const obs=new MutationObserver(()=>{if(panel.style.display!=='none')setTimeout(()=>{map.invalidateSize();restoreGrabCursor();renderPins(firstFit);},50);});obs.observe(panel,{attributes:true,attributeFilter:['style']});
   setTimeout(()=>{map.setView([39.5,-98.35],4);restoreGrabCursor();renderPins(true);geocodeStatus();},800);

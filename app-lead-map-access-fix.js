@@ -7,7 +7,7 @@
     if(select){
       const label=select.previousElementSibling;
       if(label&&label.tagName==='LABEL'){
-        label.textContent='Assign to rep';
+        label.textContent=window.MCCOY_ACCESS?.access?.role==='admin'?'Assign to manager or rep':'Assign to rep';
         label.style.display='block';
         label.style.margin='0 0 2px 0';
       }

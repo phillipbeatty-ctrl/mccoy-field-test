@@ -1,8 +1,8 @@
 (()=>{
   const descriptions={
     dashboard:'Social and Competition Tracking',
-    sales:'Sales Hub',
-    field:'Field Coach',
+    sales:'Sale Hub',
+    field:'Sales, door knocking, pay progress, and field coaching',
     teams:'McCoy Team-members',
     leads:'Lead dispositioning & Tracking',
     settings:''
@@ -100,7 +100,7 @@
   function reorderNav(){
     const nav=document.querySelector('.sidebar nav');
     if(!nav)return;
-    ['dashboard','sales','field','teams','leads'].forEach(view=>{
+    ['dashboard','field','teams','leads'].forEach(view=>{
       const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);
       if(btn)nav.appendChild(btn);
     });

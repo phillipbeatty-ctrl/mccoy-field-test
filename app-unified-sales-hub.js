@@ -1,52 +1,21 @@
-// Consolidates the former standalone Sales Hub into the main McCoy Platform app.
+// Keeps the combined Sale Hub and field workflow in one authenticated page.
 (function(){
   const byId=id=>document.getElementById(id);
-  function openSalesHub(){
-    const salesButton=document.querySelector('.nav-btn[data-view="sales"]');
-    const salesSection=byId('sales');
-    if(!salesButton||!salesSection)return;
-    document.querySelectorAll('.nav-btn').forEach(button=>button.classList.toggle('active',button===salesButton));
-    document.querySelectorAll('.view').forEach(section=>section.classList.toggle('active',section===salesSection));
-    const title=byId('pageTitle');if(title)title.textContent='Sales Hub';
-    const subtitle=byId('pageSubtitle');if(subtitle){subtitle.textContent='Sales · Social · Competition · Accounting';subtitle.style.display='block';}
+  function openSaleHub(){
+    const button=document.querySelector('.nav-btn[data-view="field"]'),section=byId('field');
+    if(!button||!section)return;
+    document.querySelectorAll('.nav-btn').forEach(item=>item.classList.toggle('active',item===button));
+    document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===section));
+    const title=byId('pageTitle');if(title)title.textContent='Sale Hub';
+    const subtitle=byId('pageSubtitle');if(subtitle){subtitle.textContent='Sales, door knocking, pay progress, and field coaching';subtitle.style.display='block';}
   }
-  const selectSalesHub=()=>document.querySelector('.nav-btn[data-view="sales"]')?.click();
-
-  function syncProviderSelectors(){
-    const fieldProvider=byId('sessionIsp');
-    const salesProvider=byId('salesHubIsp');
-    if(!fieldProvider||!salesProvider)return;
-    salesProvider.innerHTML=fieldProvider.innerHTML;
-    salesProvider.value=fieldProvider.value;
-    salesProvider.addEventListener('change',()=>{
-      fieldProvider.value=salesProvider.value;
-      fieldProvider.dispatchEvent(new Event('change'));
-    });
-    fieldProvider.addEventListener('change',()=>{salesProvider.value=fieldProvider.value;});
-  }
-
-  function mountSalesHub(){
-    const mount=byId('salesHubSocialMount');
-    const social=document.querySelector('.sales-strip');
+  function mountSaleActivity(){
+    const mount=byId('salesHubSocialMount'),social=document.querySelector('.sales-strip');
     if(mount&&social&&!mount.contains(social))mount.appendChild(social);
-    syncProviderSelectors();
   }
-
-  function showSalesFromHash(){
-    if(location.hash==='#sales')openSalesHub();
-  }
-
-  document.querySelector('.nav-btn[data-view="sales"]')?.addEventListener('click',()=>{
-    if(location.hash!=='#sales')location.hash='sales';
-    setTimeout(openSalesHub,0);
-  });
-  byId('salesHubFieldCoachBtn')?.addEventListener('click',()=>document.querySelector('.nav-btn[data-view="field"]')?.click());
+  function routeLegacySalesLink(){if(['#sales','#sale','#field'].includes(location.hash))openSaleHub();}
   byId('salesHubRefreshBtn')?.addEventListener('click',()=>byId('salesRefreshBtn')?.click());
-  window.addEventListener('hashchange',showSalesFromHash);
+  window.addEventListener('hashchange',routeLegacySalesLink);
   let tries=0;
-  const startup=setInterval(()=>{
-    tries++;
-    mountSalesHub();
-    if(byId('salesHubIsp')?.options.length||tries>=30){clearInterval(startup);showSalesFromHash();}
-  },100);
+  const startup=setInterval(()=>{tries++;mountSaleActivity();if(byId('salesFeed')||tries>=30){clearInterval(startup);routeLegacySalesLink();}},100);
 })();

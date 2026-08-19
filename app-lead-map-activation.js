@@ -10,21 +10,14 @@
       await sleep(40);
 
       // Always recover the real lead pool when MAP / ASSIGN is opened directly.
-      if(!Array.isArray(state.realLeads)||state.realLeads.length===0){
+      if((!Array.isArray(state.realLeads)||state.realLeads.length===0)&&!state.leadAccessScope?.assignmentRequired){
         await window.loadMcCoyLeads?.();
       }
 
-      // The protected loader can finish just after the panel becomes visible.
-      for(let i=0;i<8&&(!Array.isArray(state.realLeads)||state.realLeads.length===0);i++){
-        await sleep(250);
-      }
-
-      // Redraw more than once to cover Leaflet's hidden-to-visible resize timing.
+      // Managers and reps with no assigned pool should not wait for leads that cannot arrive.
+      for(let i=0;i<4&&!state.leadAccessScope?.assignmentRequired&&(!Array.isArray(state.realLeads)||state.realLeads.length===0);i++)await sleep(120);
+      // Marker rendering is cached and batched, so one visible redraw is sufficient.
       window.MCCOY_RENDER_LEAD_MAP?.(true);
-      await sleep(120);
-      window.MCCOY_RENDER_LEAD_MAP?.(true);
-      await sleep(350);
-      window.MCCOY_RENDER_LEAD_MAP?.(false);
     }catch(e){
       console.error('Lead map activation failed',e);
     }finally{

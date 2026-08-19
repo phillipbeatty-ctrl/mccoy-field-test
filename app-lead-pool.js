@@ -7,6 +7,7 @@
   state.leadView='map';
   let adminReps=[];
   let selectedMapLeadId=null;
+  const selectedListLeadIds=new Set();
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const leadSection=document.getElementById('leads');
@@ -25,7 +26,8 @@
   }
 
   const tableMount=document.getElementById('leadsTable');
-  tableMount.insertAdjacentHTML('afterend',`<div id="leadMapPanel" style="display:block"><div class="grid-2"><div class="card" style="padding:12px"><div id="realLeadMapHeader" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px"><h3 style="margin:0;font-size:14px;white-space:nowrap">Real Lead Map</h3><span class="muted small" style="margin:0;flex:1 1 auto">Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.</span></div><iframe id="leadMapFrame" title="Selected lead map" style="width:100%;height:430px;border:1px solid #e5e7eb;border-radius:12px" loading="lazy"></iframe></div><div class="card" style="padding:12px"><h3>Map Assignment</h3><div id="mapLeadInfo" class="muted">Select a real lead.</div><label class="small">Assign to rep</label><select id="mapRepSelect" style="width:100%;padding:10px;margin:6px 0"></select><button id="mapAssignBtn" class="primary" style="width:100%">ASSIGN SELECTED LEAD</button><div id="mapAssignMsg" class="muted small" style="margin-top:8px"></div><div id="mapLeadList" style="margin-top:12px;max-height:430px;overflow:auto"></div></div></div></div>`);
+  tableMount.insertAdjacentHTML('beforebegin',`<div id="leadListAssignmentBar" hidden style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><label for="listRepSelect" class="small">Assign selected leads to</label><select id="listRepSelect" style="min-width:190px;padding:9px"></select><button id="listSelectPageBtn" class="assign-btn">SELECT THIS PAGE</button><button id="listClearSelectionBtn" class="assign-btn">CLEAR</button><button id="listAssignBtn" class="primary">ASSIGN SELECTED LEADS</button><span id="listAssignMsg" class="muted small" aria-live="polite">0 leads selected.</span></div>`);
+  tableMount.insertAdjacentHTML('afterend',`<div id="leadMapPanel" style="display:block"><div class="grid-2"><div class="card" style="padding:12px"><div id="realLeadMapHeader" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px"><h3 style="margin:0;font-size:14px;white-space:nowrap">Real Lead Map</h3><span class="muted small" style="margin:0;flex:1 1 auto">Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.</span></div><iframe id="leadMapFrame" title="Selected lead map" style="width:100%;height:430px;border:1px solid #e5e7eb;border-radius:12px" loading="lazy"></iframe></div><div class="card" style="padding:12px"><h3>Map Assignment</h3><div id="mapLeadInfo" class="muted">Select a real lead.</div><label id="mapAssignLabel" class="small">Assign to rep</label><select id="mapRepSelect" style="width:100%;padding:10px;margin:6px 0"></select><button id="mapAssignBtn" class="primary" style="width:100%">ASSIGN SELECTED LEAD</button><div id="mapAssignMsg" class="muted small" style="margin-top:8px"></div><div id="mapLeadList" style="margin-top:12px;max-height:430px;overflow:auto"></div></div></div></div>`);
   tableMount.style.display='none';
 
   const isAdmin=()=>window.MCCOY_ACCESS?.access?.role==='admin';
@@ -33,9 +35,10 @@
   const canAssignLeads=()=>isAdmin()||isManager();
   const managerStyle=document.createElement('style');managerStyle.textContent='body.blind-tester.lead-pool-manager #leadMapPanel .grid-2>.card:nth-child(2){display:block!important}';document.head.appendChild(managerStyle);
   function applyLeadAccessControls(){
-    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);
+    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);const label=document.getElementById('mapAssignLabel');if(label)label.textContent=admin?'Assign to manager or rep':'Assign to rep';
     for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}
-    for(const id of ['mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn']){const el=document.getElementById(id);if(el){el.hidden=!assigner;el.disabled=!assigner;}}
+    for(const id of ['mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn','listRepSelect','listSelectPageBtn','listClearSelectionBtn','listAssignBtn']){const el=document.getElementById(id);if(el){el.hidden=!assigner;el.disabled=!assigner;}}
+    const listBar=document.getElementById('leadListAssignmentBar');if(listBar){const visible=assigner&&state.leadView==='list'&&state.leadMode==='real';listBar.hidden=!visible;listBar.style.display=visible?'flex':'none';}
     if(!admin&&state.leadMode==='demo')state.leadMode='real';
   }
 
@@ -49,13 +52,13 @@
     return currentRows().filter(l=>(!filter||l.team===filter)&&(!q||`${l.address} ${l.city||''} ${l.stateCode||''} ${l.zip||''} ${l.rep||''}`.toLowerCase().includes(q)));
   }
   function switchMode(mode){if(mode==='demo'&&!isAdmin())mode='real';applyLeadAccessControls();state.leadMode=mode;state.leadPage=1;state.leads=mode==='demo'?state.demoLeads:state.realLeads;document.getElementById('realLeadMode').className=mode==='real'?'primary':'assign-btn';document.getElementById('demoLeadMode').className=mode==='demo'?'primary':'assign-btn';document.getElementById('adminLeadImportBtn').style.display=mode==='real'&&isAdmin()?'inline-block':'none';renderLeads();}
-  function switchView(view){state.leadView=view;document.getElementById('leadListView').className=view==='list'?'primary':'assign-btn';document.getElementById('leadMapView').className=view==='map'?'primary':'assign-btn';tableMount.style.display=view==='list'?'block':'none';document.getElementById('leadPager').style.display=view==='list'?'flex':'none';document.getElementById('leadMapPanel').style.display=view==='map'?'block':'none';if(view==='map')renderMapList();}
+  function switchView(view){state.leadView=view;document.getElementById('leadListView').className=view==='list'?'primary':'assign-btn';document.getElementById('leadMapView').className=view==='map'?'primary':'assign-btn';tableMount.style.display=view==='list'?'block':'none';document.getElementById('leadPager').style.display=view==='list'?'flex':'none';document.getElementById('leadMapPanel').style.display=view==='map'?'block':'none';applyLeadAccessControls();if(view==='map')renderMapList();else renderLeads();}
 
   async function loadAdminReps(){
     if(!canAssignLeads())return;
     try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
   }
-  function renderRepSelect(){const s=document.getElementById('mapRepSelect');if(!s)return;s.innerHTML=`<option value="">${isManager()?'Return to My Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':''}</option>`).join('');if(isManager()&&!adminReps.length){const msg=document.getElementById('mapAssignMsg');if(msg)msg.textContent='No representatives have been assigned to you yet.';}}
+  function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&!adminReps.length){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent='No representatives have been assigned to you yet.';}}}
 
   window.renderLeads=function(){
     const rows=filteredRows();
@@ -64,8 +67,10 @@
     document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?'REAL':'DEMO'} · ${total.toLocaleString()} leads`;
     document.getElementById('leadPageLabel').textContent=`Page ${state.leadPage} of ${pages} · ${total.toLocaleString()} total`;
     document.getElementById('leadPrev').disabled=state.leadPage<=1;document.getElementById('leadNext').disabled=state.leadPage>=pages;
-    tableMount.innerHTML=`<table><thead><tr><th>Type</th><th>Address</th><th>Team</th><th>Assigned Rep</th><th>Disposition</th>${state.leadMode==='real'?'<th>Map</th>':''}</tr></thead><tbody>${page.map(l=>`<tr><td><strong>${l.isDemo?'DEMO':'REAL'}</strong></td><td>${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</td><td>${esc(l.team)}</td><td>${esc(l.rep||'Unassigned')}</td><td>${esc(l.disposition)}</td>${state.leadMode==='real'?`<td><button class="assign-btn map-one" data-id="${l.id}">View / Assign</button></td>`:''}</tr>`).join('')}</tbody></table>`;
+    const selectable=canAssignLeads()&&state.leadMode==='real';
+    tableMount.innerHTML=`<table><thead><tr>${selectable?'<th><input id="leadSelectPageCheckbox" type="checkbox" aria-label="Select all leads on this page"></th>':''}<th>Type</th><th>Address</th><th>Team</th><th>Assigned Rep</th><th>Disposition</th>${state.leadMode==='real'?'<th>Map</th>':''}</tr></thead><tbody>${page.map(l=>`<tr>${selectable?`<td><input class="lead-list-checkbox" type="checkbox" data-lead-id="${esc(l.dbId)}" ${selectedListLeadIds.has(l.dbId)?'checked':''} aria-label="Select ${esc(l.address)}"></td>`:''}<td><strong>${l.isDemo?'DEMO':'REAL'}</strong></td><td>${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</td><td>${esc(l.team)}</td><td>${esc(l.rep||'Unassigned')}</td><td>${esc(l.disposition)}</td>${state.leadMode==='real'?`<td><button class="assign-btn map-one" data-id="${l.id}">View / Assign</button></td>`:''}</tr>`).join('')}</tbody></table>`;
     tableMount.querySelectorAll('.map-one').forEach(b=>b.addEventListener('click',()=>{selectedMapLeadId=Number(b.dataset.id);switchView('map');selectMapLead(selectedMapLeadId);}));
+    if(selectable){tableMount.querySelectorAll('.lead-list-checkbox').forEach(box=>box.addEventListener('change',()=>{if(box.checked)selectedListLeadIds.add(box.dataset.leadId);else selectedListLeadIds.delete(box.dataset.leadId);updateListSelectionStatus();}));const all=document.getElementById('leadSelectPageCheckbox');if(all){all.checked=page.length>0&&page.every(lead=>selectedListLeadIds.has(lead.dbId));all.onchange=()=>{for(const lead of page){if(all.checked)selectedListLeadIds.add(lead.dbId);else selectedListLeadIds.delete(lead.dbId);}renderLeads();updateListSelectionStatus();}}}
     renderFieldLeadSelect();
     if(state.leadView==='map')renderMapList();
   };
@@ -73,8 +78,8 @@
   function renderMapList(){
     const root=document.getElementById('mapLeadList');if(!root)return;
     if(state.leadMode!=='real'){root.innerHTML='<div class="muted">Map assignment is for real leads. Switch to REAL LEADS.</div>';return;}
-    const rows=filteredRows().slice(0,250);
-    root.innerHTML=rows.map(l=>`<button class="assign-btn map-pick" data-id="${l.id}" style="display:block;width:100%;text-align:left;margin:4px 0">${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</button>`).join('')+(filteredRows().length>250?'<div class="muted small">Showing first 250 filtered leads. Use search/team filters to narrow the map assignment list.</div>':'');
+    const filtered=filteredRows(),rows=filtered.slice(0,250);
+    root.innerHTML=rows.map(l=>`<button class="assign-btn map-pick" data-id="${l.id}" style="display:block;width:100%;text-align:left;margin:4px 0">${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</button>`).join('')+(filtered.length>250?'<div class="muted small">Showing first 250 filtered leads. Use search/team filters to narrow the map assignment list.</div>':'');
     root.querySelectorAll('.map-pick').forEach(b=>b.addEventListener('click',()=>selectMapLead(Number(b.dataset.id))));
   }
   function selectMapLead(id){
@@ -84,11 +89,18 @@
     document.getElementById('leadMapFrame').src='https://maps.google.com/maps?q='+encodeURIComponent(addr)+'&output=embed';
     document.getElementById('mapAssignMsg').textContent='';
   }
+  function updateListSelectionStatus(message=''){const status=document.getElementById('listAssignMsg');if(status)status.textContent=message||`${selectedListLeadIds.size.toLocaleString()} lead${selectedListLeadIds.size===1?'':'s'} selected.`;}
+  async function assignListSelection(){
+    if(!canAssignLeads()){updateListSelectionStatus('Only managers and administrators can assign leads.');return;}
+    const ids=[...selectedListLeadIds];if(!ids.length){updateListSelectionStatus('Select at least one lead from the list.');return;}
+    const email=document.getElementById('listRepSelect')?.value||'',button=document.getElementById('listAssignBtn');if(button)button.disabled=true;updateListSelectionStatus(`Assigning ${ids.length.toLocaleString()} selected leads…`);
+    try{for(let index=0;index<ids.length;index+=500){const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_leads',lead_ids:ids.slice(index,index+500),rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'list_assignment_failed');}selectedListLeadIds.clear();await window.loadMcCoyLeads?.();switchView('list');updateListSelectionStatus(`${ids.length.toLocaleString()} lead${ids.length===1?'':'s'} assigned successfully.`);}catch(error){console.error('List assignment failed',error);updateListSelectionStatus(`Assignment failed${error?.message?': '+error.message:''}.`);}finally{if(button)button.disabled=false;}
+  }
   async function assignSelected(){
     const l=state.realLeads.find(x=>x.id===selectedMapLeadId);if(!l)return;
     if(!canAssignLeads()){document.getElementById('mapAssignMsg').textContent='Only managers and administrators can change real lead assignments.';return;}
     const email=document.getElementById('mapRepSelect').value,msg=document.getElementById('mapAssignMsg');msg.textContent='Saving assignment…';
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.rep=r?.display_name||r?.email||(isManager()?window.MCCOY_ACCESS?.access?.display_name||window.MCCOY_ACCESS?.user?.email:null);msg.textContent=email?'Lead assigned successfully.':isManager()?'Lead returned to your manager pool.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
+    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.assignedManagerId=data.assigned_manager_id||null;l.assignedAdminEmail=data.assigned_admin_email||null;l.rep=r?.display_name||r?.email||(isManager()?'Manager Pool':null);msg.textContent=data.destination_role==='manager'?'Lead assigned to manager pool.':email?'Lead assigned successfully.':isManager()?'Lead returned to your manager pool.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
   }
 
   document.getElementById('realLeadMode').onclick=()=>switchMode('real');
@@ -101,7 +113,10 @@
   document.getElementById('teamFilter').addEventListener('change',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('leadSearch').addEventListener('input',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('mapAssignBtn').onclick=assignSelected;
+  document.getElementById('listAssignBtn').onclick=assignListSelection;
+  document.getElementById('listClearSelectionBtn').onclick=()=>{selectedListLeadIds.clear();renderLeads();updateListSelectionStatus();};
+  document.getElementById('listSelectPageBtn').onclick=()=>{const start=(state.leadPage-1)*state.leadPageSize;for(const lead of filteredRows().slice(start,start+state.leadPageSize))if(lead.dbId)selectedListLeadIds.add(lead.dbId);renderLeads();updateListSelectionStatus();};
   window.addEventListener('mccoy-access-ready',()=>{applyLeadAccessControls();loadAdminReps();});
-  window.addEventListener('mccoy-real-leads-loaded',()=>{applyLeadAccessControls();switchMode('real');switchView('map');loadAdminReps();});
+  window.addEventListener('mccoy-real-leads-loaded',()=>{const view=state.leadView;applyLeadAccessControls();switchMode('real');switchView(view==='list'?'list':'map');loadAdminReps();});
   setTimeout(()=>{applyLeadAccessControls();switchMode(state.realLeads.length?'real':(isAdmin()?'demo':'real'));switchView(state.realLeads.length?'map':'list');loadAdminReps();},900);
 })();

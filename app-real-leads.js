@@ -1,6 +1,7 @@
 (()=>{
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   let loadPromise=null;
+  let startupComplete=false,startupTimer=null;
   let fallbackRunning=false;
   const fallbackAttemptedBatches=new Set();
 
@@ -14,10 +15,10 @@
     return null;
   }
 
-  async function loadRealLeadRowsFromServer(){
-    const PAGE=1000,CONCURRENT=4;
-    async function fetchPage(page){
-      const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE}});
+  async function loadRealLeadRowsFromServer(onProgress=null){
+    const PAGE=4000,CONCURRENT=4;
+    async function fetchPage(page,totalHint=0){
+      const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE,...(totalHint?{total_hint:totalHint}:{})}});
       if(error)throw error;
       if(!data?.ok)throw new Error(data?.error||'real_lead_server_read_failed');
       return data;
@@ -26,14 +27,16 @@
     const total=Math.max(0,Number(first.total||0));
     const rows=Array.isArray(first.leads)?first.leads.slice():[];
     const totalPages=Math.ceil(total/PAGE);
+    const resultForRows=leadRows=>({rows:leadRows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignmentReason:first.assignment_reason||null,assignedAreas:first.assigned_areas||[]});
     if(totalPages>120)throw new Error('real_lead_pagination_guard');
+    if(totalPages>1&&typeof onProgress==='function')onProgress(resultForRows(rows.slice()));
     for(let next=1;next<totalPages;next+=CONCURRENT){
       const requests=[];
-      for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)requests.push(fetchPage(page));
+      for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)requests.push(fetchPage(page,total));
       const responses=await Promise.all(requests);
       for(const response of responses)rows.push(...(Array.isArray(response.leads)?response.leads:[]));
     }
-    return {rows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignedAreas:first.assigned_areas||[]};
+    return resultForRows(rows);
   }
 
   function validCoordinate(v){
@@ -57,6 +60,8 @@
       lat:validCoordinate(r.latitude),lng:validCoordinate(r.longitude),
       geocodeStatus:r.geocode_status||null,
       assignedRepId:r.assigned_rep_id||null,
+      assignedManagerId:r.assigned_manager_id||null,
+      assignedAdminEmail:r.assigned_admin_email||null,
       team:r.state==='NC'?'North Carolina':(['OR','WA'].includes(r.state)?'Pacific Northwest':'Unassigned'),
       rep:null,
       disposition:r.current_disposition||'Uncontacted',
@@ -64,19 +69,20 @@
     }));
   }
 
-  function applyLoadedResult(result){
+  function applyLoadedResult(result,{partial=false}={}){
     const real=mapLeadRows(result.rows);
     if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
     state.realLeads=real;
     if(!state.demoLeads||window.MCCOY_ACCESS?.access?.role!=='admin')state.demoLeads=[];
-    state.leadAccessScope={scope:result.scope||'all',assignedTeam:result.assignedTeam||null,assignmentRequired:!!result.assignmentRequired,assignedAreas:result.assignedAreas||[]};
+    state.leadAccessScope={scope:result.scope||'all',assignedTeam:result.assignedTeam||null,assignmentRequired:!!result.assignmentRequired,assignmentReason:result.assignmentReason||null,assignedAreas:result.assignedAreas||[]};
     state.leadMode='real';
     state.leads=state.realLeads;
-    for(const t of state.teams)t.leads=real.filter(l=>l.team===t.name).length;
+    const teamCounts=new Map();for(const lead of real)teamCounts.set(lead.team,(teamCounts.get(lead.team)||0)+1);for(const team of state.teams)team.leads=teamCounts.get(team.name)||0;
     renderAll();
-    if(typeof window.renderLeads==='function')window.renderLeads();
-    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?'No sales area assigned — contact your administrator':'No real leads are available in your assigned area';select.replaceChildren(option);}}
-    window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail:{count:real.length,batchId:result.batchId,total:result.total}}));
+    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?(result.scope==='manager_pool'?'No leads assigned by your administrator — contact your administrator':result.scope==='manager_assigned_rep'?'No leads assigned by your manager — contact your manager':'No sales area assigned — contact your administrator'):'No real leads are available in your assigned area';select.replaceChildren(option);}}
+    const detail={count:real.length,batchId:result.batchId,total:result.total,partial};
+    if(partial){const progress=document.getElementById('geocodeProgress');if(progress)progress.textContent=`Loading leads… ${real.length.toLocaleString()} of ${result.total.toLocaleString()} ready.`;window.dispatchEvent(new CustomEvent('mccoy-real-leads-progress',{detail}));}
+    else window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail}));
     window.MCCOY_RENDER_LEAD_MAP?.(false);
     return real;
   }
@@ -113,8 +119,10 @@
     if(!access)throw new Error('Account access did not finish loading');
     if(access.role!=='admin'){state.demoLeads=[];state.realLeads=state.realLeads||[];state.leadMode='real';state.leads=state.realLeads;if(!state.realLeads.length)renderAll();}
 
-    const result=await loadRealLeadRowsFromServer();
-    const real=applyLoadedResult(result);
+    const started=typeof performance!=='undefined'?performance.now():Date.now();
+    const result=await loadRealLeadRowsFromServer(preview=>applyLoadedResult(preview,{partial:true}));
+    const real=applyLoadedResult(result);startupComplete=true;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
+    window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000};
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
     if(missing&&access.role==='admin')setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
     console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting location fallback.`);
@@ -147,8 +155,9 @@
     fallbackAttemptedBatches.delete(batchId);
     return resolveMissingCoordinates(batchId,missing);
   };
-  sb.auth.onAuthStateChange((_event,session)=>{if(session)setTimeout(loadMcCoyLeads,300);});
-  window.addEventListener('mccoy-access-ready',()=>setTimeout(loadMcCoyLeads,25));
-  window.addEventListener('load',()=>setTimeout(loadMcCoyLeads,600));
-  setTimeout(loadMcCoyLeads,1000);
+  function scheduleInitialLoad(delay=0){if(startupComplete||loadPromise)return;clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(!startupComplete&&!loadPromise)loadMcCoyLeads();},delay);}
+  sb.auth.onAuthStateChange((_event,session)=>{if(session)scheduleInitialLoad(60);});
+  window.addEventListener('mccoy-access-ready',()=>scheduleInitialLoad(0));
+  window.addEventListener('load',()=>scheduleInitialLoad(120));
+  scheduleInitialLoad(450);
 })();
