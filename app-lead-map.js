@@ -7,14 +7,12 @@
   const style=document.createElement('style');
   style.textContent=`
     .lead-house-icon{background:transparent!important;border:0!important}
-    .lead-house-icon .lead-house{position:relative;width:18px;height:14px;background:#fbbf24;border:2px solid #111827;border-radius:2px;box-sizing:border-box;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-    .lead-house-icon .lead-house:before{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:10px solid #111827}
-    .lead-house-icon .lead-house:after{content:"";position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:7px solid #fbbf24}
-    .lead-house-icon.selected .lead-house{background:#fff;border-width:3px;box-shadow:0 0 0 4px rgba(245,158,11,.35)}
-    .lead-house-icon.selected .lead-house:after{border-bottom-color:#fff}
-    .lead-house-icon.correction .lead-house{width:24px;height:18px;background:#fff;border-width:3px;box-shadow:0 0 0 5px rgba(17,24,39,.2)}
-    .lead-house-icon.correction .lead-house:before{top:-12px;border-left-width:14px;border-right-width:14px;border-bottom-width:13px}
-    .lead-house-icon.correction .lead-house:after{top:-8px;border-left-width:10px;border-right-width:10px;border-bottom-width:9px;border-bottom-color:#fff}
+    .lead-house-icon .lead-house{position:relative;width:18px;height:18px;margin:3px auto 0;background:var(--mccoy-lead-color,#fbbf24);border:2px solid #111827;border-radius:50% 50% 50% 0;box-sizing:border-box;transform:rotate(-45deg);filter:drop-shadow(0 2px 2px rgba(0,0,0,.28))}
+    .lead-house-icon .lead-house:before{content:none}
+    .lead-house-icon .lead-house:after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;border:0;border-radius:50%;background:#fff;transform:translate(-50%,-50%)}
+    .lead-house-icon.selected .lead-house{border-width:3px;box-shadow:0 0 0 4px rgba(17,24,39,.24)}
+    .lead-house-icon.correction .lead-house{width:24px;height:24px;margin:4px auto 0;border-width:3px;box-shadow:0 0 0 5px rgba(17,24,39,.22)}
+    .lead-house-icon.correction .lead-house:after{width:8px;height:8px}
     .mccoy-lead-cluster{background:transparent!important;border:0!important}
     .mccoy-lead-cluster>div{width:38px;height:38px;border-radius:50%;background:#fbbf24;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:800 13px/1 Arial,sans-serif;color:#111827;box-sizing:border-box}
     .mccoy-lead-cluster.cluster-medium>div{width:44px;height:44px;font-size:14px}
@@ -43,7 +41,7 @@
     assign.textContent='ASSIGN SELECTED LEADS';
     if(!document.getElementById('leadCorrectionPanel')){
       const edit=document.createElement('div');edit.id='leadCorrectionPanel';edit.style.cssText='display:none;margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb';
-      edit.innerHTML=`<div style="font-weight:700;margin-bottom:5px">Correct Lead</div><div class="muted small" style="margin-bottom:7px">Click a house to select it. Drag the larger correction house to save its exact location, or edit the address below.</div><label class="small">Street address</label><input id="editLeadAddress1" style="width:100%;padding:7px;margin:3px 0 6px"><label class="small">Unit / Address 2</label><input id="editLeadAddress2" style="width:100%;padding:7px;margin:3px 0 6px"><div style="display:grid;grid-template-columns:1fr 54px 70px;gap:5px"><div><label class="small">City</label><input id="editLeadCity" style="width:100%;padding:7px;margin-top:3px"></div><div><label class="small">State</label><input id="editLeadState" maxlength="2" style="width:100%;padding:7px;margin-top:3px;text-transform:uppercase"></div><div><label class="small">ZIP</label><input id="editLeadZip" style="width:100%;padding:7px;margin-top:3px"></div></div><button id="saveLeadAddressBtn" class="assign-btn" style="margin-top:7px;width:100%">SAVE ADDRESS</button><div id="leadCorrectionMsg" class="muted small" style="margin-top:6px"></div>`;
+      edit.innerHTML=`<div style="font-weight:700;margin-bottom:5px">Correct Lead</div><div class="muted small" style="margin-bottom:7px">Click a pin to select it. Drag the larger correction pin to save its exact location, or edit the address below.</div><label class="small">Street address</label><input id="editLeadAddress1" style="width:100%;padding:7px;margin:3px 0 6px"><label class="small">Unit / Address 2</label><input id="editLeadAddress2" style="width:100%;padding:7px;margin:3px 0 6px"><div style="display:grid;grid-template-columns:1fr 54px 70px;gap:5px"><div><label class="small">City</label><input id="editLeadCity" style="width:100%;padding:7px;margin-top:3px"></div><div><label class="small">State</label><input id="editLeadState" maxlength="2" style="width:100%;padding:7px;margin-top:3px;text-transform:uppercase"></div><div><label class="small">ZIP</label><input id="editLeadZip" style="width:100%;padding:7px;margin-top:3px"></div></div><button id="saveLeadAddressBtn" class="assign-btn" style="margin-top:7px;width:100%">SAVE ADDRESS</button><div id="leadCorrectionMsg" class="muted small" style="margin-top:6px"></div>`;
       assign.insertAdjacentElement('afterend',edit);
     }
   }
@@ -66,9 +64,9 @@
   let selectedIds=new Set(),firstFit=true,lassoMode=false,lassoDrawing=false,lassoPoints=[],lassoPreview=null,lassoPolygon=null,lastLassoPoint=null,lassoStartPoint=null;
   let correctionLead=null,correctionMarker=null;
 
-  function houseIcon(selected=false,correction=false){
-    const cls=`lead-house-icon${selected?' selected':''}${correction?' correction':''}`;
-    return L.divIcon({className:cls,html:'<div class="lead-house"></div>',iconSize:correction?[28,28]:[22,22],iconAnchor:correction?[14,18]:[11,15],tooltipAnchor:[0,-14]});
+  function leadPinIcon(selected=false,correction=false){
+    const cls=`lead-house-icon lead-spotio-pin-icon${selected?' selected':''}${correction?' correction':''}`;
+    return L.divIcon({className:cls,html:'<div class="lead-house lead-spotio-pin" aria-hidden="true"></div>',iconSize:correction?[36,38]:[26,29],iconAnchor:correction?[18,33]:[13,25],tooltipAnchor:[0,correction?-30:-23]});
   }
   function currentRealFiltered(){
     const team=document.getElementById('teamFilter')?.value||'';
@@ -81,14 +79,14 @@
   function restoreGrabCursor(){
     lassoMode=false;lassoDrawing=false;const btn=document.getElementById('lassoSelectBtn');if(btn){btn.textContent='LASSO SELECT';btn.className='assign-btn';}canvas.style.cursor='grab';map.dragging.enable();map.doubleClickZoom.enable();map.boxZoom.enable();
   }
-  function setMarkerSelectedStyle(id){const m=markerByLead.get(id);if(m)m.setIcon(houseIcon(selectedIds.has(id)));}
+  function setMarkerSelectedStyle(id){const m=markerByLead.get(id);if(m)m.setIcon(leadPinIcon(selectedIds.has(id)));}
   function toggleLeadSelection(l){if(selectedIds.has(l.dbId))selectedIds.delete(l.dbId);else selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus(selectedIds.has(l.dbId)?'Lead added to selection':'Lead removed from selection');}
 
   function renderPins(fit=false){
     leadLayer.clearLayers();markerByLead.clear();
     const leads=currentRealFiltered(),bounds=[];
     for(const l of leads){
-      const marker=L.marker([Number(l.lat),Number(l.lng)],{icon:houseIcon(selectedIds.has(l.dbId)),keyboard:false,title:l.address||'Lead'});
+      const marker=L.marker([Number(l.lat),Number(l.lng)],{icon:leadPinIcon(selectedIds.has(l.dbId)),keyboard:false,title:l.address||'Lead'});
       marker.bindTooltip(`${l.address}${l.rep?' · '+l.rep:''}`);
       marker.on('click',e=>{if(lassoMode){L.DomEvent.stopPropagation(e);return;}toggleLeadSelection(l);selectCorrectionLead(l);});
       markerByLead.set(l.dbId,marker);leadLayer.addLayer(marker);bounds.push([Number(l.lat),Number(l.lng)]);
@@ -102,11 +100,11 @@
   function fillCorrectionForm(l){document.getElementById('editLeadAddress1').value=l.address1||l.address||'';document.getElementById('editLeadAddress2').value=l.address2||'';document.getElementById('editLeadCity').value=l.city||'';document.getElementById('editLeadState').value=l.stateCode||'';document.getElementById('editLeadZip').value=l.zip||'';}
   function selectCorrectionLead(l){
     if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
-    correctionLead=l;const p=document.getElementById('leadCorrectionPanel');if(p)p.style.display='block';fillCorrectionForm(l);correctionMsg('Lead selected. Drag the larger house only if its map location needs correction.');
+    correctionLead=l;const p=document.getElementById('leadCorrectionPanel');if(p)p.style.display='block';fillCorrectionForm(l);correctionMsg('Lead selected. Drag the larger pin only if its map location needs correction.');
     if(correctionMarker)map.removeLayer(correctionMarker);
-    correctionMarker=L.marker([Number(l.lat),Number(l.lng)],{draggable:true,autoPan:true,title:'Drag to correct lead location',icon:houseIcon(false,true)}).addTo(map);
+    correctionMarker=L.marker([Number(l.lat),Number(l.lng)],{draggable:true,autoPan:true,title:'Drag to correct lead location',icon:leadPinIcon(false,true)}).addTo(map);
     correctionMarker.bindTooltip('DRAG TO CORRECT LOCATION',{direction:'top'}).openTooltip();
-    correctionMarker.on('dragstart',()=>correctionMsg('Move the house to the correct property, then release to save.'));
+    correctionMarker.on('dragstart',()=>correctionMsg('Move the pin to the correct property, then release to save.'));
     correctionMarker.on('dragend',async()=>{
       const pos=correctionMarker.getLatLng();correctionMsg('Saving corrected location…');
       try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'update_lead',lead_id:l.dbId,latitude:pos.lat,longitude:pos.lng}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'location_save_failed');l.lat=data.lead.latitude;l.lng=data.lead.longitude;markerByLead.get(l.dbId)?.setLatLng([l.lat,l.lng]);correctionMsg('Corrected map location saved.');}
