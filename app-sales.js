@@ -74,6 +74,7 @@
       setSaleMsg('Sale saved.','ok');modal.classList.remove('show');resetSaleForm();
       const b=pendingSaleBtn;pendingSaleBtn=null;window.MCCOY_SALE_CONFIRMED=true;try{b?.click();}finally{window.MCCOY_SALE_CONFIRMED=false;}
       await loadFeed();
+      window.dispatchEvent(new CustomEvent('mccoy-sale-saved',{detail:{saleId:data.sale_id||null}}));
     }catch(err){console.error('SAVE SALE failed',err);setSaleMsg(err?.message||'Sale could not be saved. Check connection and try again.','error');}
     finally{submitting=false;if(btn){btn.disabled=false;btn.textContent='SAVE SALE';}}
   }
