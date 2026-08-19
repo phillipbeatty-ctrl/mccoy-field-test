@@ -30,6 +30,12 @@
     return {rows,total:Number(total||rows.length),batchId};
   }
 
+  function validCoordinate(v){
+    if(v===null||v===undefined||v==='')return undefined;
+    const n=Number(v);
+    return Number.isFinite(n)?n:undefined;
+  }
+
   function mapLeadRows(data){
     return data.map((r,i)=>({
       id:100000+i,
@@ -42,7 +48,8 @@
       address:[r.address1,r.address2].filter(Boolean).join(' '),
       city:r.city||'',stateCode:r.state||'',zip:r.zip||'',
       fullAddress:[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', '),
-      lat:r.latitude,lng:r.longitude,
+      // Never coerce a missing coordinate to numeric zero. Null/blank means unmapped.
+      lat:validCoordinate(r.latitude),lng:validCoordinate(r.longitude),
       assignedRepId:r.assigned_rep_id||null,
       team:r.state==='NC'?'North Carolina':(['OR','WA'].includes(r.state)?'Pacific Northwest':'Unassigned'),
       rep:null,
