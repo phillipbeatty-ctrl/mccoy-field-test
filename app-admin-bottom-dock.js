@@ -1,8 +1,8 @@
 (()=>{
   const style=document.createElement('style');
   style.textContent=`
-    #adminBottomDock{position:static;width:100%;z-index:auto;display:none;flex-direction:column;align-items:stretch;gap:7px;padding:0;margin-top:auto!important;margin-bottom:8px!important;pointer-events:none}
-    .sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:0!important}
+    #adminBottomDock{position:static;width:100%;z-index:auto;display:none;flex-direction:column;align-items:stretch;gap:7px;padding:0;margin-top:22px!important;margin-bottom:8px!important;pointer-events:none}
+    .sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}
     #adminBottomDock>*{position:static!important;right:auto!important;bottom:auto!important;left:auto!important;top:auto!important;pointer-events:auto!important;margin:0!important;width:100%!important;max-width:none!important;box-sizing:border-box!important}
     #adminBottomDock #spotioConnectBtn,#adminBottomDock #userAdminBtn,#adminBottomDock #accessAdminBtn,#adminBottomDock #metricsVisibilityBtn{display:block!important;border-radius:8px!important;padding:8px 10px!important;font-size:10px!important;line-height:1.1!important;white-space:nowrap!important;text-align:center!important}
     #adminBottomDock #userStrip{display:flex!important;border-radius:8px!important;padding:6px 8px!important;font-size:9px!important;gap:6px!important;align-items:center!important;justify-content:space-between!important;min-width:0!important}
@@ -23,6 +23,9 @@
     body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:first-child{width:100%!important;max-width:none!important}
     body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{width:100%!important;max-width:none!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
 
+    /* Height is finalized in JS from the canvas's actual viewport position. */
+    body:has(#leads.view.active) #leadMapCanvas,body:has(#leads.view.active) #leadMapFrame{min-height:0!important;max-height:none!important}
+
     @media(max-width:900px){#adminBottomDock{position:fixed;left:10px;right:10px;bottom:8px;width:auto;margin:0!important;flex-direction:row;flex-wrap:wrap;z-index:2700}#adminBottomDock>*{width:auto!important;flex:1 1 auto}.sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}body:has(#leads.view.active) #leads.view{padding-right:16px!important}body:has(#leads.view.active) #leads>.card{padding-right:20px!important;border-radius:14px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2{grid-template-columns:1fr!important;gap:8px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{border-radius:8px!important}#geocodeProgressMeta{gap:6px 10px}#geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{white-space:normal}}
   `;
   document.head.appendChild(style);
@@ -40,7 +43,9 @@
   function arrangeAdminControls(){
     if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
     const dock=ensureDock();
-    const ids=['userAdminBtn','accessAdminBtn','metricsVisibilityBtn','spotioConnectBtn','userStrip'];
+    // Requested order: primary admin controls first, then account/sign-out,
+    // with Metric Visibility and Access Requests below Sign out.
+    const ids=['userAdminBtn','spotioConnectBtn','userStrip','metricsVisibilityBtn','accessAdminBtn'];
     const els=ids.map(id=>document.getElementById(id)).filter(Boolean);
     els.forEach((el,i)=>{
       if(dock.children[i]!==el)dock.insertBefore(el,dock.children[i]||null);
@@ -59,8 +64,29 @@
     [pct,geo,sel].forEach(el=>{if(el.parentElement!==meta)meta.appendChild(el);});
   }
 
-  function sync(){arrangeAdminControls();compactMapStatus();}
+  function fitMapToViewport(){
+    if(window.innerWidth<=900)return;
+    const leads=document.getElementById('leads');
+    if(!leads?.classList.contains('active'))return;
+    const canvas=document.getElementById('leadMapFrame')||document.getElementById('leadMapCanvas');
+    if(!canvas)return;
+    const viewportH=window.visualViewport?.height||window.innerHeight;
+    const top=canvas.getBoundingClientRect().top;
+    // Keep a comfortable bottom border comparable to the map/assignment gutter.
+    const available=Math.max(360,Math.floor(viewportH-top-12));
+    const px=available+'px';
+    if(canvas.style.getPropertyValue('height')!==px){
+      canvas.style.setProperty('height',px,'important');
+      canvas.style.setProperty('min-height','0','important');
+      canvas.style.setProperty('max-height',px,'important');
+      setTimeout(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.(),0);
+    }
+  }
+
+  function sync(){arrangeAdminControls();compactMapStatus();fitMapToViewport();}
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(sync,50));
+  window.addEventListener('resize',()=>setTimeout(fitMapToViewport,40));
+  window.visualViewport?.addEventListener('resize',()=>setTimeout(fitMapToViewport,40));
   setInterval(sync,750);
   setTimeout(sync,200);
 })();
