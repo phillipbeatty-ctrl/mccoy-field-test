@@ -4,11 +4,11 @@
   let fallbackRunning=false;
   const fallbackAttemptedBatches=new Set();
 
-  async function waitForAdminAccess(timeoutMs=15000){
+  async function waitForActiveAccess(timeoutMs=15000){
     const start=Date.now();
     while(Date.now()-start<timeoutMs){
       const access=window.MCCOY_ACCESS?.access;
-      if(access?.active&&access?.role==='admin')return access;
+      if(access?.active)return access;
       await sleep(250);
     }
     return null;
@@ -103,8 +103,8 @@
   async function performLoad(){
     const {data:{user}}=await sb.auth.getUser();
     if(!user)throw new Error('No authenticated user');
-    const access=await waitForAdminAccess();
-    if(!access)throw new Error('Admin access did not finish loading');
+    const access=await waitForActiveAccess();
+    if(!access)throw new Error('Account access did not finish loading');
 
     const result=await loadRealLeadRowsFromServer();
     const real=applyLoadedResult(result);
