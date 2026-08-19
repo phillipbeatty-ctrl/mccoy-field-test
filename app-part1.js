@@ -114,8 +114,8 @@ function formatDistance(m){
 
 const state = {
   teams: [
-    {name:"Pacific Northwest", manager:"Aaron Ruff", leads:5000},
-    {name:"North Carolina", manager:null, leads:5000}
+    {name:"Pacific Northwest", manager:"Aaron Ruff", leads:0},
+    {name:"North Carolina", manager:null, leads:0}
   ],
   people: [
     {name:"Phillip Beatty", role:"Admin", team:null},
@@ -149,7 +149,10 @@ function seedLeads(n=20){
     });
   }
 }
-seedLeads(20);
+// Demo addresses are opt-in for administrators and must never be seeded into rep sessions.
+state.demoLeads=[];
+state.realLeads=[];
+state.leadMode='real';
 
 document.getElementById("projectUrl").textContent = SUPABASE_URL;
 
