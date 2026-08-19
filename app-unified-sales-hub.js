@@ -36,7 +36,10 @@
     if(location.hash==='#sales')openSalesHub();
   }
 
-  document.querySelector('.nav-btn[data-view="sales"]')?.addEventListener('click',()=>setTimeout(openSalesHub,0));
+  document.querySelector('.nav-btn[data-view="sales"]')?.addEventListener('click',()=>{
+    if(location.hash!=='#sales')location.hash='sales';
+    setTimeout(openSalesHub,0);
+  });
   byId('salesHubFieldCoachBtn')?.addEventListener('click',()=>document.querySelector('.nav-btn[data-view="field"]')?.click());
   byId('salesHubRefreshBtn')?.addEventListener('click',()=>byId('salesRefreshBtn')?.click());
   window.addEventListener('hashchange',showSalesFromHash);
