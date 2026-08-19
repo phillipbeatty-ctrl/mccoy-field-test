@@ -4,7 +4,7 @@
   state.leadMode=state.leadMode||'real';
   state.leadPage=1;
   state.leadPageSize=50;
-  state.leadView='list';
+  state.leadView='map';
   let adminReps=[];
   let selectedMapLeadId=null;
 
@@ -20,12 +20,13 @@
 
   const toolbar=card.querySelector('.toolbar');
   if(toolbar){
-    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="primary">LIST</button><button id="leadMapView" class="assign-btn">MAP / ASSIGN</button><span id="leadPoolCount" class="badge badge-demo"></span></div>`);
-    toolbar.insertAdjacentHTML('afterend',`<div id="leadPager" style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><div><button id="leadPrev" class="assign-btn">Previous</button><button id="leadNext" class="assign-btn" style="margin-left:6px">Next</button></div><div><span id="leadPageLabel" class="muted small"></span><select id="leadPageSize" style="margin-left:8px;padding:7px"><option>50</option><option>100</option><option>250</option></select></div></div>`);
+    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="leadMapView" class="primary">MAP / ASSIGN</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="assign-btn">LIST</button><span id="leadPoolCount" class="badge badge-demo"></span></div>`);
+    toolbar.insertAdjacentHTML('afterend',`<div id="leadPager" style="display:none;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><div><button id="leadPrev" class="assign-btn">Previous</button><button id="leadNext" class="assign-btn" style="margin-left:6px">Next</button></div><div><span id="leadPageLabel" class="muted small"></span><select id="leadPageSize" style="margin-left:8px;padding:7px"><option>50</option><option>100</option><option>250</option></select></div></div>`);
   }
 
   const tableMount=document.getElementById('leadsTable');
-  tableMount.insertAdjacentHTML('afterend',`<div id="leadMapPanel" style="display:none"><div class="grid-2"><div class="card" style="padding:12px"><div id="realLeadMapHeader" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px"><h3 style="margin:0;font-size:14px;white-space:nowrap">Real Lead Map</h3><span class="muted small" style="margin:0;flex:1 1 auto">Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.</span></div><iframe id="leadMapFrame" title="Selected lead map" style="width:100%;height:430px;border:1px solid #e5e7eb;border-radius:12px" loading="lazy"></iframe></div><div class="card" style="padding:12px"><h3>Map Assignment</h3><div id="mapLeadInfo" class="muted">Select a real lead.</div><label class="small">Assign to rep</label><select id="mapRepSelect" style="width:100%;padding:10px;margin:6px 0"></select><button id="mapAssignBtn" class="primary" style="width:100%">ASSIGN SELECTED LEAD</button><div id="mapAssignMsg" class="muted small" style="margin-top:8px"></div><div id="mapLeadList" style="margin-top:12px;max-height:430px;overflow:auto"></div></div></div></div>`);
+  tableMount.insertAdjacentHTML('afterend',`<div id="leadMapPanel" style="display:block"><div class="grid-2"><div class="card" style="padding:12px"><div id="realLeadMapHeader" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px"><h3 style="margin:0;font-size:14px;white-space:nowrap">Real Lead Map</h3><span class="muted small" style="margin:0;flex:1 1 auto">Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.</span></div><iframe id="leadMapFrame" title="Selected lead map" style="width:100%;height:430px;border:1px solid #e5e7eb;border-radius:12px" loading="lazy"></iframe></div><div class="card" style="padding:12px"><h3>Map Assignment</h3><div id="mapLeadInfo" class="muted">Select a real lead.</div><label class="small">Assign to rep</label><select id="mapRepSelect" style="width:100%;padding:10px;margin:6px 0"></select><button id="mapAssignBtn" class="primary" style="width:100%">ASSIGN SELECTED LEAD</button><div id="mapAssignMsg" class="muted small" style="margin-top:8px"></div><div id="mapLeadList" style="margin-top:12px;max-height:430px;overflow:auto"></div></div></div></div>`);
+  tableMount.style.display='none';
 
   const oldDemo=document.getElementById('addDemoLeadsBtn');
   if(oldDemo){const clone=oldDemo.cloneNode(true);oldDemo.replaceWith(clone);clone.addEventListener('click',()=>{const base=state.demoLeads.length+1;for(let i=0;i<10;i++){const team=i%2===0?'Pacific Northwest':'North Carolina';const streets=team==='Pacific Northwest'?pnwStreets:ncStreets;state.demoLeads.push({id:200000+base+i,address:`${2100+(base+i)*3} ${streets[i%streets.length]}`,city:'Demo City',stateCode:team==='North Carolina'?'NC':'OR',zip:'00000',fullAddress:`Demo Lead ${base+i}`,team,rep:null,disposition:'Uncontacted',isDemo:true,sourceSystem:'DEMO'});}switchMode('demo');});}
@@ -89,6 +90,6 @@
   document.getElementById('teamFilter').addEventListener('change',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('leadSearch').addEventListener('input',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('mapAssignBtn').onclick=assignSelected;
-  window.addEventListener('mccoy-real-leads-loaded',()=>{switchMode('real');loadAdminReps();});
-  setTimeout(()=>{switchMode(state.realLeads.length?'real':'demo');loadAdminReps();},900);
+  window.addEventListener('mccoy-real-leads-loaded',()=>{switchMode('real');switchView('map');loadAdminReps();});
+  setTimeout(()=>{switchMode(state.realLeads.length?'real':'demo');switchView(state.realLeads.length?'map':'list');loadAdminReps();},900);
 })();
