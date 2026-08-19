@@ -13,10 +13,10 @@
 #leads .toolbar select{width:max-content;max-width:160px}
 #leads .primary,#leads .assign-btn{padding:6px 9px;border-radius:6px;font-size:10px;line-height:1.1;white-space:nowrap}
 #leadPoolCount{padding:5px 7px;font-size:9px}
-#leadMapPanel>.grid-2{grid-template-columns:minmax(0,1fr) 300px;gap:8px;margin-bottom:0;align-items:start}
+#leadMapPanel>.grid-2{grid-template-columns:minmax(0,1fr) minmax(360px,26vw);gap:8px;margin-bottom:0;align-items:start}
 #leadMapPanel>.grid-2>.card{padding:8px!important;border-radius:9px}
 #leadMapPanel>.grid-2>.card:first-child{min-width:0;width:100%}
-#leadMapPanel>.grid-2>.card:last-child{width:300px;min-width:300px;max-width:300px}
+#leadMapPanel>.grid-2>.card:last-child{width:100%;min-width:360px;max-width:460px}
 #leadMapPanel h3{font-size:12px;margin:2px 0 4px}
 #leadMapPanel p,#leadMapPanel label,#leadMapPanel .muted,#leadMapPanel .small{font-size:9px;line-height:1.2}
 #leadMapCanvas,#leadMapFrame{height:clamp(580px,78vh,860px)!important;width:100%!important;border-radius:8px!important}
@@ -29,11 +29,11 @@
 #bulkAssignMapBtn{width:100%!important;max-width:none!important;display:block!important;margin-top:4px!important;padding:7px 8px!important;font-size:9px!important}
 #mapLeadInfo{max-width:none;font-size:9px!important;line-height:1.2}
 #mapAssignMsg{max-width:none;margin-top:4px!important}
-#mapLeadList{max-height:310px!important;margin-top:8px!important;width:100%!important;overflow:auto;padding-right:2px}
+#mapLeadList{max-height:390px!important;margin-top:8px!important;width:100%!important;overflow:auto;padding-right:2px}
 #mapLeadList .map-pick{width:100%!important;white-space:normal!important;text-align:left!important;font-size:9px!important;padding:7px 8px!important;margin:3px 0!important;display:grid!important;gap:2px!important;border:1px solid #dbe3f2}
 #mapLeadList .map-pick strong{font-size:10px;line-height:1.2;color:#17202a}
 #mapLeadList .map-pick span{font-size:8px;line-height:1.2;color:#6b7280;font-weight:600}
-#mapLeadDetail{margin-top:8px;padding:9px;border:1px solid #d9dde3;border-radius:8px;background:#fafbfc;max-height:330px;overflow:auto}
+#mapLeadDetail{margin-top:8px;padding:10px;border:1px solid #d9dde3;border-radius:8px;background:#fafbfc;max-height:390px;overflow:auto}
 .lead-detail-head{display:flex;justify-content:space-between;gap:6px;align-items:flex-start;margin-bottom:4px}
 .lead-detail-head strong{font-size:11px;line-height:1.25}
 .lead-detail-address{font-size:9px;line-height:1.3;color:#4b5563;margin-bottom:8px}
