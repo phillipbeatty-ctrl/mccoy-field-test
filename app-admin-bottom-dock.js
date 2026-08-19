@@ -13,7 +13,17 @@
     #geocodeProgressMeta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;margin-top:4px;min-height:14px}
     #geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{margin:0!important;white-space:nowrap;line-height:1.15}
     #geocodeProgressMeta #mapSelectionStatus{flex:1 1 auto;min-width:220px}
-    @media(max-width:900px){#adminBottomDock{position:fixed;left:10px;right:10px;bottom:8px;width:auto;margin:0!important;flex-direction:row;flex-wrap:wrap;z-index:2700}#adminBottomDock>*{width:auto!important;flex:1 1 auto}.sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}#geocodeProgressMeta{gap:6px 10px}#geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{white-space:normal}}
+
+    /* Use the full horizontal workspace. Keep Map Assignment at its existing width;
+       the map absorbs all reclaimed space and pushes the assignment panel to the screen edge. */
+    body:has(#leads.view.active) #leads.view{padding-right:0!important}
+    body:has(#leads.view.active) #leads>.card{width:100%!important;max-width:none!important;padding-right:0!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
+    body:has(#leads.view.active) #leadMapPanel{width:100%!important;max-width:none!important;margin-right:0!important;padding-right:0!important}
+    body:has(#leads.view.active) #leadMapPanel>.grid-2{width:100%!important;max-width:none!important;grid-template-columns:minmax(0,1fr) clamp(380px,27vw,470px)!important;gap:4px!important;margin-right:0!important;padding-right:0!important}
+    body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:first-child{width:100%!important;max-width:none!important}
+    body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{width:100%!important;max-width:none!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
+
+    @media(max-width:900px){#adminBottomDock{position:fixed;left:10px;right:10px;bottom:8px;width:auto;margin:0!important;flex-direction:row;flex-wrap:wrap;z-index:2700}#adminBottomDock>*{width:auto!important;flex:1 1 auto}.sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}body:has(#leads.view.active) #leads.view{padding-right:16px!important}body:has(#leads.view.active) #leads>.card{padding-right:20px!important;border-radius:14px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2{grid-template-columns:1fr!important;gap:8px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{border-radius:8px!important}#geocodeProgressMeta{gap:6px 10px}#geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{white-space:normal}}
   `;
   document.head.appendChild(style);
 
