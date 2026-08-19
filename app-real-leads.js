@@ -15,21 +15,25 @@
   }
 
   async function loadRealLeadRowsFromServer(){
-    const PAGE=1000,rows=[];
-    let page=0,total=null,batchId=null;
-    while(total===null||rows.length<total){
+    const PAGE=1000,CONCURRENT=4;
+    async function fetchPage(page){
       const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE}});
       if(error)throw error;
       if(!data?.ok)throw new Error(data?.error||'real_lead_server_read_failed');
-      if(total===null)total=Number(data.total||0);
-      batchId=data.batch_id||batchId;
-      const chunk=Array.isArray(data.leads)?data.leads:[];
-      rows.push(...chunk);
-      if(!chunk.length||chunk.length<PAGE)break;
-      page++;
-      if(page>30)throw new Error('real_lead_pagination_guard');
+      return data;
     }
-    return {rows,total:Number(total||rows.length),batchId};
+    const first=await fetchPage(0);
+    const total=Math.max(0,Number(first.total||0));
+    const rows=Array.isArray(first.leads)?first.leads.slice():[];
+    const totalPages=Math.ceil(total/PAGE);
+    if(totalPages>120)throw new Error('real_lead_pagination_guard');
+    for(let next=1;next<totalPages;next+=CONCURRENT){
+      const requests=[];
+      for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)requests.push(fetchPage(page));
+      const responses=await Promise.all(requests);
+      for(const response of responses)rows.push(...(Array.isArray(response.leads)?response.leads:[]));
+    }
+    return {rows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignedAreas:first.assigned_areas||[]};
   }
 
   function validCoordinate(v){
@@ -64,12 +68,14 @@
     const real=mapLeadRows(result.rows);
     if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
     state.realLeads=real;
-    if(!state.demoLeads)state.demoLeads=[];
+    if(!state.demoLeads||window.MCCOY_ACCESS?.access?.role!=='admin')state.demoLeads=[];
+    state.leadAccessScope={scope:result.scope||'all',assignedTeam:result.assignedTeam||null,assignmentRequired:!!result.assignmentRequired,assignedAreas:result.assignedAreas||[]};
     state.leadMode='real';
     state.leads=state.realLeads;
     for(const t of state.teams)t.leads=real.filter(l=>l.team===t.name).length;
     renderAll();
     if(typeof window.renderLeads==='function')window.renderLeads();
+    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?'No sales area assigned — contact your administrator':'No real leads are available in your assigned area';select.replaceChildren(option);}}
     window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail:{count:real.length,batchId:result.batchId,total:result.total}}));
     window.MCCOY_RENDER_LEAD_MAP?.(false);
     return real;
@@ -105,11 +111,12 @@
     if(!user)throw new Error('No authenticated user');
     const access=await waitForActiveAccess();
     if(!access)throw new Error('Account access did not finish loading');
+    if(access.role!=='admin'){state.demoLeads=[];state.realLeads=state.realLeads||[];state.leadMode='real';state.leads=state.realLeads;if(!state.realLeads.length)renderAll();}
 
     const result=await loadRealLeadRowsFromServer();
     const real=applyLoadedResult(result);
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
-    if(missing)setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
+    if(missing&&access.role==='admin')setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
     console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting location fallback.`);
     return real;
   }
@@ -141,6 +148,7 @@
     return resolveMissingCoordinates(batchId,missing);
   };
   sb.auth.onAuthStateChange((_event,session)=>{if(session)setTimeout(loadMcCoyLeads,300);});
+  window.addEventListener('mccoy-access-ready',()=>setTimeout(loadMcCoyLeads,25));
   window.addEventListener('load',()=>setTimeout(loadMcCoyLeads,600));
   setTimeout(loadMcCoyLeads,1000);
 })();
