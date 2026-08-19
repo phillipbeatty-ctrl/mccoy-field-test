@@ -10,9 +10,11 @@
     #adminBottomDock #userStrip button{padding:4px 6px!important;font-size:9px!important;white-space:nowrap!important}
     #leadGeoControls{width:100%}
     #geocodeProgressWrap{width:100%!important}
-    #geocodeProgressMeta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;width:100%;margin-top:4px;min-height:14px}
-    #geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{margin:0!important;white-space:nowrap;line-height:1.15}
-    #geocodeProgressMeta #mapSelectionStatus{flex:1 1 auto;min-width:220px}
+    #geocodeProgressMeta{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;flex-wrap:nowrap!important;width:100%!important;margin-top:4px!important;min-height:14px!important;overflow:hidden!important}
+    #geocodeProgressMeta #leadDispositionLegend{display:flex!important;align-items:center!important;gap:4px 8px!important;flex:0 1 auto!important;flex-wrap:nowrap!important;margin:0!important;min-width:0!important;white-space:nowrap!important;overflow:hidden!important;font-size:8px!important}
+    #geocodeProgressMeta #leadDispositionLegend .disp-key{flex:0 0 auto!important}
+    #geocodeStatusRight{margin-left:auto!important;display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:10px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:0!important;text-align:right!important;font-size:8px!important}
+    #geocodeStatusRight #geocodeProgressPct,#geocodeStatusRight #geocodeProgress,#geocodeStatusRight #mapSelectionStatus{margin:0!important;white-space:nowrap!important;line-height:1.1!important;min-width:0!important;flex:none!important}
 
     /* Keep Map Assignment narrow and pinned to the far right. The map gets all reclaimed width. */
     body:has(#leads.view.active) #leads.view{padding-right:0!important}
@@ -25,7 +27,7 @@
     /* Height is finalized in JS from the canvas's actual viewport position. */
     body:has(#leads.view.active) #leadMapCanvas,body:has(#leads.view.active) #leadMapFrame{min-height:0!important;max-height:none!important}
 
-    @media(max-width:900px){#adminBottomDock{position:fixed;left:10px;right:10px;bottom:8px;width:auto;margin:0!important;flex-direction:row;flex-wrap:wrap;z-index:2700}#adminBottomDock>*{width:auto!important;flex:1 1 auto}.sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}body:has(#leads.view.active) #leads.view{padding-right:16px!important}body:has(#leads.view.active) #leads>.card{padding-right:20px!important;border-radius:14px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2{grid-template-columns:1fr!important;gap:8px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{border-radius:8px!important}#geocodeProgressMeta{gap:6px 10px}#geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{white-space:normal}}
+    @media(max-width:900px){#adminBottomDock{position:fixed;left:10px;right:10px;bottom:8px;width:auto;margin:0!important;flex-direction:row;flex-wrap:wrap;z-index:2700}#adminBottomDock>*{width:auto!important;flex:1 1 auto}.sidebar:has(#adminBottomDock) .sidebar-footer{margin-top:auto!important}body:has(#leads.view.active) #leads.view{padding-right:16px!important}body:has(#leads.view.active) #leads>.card{padding-right:20px!important;border-radius:14px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2{grid-template-columns:1fr!important;gap:8px!important}body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{border-radius:8px!important}#geocodeProgressMeta{flex-wrap:wrap!important;overflow:visible!important}#geocodeProgressMeta #leadDispositionLegend{flex-wrap:wrap!important;overflow:visible!important}#geocodeStatusRight{white-space:normal!important;flex-wrap:wrap!important}}
   `;
   document.head.appendChild(style);
 
@@ -42,8 +44,6 @@
   function arrangeAdminControls(){
     if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
     const dock=ensureDock();
-    // Requested order: primary admin controls first, then account/sign-out,
-    // with Metric Visibility and Access Requests below Sign out.
     const ids=['userAdminBtn','spotioConnectBtn','userStrip','metricsVisibilityBtn','accessAdminBtn'];
     const els=ids.map(id=>document.getElementById(id)).filter(Boolean);
     els.forEach((el,i)=>{
@@ -58,9 +58,17 @@
     const geo=document.getElementById('geocodeProgress');
     const sel=document.getElementById('mapSelectionStatus');
     if(!wrap||!pct||!geo||!sel)return;
+
     let meta=document.getElementById('geocodeProgressMeta');
     if(!meta){meta=document.createElement('div');meta.id='geocodeProgressMeta';wrap.appendChild(meta);}
-    [pct,geo,sel].forEach(el=>{if(el.parentElement!==meta)meta.appendChild(el);});
+
+    const legend=document.getElementById('leadDispositionLegend');
+    if(legend&&legend.parentElement!==meta)meta.insertBefore(legend,meta.firstChild||null);
+
+    let right=document.getElementById('geocodeStatusRight');
+    if(!right){right=document.createElement('div');right.id='geocodeStatusRight';meta.appendChild(right);}
+    else if(right.parentElement!==meta)meta.appendChild(right);
+    [pct,geo,sel].forEach(el=>{if(el.parentElement!==right)right.appendChild(el);});
   }
 
   function fitMapToViewport(){
@@ -71,7 +79,6 @@
     if(!canvas)return;
     const viewportH=window.visualViewport?.height||window.innerHeight;
     const top=canvas.getBoundingClientRect().top;
-    // Keep a comfortable bottom border comparable to the map/assignment gutter.
     const available=Math.max(360,Math.floor(viewportH-top-12));
     const px=available+'px';
     if(canvas.style.getPropertyValue('height')!==px){
