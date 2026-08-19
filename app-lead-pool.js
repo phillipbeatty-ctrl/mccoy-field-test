@@ -29,7 +29,15 @@
   tableMount.style.display='none';
 
   const isAdmin=()=>window.MCCOY_ACCESS?.access?.role==='admin';
-  function applyLeadAccessControls(){const admin=isAdmin();for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn','mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}if(!admin&&state.leadMode==='demo')state.leadMode='real';}
+  const isManager=()=>window.MCCOY_ACCESS?.access?.role==='manager';
+  const canAssignLeads=()=>isAdmin()||isManager();
+  const managerStyle=document.createElement('style');managerStyle.textContent='body.blind-tester.lead-pool-manager #leadMapPanel .grid-2>.card:nth-child(2){display:block!important}';document.head.appendChild(managerStyle);
+  function applyLeadAccessControls(){
+    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);
+    for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}
+    for(const id of ['mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn']){const el=document.getElementById(id);if(el){el.hidden=!assigner;el.disabled=!assigner;}}
+    if(!admin&&state.leadMode==='demo')state.leadMode='real';
+  }
 
   const oldDemo=document.getElementById('addDemoLeadsBtn');
   if(oldDemo){const clone=oldDemo.cloneNode(true);oldDemo.replaceWith(clone);clone.addEventListener('click',()=>{if(!isAdmin())return;const base=state.demoLeads.length+1;for(let i=0;i<10;i++){const team=i%2===0?'Pacific Northwest':'North Carolina';const streets=team==='Pacific Northwest'?pnwStreets:ncStreets;state.demoLeads.push({id:200000+base+i,address:`${2100+(base+i)*3} ${streets[i%streets.length]}`,city:'Demo City',stateCode:team==='North Carolina'?'NC':'OR',zip:'00000',fullAddress:`Demo Lead ${base+i}`,team,rep:null,disposition:'Uncontacted',isDemo:true,sourceSystem:'DEMO'});}switchMode('demo');});}
@@ -44,10 +52,10 @@
   function switchView(view){state.leadView=view;document.getElementById('leadListView').className=view==='list'?'primary':'assign-btn';document.getElementById('leadMapView').className=view==='map'?'primary':'assign-btn';tableMount.style.display=view==='list'?'block':'none';document.getElementById('leadPager').style.display=view==='list'?'flex':'none';document.getElementById('leadMapPanel').style.display=view==='map'?'block':'none';if(view==='map')renderMapList();}
 
   async function loadAdminReps(){
-    if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
+    if(!canAssignLeads())return;
     try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
   }
-  function renderRepSelect(){const s=document.getElementById('mapRepSelect');if(!s)return;s.innerHTML='<option value="">Unassigned</option>'+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':''}</option>`).join('');}
+  function renderRepSelect(){const s=document.getElementById('mapRepSelect');if(!s)return;s.innerHTML=`<option value="">${isManager()?'Return to My Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':''}</option>`).join('');if(isManager()&&!adminReps.length){const msg=document.getElementById('mapAssignMsg');if(msg)msg.textContent='No representatives have been assigned to you yet.';}}
 
   window.renderLeads=function(){
     const rows=filteredRows();
@@ -78,9 +86,9 @@
   }
   async function assignSelected(){
     const l=state.realLeads.find(x=>x.id===selectedMapLeadId);if(!l)return;
-    if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('mapAssignMsg').textContent='Only Admin can change real lead assignments.';return;}
+    if(!canAssignLeads()){document.getElementById('mapAssignMsg').textContent='Only managers and administrators can change real lead assignments.';return;}
     const email=document.getElementById('mapRepSelect').value,msg=document.getElementById('mapAssignMsg');msg.textContent='Saving assignment…';
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.rep=r?.display_name||r?.email||null;msg.textContent=email?'Lead assigned successfully.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
+    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.rep=r?.display_name||r?.email||(isManager()?window.MCCOY_ACCESS?.access?.display_name||window.MCCOY_ACCESS?.user?.email:null);msg.textContent=email?'Lead assigned successfully.':isManager()?'Lead returned to your manager pool.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
   }
 
   document.getElementById('realLeadMode').onclick=()=>switchMode('real');
@@ -93,6 +101,7 @@
   document.getElementById('teamFilter').addEventListener('change',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('leadSearch').addEventListener('input',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('mapAssignBtn').onclick=assignSelected;
+  window.addEventListener('mccoy-access-ready',()=>{applyLeadAccessControls();loadAdminReps();});
   window.addEventListener('mccoy-real-leads-loaded',()=>{applyLeadAccessControls();switchMode('real');switchView('map');loadAdminReps();});
   setTimeout(()=>{applyLeadAccessControls();switchMode(state.realLeads.length?'real':(isAdmin()?'demo':'real'));switchView(state.realLeads.length?'map':'list');loadAdminReps();},900);
 })();
