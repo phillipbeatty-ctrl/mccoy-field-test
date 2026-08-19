@@ -13,6 +13,7 @@
     style.id='sidebarImportLeadStyles';
     style.textContent=`
       .sidebar-import-leads-btn{
+        display:block!important;
         border:0!important;
         background:transparent!important;
         color:#d1d5db!important;
