@@ -1,6 +1,15 @@
 // Consolidates the former standalone Sales Hub into the main McCoy Platform app.
 (function(){
   const byId=id=>document.getElementById(id);
+  function openSalesHub(){
+    const salesButton=document.querySelector('.nav-btn[data-view="sales"]');
+    const salesSection=byId('sales');
+    if(!salesButton||!salesSection)return;
+    document.querySelectorAll('.nav-btn').forEach(button=>button.classList.toggle('active',button===salesButton));
+    document.querySelectorAll('.view').forEach(section=>section.classList.toggle('active',section===salesSection));
+    const title=byId('pageTitle');if(title)title.textContent='Sales Hub';
+    const subtitle=byId('pageSubtitle');if(subtitle){subtitle.textContent='Sales · Social · Competition · Accounting';subtitle.style.display='block';}
+  }
   const selectSalesHub=()=>document.querySelector('.nav-btn[data-view="sales"]')?.click();
 
   function syncProviderSelectors(){
@@ -24,9 +33,10 @@
   }
 
   function showSalesFromHash(){
-    if(location.hash==='#sales')selectSalesHub();
+    if(location.hash==='#sales')openSalesHub();
   }
 
+  document.querySelector('.nav-btn[data-view="sales"]')?.addEventListener('click',()=>setTimeout(openSalesHub,0));
   byId('salesHubFieldCoachBtn')?.addEventListener('click',()=>document.querySelector('.nav-btn[data-view="field"]')?.click());
   byId('salesHubRefreshBtn')?.addEventListener('click',()=>byId('salesRefreshBtn')?.click());
   window.addEventListener('hashchange',showSalesFromHash);
