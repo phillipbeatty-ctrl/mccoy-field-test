@@ -25,13 +25,13 @@
   function arrangeAdminControls(){
     if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
     const dock=ensureDock();
-    // Exact top-to-bottom order requested:
-    // Users & Managers, Access Requests, Metric Visibility, SPOTIO Connection, Account/Admin/Sign out.
-    ['userAdminBtn','accessAdminBtn','metricsVisibilityBtn','spotioConnectBtn','userStrip'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el)dock.appendChild(el);
+    const ids=['userAdminBtn','accessAdminBtn','metricsVisibilityBtn','spotioConnectBtn','userStrip'];
+    const els=ids.map(id=>document.getElementById(id)).filter(Boolean);
+    // Move/reorder only when necessary. Re-appending already-positioned nodes caused a MutationObserver loop.
+    els.forEach((el,i)=>{
+      if(dock.children[i]!==el)dock.insertBefore(el,dock.children[i]||null);
     });
-    dock.style.display=dock.children.length?'flex':'none';
+    dock.style.display=els.length?'flex':'none';
   }
 
   function compactMapStatus(){
@@ -46,9 +46,9 @@
   }
 
   function sync(){arrangeAdminControls();compactMapStatus();}
-  const obs=new MutationObserver(sync);
-  obs.observe(document.body,{childList:true,subtree:true});
+  // Deliberately avoid a subtree MutationObserver here. A short polling interval is safer for
+  // controls that are created asynchronously and cannot recursively trigger itself.
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(sync,50));
-  setInterval(sync,500);
+  setInterval(sync,750);
   setTimeout(sync,200);
 })();
