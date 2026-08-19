@@ -1,7 +1,7 @@
 (()=>{
   function wireImport(){const b=document.getElementById('adminLeadImportBtn');if(!b||b.dataset.mccoyWired)return;b.dataset.mccoyWired='1';b.addEventListener('click',()=>{window.location.href='/spotio-import.html';});}
   async function resolveAssignments(){
-    if(window.MCCOY_ACCESS?.access?.role!=='admin'||!state.realLeads?.length)return;
+    if(!['admin','manager'].includes(window.MCCOY_ACCESS?.access?.role)||!state.realLeads?.length)return;
     try{
       const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;
       const reps=data?.reps||[],byId=new Map(reps.filter(r=>r.user_id).map(r=>[r.user_id,r]));
