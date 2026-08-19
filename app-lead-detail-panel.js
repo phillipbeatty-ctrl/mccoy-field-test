@@ -1,5 +1,8 @@
 (()=>{
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let activeLeadId=null;
+  let correcting=false;
+  const correctionIds=['editLeadAddress1','editLeadAddress2','editLeadCity','editLeadState','editLeadZip'];
 
   function removeLegacyAssign(){
     const old=document.getElementById('mapAssignBtn');
@@ -28,6 +31,7 @@
   function renderDetail(lead){
     const detail=ensureDetailPanel();
     if(!detail||!lead)return;
+    activeLeadId=lead.dbId||lead.id;
     const address=[lead.address,lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ');
     const coords=(Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)))?`${Number(lead.lat).toFixed(6)}, ${Number(lead.lng).toFixed(6)}`:'Not mapped';
     detail.innerHTML=`
@@ -41,12 +45,13 @@
         <div><span>Coordinates</span><strong>${esc(coords)}</strong></div>
         <div><span>Lead ID</span><strong>${esc(lead.dbId||'—')}</strong></div>
       </div>
-      <div class="muted small lead-detail-help">This lead is now active for selection, assignment, address correction, and map-location correction.</div>`;
+      <div class="muted small lead-detail-help">Edit the address in Correct Lead and press ENTER to save it and correct the house location automatically.</div>`;
   }
 
   function activateLead(id){
     const lead=leadByAnyId(id);
     if(!lead)return;
+    activeLeadId=lead.dbId||lead.id;
     renderDetail(lead);
     window.MCCOY_SELECT_MAP_LEAD?.(lead.id);
   }
@@ -67,14 +72,52 @@
     ensureDetailPanel();
   }
 
+  function leadFromCorrectionForm(){
+    const a1=document.getElementById('editLeadAddress1')?.value||'';
+    const a2=document.getElementById('editLeadAddress2')?.value||'';
+    const city=document.getElementById('editLeadCity')?.value||'';
+    const stateCode=document.getElementById('editLeadState')?.value||'';
+    const zip=document.getElementById('editLeadZip')?.value||'';
+    return (state.realLeads||[]).find(l=>(l.address1||l.address||'')===a1&&(l.address2||'')===a2&&(l.city||'')===city&&(l.stateCode||'')===stateCode&&(l.zip||'')===zip)||null;
+  }
+
+  function correctionMsg(text){const el=document.getElementById('leadCorrectionMsg');if(el)el.textContent=text;}
+  function v(id){return document.getElementById(id)?.value?.trim()||'';}
+
+  async function correctAddressLocation(){
+    if(correcting||window.MCCOY_ACCESS?.access?.role!=='admin')return;
+    let lead=leadByAnyId(activeLeadId);
+    if(!lead){lead=leadFromCorrectionForm();if(lead)activeLeadId=lead.dbId||lead.id;}
+    if(!lead){correctionMsg('Select a lead before correcting its address.');return;}
+    const payload={action:'correct_address_location',lead_id:lead.dbId||lead.id,address1:v('editLeadAddress1'),address2:v('editLeadAddress2'),city:v('editLeadCity'),state:v('editLeadState').toUpperCase(),zip:v('editLeadZip')};
+    if(!payload.address1||!payload.city||!payload.state||!payload.zip){correctionMsg('Street, city, state, and ZIP are required before relocating the lead.');return;}
+    correcting=true;
+    correctionIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+    correctionMsg('Saving address and correcting map location…');
+    try{
+      const {data,error}=await sb.functions.invoke('lead-geocode',{body:payload});
+      if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'address_location_correction_failed');
+      const r=data.lead||{};
+      lead.address1=r.address1||payload.address1;lead.address2=r.address2||payload.address2;lead.address=[lead.address1,lead.address2].filter(Boolean).join(' ');lead.city=r.city||payload.city;lead.stateCode=r.state||payload.state;lead.zip=r.zip||payload.zip;lead.fullAddress=[[lead.address1,lead.address2].filter(Boolean).join(' '),lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ');
+      if(data.matched&&Number.isFinite(Number(r.latitude))&&Number.isFinite(Number(r.longitude))){lead.lat=Number(r.latitude);lead.lng=Number(r.longitude);correctionMsg('Address saved and house moved to the corrected address location.');window.MCCOY_RENDER_LEAD_MAP?.(false);setTimeout(()=>window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id),80);}else{correctionMsg('Address saved, but the geocoder could not confidently place it. Drag the correction house manually if needed.');}
+      renderDetail(lead);enhanceList();if(typeof window.renderLeads==='function')window.renderLeads();
+    }catch(e){console.error('Address/location correction failed',e);correctionMsg(`Unable to correct address location${e?.message?': '+e.message:''}.`);}finally{correcting=false;correctionIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});}
+  }
+  window.MCCOY_CORRECT_ADDRESS_LOCATION=correctAddressLocation;
+
   document.addEventListener('click',e=>{
+    const pick=e.target.closest?.('.map-pick');
+    if(pick?.dataset?.id){const l=leadByAnyId(pick.dataset.id);if(l)activeLeadId=l.dbId||l.id;}
     const marker=e.target.closest?.('.lead-house-icon');
     if(!marker)return;
     setTimeout(()=>{
-      const selected=(state.realLeads||[]).find(l=>document.getElementById('editLeadAddress1')?.value===(l.address1||l.address||''));
-      if(selected)renderDetail(selected);
+      const selected=leadFromCorrectionForm();
+      if(selected){activeLeadId=selected.dbId||selected.id;renderDetail(selected);}
     },40);
   },true);
+
+  document.addEventListener('focusin',e=>{if(correctionIds.includes(e.target?.id)){const l=leadFromCorrectionForm();if(l)activeLeadId=l.dbId||l.id;}},true);
+  document.addEventListener('keydown',e=>{if(e.key!=='Enter'||!correctionIds.includes(e.target?.id))return;e.preventDefault();e.stopPropagation();correctAddressLocation();},true);
 
   const obs=new MutationObserver(()=>enhanceList());
   const start=()=>{
