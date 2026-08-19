@@ -1,6 +1,7 @@
 (()=>{
   const descriptions={
     dashboard:'Social and Competition Tracking',
+    sales:'Sales Hub',
     field:'Field Coach',
     teams:'McCoy Team-members',
     leads:'Lead dispositioning & Tracking',
@@ -25,6 +26,7 @@
         font-weight:400!important;
         box-sizing:border-box!important;
       }
+      .sidebar-import-leads-btn[hidden]{display:none!important;}
       .sidebar-import-leads-btn:hover{
         background:#1f2937!important;
         color:#fff!important;
@@ -98,7 +100,7 @@
   function reorderNav(){
     const nav=document.querySelector('.sidebar nav');
     if(!nav)return;
-    ['dashboard','field','teams','leads'].forEach(view=>{
+    ['dashboard','sales','field','teams','leads'].forEach(view=>{
       const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);
       if(btn)nav.appendChild(btn);
     });
