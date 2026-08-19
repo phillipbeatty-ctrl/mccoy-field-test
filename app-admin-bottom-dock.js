@@ -14,14 +14,13 @@
     #geocodeProgressMeta #geocodeProgressPct,#geocodeProgressMeta #geocodeProgress,#geocodeProgressMeta #mapSelectionStatus{margin:0!important;white-space:nowrap;line-height:1.15}
     #geocodeProgressMeta #mapSelectionStatus{flex:1 1 auto;min-width:220px}
 
-    /* Use the full horizontal workspace. Keep Map Assignment at its existing width;
-       the map absorbs all reclaimed space and pushes the assignment panel to the screen edge. */
+    /* Keep Map Assignment narrow and pinned to the far right. The map gets all reclaimed width. */
     body:has(#leads.view.active) #leads.view{padding-right:0!important}
     body:has(#leads.view.active) #leads>.card{width:100%!important;max-width:none!important;padding-right:0!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
     body:has(#leads.view.active) #leadMapPanel{width:100%!important;max-width:none!important;margin-right:0!important;padding-right:0!important}
-    body:has(#leads.view.active) #leadMapPanel>.grid-2{width:100%!important;max-width:none!important;grid-template-columns:minmax(0,1fr) clamp(380px,27vw,470px)!important;gap:4px!important;margin-right:0!important;padding-right:0!important}
+    body:has(#leads.view.active) #leadMapPanel>.grid-2{width:100%!important;max-width:none!important;grid-template-columns:minmax(0,1fr) clamp(190px,13.5vw,235px)!important;gap:4px!important;margin-right:0!important;padding-right:0!important}
     body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:first-child{width:100%!important;max-width:none!important}
-    body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{width:100%!important;max-width:none!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
+    body:has(#leads.view.active) #leadMapPanel>.grid-2>.card:last-child{width:100%!important;min-width:0!important;max-width:none!important;margin-right:0!important;border-top-right-radius:0!important;border-bottom-right-radius:0!important}
 
     /* Height is finalized in JS from the canvas's actual viewport position. */
     body:has(#leads.view.active) #leadMapCanvas,body:has(#leads.view.active) #leadMapFrame{min-height:0!important;max-height:none!important}
