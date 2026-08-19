@@ -28,16 +28,19 @@
   tableMount.insertAdjacentHTML('afterend',`<div id="leadMapPanel" style="display:block"><div class="grid-2"><div class="card" style="padding:12px"><div id="realLeadMapHeader" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:4px"><h3 style="margin:0;font-size:14px;white-space:nowrap">Real Lead Map</h3><span class="muted small" style="margin:0;flex:1 1 auto">Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.</span></div><iframe id="leadMapFrame" title="Selected lead map" style="width:100%;height:430px;border:1px solid #e5e7eb;border-radius:12px" loading="lazy"></iframe></div><div class="card" style="padding:12px"><h3>Map Assignment</h3><div id="mapLeadInfo" class="muted">Select a real lead.</div><label class="small">Assign to rep</label><select id="mapRepSelect" style="width:100%;padding:10px;margin:6px 0"></select><button id="mapAssignBtn" class="primary" style="width:100%">ASSIGN SELECTED LEAD</button><div id="mapAssignMsg" class="muted small" style="margin-top:8px"></div><div id="mapLeadList" style="margin-top:12px;max-height:430px;overflow:auto"></div></div></div></div>`);
   tableMount.style.display='none';
 
-  const oldDemo=document.getElementById('addDemoLeadsBtn');
-  if(oldDemo){const clone=oldDemo.cloneNode(true);oldDemo.replaceWith(clone);clone.addEventListener('click',()=>{const base=state.demoLeads.length+1;for(let i=0;i<10;i++){const team=i%2===0?'Pacific Northwest':'North Carolina';const streets=team==='Pacific Northwest'?pnwStreets:ncStreets;state.demoLeads.push({id:200000+base+i,address:`${2100+(base+i)*3} ${streets[i%streets.length]}`,city:'Demo City',stateCode:team==='North Carolina'?'NC':'OR',zip:'00000',fullAddress:`Demo Lead ${base+i}`,team,rep:null,disposition:'Uncontacted',isDemo:true,sourceSystem:'DEMO'});}switchMode('demo');});}
+  const isAdmin=()=>window.MCCOY_ACCESS?.access?.role==='admin';
+  function applyLeadAccessControls(){const admin=isAdmin();for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn','mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}if(!admin&&state.leadMode==='demo')state.leadMode='real';}
 
-  function currentRows(){return state.leadMode==='demo'?state.demoLeads:state.realLeads;}
+  const oldDemo=document.getElementById('addDemoLeadsBtn');
+  if(oldDemo){const clone=oldDemo.cloneNode(true);oldDemo.replaceWith(clone);clone.addEventListener('click',()=>{if(!isAdmin())return;const base=state.demoLeads.length+1;for(let i=0;i<10;i++){const team=i%2===0?'Pacific Northwest':'North Carolina';const streets=team==='Pacific Northwest'?pnwStreets:ncStreets;state.demoLeads.push({id:200000+base+i,address:`${2100+(base+i)*3} ${streets[i%streets.length]}`,city:'Demo City',stateCode:team==='North Carolina'?'NC':'OR',zip:'00000',fullAddress:`Demo Lead ${base+i}`,team,rep:null,disposition:'Uncontacted',isDemo:true,sourceSystem:'DEMO'});}switchMode('demo');});}
+
+  function currentRows(){return state.leadMode==='demo'&&isAdmin()?state.demoLeads:state.realLeads;}
   function filteredRows(){
     const filter=document.getElementById('teamFilter')?.value||'';
     const q=(document.getElementById('leadSearch')?.value||'').toLowerCase();
     return currentRows().filter(l=>(!filter||l.team===filter)&&(!q||`${l.address} ${l.city||''} ${l.stateCode||''} ${l.zip||''} ${l.rep||''}`.toLowerCase().includes(q)));
   }
-  function switchMode(mode){state.leadMode=mode;state.leadPage=1;state.leads=mode==='demo'?state.demoLeads:state.realLeads;document.getElementById('realLeadMode').className=mode==='real'?'primary':'assign-btn';document.getElementById('demoLeadMode').className=mode==='demo'?'primary':'assign-btn';document.getElementById('adminLeadImportBtn').style.display=mode==='real'?'inline-block':'none';renderLeads();}
+  function switchMode(mode){if(mode==='demo'&&!isAdmin())mode='real';applyLeadAccessControls();state.leadMode=mode;state.leadPage=1;state.leads=mode==='demo'?state.demoLeads:state.realLeads;document.getElementById('realLeadMode').className=mode==='real'?'primary':'assign-btn';document.getElementById('demoLeadMode').className=mode==='demo'?'primary':'assign-btn';document.getElementById('adminLeadImportBtn').style.display=mode==='real'&&isAdmin()?'inline-block':'none';renderLeads();}
   function switchView(view){state.leadView=view;document.getElementById('leadListView').className=view==='list'?'primary':'assign-btn';document.getElementById('leadMapView').className=view==='map'?'primary':'assign-btn';tableMount.style.display=view==='list'?'block':'none';document.getElementById('leadPager').style.display=view==='list'?'flex':'none';document.getElementById('leadMapPanel').style.display=view==='map'?'block':'none';if(view==='map')renderMapList();}
 
   async function loadAdminReps(){
@@ -81,7 +84,7 @@
   }
 
   document.getElementById('realLeadMode').onclick=()=>switchMode('real');
-  document.getElementById('demoLeadMode').onclick=()=>switchMode('demo');
+  document.getElementById('demoLeadMode').onclick=()=>{if(isAdmin())switchMode('demo');};
   document.getElementById('leadListView').onclick=()=>switchView('list');
   document.getElementById('leadMapView').onclick=()=>switchView('map');
   document.getElementById('leadPrev').onclick=()=>{if(state.leadPage>1){state.leadPage--;renderLeads();}};
@@ -90,6 +93,6 @@
   document.getElementById('teamFilter').addEventListener('change',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('leadSearch').addEventListener('input',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('mapAssignBtn').onclick=assignSelected;
-  window.addEventListener('mccoy-real-leads-loaded',()=>{switchMode('real');switchView('map');loadAdminReps();});
-  setTimeout(()=>{switchMode(state.realLeads.length?'real':'demo');switchView(state.realLeads.length?'map':'list');loadAdminReps();},900);
+  window.addEventListener('mccoy-real-leads-loaded',()=>{applyLeadAccessControls();switchMode('real');switchView('map');loadAdminReps();});
+  setTimeout(()=>{applyLeadAccessControls();switchMode(state.realLeads.length?'real':(isAdmin()?'demo':'real'));switchView(state.realLeads.length?'map':'list');loadAdminReps();},900);
 })();
