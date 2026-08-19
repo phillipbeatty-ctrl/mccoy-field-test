@@ -3,14 +3,17 @@
 
   function ensureRefreshButton(){
     const row=document.querySelector('#leadGeoControls > div');
-    if(!row||document.getElementById('refreshLeadPoolBtn'))return;
-    const btn=document.createElement('button');
-    btn.id='refreshLeadPoolBtn';
-    btn.className='assign-btn';
-    btn.textContent='REFRESH';
-    btn.title='Reload the latest Lead Pool from Supabase';
-    row.insertBefore(btn,row.firstChild);
-    btn.addEventListener('click',refreshLeadPool);
+    if(!row)return;
+    let btn=document.getElementById('refreshLeadPoolBtn');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='refreshLeadPoolBtn';
+      btn.className='assign-btn';
+      btn.textContent='REFRESH';
+      btn.title='Reload the latest Lead Pool from Supabase';
+      btn.addEventListener('click',refreshLeadPool);
+    }
+    if(btn.parentElement!==row||row.lastElementChild!==btn)row.appendChild(btn);
   }
 
   function setStatus(text){
