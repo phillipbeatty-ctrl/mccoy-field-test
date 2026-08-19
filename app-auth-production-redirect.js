@@ -1,6 +1,6 @@
 // Force all new McCoy Field Coach account confirmations to the production app.
 (()=>{
-  const PROD_FIELD_COACH='https://mccoy-field-test.vercel.app/field-coach.html';
+  const PROD_FIELD_COACH='https://mccoy-field-test.vercel.app/';
   function patchSignup(){
     const btn=document.getElementById('createAccountBtn');
     if(!btn||btn.dataset.prodRedirectPatched==='1')return false;
