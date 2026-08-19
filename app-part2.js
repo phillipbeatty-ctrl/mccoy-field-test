@@ -48,6 +48,17 @@ document.querySelectorAll('[data-disp]').forEach(btn=>btn.addEventListener('clic
   renderActivities();renderStats();renderLeads();
 }));
 
+function renderStats(){
+  const startedAt=state.session?.startedAt;
+  const activities=startedAt?state.activities.filter(activity=>activity.at.getTime()>=startedAt):state.activities;
+  const contactDispositions=new Set(['Contacted','Interested','Follow Up','Sale','Not Interested']);
+  const stats={
+    doorsCount:activities.length,
+    contactsCount:activities.filter(activity=>contactDispositions.has(activity.disposition)).length,
+    salesCount:activities.filter(activity=>activity.disposition==='Sale').length
+  };
+  Object.entries(stats).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=String(value);});
+}
 function renderActivities(){const el=document.getElementById('activityLog');if(!el)return;el.innerHTML=state.activities.slice(0,8).map(a=>`<div class="activity-item"><strong>${a.disposition}</strong> — ${a.lead.address}<div class="muted">${a.at.toLocaleTimeString()} • Visit ${fmtDoor(a.dwellMs)}</div></div>`).join('');}
 function renderEfficiency(){const el=document.getElementById('efficiencySummary');if(el)el.innerHTML='<p class="muted small">Competitive field analytics are computed on the McCoy server and are not contained in this browser build.</p>';}
 function renderAll(){renderDashboard();renderTeams();renderLeads();renderStats();renderActivities();renderEfficiency();}
