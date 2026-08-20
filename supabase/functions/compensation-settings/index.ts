@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     if (!canView) return Response.json({ error: 'forbidden' }, { status: 403, headers: corsHeaders })
 
     if (req.method === 'GET') {
-      const [{ data: compensation }, { data: global }, { data: managers }, { data: reps }, { data: repControls }] = await Promise.all([
+      const [{ data: compensation }, { data: global }, { data: managerControls }, { data: reps }, { data: repControls }] = await Promise.all([
         admin.from('compensation_rules').select('id,rule').eq('active', true).limit(1).maybeSingle(),
         admin.from('compensation_admin_settings').select('manager_overrides_enabled,updated_at').eq('singleton', true).maybeSingle(),
         admin.from('manager_override_controls').select('manager_name,manager_email,overrides_enabled,updated_at').order('manager_name'),
@@ -33,9 +33,15 @@ Deno.serve(async (req) => {
       ])
       const rule:any = compensation?.rule || {}
       const repMap = new Map((repControls || []).map((row:any) => [String(row.rep_email).toLowerCase(), row]))
+      const managerByEmail = new Map((managerControls || []).filter((row:any)=>row.manager_email).map((row:any)=>[String(row.manager_email).toLowerCase(),row]))
+      const managerByName = new Map((managerControls || []).map((row:any)=>[String(row.manager_name||''),row]))
+      const managerAccounts = (reps || []).filter((row:any)=>['manager','admin'].includes(row.role)).map((row:any)=>{
+        const control:any=managerByEmail.get(String(row.email).toLowerCase())||managerByName.get(String(row.display_name||''))
+        return {manager_name:row.display_name||row.email,manager_email:row.email,overrides_enabled:control?.overrides_enabled??true,updated_at:control?.updated_at||null}
+      })
       const repRows = (reps || []).filter((row:any) => row.assigned_manager_name || row.assigned_manager_email).map((row:any) => {
         const control:any = repMap.get(String(row.email).toLowerCase())
-        const manager:any = (managers || []).find((candidate:any) =>
+        const manager:any = managerAccounts.find((candidate:any) =>
           (row.assigned_manager_email && candidate.manager_email && String(candidate.manager_email).toLowerCase() === String(row.assigned_manager_email).toLowerCase()) ||
           (row.assigned_manager_name && candidate.manager_name === row.assigned_manager_name)
         )
@@ -74,7 +80,7 @@ Deno.serve(async (req) => {
             mobile_additional_line: Number(rule.att?.mobile_additional_line || 0)
           }
         },
-        managers: managers || [],
+        managers: managerAccounts,
         reps: repRows,
         manager_override_amount_per_sale: Number(rule.manager_override?.amount_per_sale || 25)
       }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store' } })
@@ -113,17 +119,13 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === 'set_manager_override') {
-      const managerName = String(body.manager_name || '').trim()
-      if (!managerName) return Response.json({ error: 'manager_name_required' }, { status: 400, headers: corsHeaders })
-      const { error } = await admin.from('manager_override_controls').upsert({
-        manager_name: managerName,
-        manager_email: body.manager_email ? String(body.manager_email).toLowerCase() : null,
-        overrides_enabled: !!body.overrides_enabled,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      }, { onConflict: 'manager_name' })
+      const managerEmail = String(body.manager_email || '').trim().toLowerCase()
+      if (!managerEmail) return Response.json({ error: 'manager_email_required' }, { status: 400, headers: corsHeaders })
+      const { data: result, error } = await admin.rpc('admin_set_manager_override_authority',{
+        p_manager_email:managerEmail,p_enabled:!!body.overrides_enabled,p_changed_by:user.id,p_changed_by_email:email
+      })
       if (error) throw error
-      return Response.json({ ok: true }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store' } })
+      return Response.json({ ok: true, ...(result||{}) }, { headers: { ...corsHeaders, 'Cache-Control': 'no-store' } })
     }
 
     if (body.action === 'set_rep_override') {
