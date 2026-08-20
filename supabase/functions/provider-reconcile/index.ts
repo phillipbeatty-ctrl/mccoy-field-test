@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
+import { isCancelledProviderStatus } from '../_shared/accounting-records.mjs'
 
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
 const norm=(value:any)=>String(value??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'')
@@ -75,7 +76,12 @@ async function reconcile(admin:any,sale:any){
 
 async function apply(admin:any,sale:any){
   const result=await reconcile(admin,sale)
-  const eligible=result.status==='verified_processed'&&approvalAllowsEligibility(sale)&&sale.sale_status!=='cancelled'
+  const providerStatus=String(result.row?.provider_status||'').trim()||null
+  const providerCancelled=result.status==='verified_processed'&&!!result.row&&isCancelledProviderStatus(providerStatus)
+  const priorSnapshot=sale.compensation_snapshot&&typeof sale.compensation_snapshot==='object'?sale.compensation_snapshot:{}
+  const scheduledReduction=Number(priorSnapshot.base_commission||0)+Number(priorSnapshot.att_mobile_originating_commission||0)
+  const saleStatus=providerCancelled?'cancelled':sale.sale_status
+  const eligible=result.status==='verified_processed'&&approvalAllowsEligibility(sale)&&saleStatus!=='cancelled'
   const patch:any={
     verification_status:result.status,
     verification_reason:result.reason,
@@ -83,6 +89,15 @@ async function apply(admin:any,sale:any){
     provider_sale_row_id:result.row?.id||null,
     verified_at:result.status==='verified_processed'?new Date().toISOString():null,
     low_potential_since:result.status==='low_potential'?(sale.low_potential_since||new Date().toISOString()):null
+  }
+  if(providerCancelled){
+    patch.sale_status='cancelled'
+    patch.compensation_snapshot={...priorSnapshot,cancellation:{
+      status:'cancelled',source:'provider_sales_row',provider_status:providerStatus,
+      provider_sale_row_id:result.row?.id||null,detected_at:priorSnapshot?.cancellation?.detected_at||new Date().toISOString(),
+      reduction_amount:Number.isFinite(scheduledReduction)?scheduledReduction:0,
+      reduction_policy:'excluded_from_current_earned_pay'
+    }}
   }
   const {error}=await admin.from('sales_records').update(patch).eq('id',sale.id)
   if(error)throw error
