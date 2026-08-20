@@ -24,6 +24,54 @@
   window.renderFieldLeadSelect=renderFieldLeadSelectWithLocality;
   renderFieldLeadSelectWithLocality();
 
+  const closestBox=document.createElement('div');
+  closestBox.id='closestDoorAddress';
+  closestBox.className='geo-box';
+  closestBox.style.cssText='margin:0 0 10px;border-color:#bfdbfe;background:#eff6ff;color:#1e3a8a';
+  closestBox.setAttribute('role','status');
+  closestBox.setAttribute('aria-live','polite');
+  closestBox.textContent='Closest address: Waiting for current location…';
+  select.insertAdjacentElement('beforebegin',closestBox);
+
+  function metersBetween(lat1,lng1,lat2,lng2){
+    const radians=value=>value*Math.PI/180,R=6371000,dLat=radians(lat2-lat1),dLng=radians(lng2-lng1);
+    const value=Math.sin(dLat/2)**2+Math.cos(radians(lat1))*Math.cos(radians(lat2))*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(value));
+  }
+  function formatRepDistance(meters){
+    const feet=meters*3.28084;
+    return feet<1000?`${Math.round(feet)} ft away`:`${(feet/5280).toFixed(2)} mi away`;
+  }
+  function updateClosestDoorAddress(){
+    const gps=state.latestGps||null,lat=Number(gps?.lat),lng=Number(gps?.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)){
+      closestBox.dataset.closestLeadId='';
+      closestBox.textContent='Closest address: Waiting for current location…';
+      return null;
+    }
+    let nearest=null;
+    for(const lead of state.leads||[]){
+      if(lead?.isDemo===true)continue;
+      const leadLat=Number(lead?.lat),leadLng=Number(lead?.lng);
+      if(!Number.isFinite(leadLat)||!Number.isFinite(leadLng))continue;
+      const distance=metersBetween(lat,lng,leadLat,leadLng);
+      if(!nearest||distance<nearest.distance)nearest={lead,distance};
+    }
+    if(!nearest){
+      closestBox.dataset.closestLeadId='';
+      closestBox.textContent='Closest address: No mapped addresses available.';
+      return null;
+    }
+    closestBox.dataset.closestLeadId=String(nearest.lead.id);
+    closestBox.textContent=`Closest address: ${fieldLeadAddressLabel(nearest.lead)} · ${formatRepDistance(nearest.distance)}`;
+    return nearest;
+  }
+  window.MCCOY_UPDATE_CLOSEST_DOOR=updateClosestDoorAddress;
+  updateClosestDoorAddress();
+  const closestTimer=setInterval(updateClosestDoorAddress,1500);
+  for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded','mccoy-gps-update'])window.addEventListener(eventName,updateClosestDoorAddress);
+  window.addEventListener('beforeunload',()=>clearInterval(closestTimer));
+
   const panel=document.createElement('details');
   panel.id='fieldAddressEntry';
   panel.className='field-address-entry';
@@ -64,12 +112,13 @@
       if(error||!data?.ok||!data.lead)throw error||new Error(data?.error||'address_creation_failed');
       const row=data.lead;
       const address=[row.address1,row.address2].filter(Boolean).join(' ');
-      const lead={id:Date.now(),dbId:row.id,sourceId:row.source_id,sourceSystem:row.source_system||'FIELD_ENTRY',importBatchId:row.import_batch_id||null,address1:row.address1||'',address2:row.address2||'',address,city:row.city||'',stateCode:row.state||'',zip:row.zip||'',fullAddress:[address,row.city,row.state,row.zip].filter(Boolean).join(', '),lat:row.latitude==null?undefined:Number(row.latitude),lng:row.longitude==null?undefined:Number(row.longitude),assignedRepId:row.assigned_rep_id||null,team:teamForState(row.state||''),rep:null,disposition:row.current_disposition||'Uncontacted',isDemo:false};
+      const lead={id:Date.now(),dbId:row.id,sourceId:row.source_id,sourceSystem:row.source_system||'FIELD_ENTRY',importBatchId:row.import_batch_id||null,address1:row.address1||'',address2:row.address2||'',address,city:row.city||'',stateCode:row.state||'',zip:row.zip||'',fullAddress:[address,row.city,row.state,row.zip].filter(Boolean).join(', '),lat:row.latitude==null?undefined:Number(row.latitude),lng:row.longitude==null?undefined:Number(row.longitude),geocodeStatus:row.geocode_status||null,assignedRepId:row.assigned_rep_id||null,team:teamForState(row.state||''),rep:null,disposition:row.current_disposition||'Uncontacted',isDemo:false};
       state.realLeads=state.realLeads||[];state.realLeads.unshift(lead);state.leadMode='real';state.leads=state.realLeads;
       if(typeof window.renderLeads==='function')window.renderLeads();
       if(typeof window.renderFieldLeadSelect==='function')window.renderFieldLeadSelect();
       select.value=String(lead.id);
       window.MCCOY_RENDER_LEAD_MAP?.(false);
+      updateClosestDoorAddress();
       message(gps?'Address added to the real-lead map and selected for this door.':'Address added and selected. Enable location to place it on the map.',true);
       for(const id of ['fieldNewAddress','fieldNewAddress2','fieldNewCity','fieldNewState','fieldNewZip'])document.getElementById(id).value='';
       panel.open=false;
