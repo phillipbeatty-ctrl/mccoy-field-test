@@ -32,7 +32,7 @@
     const zip=document.getElementById('fieldNewZip').value.trim();
     if(address1.length<4){message('Enter a valid street address.');return;}
     if(stateCode&&stateCode.length!==2){message('Use the two-letter state abbreviation.');return;}
-    if(zip&&!/^\\d{5}(?:-\\d{4})?$/.test(zip)){message('Enter a valid ZIP code.');return;}
+    if(zip&&!/^\d{5}(?:-\d{4})?$/.test(zip)){message('Enter a valid ZIP code.');return;}
     const btn=document.getElementById('addFieldAddressBtn');
     btn.disabled=true;message('Adding address and locating the current door...',true);
     try{
