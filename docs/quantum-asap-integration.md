@@ -2,7 +2,7 @@
 
 Status: **not connected**. No ASAP endpoint, credential, webhook, scheduled job, database migration, or production transport has been configured.
 
-The rep-facing seller-account launcher is prepared in `app-provider-sale-router.js`. Quantum is labeled `ASAP` and opens `https://asap.docxtract.com`, the current destination published by the legacy Quantum Fiber ASAP login page. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open ASAP. Quantum opens in a fresh, full browser tab so the legacy login receives normal keyboard input, including special characters such as `@`, instead of being constrained by an embedded or reused popup. This only opens the portal; it does not connect McCoy to the ASAP API. The launcher relies on the provider's existing browser session or approved SSO and never stores, autofills, or transmits provider credentials.
+The rep-facing seller-account launcher is prepared in `app-provider-sale-router.js`. Quantum is labeled `Quantum ASAP` and opens the provider-specific login at `https://qfasap.docxtract.com/Login.aspx`. Do not substitute the generic `https://asap.docxtract.com` destination; field testing identified that destination as Lumen ASAP rather than the required Quantum seller account. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open ASAP. Quantum opens in a fresh, full browser tab so the login receives normal keyboard input, including special characters such as `@`, instead of being constrained by an embedded or reused popup. This only opens the portal; it does not connect McCoy to the ASAP API. The launcher relies on the provider's existing browser session or approved SSO and never stores, autofills, or transmits provider credentials.
 
 ## What is already compatible
 
@@ -46,6 +46,6 @@ Do not send ASAP usernames, passwords, access tokens, or private keys in chat or
 6. Enable database writes for a limited pilot while automatic competition/accounting effects remain disabled.
 7. Enable reconciliation only after the pilot matches ASAP totals and statuses.
 
-## Public portal finding
+## Configured Quantum portal
 
-The legacy Quantum Fiber ASAP page at `https://qfasap.docxtract.com/Login.aspx` identifies itself as Quantum Fiber ASAP and directs users to `https://asap.docxtract.com` as the replacement URL.
+McCoy intentionally opens `https://qfasap.docxtract.com/Login.aspx`, which identifies itself as Quantum Fiber ASAP. Although that page may display a notice referencing the generic ASAP destination, the McCoy launcher must remain pinned to the provider-specific Quantum login unless an administrator supplies and verifies a different Quantum URL.
