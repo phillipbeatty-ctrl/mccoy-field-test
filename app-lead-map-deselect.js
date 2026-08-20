@@ -16,6 +16,7 @@
   document.addEventListener('click',event=>{
     const canvas=event.target?.closest?.('#leadMapFrame');
     if(!canvas)return;
+    if(window.MCCOY_LASSO_ACTIVE||Date.now()<Number(window.MCCOY_LASSO_IGNORE_MAP_CLEAR_UNTIL||0))return;
     if(event.target.closest?.('.lead-house-icon,.mccoy-lead-cluster,.leaflet-control'))return;
     const lasso=document.getElementById('lassoSelectBtn');
     if(lasso&&lasso.textContent!=='LASSO SELECT')return;
@@ -25,4 +26,3 @@
     if(event.target?.closest?.('#clearMapSelectionBtn'))setTimeout(resetSelectedLeadDetails,0);
   });
 })();
-
