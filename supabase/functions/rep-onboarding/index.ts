@@ -84,9 +84,19 @@ Deno.serve(async(req)=>{
       if(!owner?.active||owner.role!=='admin')throw new Error('invalid_administrator')
       return {email:owner.email,name:owner.display_name||owner.email}
     }
+    async function findAuthAccountByEmail(targetEmail:string){
+      const normalizedEmail=targetEmail.trim().toLowerCase()
+      for(let page=1;page<=20;page++){
+        const {data:accountPage,error:accountError}=await admin.auth.admin.listUsers({page,perPage:1000});if(accountError)throw accountError
+        const pageUsers=accountPage?.users||[]
+        const account=pageUsers.find((candidate:any)=>String(candidate.email||'').trim().toLowerCase()===normalizedEmail)
+        if(account)return account
+        if(pageUsers.length<1000)break
+      }
+      return null
+    }
     async function syncAppUserProfile(targetEmail:string,role:string,team:string|null,displayName:string,active=true){
-      const {data:accountPage,error:accountError}=await admin.auth.admin.listUsers({page:1,perPage:1000});if(accountError)throw accountError
-      const account=(accountPage?.users||[]).find((candidate:any)=>String(candidate.email||'').toLowerCase()===targetEmail.toLowerCase());if(!account?.id)throw new Error('user_profile_account_not_found')
+      const account=await findAuthAccountByEmail(targetEmail);if(!account?.id)throw new Error('user_profile_account_not_found')
       let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
       const parts=String(displayName||'').trim().split(/\s+/).filter(Boolean);const firstName=parts.shift()||null,lastName=parts.join(' ')||null
       const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
@@ -120,6 +130,34 @@ Deno.serve(async(req)=>{
       const {error:rerr}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:String(body.notes||'').slice(0,1000)}).eq('id',requestId);if(rerr)throw rerr
       return json({ok:true,approved_email:r.email,role,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
+    if(action==='grant_pending_account_access'){
+      const target=String(body.email||'').trim().toLowerCase();if(!target)return json({error:'email_required'},400)
+      const account=await findAuthAccountByEmail(target);if(!account?.id)return json({error:'user_not_found'},404)
+      const {data:existingAccess,error:accessLookupError}=await admin.from('app_user_access').select('email,display_name,active').eq('email',target).maybeSingle();if(accessLookupError)throw accessLookupError
+      if(existingAccess?.active)return json({error:'account_already_active'},409)
+      const {data:request,error:requestError}=await admin.from('rep_access_requests').select('*').eq('user_id',account.id).order('created_at',{ascending:false}).limit(1).maybeSingle();if(requestError)throw requestError
+      const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
+      const displayName=String(request?.display_name||body.display_name||existingAccess?.display_name||metadataName||target).trim().slice(0,120)
+      const team=String(request?.requested_team||'').trim().slice(0,120)||null
+      const {error:accessError}=await admin.from('app_user_access').upsert({email:target,role:'rep',active:true,display_name:displayName,team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
+      await syncAppUserProfile(target,'rep',team,displayName,true)
+      if(request?.status==='pending'){
+        const {error:reviewError}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:'Access granted from Pending Account Access.'}).eq('id',request.id).eq('status','pending');if(reviewError)throw reviewError
+      }
+      return json({ok:true,email:target,role:'rep',team_name:team,access_granted:true})
+    }
+    if(action==='reset_pending_password'){
+      const target=String(body.email||'').trim().toLowerCase(),password=typeof body.password==='string'?body.password:''
+      if(!target)return json({error:'email_required'},400)
+      if(password.length<8)return json({error:'password_must_be_at_least_8_characters'},400)
+      if(password.length>128)return json({error:'password_too_long'},400)
+      const {data:targetAccess,error:targetError}=await admin.from('app_user_access').select('email,active').eq('email',target).maybeSingle();if(targetError)throw targetError
+      if(targetAccess?.active)return json({error:'account_is_already_active'},409)
+      const account=await findAuthAccountByEmail(target);if(!account?.id)return json({error:'user_not_found'},404)
+      const {error:passwordError}=await admin.auth.admin.updateUserById(account.id,{password})
+      if(passwordError)return json({error:'password_update_failed',detail:passwordError.message||'Unable to update this password.'},400)
+      return json({ok:true,email:target,password_updated:true,access_granted:false})
+    }
     if(action==='reset_user_password'){
       const target=String(body.email||'').trim().toLowerCase()
       const password=typeof body.password==='string'?body.password:''
@@ -129,9 +167,7 @@ Deno.serve(async(req)=>{
       const {data:targetAccess,error:targetError}=await admin.from('app_user_access').select('email,role,active').eq('email',target).maybeSingle()
       if(targetError)throw targetError
       if(!targetAccess?.active||!['rep','manager'].includes(targetAccess.role))return json({error:'active_rep_or_manager_required'},404)
-      const {data:accountPage,error:accountsError}=await admin.auth.admin.listUsers({page:1,perPage:1000})
-      if(accountsError)throw accountsError
-      const account=(accountPage?.users||[]).find((candidate:any)=>String(candidate.email||'').trim().toLowerCase()===target)
+      const account=await findAuthAccountByEmail(target)
       if(!account?.id)return json({error:'user_not_found'},404)
       const {error:passwordError}=await admin.auth.admin.updateUserById(account.id,{password})
       if(passwordError)return json({error:'password_update_failed',detail:passwordError.message||'Unable to update this password.'},400)
