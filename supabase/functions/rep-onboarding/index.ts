@@ -198,7 +198,8 @@ Deno.serve(async(req)=>{
       if(role==='manager'){try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
       const {error}=await admin.from('app_user_access').update({role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
       const account=await findAuthAccountByEmail(target);if(!account?.id)throw new Error('user_profile_account_not_found')
-      let rename:any={changed:false,display_name:nextDisplayName},authMetadataSynced:null as boolean|null
+      let rename:any={changed:false,display_name:nextDisplayName}
+      let authMetadataSynced:boolean|null=null
       if(nameChanged){
         const {data:renameData,error:renameError}=await admin.rpc('admin_rename_app_user',{p_target_email:target,p_new_display_name:nextDisplayName,p_changed_by:user.id,p_changed_by_email:email,p_target_user_id:account.id})
         if(renameError)throw renameError
