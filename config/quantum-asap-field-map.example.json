@@ -1,0 +1,16 @@
+{
+  "status": "template_only_not_connected",
+  "transport": "to_be_confirmed_by_quantum",
+  "fields": {
+    "externalId": "",
+    "orderNumber": "",
+    "accountNumber": "",
+    "sellerIdentifier": "",
+    "sellerName": "",
+    "sellerEmail": "",
+    "customerName": "",
+    "serviceAddress": "",
+    "saleDate": "",
+    "providerStatus": ""
+  }
+}
