@@ -27,6 +27,29 @@ Deno.serve(async(req)=>{
       const {data:created,error}=await admin.from('rep_access_requests').insert({user_id:user.id,email,display_name:displayName,requested_role:'rep',requested_team:team,status:'pending'}).select('*').single(); if(error) throw error
       return json({ok:true,request:created})
     }
+    if(action==='team_rosters'){
+      if(!callerAccess?.active)return json({error:'forbidden'},403)
+      const [{data:accounts,error:accountError},{data:profiles,error:profileError},{data:teamRows,error:teamError}]=await Promise.all([
+        admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_manager_name').eq('active',true).order('display_name'),
+        admin.from('users').select('id,email').eq('active',true).not('email','is',null),
+        admin.from('teams').select('name,manager_user_id').eq('active',true).in('name',[...REGIONS])
+      ])
+      if(accountError)throw accountError;if(profileError)throw profileError;if(teamError)throw teamError
+      const accountRows=accounts||[],profilesById=new Map((profiles||[]).map((profile:any)=>[String(profile.id),String(profile.email||'').toLowerCase()]))
+      const regionsByManager=new Map<string,string[]>()
+      for(const teamRow of teamRows||[]){const managerEmail=profilesById.get(String(teamRow.manager_user_id||''));if(!managerEmail)continue;const assigned=regionsByManager.get(managerEmail)||[];assigned.push(String(teamRow.name));regionsByManager.set(managerEmail,assigned)}
+      const managers=accountRows.filter((row:any)=>['manager','admin'].includes(row.role)),reps=accountRows.filter((row:any)=>row.role==='rep'),matched=new Set<string>()
+      const rosters=managers.map((manager:any)=>{
+        const managerEmail=String(manager.email||'').toLowerCase(),managerName=String(manager.display_name||manager.email||'Manager')
+        const assignedReps=reps.filter((rep:any)=>{
+          const repEmail=String(rep.email||'').toLowerCase(),byEmail=String(rep.assigned_manager_email||'').toLowerCase()===managerEmail,byLegacyName=!rep.assigned_manager_email&&rep.assigned_manager_name===managerName
+          if(byEmail||byLegacyName){matched.add(repEmail);return true}return false
+        }).map((rep:any)=>({display_name:rep.display_name||'Rep',region:rep.team_name||null}))
+        return {manager_name:managerName,manager_role:manager.role,regions:(regionsByManager.get(managerEmail)||[]).sort(),reps:assignedReps}
+      }).filter((roster:any)=>roster.regions.length||roster.reps.length||roster.manager_role==='manager')
+      const unassigned_reps=reps.filter((rep:any)=>!matched.has(String(rep.email||'').toLowerCase())).map((rep:any)=>({display_name:rep.display_name||'Rep',region:rep.team_name||null}))
+      return json({ok:true,rosters,unassigned_reps:unassigned_reps,visibility:'active_users_no_emails'})
+    }
     if(!callerAccess?.active||callerAccess.role!=='admin') return json({error:'admin_only'},403)
     if(action==='list_pending'){
       const {data,error}=await admin.from('rep_access_requests').select('*').eq('status','pending').order('created_at',{ascending:true}); if(error) throw error
