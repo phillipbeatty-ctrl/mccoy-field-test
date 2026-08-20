@@ -38,7 +38,12 @@
       <div class="lead-detail-head"><strong>${esc(lead.address||'Lead')}</strong><span class="tag">${esc(lead.disposition||'Uncontacted')}</span></div>
       <div class="lead-detail-address">${esc(address||'No address')}</div>
       <div class="lead-detail-grid">
-        <div><span>Assigned rep</span><strong>${esc(lead.rep||'Unassigned')}</strong></div>
+        <div><span>Lead owner</span><strong>${esc(lead.ownerName||'Unassigned')}</strong></div>
+        <div><span>Owner role</span><strong>${esc(lead.ownerRole==='admin'?'Administrator':lead.ownerRole==='manager'?'Manager':lead.ownerRole==='rep'||lead.ownerRole==='tester'?'Representative':'Unassigned')}</strong></div>
+        <div><span>Owner email</span><strong>${esc(lead.ownerEmail||'—')}</strong></div>
+        <div><span>Assigned administrator</span><strong>${esc(lead.assignedAdminName||lead.assignedAdminEmail||'Unassigned')}</strong></div>
+        <div><span>Assigned manager</span><strong>${esc(lead.assignedManagerName||'Unassigned')}</strong></div>
+        <div><span>Assigned rep</span><strong>${esc(lead.assignedRepName||lead.rep||'Unassigned')}</strong></div>
         <div><span>Team</span><strong>${esc(lead.team||'Unassigned')}</strong></div>
         <div><span>Source</span><strong>${esc(lead.sourceSystem||'SPOTIO')}</strong></div>
         <div><span>Source ID</span><strong>${esc(lead.sourceId||'—')}</strong></div>
@@ -65,7 +70,7 @@
       btn.dataset.detailWired='1';
       const lead=leadByAnyId(btn.dataset.id);
       if(lead){
-        btn.innerHTML=`<strong>${esc(lead.address||'Lead')}</strong><span>${esc([lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', '))}</span><span>${esc(lead.rep||'Unassigned')} · ${esc(lead.disposition||'Uncontacted')}</span>`;
+        btn.innerHTML=`<strong>${esc(lead.address||'Lead')}</strong><span>${esc([lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', '))}</span><span>Owner: ${esc(lead.ownerName||'Unassigned')} · ${esc(lead.disposition||'Uncontacted')}</span>`;
       }
       btn.addEventListener('click',()=>setTimeout(()=>activateLead(btn.dataset.id),0));
     });

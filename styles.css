@@ -56,3 +56,10 @@ body:has(#leads.view.active) .main{height:100vh;min-height:100vh;overflow:hidden
 body:has(#leads.view.active) #leads.view.active{height:calc(100vh - 54px);overflow:hidden}
 
 @media(max-width:900px){.sidebar{position:static;width:auto;height:auto;flex-direction:row;align-items:center;gap:12px;overflow:auto}.sidebar nav{display:flex}.sidebar-footer{display:none}.main{margin-left:0}.cards{grid-template-columns:1fr 1fr}.grid-2{grid-template-columns:1fr}.topbar{padding:0 16px}.view{padding:16px}.disposition-grid{grid-template-columns:1fr 1fr}.brand{margin:0;min-width:180px}body:has(#leads.view.active){overflow:auto}body:has(#leads.view.active) .main{height:auto;overflow:visible}body:has(#leads.view.active) #leads.view.active{height:auto;overflow:visible}#leadMapPanel>.grid-2{grid-template-columns:1fr}#leadMapPanel>.grid-2>.card:last-child{width:100%;min-width:0;max-width:none}#leadMapCanvas,#leadMapFrame{height:65vh!important;min-height:480px!important}#mapLeadList{max-height:55vh!important;min-height:260px!important}#mapRepSelect,#bulkAssignMapBtn,#mapLeadInfo,#mapAssignMsg,#mapLeadList{max-width:100%!important;width:100%!important}body:has(#leads.view.active) .topbar{height:auto;min-height:64px;padding:8px 12px}}
+
+/* Keep Team, owner, and the shortened lead search together on one line. */
+#leads .toolbar{align-items:center;flex-wrap:nowrap}
+#leads .toolbar #teamFilter{flex:0 1 31%;width:auto;max-width:155px}
+#leads .toolbar #leadOwnerFilter{flex:0 1 33%;width:auto;max-width:175px}
+#leads .toolbar #leadSearch{flex:1 1 36%;width:auto;min-width:95px}
+@media(max-width:520px){#leads .toolbar{gap:4px}#leads .toolbar #teamFilter,#leads .toolbar #leadOwnerFilter{min-width:75px}#leads .toolbar #leadSearch{min-width:80px}}

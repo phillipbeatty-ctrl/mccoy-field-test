@@ -4,6 +4,7 @@
   let startupComplete=false,startupTimer=null;
   let fallbackRunning=false;
   const fallbackAttemptedBatches=new Set();
+  let ownersById=new Map(),ownersByEmail=new Map();
 
   async function waitForActiveAccess(timeoutMs=15000){
     const start=Date.now();
@@ -27,7 +28,7 @@
     const total=Math.max(0,Number(first.total||0));
     const rows=Array.isArray(first.leads)?first.leads.slice():[];
     const totalPages=Math.ceil(total/PAGE);
-    const resultForRows=leadRows=>({rows:leadRows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignmentReason:first.assignment_reason||null,assignedAreas:first.assigned_areas||[]});
+    const resultForRows=leadRows=>({rows:leadRows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignmentReason:first.assignment_reason||null,assignedAreas:first.assigned_areas||[],owners:Array.isArray(first.owners)?first.owners:[]});
     if(totalPages>120)throw new Error('real_lead_pagination_guard');
     if(totalPages>1&&typeof onProgress==='function')onProgress(resultForRows(rows.slice()));
     for(let next=1;next<totalPages;next+=CONCURRENT){
@@ -45,8 +46,39 @@
     return Number.isFinite(n)?n:undefined;
   }
 
+  function setOwnershipDirectory(accounts){
+    const directory=(Array.isArray(accounts)?accounts:[]).filter(account=>account&&account.user_id&&account.email).map(account=>({...account,email:String(account.email).toLowerCase(),display_name:account.display_name||account.email}));
+    ownersById=new Map(directory.map(account=>[String(account.user_id),account]));
+    ownersByEmail=new Map(directory.map(account=>[account.email,account]));
+    state.leadOwnershipDirectory=directory;
+    window.MCCOY_LEAD_OWNERSHIP_DIRECTORY=directory;
+    window.dispatchEvent(new CustomEvent('mccoy-lead-owners-updated',{detail:{owners:directory}}));
+    return directory;
+  }
+
+  function applyLeadOwnership(lead){
+    if(!lead)return lead;
+    const repAccount=lead.assignedRepId?ownersById.get(String(lead.assignedRepId)):null;
+    const managerAccount=lead.assignedManagerId?ownersById.get(String(lead.assignedManagerId)):null;
+    const administratorAccount=(lead.assignedAdminEmail?ownersByEmail.get(String(lead.assignedAdminEmail).toLowerCase()):null)||(repAccount?.role==='admin'?repAccount:null);
+    const ownerAccount=repAccount||managerAccount||administratorAccount||null;
+    const display=account=>account?.display_name||account?.email||null;
+    lead.assignedRepName=repAccount&&['rep','tester'].includes(repAccount.role)?display(repAccount):null;
+    lead.assignedRepEmail=repAccount?.email||null;
+    lead.assignedManagerName=display(managerAccount);
+    lead.assignedManagerEmail=managerAccount?.email||null;
+    lead.assignedAdminName=display(administratorAccount);
+    lead.ownerName=display(ownerAccount)||'Unassigned';
+    lead.ownerEmail=ownerAccount?.email||null;
+    lead.ownerRole=ownerAccount?.role||'unassigned';
+    lead.team=repAccount?.team_name||managerAccount?.team_name||(lead.stateCode==='NC'?'North Carolina':(['OR','WA'].includes(lead.stateCode)?'Pacific Northwest':'Unassigned'));
+    lead.rep=lead.assignedRepName;
+    return lead;
+  }
+  window.MCCOY_APPLY_LEAD_OWNERSHIP=applyLeadOwnership;
+
   function mapLeadRows(data){
-    return data.map((r,i)=>({
+    return data.map((r,i)=>applyLeadOwnership({
       id:100000+i,
       dbId:r.id,
       sourceId:r.source_id,
@@ -62,14 +94,13 @@
       assignedRepId:r.assigned_rep_id||null,
       assignedManagerId:r.assigned_manager_id||null,
       assignedAdminEmail:r.assigned_admin_email||null,
-      team:r.state==='NC'?'North Carolina':(['OR','WA'].includes(r.state)?'Pacific Northwest':'Unassigned'),
-      rep:null,
       disposition:r.current_disposition||'Uncontacted',
       isDemo:false
     }));
   }
 
   function applyLoadedResult(result,{partial=false}={}){
+    setOwnershipDirectory(result.owners||[]);
     const real=mapLeadRows(result.rows);
     if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
     state.realLeads=real;
@@ -79,7 +110,7 @@
     state.leads=state.realLeads;
     const teamCounts=new Map();for(const lead of real)teamCounts.set(lead.team,(teamCounts.get(lead.team)||0)+1);for(const team of state.teams)team.leads=teamCounts.get(team.name)||0;
     renderAll();
-    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?(result.scope==='manager_pool'?'No leads assigned by your administrator — contact your administrator':result.scope==='manager_assigned_rep'?'No leads assigned by your manager — contact your manager':'No sales area assigned — contact your administrator'):'No real leads are available in your assigned area';select.replaceChildren(option);}}
+    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?(result.scope==='manager_pool'?'No leads assigned by your administrator — contact your administrator':result.scope==='manager_assigned_rep'?'No leads assigned by your manager — contact your manager':'No leads assigned to you — contact your administrator or manager'):'No real leads are available in your assigned area';select.replaceChildren(option);}}
     const detail={count:real.length,batchId:result.batchId,total:result.total,partial};
     if(partial){const progress=document.getElementById('geocodeProgress');if(progress)progress.textContent=`Loading leads… ${real.length.toLocaleString()} of ${result.total.toLocaleString()} ready.`;window.dispatchEvent(new CustomEvent('mccoy-real-leads-progress',{detail}));}
     else window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail}));

@@ -71,12 +71,10 @@
     const icon=L.divIcon({className:cls,html:'<div class="lead-house lead-spotio-pin" aria-hidden="true"></div>',iconSize:correction?[36,38]:[26,29],iconAnchor:correction?[18,33]:[13,25],tooltipAnchor:[0,correction?-30:-23]});pinIconCache.set(key,icon);return icon;
   }
   function currentRealFiltered(){
-    const team=document.getElementById('teamFilter')?.value||'';
-    const q=(document.getElementById('leadSearch')?.value||'').toLowerCase();
-    return (state.realLeads||[]).filter(l=>Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng))&&(!team||l.team===team)&&(!q||`${l.address} ${l.city||''} ${l.stateCode||''} ${l.zip||''} ${l.rep||''}`.toLowerCase().includes(q)));
+    return (state.realLeads||[]).filter(lead=>Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng))&&(!window.MCCOY_LEAD_MATCHES_FILTER||window.MCCOY_LEAD_MATCHES_FILTER(lead)));
   }
   function updateSelectionStatus(prefix=''){
-    const filterKey=`${document.getElementById('teamFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`,count=renderedLeadSource===state.realLeads&&renderedFilterKey===filterKey?mappedLeadCount:currentRealFiltered().length;const base=`${count.toLocaleString()} mapped leads in current filters · ${selectedIds.size.toLocaleString()} selected.`;const el=document.getElementById('mapSelectionStatus');if(el)el.textContent=prefix?`${prefix} · ${base}`:base;
+    const filterKey=`${document.getElementById('teamFilter')?.value||''}|${document.getElementById('leadOwnerFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`,count=renderedLeadSource===state.realLeads&&renderedFilterKey===filterKey?mappedLeadCount:currentRealFiltered().length;const base=`${count.toLocaleString()} mapped leads in current filters · ${selectedIds.size.toLocaleString()} selected.`;const el=document.getElementById('mapSelectionStatus');if(el)el.textContent=prefix?`${prefix} · ${base}`:base;
   }
   function restoreGrabCursor(){
     lassoMode=false;lassoDrawing=false;const btn=document.getElementById('lassoSelectBtn');if(btn){btn.textContent='LASSO SELECT';btn.className='assign-btn';}canvas.style.cursor='grab';map.dragging.enable();map.doubleClickZoom.enable();map.boxZoom.enable();
@@ -85,13 +83,13 @@
   function toggleLeadSelection(l){if(selectedIds.has(l.dbId))selectedIds.delete(l.dbId);else selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus(selectedIds.has(l.dbId)?'Lead added to selection':'Lead removed from selection');}
 
   function renderPins(fit=false){
-    const source=state.realLeads||[],filterKey=`${document.getElementById('teamFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`;
+    const source=state.realLeads||[],filterKey=`${document.getElementById('teamFilter')?.value||''}|${document.getElementById('leadOwnerFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`;
     if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(selected));}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
     leadLayer.clearLayers();markerByLead.clear();
     const leads=currentRealFiltered(),bounds=[],markers=[];
     for(const lead of leads){
       const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
-      marker.bindTooltip(`${lead.address}${lead.rep?' · '+lead.rep:''}`);
+      marker.bindTooltip(`${lead.address}${lead.ownerName&&lead.ownerRole!=='unassigned'?' · Owner: '+lead.ownerName:''}`);
       marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);});
       markerByLead.set(lead.dbId,marker);markers.push(marker);bounds.push([Number(lead.lat),Number(lead.lng)]);
     }
@@ -147,6 +145,7 @@
   document.getElementById('bulkAssignMapBtn').onclick=assignSelectedLeads;
   document.getElementById('saveLeadAddressBtn').onclick=saveAddress;
   document.getElementById('teamFilter')?.addEventListener('change',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();setTimeout(()=>renderPins(true),0);});
+  document.getElementById('leadOwnerFilter')?.addEventListener('change',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();setTimeout(()=>renderPins(true),0);});
   document.getElementById('leadSearch')?.addEventListener('input',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();clearTimeout(searchRenderTimer);searchRenderTimer=setTimeout(()=>renderPins(true),160);});
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{restoreGrabCursor();renderPins(true);geocodeStatus();},200));
   const obs=new MutationObserver(()=>{if(panel.style.display!=='none')setTimeout(()=>{map.invalidateSize();restoreGrabCursor();renderPins(firstFit);},50);});obs.observe(panel,{attributes:true,attributeFilter:['style']});
