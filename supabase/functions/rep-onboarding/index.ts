@@ -4,6 +4,7 @@ const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,head
 const REGIONS=['Pacific Northwest','North Carolina','Texas','Midwest','South East','North East','California'] as const
 const PAY_LEVELS=['trainee','experienced','active_manager_trainer'] as const
 const payLevel=(value:any)=>PAY_LEVELS.includes(String(value||'') as any)?String(value):null
+const displayName=(value:any)=>String(value??'').trim().replace(/\s+/g,' ')
 Deno.serve(async(req)=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders})
   try{
@@ -182,6 +183,11 @@ Deno.serve(async(req)=>{
       const target=String(body.email||'').trim().toLowerCase(); if(!target) return json({error:'email_required'},400)
       const {data:current}=await admin.from('app_user_access').select('*').eq('email',target).eq('active',true).maybeSingle(); if(!current) return json({error:'user_not_found'},404)
       if(target===email && String(body.role||current.role)!=='admin') return json({error:'cannot_demote_self'},400)
+      const nextDisplayName=body.display_name===undefined?displayName(current.display_name||target):displayName(body.display_name)
+      if(nextDisplayName.length<2)return json({error:'display_name_must_be_at_least_2_characters'},400)
+      if(nextDisplayName.length>120)return json({error:'display_name_too_long'},400)
+      if(/[\u0000-\u001f\u007f]/.test(nextDisplayName))return json({error:'display_name_contains_invalid_characters'},400)
+      const nameChanged=nextDisplayName!==displayName(current.display_name||target)
       const role=['rep','manager','admin'].includes(String(body.role))?String(body.role):current.role
       const classification=body.sales_classification===undefined?payLevel(current.sales_classification):payLevel(body.sales_classification)
       if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!classification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
@@ -191,8 +197,24 @@ Deno.serve(async(req)=>{
       const ownerValue=body.assigned_admin_email===undefined?current.assigned_admin_email:body.assigned_admin_email;const ownerRaw=String(ownerValue||'').trim().toLowerCase()||null;let owner={email:null as string|null,name:null as string|null}
       if(role==='manager'){try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
       const {error}=await admin.from('app_user_access').update({role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
-      await syncAppUserProfile(target,role,team,String(current.display_name||target),true)
-      return json({ok:true,email:target,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
+      const account=await findAuthAccountByEmail(target);if(!account?.id)throw new Error('user_profile_account_not_found')
+      let rename:any={changed:false,display_name:nextDisplayName},authMetadataSynced:null as boolean|null
+      if(nameChanged){
+        const {data:renameData,error:renameError}=await admin.rpc('admin_rename_app_user',{p_target_email:target,p_new_display_name:nextDisplayName,p_changed_by:user.id,p_changed_by_email:email,p_target_user_id:account.id})
+        if(renameError)throw renameError
+        rename=renameData||rename
+      }
+      await syncAppUserProfile(target,role,team,nextDisplayName,true)
+      if(nameChanged){
+        const parts=nextDisplayName.split(/\s+/),firstName=parts.shift()||'',lastName=parts.join(' ')
+        const metadata={...(account.user_metadata||{}),full_name:nextDisplayName,name:nextDisplayName,first_name:firstName,last_name:lastName}
+        const {error:metadataError}=await admin.auth.admin.updateUserById(account.id,{user_metadata:metadata})
+        authMetadataSynced=!metadataError
+        if(rename?.audit_id){
+          await admin.from('user_display_name_changes').update({auth_metadata_synced:!metadataError,auth_metadata_error:metadataError?'auth_metadata_sync_failed':null}).eq('id',rename.audit_id)
+        }
+      }
+      return json({ok:true,email:target,display_name:nextDisplayName,display_name_changed:nameChanged,auth_metadata_synced:authMetadataSynced,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
     if(action==='reject'){
       const requestId=String(body.request_id||''); if(!requestId) return json({error:'request_id_required'},400)
