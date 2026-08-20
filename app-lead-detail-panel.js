@@ -33,7 +33,6 @@
     if(!detail||!lead)return;
     activeLeadId=lead.dbId||lead.id;
     const address=[lead.address,lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ');
-    const coords=(Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)))?`${Number(lead.lat).toFixed(6)}, ${Number(lead.lng).toFixed(6)}`:'Not mapped';
     detail.innerHTML=`
       <div class="lead-detail-head"><strong>${esc(lead.address||'Lead')}</strong><span class="tag">${esc(lead.disposition||'Uncontacted')}</span></div>
       <div class="lead-detail-address">${esc(address||'No address')}</div>
@@ -45,10 +44,6 @@
         <div><span>Assigned manager</span><strong>${esc(lead.assignedManagerName||'Unassigned')}</strong></div>
         <div><span>Assigned rep</span><strong>${esc(lead.assignedRepName||lead.rep||'Unassigned')}</strong></div>
         <div><span>Team</span><strong>${esc(lead.team||'Unassigned')}</strong></div>
-        <div><span>Source</span><strong>${esc(lead.sourceSystem||'SPOTIO')}</strong></div>
-        <div><span>Source ID</span><strong>${esc(lead.sourceId||'—')}</strong></div>
-        <div><span>Coordinates</span><strong>${esc(coords)}</strong></div>
-        <div><span>Lead ID</span><strong>${esc(lead.dbId||'—')}</strong></div>
       </div>
       <div class="muted small lead-detail-help">Edit the address in Correct Lead and press ENTER to save it and correct the house location automatically.</div>`;
   }
