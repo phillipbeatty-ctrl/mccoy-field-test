@@ -34,6 +34,33 @@ Deno.serve(async(req)=>{
       const {data,error}=await admin.from('app_user_access').select('email,display_name,role,active,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('active',true).order('display_name'); if(error) throw error
       return json({ok:true,users:data||[]})
     }
+    if(action==='list_pending_accounts'){
+      const authUsers:any[]=[]
+      for(let page=1;page<=20;page++){
+        const {data:accountPage,error:accountError}=await admin.auth.admin.listUsers({page,perPage:1000});if(accountError)throw accountError
+        const pageUsers=accountPage?.users||[];authUsers.push(...pageUsers);if(pageUsers.length<1000)break
+      }
+      const [{data:accessRows,error:accessError},{data:requestRows,error:requestError}]=await Promise.all([
+        admin.from('app_user_access').select('email,display_name,role,active,created_at'),
+        admin.from('rep_access_requests').select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at').order('created_at',{ascending:false})
+      ])
+      if(accessError)throw accessError;if(requestError)throw requestError
+      const accessByEmail=new Map((accessRows||[]).map((row:any)=>[String(row.email||'').toLowerCase(),row]))
+      const latestRequestByUser=new Map<string,any>()
+      for(const row of requestRows||[]){const key=String(row.user_id||'');if(key&&!latestRequestByUser.has(key))latestRequestByUser.set(key,row)}
+      const accounts=authUsers.filter((account:any)=>{
+        const accountEmail=String(account.email||'').trim().toLowerCase();if(!accountEmail||account.is_anonymous||account.deleted_at)return false
+        return !accessByEmail.get(accountEmail)?.active
+      }).map((account:any)=>{
+        const accountEmail=String(account.email||'').trim().toLowerCase(),access=accessByEmail.get(accountEmail) as any,request=latestRequestByUser.get(String(account.id)) as any
+        const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
+        const displayName=String(request?.display_name||access?.display_name||metadataName||accountEmail).trim()
+        const emailConfirmedAt=account.email_confirmed_at||account.confirmed_at||null
+        const accessState=!emailConfirmedAt?'email_unconfirmed':request?.status==='pending'?'approval_requested':access?'access_inactive':'no_access_record'
+        return {email:accountEmail,display_name:displayName,account_created_at:account.created_at||null,email_confirmed_at:emailConfirmedAt,last_sign_in_at:account.last_sign_in_at||null,access_state:accessState,access_active:!!access?.active,request:request?{id:request.id,status:request.status,requested_role:request.requested_role,requested_team:request.requested_team,created_at:request.created_at,reviewed_at:request.reviewed_at}:null}
+      }).sort((left:any,right:any)=>String(right.account_created_at||'').localeCompare(String(left.account_created_at||'')))
+      return json({ok:true,accounts})
+    }
     if(action==='list_regions'){
       const {data:regionRows,error:regionError}=await admin.from('teams').select('id,name,active,manager_user_id').in('name',[...REGIONS]).eq('active',true);if(regionError)throw regionError
       const {data:accounts,error:accountError}=await admin.from('app_user_access').select('email,display_name,role,active,team_name').eq('active',true).order('display_name');if(accountError)throw accountError
