@@ -73,6 +73,7 @@
       const protection=byId('saleAttDeviceProtection');if(protection)protection.checked=false;
       const care=byId('saleAttTotalHomeCare');if(care)care.checked=false;
     }
+    window.MCCOY_SYNC_SALE_PRODUCT_UI?.();
   }
 
   function readExtras(){
