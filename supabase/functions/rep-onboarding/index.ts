@@ -2,6 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
 const REGIONS=['Pacific Northwest','North Carolina','Texas','Midwest','South East','North East','California'] as const
+const PAY_LEVELS=['trainee','experienced','active_manager_trainer'] as const
+const payLevel=(value:any)=>PAY_LEVELS.includes(String(value||'') as any)?String(value):null
 Deno.serve(async(req)=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders})
   try{
@@ -10,7 +12,7 @@ Deno.serve(async(req)=>{
     const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}})
     const {data:{user},error:uerr}=await admin.auth.getUser(jwt); if(uerr||!user?.email) return json({error:'unauthorized'},401)
     const email=user.email.toLowerCase(); const body=await req.json().catch(()=>({})); const action=String(body.action||'status')
-    const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('email',email).maybeSingle()
+    const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('email',email).maybeSingle()
     if(action==='status'){
       const {data:reqRow}=await admin.from('rep_access_requests').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).limit(1).maybeSingle()
       return json({ok:true,access:callerAccess?.active?callerAccess:null,request:reqRow||null,email})
@@ -31,8 +33,8 @@ Deno.serve(async(req)=>{
       return json({ok:true,requests:data||[],managers:managerCandidates||[]})
     }
     if(action==='list_users'){
-      const {data,error}=await admin.from('app_user_access').select('email,display_name,role,active,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('active',true).order('display_name'); if(error) throw error
-      return json({ok:true,users:data||[]})
+      const {data,error}=await admin.from('app_user_access').select('email,display_name,role,active,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('active',true).order('display_name'); if(error) throw error
+      return json({ok:true,users:data||[],pay_levels:PAY_LEVELS})
     }
     if(action==='list_pending_accounts'){
       const authUsers:any[]=[]
@@ -125,10 +127,13 @@ Deno.serve(async(req)=>{
       if(role==='rep'){try{mgr=await validateManager(mgrRaw)}catch{return json({error:'invalid_manager'},400)}}
       let owner={email:null as string|null,name:null as string|null};if(role==='manager'){const ownerRaw=String(body.assigned_admin_email||email).trim().toLowerCase();try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
       const displayName=String(body.display_name||r.display_name||r.email).trim().slice(0,120),targetEmail=r.email.toLowerCase()
-      const {error:aerr}=await admin.from('app_user_access').upsert({email:targetEmail,role,active:true,display_name:displayName,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
+      const requestedClassification=payLevel(body.sales_classification)
+      if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!requestedClassification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
+      const classification=requestedClassification||(role==='rep'?'trainee':null)
+      const {error:aerr}=await admin.from('app_user_access').upsert({email:targetEmail,role,active:true,display_name:displayName,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
       await syncAppUserProfile(targetEmail,role,team,displayName,true)
       const {error:rerr}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:String(body.notes||'').slice(0,1000)}).eq('id',requestId);if(rerr)throw rerr
-      return json({ok:true,approved_email:r.email,role,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
+      return json({ok:true,approved_email:r.email,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
     if(action==='grant_pending_account_access'){
       const target=String(body.email||'').trim().toLowerCase();if(!target)return json({error:'email_required'},400)
@@ -139,12 +144,12 @@ Deno.serve(async(req)=>{
       const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
       const displayName=String(request?.display_name||body.display_name||existingAccess?.display_name||metadataName||target).trim().slice(0,120)
       const team=String(request?.requested_team||'').trim().slice(0,120)||null
-      const {error:accessError}=await admin.from('app_user_access').upsert({email:target,role:'rep',active:true,display_name:displayName,team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
+      const {error:accessError}=await admin.from('app_user_access').upsert({email:target,role:'rep',active:true,display_name:displayName,sales_classification:'trainee',team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
       await syncAppUserProfile(target,'rep',team,displayName,true)
       if(request?.status==='pending'){
         const {error:reviewError}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:'Access granted from Pending Account Access.'}).eq('id',request.id).eq('status','pending');if(reviewError)throw reviewError
       }
-      return json({ok:true,email:target,role:'rep',team_name:team,access_granted:true})
+      return json({ok:true,email:target,role:'rep',sales_classification:'trainee',team_name:team,access_granted:true})
     }
     if(action==='reset_pending_password'){
       const target=String(body.email||'').trim().toLowerCase(),password=typeof body.password==='string'?body.password:''
@@ -178,14 +183,16 @@ Deno.serve(async(req)=>{
       const {data:current}=await admin.from('app_user_access').select('*').eq('email',target).eq('active',true).maybeSingle(); if(!current) return json({error:'user_not_found'},404)
       if(target===email && String(body.role||current.role)!=='admin') return json({error:'cannot_demote_self'},400)
       const role=['rep','manager','admin'].includes(String(body.role))?String(body.role):current.role
+      const classification=body.sales_classification===undefined?payLevel(current.sales_classification):payLevel(body.sales_classification)
+      if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!classification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
       const team=String(body.team_name??current.team_name??'').trim().slice(0,120)||null
       const mgrRaw=String(body.assigned_manager_email||'').trim().toLowerCase()||null;let mgr={email:null as string|null,name:null as string|null}
       if(role==='rep'){try{mgr=await validateManager(mgrRaw)}catch{return json({error:'invalid_manager'},400)}}
       const ownerValue=body.assigned_admin_email===undefined?current.assigned_admin_email:body.assigned_admin_email;const ownerRaw=String(ownerValue||'').trim().toLowerCase()||null;let owner={email:null as string|null,name:null as string|null}
       if(role==='manager'){try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
-      const {error}=await admin.from('app_user_access').update({role,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
+      const {error}=await admin.from('app_user_access').update({role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
       await syncAppUserProfile(target,role,team,String(current.display_name||target),true)
-      return json({ok:true,email:target,role,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
+      return json({ok:true,email:target,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
     if(action==='reject'){
       const requestId=String(body.request_id||''); if(!requestId) return json({error:'request_id_required'},400)
