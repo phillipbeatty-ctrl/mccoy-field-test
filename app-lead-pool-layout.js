@@ -56,7 +56,9 @@
     toggle.innerHTML=`<span class="lead-position-label">Manager position</span><button id="leadAssignPositionBtn" type="button" class="assign-btn">ASSIGN LEADS</button><button id="leadKnockPositionBtn" type="button" class="assign-btn">KNOCK DOORS</button>`;
     bar.appendChild(toggle);
     document.getElementById('leadAssignPositionBtn').addEventListener('click',()=>setManagerMode(ASSIGN_MODE));
-    document.getElementById('leadKnockPositionBtn').addEventListener('click',()=>setManagerMode(KNOCK_MODE));
+    document.getElementById('leadKnockPositionBtn').addEventListener('click',()=>{
+      setManagerMode(managerMode===KNOCK_MODE?ASSIGN_MODE:KNOCK_MODE);
+    });
     return toggle;
   }
 
@@ -115,7 +117,11 @@
       assign?.setAttribute('aria-pressed',String(assigning));
       knock?.setAttribute('aria-pressed',String(!assigning));
       if(assign)assign.className=assigning?'primary':'assign-btn';
-      if(knock)knock.className=assigning?'assign-btn':'primary';
+      if(knock){
+        knock.className=assigning?'assign-btn':'primary';
+        knock.setAttribute('aria-label',assigning?'Enable Knock Doors position':'Deselect Knock Doors and restore Assign Leads');
+        knock.title=assigning?'Hide assignment tools and expand the map':'Return to the Assign Leads setup';
+      }
     }
 
     const viewButton=document.getElementById('leadMapView');
@@ -124,7 +130,9 @@
     if(help){
       help.textContent=role==='admin'||(manager&&managerMode===ASSIGN_MODE)
         ?'Select leads on the map, then assign the selection from the panel on the right.'
-        :'Select a map marker to work a door. The map fills the Lead Pool workspace.';
+        :manager
+          ?'Select a map marker to work a door. Select Knock Doors again to restore Assign Leads.'
+          :'Select a map marker to work a door. The map fills the Lead Pool workspace.';
     }
 
     refreshMapLayout();
