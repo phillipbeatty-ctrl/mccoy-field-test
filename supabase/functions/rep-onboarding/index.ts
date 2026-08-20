@@ -69,14 +69,14 @@ Deno.serve(async(req)=>{
       const targetEmail=String(body.manager_email||'').trim().toLowerCase()||null
       const {data:teamRow,error:teamError}=await admin.from('teams').select('id,name,manager_user_id').eq('name',region).eq('active',true).maybeSingle();if(teamError)throw teamError;if(!teamRow)return json({error:'region_not_found'},404)
       if(!targetEmail){const {error:clearError}=await admin.from('teams').update({manager_user_id:null}).eq('id',teamRow.id);if(clearError)throw clearError;return json({ok:true,region_name:region,manager_email:null})}
-      const {data:target,error:targetError}=await admin.from('app_user_access').select('email,display_name,role,active').eq('email',targetEmail).maybeSingle();if(targetError)throw targetError
+      const {data:target,error:targetError}=await admin.from('app_user_access').select('email,display_name,role,active,team_name').eq('email',targetEmail).maybeSingle();if(targetError)throw targetError
       if(!target?.active)return json({error:'active_user_required'},404)
       const nextRole=target.role==='admin'?'admin':'manager'
-      await syncAppUserProfile(targetEmail,nextRole,region,String(target.display_name||targetEmail),true)
+      const primaryTeam=String(target.team_name||region).trim()||region
+      await syncAppUserProfile(targetEmail,nextRole,primaryTeam,String(target.display_name||targetEmail),true)
       const {data:profile,error:profileError}=await admin.from('users').select('id').eq('email',targetEmail).eq('active',true).maybeSingle();if(profileError)throw profileError;if(!profile?.id)return json({error:'user_profile_not_found'},404)
-      const accessPatch={role:nextRole,team_name:region,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:nextRole==='manager'?email:null,assigned_admin_name:nextRole==='manager'?(callerAccess.display_name||email):null}
+      const accessPatch={role:nextRole,team_name:primaryTeam,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:nextRole==='manager'?email:null,assigned_admin_name:nextRole==='manager'?(callerAccess.display_name||email):null}
       const {error:accessError}=await admin.from('app_user_access').update(accessPatch).eq('email',targetEmail);if(accessError)throw accessError
-      const {error:otherRegionError}=await admin.from('teams').update({manager_user_id:null}).eq('manager_user_id',profile.id).neq('id',teamRow.id);if(otherRegionError)throw otherRegionError
       const {error:assignError}=await admin.from('teams').update({manager_user_id:profile.id}).eq('id',teamRow.id);if(assignError)throw assignError
       return json({ok:true,region_name:region,manager_email:targetEmail,manager_name:target.display_name||targetEmail,manager_role:nextRole})
     }
@@ -132,4 +132,3 @@ Deno.serve(async(req)=>{
     return json({error:'unknown_action'},400)
   }catch(e){console.error(e);return json({error:'rep_onboarding_failed'},500)}
 })
-
