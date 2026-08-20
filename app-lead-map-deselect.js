@@ -1,0 +1,28 @@
+(function mapDeselectApp(){
+  function resetSelectedLeadDetails(){
+    const detail=document.getElementById('mapLeadDetail');
+    if(detail)detail.innerHTML='<div class="muted small">Select a lead from the list or map to view details.</div>';
+    const legacy=document.getElementById('mapLeadInfo');
+    if(legacy)legacy.innerHTML='<span class="muted">Select a real lead.</span>';
+    const correction=document.getElementById('leadCorrectionPanel');
+    if(correction)correction.style.display='none';
+    const message=document.getElementById('mapAssignMsg');
+    if(message)message.textContent='';
+  }
+  function clearMapSelection(){
+    document.getElementById('clearMapSelectionBtn')?.click();
+    resetSelectedLeadDetails();
+  }
+  document.addEventListener('click',event=>{
+    const canvas=event.target?.closest?.('#leadMapFrame');
+    if(!canvas)return;
+    if(event.target.closest?.('.lead-house-icon,.mccoy-lead-cluster,.leaflet-control'))return;
+    const lasso=document.getElementById('lassoSelectBtn');
+    if(lasso&&lasso.textContent!=='LASSO SELECT')return;
+    clearMapSelection();
+  },true);
+  document.addEventListener('click',event=>{
+    if(event.target?.closest?.('#clearMapSelectionBtn'))setTimeout(resetSelectedLeadDetails,0);
+  });
+})();
+
