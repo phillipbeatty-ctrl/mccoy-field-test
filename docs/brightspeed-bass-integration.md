@@ -2,7 +2,7 @@
 
 Status: **not connected**. No BASS endpoint, credential, webhook, scheduled job, database migration, or production deployment has been configured.
 
-The rep-facing seller-account launcher is now prepared separately in `app-provider-sale-router.js`. Brightspeed is labeled `BASS` and uses the administrator-provided seller portal URL `https://bass.docxtract.com/General/SimHomePage.aspx`. This only opens the portal; it does not connect McCoy to the BASS API. The launcher relies on the provider's existing browser session or approved SSO and never stores provider credentials.
+The rep-facing seller-account launcher is now prepared separately in `app-provider-sale-router.js`. Brightspeed is labeled `BASS` and uses the administrator-provided seller portal URL `https://bass.docxtract.com/General/SimHomePage.aspx`. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open BASS. This only opens the portal; it does not connect McCoy to the BASS API. The launcher relies on the provider's existing browser session or approved SSO and never stores provider credentials.
 
 ## What is already compatible
 

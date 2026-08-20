@@ -1,7 +1,7 @@
 // Approved seller-portal destinations only. URLs stay blank until the provider
 // confirms the exact portal address. Never place usernames or passwords here.
 window.MCCOY_PROVIDER_PORTALS=Object.freeze({
-  Quantum:Object.freeze({label:'ASAP',url:'https://asap.docxtract.com'}),
+  Quantum:Object.freeze({label:'ASAP',url:'https://asap.docxtract.com',openInNewTab:true}),
   Brightspeed:Object.freeze({label:'BASS',url:'https://bass.docxtract.com/General/SimHomePage.aspx'}),
   'AT&T':Object.freeze({label:'AT&T seller account',url:''}),
   'T-Mobile / T-Fiber':Object.freeze({label:'T-Mobile seller account',url:''}),

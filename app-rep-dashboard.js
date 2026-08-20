@@ -60,15 +60,14 @@
     for(const [period,[nameId,countId]] of Object.entries(targets)){
       const leader=data.leaders?.[period];byId(nameId).textContent=leader?.name||'No sales yet';byId(countId).textContent=leader?leader.count+' sale'+(leader.count===1?'':'s'):'';
     }
+    renderMonthlySales(data.rankings||[]);
   }
 
-  function renderMonthlySales(rows){
+  function renderMonthlySales(rankings){
     const root=byId('dashboardMonthlyLeaders');if(!root)return;root.replaceChildren();
-    const totals=new Map();
-    for(const row of rows){const key=row.rep_user_id||row.rep_name,x=totals.get(key)||{name:row.rep_name||'Rep',sales:0,mobile:0,directv:0,vivint:0};x.sales++;x.mobile+=Number(row.att_mobile_lines||0);x.directv+=row.directv?1:0;x.vivint+=row.vivint?1:0;totals.set(key,x);}
-    const leaders=[...totals.values()].sort((left,right)=>right.sales-left.sales).slice(0,10);
-    if(!leaders.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No monthly totals yet.';root.appendChild(empty);return;}
-    leaders.forEach((leader,index)=>{const line=document.createElement('div');line.className='leader-row';const name=document.createElement('span'),count=document.createElement('strong');name.textContent=`${index+1}. ${leader.name}`;count.textContent=`${leader.sales} sale${leader.sales===1?'':'s'}`;line.append(name,count);const detail=document.createElement('div');detail.className='muted small';detail.textContent=`${leader.mobile} mobile lines · ${leader.directv} DIRECTV · ${leader.vivint} Vivint`;root.append(line,detail);});
+    const leaders=(rankings||[]).filter(row=>Number(row.month_sales||0)>0).sort((left,right)=>(left.ranks?.month||Number.MAX_SAFE_INTEGER)-(right.ranks?.month||Number.MAX_SAFE_INTEGER)).slice(0,10);
+    if(!leaders.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No ISP-verified monthly totals yet.';root.appendChild(empty);return;}
+    leaders.forEach((leader,index)=>{const line=document.createElement('div');line.className='leader-row';const name=document.createElement('span'),count=document.createElement('strong'),sales=Number(leader.month_sales||0);name.textContent=`${index+1}. ${leader.rep_name||'Rep'}`;count.textContent=`${sales} sale${sales===1?'':'s'}`;line.append(name,count);const detail=document.createElement('div');detail.className='muted small';detail.textContent=`${Number(leader.month_mobile_lines||0)} mobile lines · ${Number(leader.month_directv||0)} DIRECTV · ${Number(leader.month_vivint||0)} Vivint`;root.append(line,detail);});
   }
 
   function renderLiveWins(rows){
@@ -81,7 +80,7 @@
   async function loadSales(){
     const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
     const {data,error}=await sb.from('sales_feed').select('created_at,rep_user_id,rep_name,isp,directv,att_mobile_lines,vivint,message').gte('created_at',start.toISOString()).order('created_at',{ascending:false}).limit(100);if(error)throw error;
-    const rows=data||[];renderMonthlySales(rows);renderLiveWins(rows);
+    renderLiveWins(data||[]);
   }
 
   async function refresh(){

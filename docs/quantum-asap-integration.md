@@ -2,7 +2,7 @@
 
 Status: **not connected**. No ASAP endpoint, credential, webhook, scheduled job, database migration, or production transport has been configured.
 
-The rep-facing seller-account launcher is prepared in `app-provider-sale-router.js`. Quantum is labeled `ASAP` and opens `https://asap.docxtract.com`, the current destination published by the legacy Quantum Fiber ASAP login page. This only opens the portal; it does not connect McCoy to the ASAP API. The launcher relies on the provider's existing browser session or approved SSO and never stores provider credentials.
+The rep-facing seller-account launcher is prepared in `app-provider-sale-router.js`. Quantum is labeled `ASAP` and opens `https://asap.docxtract.com`, the current destination published by the legacy Quantum Fiber ASAP login page. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open ASAP. Quantum opens in a fresh, full browser tab so the legacy login receives normal keyboard input, including special characters such as `@`, instead of being constrained by an embedded or reused popup. This only opens the portal; it does not connect McCoy to the ASAP API. The launcher relies on the provider's existing browser session or approved SSO and never stores, autofills, or transmits provider credentials.
 
 ## What is already compatible
 
