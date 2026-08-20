@@ -3,6 +3,27 @@
   const select=document.getElementById('fieldLeadSelect');
   if(!select)return;
 
+  const originalRenderFieldLeadSelect=window.renderFieldLeadSelect;
+  function fieldLeadAddressLabel(lead){
+    const street=String(lead?.address||lead?.address1||'Address').trim();
+    const city=String(lead?.city||'').trim();
+    const stateCode=String(lead?.stateCode||lead?.state||'').trim().toUpperCase();
+    const zip=String(lead?.zip||'').trim();
+    const stateAndZip=[stateCode,zip].filter(Boolean).join(' ');
+    const locality=[city,stateAndZip].filter(Boolean).join(', ');
+    return locality?`${street} — ${locality}`:street;
+  }
+  function renderFieldLeadSelectWithLocality(){
+    if(typeof originalRenderFieldLeadSelect==='function')originalRenderFieldLeadSelect();
+    const leadsById=new Map((state.leads||[]).map(lead=>[String(lead.id),lead]));
+    for(const option of select.options){
+      const lead=leadsById.get(option.value);
+      if(lead)option.textContent=fieldLeadAddressLabel(lead);
+    }
+  }
+  window.renderFieldLeadSelect=renderFieldLeadSelectWithLocality;
+  renderFieldLeadSelectWithLocality();
+
   const panel=document.createElement('details');
   panel.id='fieldAddressEntry';
   panel.className='field-address-entry';
