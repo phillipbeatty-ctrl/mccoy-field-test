@@ -25,7 +25,7 @@ document.getElementById('arriveDoorBtn')?.addEventListener('click',()=>{
   }
   state.activeDoorVisit={lead,arrivedAt,arrivalGps:gps};
   const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
-  const status=document.getElementById('doorVisitStatus');if(status)status.textContent=`Physical knock recorded for ${lead.address}.`;
+  const status=document.getElementById('doorVisitStatus');if(status)status.textContent=`Arrival recorded for ${lead.address}.`;
   startDoorTimer();
   if(gps)state.breadcrumbs.push({...gps,eventType:'door_arrival',leadId:lead.id});
   const ref=rawLeadReference();
@@ -36,7 +36,7 @@ document.getElementById('arriveDoorBtn')?.addEventListener('click',()=>{
 document.querySelectorAll('[data-disp]').forEach(btn=>btn.addEventListener('click',()=>{
   if(!state.session){alert('Start a field session first.');return;}
   const leadId=Number(document.getElementById('fieldLeadSelect').value),lead=state.leads.find(l=>l.id===leadId);if(!lead)return;
-  if(!state.activeDoorVisit||state.activeDoorVisit.lead.id!==leadId){alert('Tap PHYSICALLY KNOCKED first.');return;}
+  if(!state.activeDoorVisit||state.activeDoorVisit.lead.id!==leadId){alert('Tap ARRIVED AT DOOR first.');return;}
   const endedAt=Date.now(),gps=snapshotGpsInstant(),disposition=btn.dataset.disp,dwellMs=endedAt-state.activeDoorVisit.arrivedAt,ref=rawLeadReference();
   lead.disposition=disposition;
   state.activities.unshift({lead,disposition,at:new Date(endedAt),gps,dwellMs});
