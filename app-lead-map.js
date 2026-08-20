@@ -98,6 +98,11 @@
     if(bounds.length&&(fit||firstFit)){map.fitBounds(bounds,{padding:[18,18],maxZoom:16});firstFit=false;}
   }
   window.MCCOY_RENDER_LEAD_MAP=renderPins;
+  window.MCCOY_INVALIDATE_LEAD_MAP=()=>setTimeout(()=>{
+    if(panel.style.display==='none')return;
+    map.invalidateSize({pan:false});
+    renderPins(false);
+  },50);
 
   function correctionMsg(text){const el=document.getElementById('leadCorrectionMsg');if(el)el.textContent=text;}
   function fillCorrectionForm(l){document.getElementById('editLeadAddress1').value=l.address1||l.address||'';document.getElementById('editLeadAddress2').value=l.address2||'';document.getElementById('editLeadCity').value=l.city||'';document.getElementById('editLeadState').value=l.stateCode||'';document.getElementById('editLeadZip').value=l.zip||'';}
