@@ -4,7 +4,7 @@ Status: **McCoy capture and reconciliation enabled; direct BASS API not connecte
 
 The rep-facing seller-account launcher is in `app-provider-sale-router.js`. Brightspeed is labeled `BASS` and uses `https://bass.docxtract.com/General/SimHomePage.aspx`. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open BASS. It relies on the provider's existing browser session or approved SSO and never stores provider credentials. Because BASS runs on a different web origin, McCoy cannot inspect the BASS page or infer that an order completed. McCoy instead persists the dashboard attempt, restores the sale form when the rep returns, and exposes unfinished attempts in Admin Provider Verification.
 
-Admin Provider Verification links directly to the approved BASS Orders Report at `https://bass.docxtract.com/Report/Orders_Report.aspx`. The downloaded report can be imported and reconciled for all reps. A redacted header row or sample export is still required to replace generic column detection with a locked BASS field map.
+Provider Reports links directly to the BASS Orders Report at `https://bass.docxtract.com/Report/Orders_Report.aspx`. When a rep opens it in the BASS session used to process sales, the downloaded CSV can be uploaded as preliminary rep-account evidence. When Admin opens the same report from the dealer's corporate BASS session, the downloaded CSV is imported as authoritative dealer evidence and automatically cross-referenced against the rep reports. A redacted header row or sample export is still required to replace generic column detection with a locked BASS field map.
 
 ## What is already compatible
 
@@ -12,9 +12,10 @@ McCoy has a provider capture and verification pipeline:
 
 1. A dashboard launch is recorded in `provider_sale_captures` for every configured provider.
 2. Saving the McCoy sale links `sales_records.provider_capture_id` to that capture.
-3. Provider dashboard exports are normalized into `provider_sales_rows`.
-4. `provider_seller_links` associates the provider's seller identity with a McCoy rep.
-5. Order or account number plus seller identity is reconciled against `sales_records`.
+3. Rep-account and dealer-account dashboard exports are separately labeled and normalized into `provider_sales_rows`.
+4. Rep evidence remains pending until the covered dealer export corroborates it.
+5. `provider_seller_links` associates the authoritative provider seller identity with a McCoy rep.
+6. Order or account number plus seller identity is reconciled against `sales_records`; only dealer evidence can create a verified processed result.
 6. Matched sales become `verified_processed`; unmatched sales stay pending, mismatched, or in the low-potential bank and do not count for ranking or pay progress.
 
 BASS should feed this pipeline. It should not write directly to rep dashboards, compensation snapshots, or competition results.
