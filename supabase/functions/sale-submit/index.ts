@@ -30,11 +30,37 @@ Deno.serve(async request => {
     if (!isp) return json({ error: 'invalid_provider' }, 400)
 
     let providerCapture: any = null
-    const captureId = String(body.provider_capture_id || '').trim()
+    let captureId = String(body.provider_capture_id || '').trim()
+    const captureClientRequestId = String(body.provider_capture_client_request_id || '').trim()
+    if (!captureId && isUuid(captureClientRequestId)) {
+      const { data: existingCapture, error: existingCaptureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('rep_user_id', user.id).eq('client_request_id', captureClientRequestId).maybeSingle()
+      if (existingCaptureError) throw existingCaptureError
+      if (existingCapture) { providerCapture = existingCapture; captureId = existingCapture.id }
+      else {
+        const fallbackRow = {
+          client_request_id: captureClientRequestId, rep_user_id: user.id, rep_email: repEmail, rep_name: access.display_name || user.email,
+          provider: isp, sale_context: body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field', session_id: isUuid(body.session_id) ? body.session_id : null,
+          lead_label: String(body.lead_label || '').trim().slice(0, 500) || null, service_address: String(body.service_address).trim().slice(0, 500),
+          seller_portal_label: null, portal_opened: false, portal_open_reason: 'sale_submit_fallback', status: 'details_required', metadata: { capture_version: 1, fallback: true }
+        }
+        const { data: insertedCapture, error: insertedCaptureError } = await admin.from('provider_sale_captures').insert(fallbackRow).select('id,provider,sale_context,status').maybeSingle()
+        if (insertedCaptureError && insertedCaptureError.code !== '23505') throw insertedCaptureError
+        if (insertedCapture) { providerCapture = insertedCapture; captureId = insertedCapture.id }
+        else {
+          const { data: racedCapture, error: racedCaptureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('rep_user_id', user.id).eq('client_request_id', captureClientRequestId).maybeSingle()
+          if (racedCaptureError) throw racedCaptureError
+          if (racedCapture) { providerCapture = racedCapture; captureId = racedCapture.id }
+        }
+      }
+    }
     if (captureId) {
       if (!isUuid(captureId)) return json({ error: 'invalid_provider_capture' }, 400)
-      const { data: capture, error: captureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('id', captureId).eq('rep_user_id', user.id).maybeSingle()
-      if (captureError) throw captureError
+      let capture = providerCapture
+      if (!capture) {
+        const { data, error: captureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('id', captureId).eq('rep_user_id', user.id).maybeSingle()
+        if (captureError) throw captureError
+        capture = data
+      }
       if (!capture) return json({ error: 'provider_capture_not_found' }, 400)
       if (capture.provider !== isp) return json({ error: 'provider_capture_mismatch' }, 400)
       if (capture.status === 'cancelled') return json({ error: 'provider_capture_cancelled' }, 409)
