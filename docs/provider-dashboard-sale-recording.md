@@ -7,8 +7,19 @@ McCoy uses the same capture and verification lifecycle for Quantum ASAP, Brights
 3. When the rep returns, McCoy restores the sale form. Reloading McCoy also restores an unfinished capture from the browser, while the server keeps the audit record.
 4. Saving the sale links `sales_records.provider_capture_id` to the capture. Reusing the same capture returns the existing sale instead of creating a duplicate.
 5. Admin can see open, details-required, recorded, and cancelled captures in Provider Verification.
-6. Admin imports an export from any provider dashboard and links each provider seller identity to a McCoy rep.
-7. Order/account plus seller identity verification controls `competition_eligible`. A capture alone never counts for rankings or pay-increase tracking.
+6. Each rep can import a CSV exported from the same seller account used to process the order. McCoy records the authenticated McCoy user, provider, report period, file digest, and normalized order evidence. Exact duplicate files are ignored.
+7. A rep-account match is preliminary evidence only. It sets the sale to pending verification and never unlocks rankings, pay progress, or cancellation adjustments by itself.
+8. Admin imports the dealer-level export for each ISP. Every dealer import automatically cross-references covered rep-report rows and surfaces missing or conflicting orders.
+9. Dealer order/account plus the Admin-linked seller identity controls `competition_eligible`. A capture or editable rep export alone never counts for rankings or pay-increase tracking.
+
+## Recommended operating cadence
+
+- Reps upload their account report at the end of each selling day or whenever the provider report posts the order.
+- Admin imports each ISP's dealer report at least weekly using the exact report coverage dates.
+- Admin runs a final cross-reference after the provider's normal posting delay and again at monthly commission close.
+- Missing and conflicting rows remain blocked until Admin resolves them against the provider source.
+
+McCoy does not store provider passwords and does not scrape authenticated cross-origin report pages. Direct scheduled ingestion still requires an ISP-approved API, webhook, SFTP feed, or other machine-to-machine export.
 
 ## Integration boundary
 

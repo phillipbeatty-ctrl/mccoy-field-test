@@ -2,8 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
 import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
+import { classifySaleEvidence, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
 
-const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 const json = (body: unknown, status = 200) => Response.json(body, {
   status,
   headers: { ...corsHeaders, 'Cache-Control': 'no-store' }
@@ -137,20 +137,27 @@ Deno.serve(async request => {
     let verificationReason = body.low_potential_reason ? String(body.low_potential_reason) : (!orderNumber && !accountNumber ? 'missing_order_or_account_number' : 'not_yet_in_dealer_file')
     let providerRow: any = null
     if (orderNumber || accountNumber) {
-      const { data: providerRows, error: providerRowsError } = await admin.from('provider_sales_rows').select('*').eq('provider', isp).order('created_at', { ascending: false }).limit(100)
+      const { data: providerRows, error: providerRowsError } = await admin
+        .from('provider_sales_rows')
+        .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,provider_status,evidence_scope,source_rep_user_id,created_at')
+        .eq('provider', isp)
+        .order('created_at', { ascending: false })
+        .limit(5000)
       if (providerRowsError) throw providerRowsError
-      const matches = (providerRows || []).filter((row: any) => (orderNumber && norm(row.order_number) === norm(orderNumber)) || (accountNumber && norm(row.account_number) === norm(accountNumber)))
-      if (matches.length) {
-        const { data: sellerLinks, error: sellerLinksError } = await admin.from('provider_seller_links').select('seller_identifier').eq('rep_user_id', user.id).eq('provider', isp).eq('active', true)
-        if (sellerLinksError) throw sellerLinksError
-        const sellerIdentifiers = new Set((sellerLinks || []).map((row: any) => norm(row.seller_identifier)).filter(Boolean))
-        if (!sellerIdentifiers.size) { verificationStatus = 'pending_verification'; verificationReason = 'seller_account_not_linked'; providerRow = matches[0] }
-        else {
-          providerRow = matches.find((row: any) => sellerIdentifiers.has(norm(row.seller_identifier)) || sellerIdentifiers.has(norm(row.seller_email)) || sellerIdentifiers.has(norm(row.seller_name)))
-          if (providerRow) { verificationStatus = 'verified_processed'; verificationReason = 'dealer_file_and_seller_match' }
-          else { verificationStatus = 'mismatch'; verificationReason = 'order_found_but_seller_does_not_match_linked_mccoy_user'; providerRow = matches[0] }
-        }
-      }
+      const { data: sellerLinks, error: sellerLinksError } = await admin.from('provider_seller_links').select('seller_identifier').eq('rep_user_id', user.id).eq('provider', isp).eq('active', true)
+      if (sellerLinksError) throw sellerLinksError
+      const evidence = classifySaleEvidence({
+        rows: providerRows || [],
+        repUserId: user.id,
+        sellerIdentifiers: new Set((sellerLinks || []).map((row: any) => normalizeEvidenceToken(row.seller_identifier)).filter(Boolean)),
+        orderNumber,
+        accountNumber
+      })
+      verificationStatus = evidence.status
+      verificationReason = evidence.status === 'low_potential' && body.low_potential_reason
+        ? String(body.low_potential_reason)
+        : evidence.reason
+      providerRow = evidence.row
     }
 
     const competitionEligible = verificationStatus === 'verified_processed' && !outsideSystem

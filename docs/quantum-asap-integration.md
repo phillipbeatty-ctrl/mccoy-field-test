@@ -6,7 +6,7 @@ The rep-facing seller-account launcher is prepared in `app-provider-sale-router.
 
 ## What is already compatible
 
-McCoy's provider-verification pipeline records every provider-dashboard attempt, links a completed McCoy sale to the attempt, accepts normalized provider exports, links provider seller identities to McCoy reps, and reconciles order or account identifiers. ASAP evidence does not write directly to compensation or competition results; only a verified processed match becomes eligible.
+McCoy's provider-verification pipeline records every provider-dashboard attempt, links a completed McCoy sale to the attempt, accepts separately labeled rep-account and dealer-account exports, links provider seller identities to McCoy reps, and reconciles order or account identifiers. A rep's ASAP export is preliminary evidence; only a dealer-level order plus linked seller match can produce a verified processed sale. ASAP evidence does not write directly to compensation or competition results until that dealer verification succeeds.
 
 ## Prepared adapter boundary
 
