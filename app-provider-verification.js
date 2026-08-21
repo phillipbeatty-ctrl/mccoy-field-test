@@ -38,11 +38,11 @@
       <div class="pv-grid">
         <div class="pv-section">
           <h3>My Seller-Account Report</h3>
-          <p class="muted small">Download a CSV from the provider account you used for the orders, choose the exact report date range, and upload it here. McCoy records your authenticated account provenance and prevents duplicate file imports.</p>
+          <p class="muted small">Run the provider report and export the order-result rows as Excel (.xls) or CSV, then choose the exact report date range and upload it here. A BASS report-definition XML lists columns and filters but contains no orders, so it cannot verify sales.</p>
           <select id="pvRepProvider" aria-label="Provider for my seller-account report">${providers.map(provider=>`<option>${provider}</option>`).join('')}</select>
           <a id="pvRepReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN BASS ORDERS REPORT</a>
           <div class="pv-period"><label>Report start<input id="pvRepStart" type="date"></label><label>Report end<input id="pvRepEnd" type="date"></label></div>
-          <input id="pvRepCsv" type="file" accept=".csv,text/csv">
+          <input id="pvRepCsv" type="file" accept=".xls,.csv,.xml,application/vnd.ms-excel,text/csv,text/xml,application/xml">
           <button type="button" id="pvRepImport" class="primary" style="width:100%;margin-top:5px">UPLOAD MY REPORT</button>
           <div id="pvRepMsg" class="pv-msg" role="status" aria-live="polite"></div>
         </div>
@@ -57,12 +57,12 @@
         <div class="pv-grid" style="margin-top:14px">
           <div class="pv-section">
             <h3>Dealer-Level ISP Report</h3>
-            <p class="muted small">Upload the authoritative dealer export. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact report coverage dates before treating missing orders as discrepancies.</p>
+            <p class="muted small">Run and export the authoritative dealer order results as Excel (.xls) or CSV. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact coverage dates before treating missing orders as discrepancies.</p>
             <select id="pvDealerProvider">${dealerProviders.map(provider=>`<option>${provider}</option>`).join('')}</select>
             <a id="pvDealerReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN CORPORATE BASS ORDERS REPORT</a>
             <div class="pv-period"><label>Coverage start<input id="pvDealerStart" type="date"></label><label>Coverage end<input id="pvDealerEnd" type="date"></label></div>
-            <input id="pvDealerCsv" type="file" accept=".csv,text/csv">
-            <div class="pv-actions"><button type="button" id="pvDealerImport" class="primary">IMPORT & VERIFY</button><button type="button" id="pvCrossReference" class="assign-btn">CROSS-REFERENCE REPORTS</button><button type="button" id="pvReconcile" class="assign-btn">RECHECK SALES</button></div>
+            <input id="pvDealerCsv" type="file" accept=".xls,.csv,.xml,application/vnd.ms-excel,text/csv,text/xml,application/xml">
+            <button type="button" id="pvDealerImport" class="primary" style="width:100%;margin-top:5px">IMPORT & VERIFY</button>
             <div id="pvDealerMsg" class="pv-msg" role="status" aria-live="polite"></div>
             <div id="pvImports" class="pv-msg"></div>
           </div>
@@ -98,7 +98,12 @@
 
   async function call(action,payload={}){
     const {data,error}=await sb.functions.invoke('provider-reconcile',{body:{action,...payload}});
-    if(error)throw error;if(!data?.ok)throw new Error(data?.detail||data?.error||'provider_reconcile_failed');return data;
+    if(error){
+      let detail=data?.detail||data?.error;
+      try{if(!detail&&typeof error?.context?.json==='function'){const body=await error.context.clone().json();detail=body?.detail||body?.error;}}catch{}
+      throw new Error(detail||error.message||'provider_reconcile_failed');
+    }
+    if(!data?.ok)throw new Error(data?.detail||data?.error||'provider_reconcile_failed');return data;
   }
   async function captureCall(action,payload={}){
     const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
@@ -155,13 +160,14 @@
   }
   async function upload(scope){
     const rep=scope==='rep_account';const prefix=rep?'pvRep':'pvDealer';const message=document.getElementById(`${prefix}Msg`);
-    const file=document.getElementById(`${prefix}Csv`).files?.[0];if(!file){message.textContent='Choose a CSV report first.';return;}
+    const file=document.getElementById(`${prefix}Csv`).files?.[0];if(!file){message.textContent='Choose a provider report first.';return;}
     const start=document.getElementById(`${prefix}Start`).value,end=document.getElementById(`${prefix}End`).value;
     if(!start||!end){message.textContent='Enter the exact report start and end dates.';return;}
     const button=document.getElementById(`${prefix}Import`);button.disabled=true;const prior=button.textContent;button.textContent='IMPORTING…';
     try{
       const provider=document.getElementById(`${prefix}Provider`).value;
-      const data=await call('upload_csv',{source_scope:scope,filename:file.name,csv_text:await file.text(),provider:provider==='Mixed / Auto-detect'?null:provider,report_period_start:start,report_period_end:end});
+      const reportText=await file.text();
+      const data=await call('upload_report',{source_scope:scope,filename:file.name,report_text:reportText,provider:provider==='Mixed / Auto-detect'?null:provider,report_period_start:start,report_period_end:end});
       if(data.duplicate)message.textContent='This exact report was already imported; no duplicate rows were created.';
       else if(rep)message.textContent=`Imported ${data.rows.toLocaleString()} rows; ${data.mapped.toLocaleString()} contained order/account identifiers. Matching sales are preliminary until dealer verification.`;
       else{const cross=data.cross_reference||{};message.textContent=`Imported ${data.rows.toLocaleString()} dealer rows; ${data.verified_after_import.toLocaleString()} sales now verify. Rep cross-reference: ${Number(cross.matched_dealer||0).toLocaleString()} matched, ${Number(cross.missing_from_dealer||0).toLocaleString()} missing, ${Number(cross.conflict||0).toLocaleString()} conflicts.`;}
@@ -177,8 +183,6 @@
   document.getElementById('pvRepProvider').addEventListener('change',()=>syncReportLink('pvRepProvider','pvRepReportLink'));
   document.getElementById('pvDealerProvider').addEventListener('change',()=>syncReportLink('pvDealerProvider','pvDealerReportLink'));
   document.getElementById('pvRefresh').onclick=load;
-  document.getElementById('pvCrossReference').onclick=async()=>{const button=document.getElementById('pvCrossReference'),message=document.getElementById('pvDealerMsg');button.disabled=true;try{const data=await call('cross_reference_all');const cross=data.cross_reference||{};message.textContent=`Checked ${data.imports_checked.toLocaleString()} dealer imports: ${Number(cross.matched_dealer||0).toLocaleString()} matched, ${Number(cross.missing_from_dealer||0).toLocaleString()} missing, ${Number(cross.conflict||0).toLocaleString()} conflicts.`;await load();}catch(error){message.textContent='Cross-reference failed: '+(error?.message||error);}finally{button.disabled=false;}};
-  document.getElementById('pvReconcile').onclick=async()=>{const button=document.getElementById('pvReconcile'),message=document.getElementById('pvDealerMsg');button.disabled=true;try{const data=await call('reconcile_all');message.textContent=`Rechecked ${data.total.toLocaleString()} sales.`;await load();}catch(error){message.textContent='Reconciliation failed: '+(error?.message||error);}finally{button.disabled=false;}};
   document.getElementById('pvLink').onclick=async()=>{const message=document.getElementById('pvLinkMsg');try{await call('link_seller',{rep_email:document.getElementById('pvRepEmail').value.trim(),provider:document.getElementById('pvLinkProvider').value,seller_identifier:document.getElementById('pvSellerId').value.trim(),seller_name:document.getElementById('pvSellerName').value.trim()||null});message.textContent='Seller identity linked. Recheck sales to apply the authoritative link.';}catch(error){message.textContent='Could not link seller identity: '+(error?.message||error);}};
   syncReportLink('pvRepProvider','pvRepReportLink');syncReportLink('pvDealerProvider','pvDealerReportLink');setDefaultPeriod('pvRep');setDefaultPeriod('pvDealer');
   window.addEventListener('mccoy-sale-saved',()=>{if(panel.classList.contains('show'))setTimeout(load,100);});
