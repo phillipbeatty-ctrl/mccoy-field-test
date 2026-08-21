@@ -5,7 +5,11 @@ import { normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs
 import {
   classifySaleEvidence,
   crossReferenceRepRow,
+  isBassReportDefinitionXml,
+  mapReportEvidence,
   normalizeEvidenceToken,
+  parseHtmlTableReport,
+  pickReportValue,
   safeReportPayload
 } from '../_shared/provider-report-core.mjs'
 
@@ -36,14 +40,6 @@ function parseCsv(text: string) {
   row.push(cell)
   if (row.some(value => value.trim())) output.push(row)
   return output
-}
-
-const pick = (object: Record<string, unknown>, keys: string[]) => {
-  for (const expected of keys) {
-    const key = Object.keys(object).find(candidate => normalizeEvidenceToken(candidate) === normalizeEvidenceToken(expected))
-    if (key && String(object[key] ?? '').trim()) return String(object[key]).trim()
-  }
-  return null
 }
 
 function reportDate(value: unknown) {
@@ -239,11 +235,26 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   const sourceScope = requestedScope === 'dealer_account' ? 'dealer_account' : 'rep_account'
   if (sourceScope === 'dealer_account' && access.role !== 'admin') return json({ error: 'admin_only' }, 403)
 
-  const text = String(body.csv_text || '')
-  if (!text.trim()) return json({ error: 'csv_required' }, 400)
-  if (text.length > 12000000) return json({ error: 'csv_too_large' }, 413)
-  const rows = parseCsv(text)
-  if (rows.length < 2) return json({ error: 'csv_has_no_data' }, 400)
+  const text = String(body.report_text || body.csv_text || '')
+  if (!text.trim()) return json({ error: 'report_required' }, 400)
+  if (text.length > 12000000) return json({ error: 'report_too_large' }, 413)
+  let reportFormat = 'csv'
+  let rows: string[][]
+  if (/<table(?:\s|>)/i.test(text)) {
+    reportFormat = 'bass_html_xls'
+    rows = parseHtmlTableReport(text)
+  } else if (isBassReportDefinitionXml(text)) {
+    return json({
+      error: 'bass_report_definition_no_orders',
+      detail: 'This BASS XML only defines report columns and search filters; it contains no order rows. Run the report in BASS and export the result rows as CSV.'
+    }, 400)
+  } else if (/^\s*</.test(text)) {
+    return json({
+      error: 'unsupported_xml_order_export',
+      detail: 'This XML format does not contain supported BASS order rows. Export the completed BASS report results as Excel (.xls) or CSV.'
+    }, 400)
+  } else rows = parseCsv(text)
+  if (rows.length < 2) return json({ error: 'report_has_no_data' }, 400)
 
   const selectedProvider = body.provider ? normalizeSaleProvider(body.provider) : null
   if (sourceScope === 'rep_account' && !selectedProvider) return json({ error: 'provider_required_for_rep_report' }, 400)
@@ -251,6 +262,27 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   const periodEnd = inputDate(body.report_period_end)
   if (!!periodStart !== !!periodEnd) return json({ error: 'complete_report_period_required' }, 400)
   if (periodStart && periodEnd && periodStart > periodEnd) return json({ error: 'invalid_report_period' }, 400)
+
+  const headers = rows[0].map(value => value.replace(/^\uFEFF/, ''))
+  const normalizedRows = rows.slice(1).map(values => {
+    const raw: Record<string, unknown> = {}
+    headers.forEach((header, column) => { raw[header] = values[column] ?? '' })
+    const detectedProvider = normalizeSaleProvider(pickReportValue(raw, ['provider', 'carrier', 'isp', 'brand', 'product provider']))
+    return { raw, rowProvider: selectedProvider || detectedProvider, evidence: mapReportEvidence(raw) }
+  })
+  const orderRows = normalizedRows.filter(row => row.evidence.orderNumber || row.evidence.accountNumber)
+  if (!orderRows.length) {
+    return json({
+      error: 'report_has_no_recognized_orders',
+      detail: 'No order or account identifiers were found. For BASS, run All Orders and export result rows containing Order # or BASS Order ID.'
+    }, 400)
+  }
+  if (orderRows.some(row => !row.rowProvider)) {
+    return json({
+      error: 'provider_not_detected',
+      detail: 'The report has no provider column. Select its ISP instead of Mixed / Auto-detect and import it again.'
+    }, 400)
+  }
 
   const fileHash = await sha256(text)
   let duplicateQuery = admin.from('provider_sales_imports').select('id,created_at,mapped_row_count').eq('source_scope', sourceScope).eq('file_sha256', fileHash)
@@ -260,7 +292,6 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   if (duplicateError) throw duplicateError
   if (duplicate) return json({ ok: true, duplicate: true, import_id: duplicate.id, mapped: duplicate.mapped_row_count, rows: rows.length - 1 })
 
-  const headers = rows[0].map(value => value.replace(/^\uFEFF/, ''))
   const sourceRepUserId = sourceScope === 'rep_account' ? user.id : null
   const sourceRepEmail = sourceScope === 'rep_account' ? user.email.toLowerCase() : null
   const { data: importRow, error: importError } = await admin.from('provider_sales_imports').insert({
@@ -278,34 +309,24 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   }).select('id,source_scope,source_provider,source_rep_user_id,report_period_start,report_period_end').single()
   if (importError) throw importError
 
-  let mapped = 0
+  const mapped = orderRows.length
   const importedProviders = new Set<string>()
   try {
-    for (let index = 1; index < rows.length; index += 250) {
-      const chunk = rows.slice(index, index + 250).map(values => {
-        const raw: Record<string, unknown> = {}
-        headers.forEach((header, column) => { raw[header] = values[column] ?? '' })
-        const detectedProvider = normalizeSaleProvider(pick(raw, ['provider', 'carrier', 'isp', 'brand', 'product provider']))
-        const rowProvider = selectedProvider || detectedProvider
-        const order = pick(raw, ['order number', 'order #', 'order id', 'order', 'confirmation number', 'confirmation #'])
-        const account = pick(raw, ['account number', 'account #', 'account id', 'customer account', 'ban'])
-        const seller = pick(raw, ['seller id', 'agent id', 'rep id', 'sales rep id', 'employee id', 'salesperson id'])
-        const sellerName = pick(raw, ['seller name', 'agent name', 'rep name', 'sales rep', 'salesperson', 'agent'])
-        const sellerEmail = pick(raw, ['seller email', 'agent email', 'rep email', 'sales rep email'])
-        if (order || account) mapped++
+    for (let index = 0; index < orderRows.length; index += 250) {
+      const chunk = orderRows.slice(index, index + 250).map(({ raw, rowProvider, evidence }) => {
         if (rowProvider) importedProviders.add(rowProvider)
         return {
           import_id: importRow.id,
           provider: rowProvider,
-          order_number: order,
-          account_number: account,
-          seller_identifier: seller || sellerEmail || sellerName,
-          seller_name: sellerName,
-          seller_email: sellerEmail?.toLowerCase() || null,
-          customer_name: pick(raw, ['customer name', 'subscriber name', 'name']),
-          service_address: pick(raw, ['service address', 'address', 'install address']),
-          sale_date: reportDate(pick(raw, ['sale date', 'order date', 'created date', 'submitted date', 'date'])),
-          provider_status: pick(raw, ['status', 'order status', 'sale status']),
+          order_number: evidence.orderNumber,
+          account_number: evidence.accountNumber,
+          seller_identifier: evidence.sellerIdentifier,
+          seller_name: evidence.sellerName,
+          seller_email: evidence.sellerEmail?.toLowerCase() || null,
+          customer_name: evidence.customerName,
+          service_address: evidence.serviceAddress,
+          sale_date: reportDate(evidence.saleDate),
+          provider_status: evidence.providerStatus,
           evidence_scope: sourceScope,
           source_rep_user_id: sourceRepUserId,
           source_rep_email: sourceRepEmail,
@@ -339,6 +360,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
     verified_after_import: salesResult.verified,
     sales_checked: salesResult.total,
     cross_reference: crossReference,
+    report_format: reportFormat,
     headers
   })
 }
@@ -359,7 +381,7 @@ Deno.serve(async request => {
     const body = await request.json().catch(() => ({}))
     const action = String(body.action || (access.role === 'admin' ? 'overview' : 'my_overview'))
 
-    if (action === 'upload_csv') return await uploadReport(admin, user, access, body)
+    if (action === 'upload_report' || action === 'upload_csv') return await uploadReport(admin, user, access, body)
 
     if (action === 'link_seller') {
       if (access.role !== 'admin') return json({ error: 'admin_only' }, 403)

@@ -4,7 +4,11 @@ Status: **McCoy capture and reconciliation enabled; direct BASS API not connecte
 
 The rep-facing seller-account launcher is in `app-provider-sale-router.js`. Brightspeed is labeled `BASS` and uses `https://bass.docxtract.com/General/SimHomePage.aspx`. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open BASS. It relies on the provider's existing browser session or approved SSO and never stores provider credentials. Because BASS runs on a different web origin, McCoy cannot inspect the BASS page or infer that an order completed. McCoy instead persists the dashboard attempt, restores the sale form when the rep returns, and exposes unfinished attempts in Admin Provider Verification.
 
-Provider Reports links directly to the BASS Orders Report at `https://bass.docxtract.com/Report/Orders_Report.aspx`. When a rep opens it in the BASS session used to process sales, the downloaded CSV can be uploaded as preliminary rep-account evidence. When Admin opens the same report from the dealer's corporate BASS session, the downloaded CSV is imported as authoritative dealer evidence and automatically cross-referenced against the rep reports. A redacted header row or sample export is still required to replace generic column detection with a locked BASS field map.
+Provider Reports links directly to the BASS Orders Report at `https://bass.docxtract.com/Report/Orders_Report.aspx`. When a rep opens it in the BASS session used to process sales, the downloaded order-result `.xls` or CSV can be uploaded as preliminary rep-account evidence. When Admin opens the same report from the dealer's corporate BASS session, the downloaded result file is imported as authoritative dealer evidence and automatically cross-referenced against the rep reports.
+
+The supplied BASS XML was a report definition rather than an order export: it contained selected column labels and a seller search filter, but zero order rows. McCoy now detects and rejects that definition-only format with a specific instruction to run the report and export its result rows. This prevents a report template from becoming false sale evidence.
+
+The completed `.xls` is an HTML table under an Excel filename. McCoy parses it as untrusted text on the server; it does not execute its markup. The real exported headers now recognized include `BASS Order ID`, `Order #`, `Create Date`, `Sales Person ID`, `Sales Person Name`, `Name`, `Street`, `City`, `State`, `Zip`, and `Order Status`. The importer composes the split address fields and ignores rows without an order/account identifier.
 
 ## What is already compatible
 
@@ -33,7 +37,7 @@ BASS should feed this pipeline. It should not write directly to rep dashboards, 
 
 The adapter has no network or database code. It rejects records that lack both an order/account identifier or a seller identity. Credential-like and highly sensitive fields are never copied into `raw_payload`.
 
-`config/brightspeed-bass-field-map.example.json` is deliberately blank. Actual BASS field names will only be added from Brightspeed documentation or a redacted sample export.
+`config/brightspeed-bass-field-map.example.json` records the definition labels and the confirmed `.xls` export headers. Status semantics still require Brightspeed confirmation before individual status values are used for automatic cancellation/chargeback decisions.
 
 ## Brightspeed information required before connection
 
@@ -54,7 +58,7 @@ Do not send BASS usernames, passwords, access tokens, or private keys in chat or
 
 ## Recommended activation sequence
 
-1. Map a redacted BASS sample through the adapter and confirm accepted/rejected records.
+1. Confirm the meaning of BASS order-status values and which statuses represent completion, cancellation, or chargeback.
 2. Add an idempotency key and unique database constraint so BASS retries cannot duplicate sales rows.
 3. Implement the approved server-side transport with strict timeouts and bounded retries.
 4. Run in dry-run mode against a sandbox or export with database writes disabled.

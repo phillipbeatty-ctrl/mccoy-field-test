@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import {
   classifySaleEvidence,
   crossReferenceRepRow,
+  isBassReportDefinitionXml,
+  mapReportEvidence,
+  parseHtmlTableReport,
   safeReportPayload
 } from './provider-report-core.mjs'
 
@@ -62,4 +65,46 @@ test('arbitrary report payloads exclude credential and financial-secret columns'
   assert.deepEqual(safeReportPayload({ Order: '101', Password: 'nope', SSN: 'nope', Address: '1 Main' }), {
     Order: '101', Address: '1 Main'
   })
+})
+
+test('real BASS column labels map order, seller, address, date, and status evidence', () => {
+  assert.deepEqual(mapReportEvidence({
+    'Order #': 'CTL-101',
+    'Account Number': 'ACCT-9',
+    'Sales Person ID': 'agent-7',
+    'Sales Person Name': 'Test Rep',
+    'Customer Name': 'Test Customer',
+    'Street Address': '10 Test St',
+    Unit: '2A',
+    City: 'Testville',
+    State: 'TX',
+    'Zip Code': '75001',
+    'Create Time': '2026-08-20',
+    'Order Status': 'Complete'
+  }), {
+    orderNumber: 'CTL-101',
+    accountNumber: 'ACCT-9',
+    sellerIdentifier: 'agent-7',
+    sellerName: 'Test Rep',
+    sellerEmail: null,
+    customerName: 'Test Customer',
+    serviceAddress: '10 Test St, 2A, Testville, TX 75001',
+    saleDate: '2026-08-20',
+    providerStatus: 'Complete'
+  })
+})
+
+test('BASS report-definition XML is distinguished from order-result data', () => {
+  const definition = `<?xml version="1.0"?><Report><Fields><SalesAgentID>Sales Person ID</SalesAgentID><CustomerName>Customer Name</CustomerName><StreetAddress>Street Address</StreetAddress><AccountNumber>Account Number</AccountNumber></Fields><Search><SalesAgentName1>Example Rep</SalesAgentName1></Search></Report>`
+  assert.equal(isBassReportDefinitionXml(definition), true)
+  assert.equal(isBassReportDefinitionXml('Order #,Account Number\nCTL-1,A-1'), false)
+})
+
+test('BASS HTML-table XLS rows parse without retaining markup', () => {
+  const rows = parseHtmlTableReport('<table><tr><td><b>Order #</b></td><td>Sales Person ID</td><td>Street</td><td>City</td><td>State</td><td>Zip</td><td>Create Date</td></tr><tr style="x"><td>CTL-1</td><td>A&amp;7</td><td>10 Test St</td><td>Austin</td><td>TX</td><td>78701</td><td>08/20/2026 12:00 PM</td></tr></table>')
+  assert.deepEqual(rows, [
+    ['Order #', 'Sales Person ID', 'Street', 'City', 'State', 'Zip', 'Create Date'],
+    ['CTL-1', 'A&7', '10 Test St', 'Austin', 'TX', '78701', '08/20/2026 12:00 PM']
+  ])
+  assert.equal(mapReportEvidence(Object.fromEntries(rows[0].map((header, index) => [header, rows[1][index]]))).serviceAddress, '10 Test St, Austin, TX 78701')
 })
