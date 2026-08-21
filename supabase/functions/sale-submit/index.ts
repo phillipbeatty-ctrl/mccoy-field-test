@@ -1,16 +1,198 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
-const norm=(v:any)=>String(v??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'')
-const provider=(v:any)=>{const x=norm(v);if(x.includes('brightspeed'))return'Brightspeed';if(x.includes('quantum'))return'Quantum';if(x==='att'||x.includes('atandt'))return'AT&T';if(x.includes('tmobile')||x.includes('tfiber'))return'T-Mobile / T-Fiber';if(x.includes('kinetic')||x.includes('windstream'))return'Kinetic';if(x.includes('fidium'))return'Fidium';if(x.includes('ascend'))return'Ascend Fiber';if(x.includes('lightcurve'))return'Lightcurve';if(x.includes('ripple'))return'Ripple Fiber';if(x.includes('starlink'))return'Starlink';if(x.includes('directv'))return'DIRECTV';if(x.includes('vivint')||x.includes('vivant'))return'Vivint';return String(v??'').trim()}
-Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
- const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'');if(!jwt)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});const {data:{user},error:uerr}=await admin.auth.getUser(jwt);if(uerr||!user?.email)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});const {data:access,error:aerr}=await admin.from('app_user_access').select('role,active,display_name,sales_classification,team_name,assigned_manager_name,assigned_manager_email').eq('email',user.email.toLowerCase()).maybeSingle();if(aerr)throw aerr;if(!access?.active)return Response.json({error:'forbidden'},{status:403,headers:corsHeaders});
- const b=await req.json();for(const k of ['customer_first_name','customer_last_name','service_address','isp'])if(!String(b[k]||'').trim())return Response.json({error:k+'_required'},{status:400,headers:corsHeaders});const isp=provider(b.isp);const allowed=new Set(['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other']);if(!allowed.has(isp))return Response.json({error:'invalid_provider'},{status:400,headers:corsHeaders});const saleContext=b.sale_context==='out_of_area_phone'?'out_of_area_phone':'field',outsideSystem=saleContext==='out_of_area_phone',saleOrigin=outsideSystem?'outside_system':'mccoy_app',adminApproval={required:outsideSystem,status:outsideSystem?'pending':'not_required',reviewed_by:null,reviewed_at:null,notes:null};
- let safeSessionId:string|null=null;const candidate=String(b.session_id||'');if(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate)){const {data:s}=await admin.from('test_sessions').select('id').eq('id',candidate).maybeSingle();if(s?.id)safeSessionId=s.id}
- const classification=normalizePayLevel(access.sales_classification);const {data:cr}=await admin.from('compensation_rules').select('rule').eq('active',true).limit(1).maybeSingle();const rule:any=cr?.rule||{};const product=String(b.internet_product||''),allowedSpeeds=new Set([1000,2000,3000,5000,8000,10000]),requestedSpeed=Math.max(0,Math.round(Number(b.internet_speed_mbps||0))),speed=product==='None'?0:requestedSpeed;if(product!=='None'&&!allowedSpeeds.has(speed))return Response.json({error:'invalid_internet_speed',allowed_mbps:[...allowedSpeeds]},{status:400,headers:corsHeaders});const installDate=String(b.install_date||'').trim(),installDateValue=new Date(installDate+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(installDate)||Number.isNaN(installDateValue.getTime())||installDateValue.toISOString().slice(0,10)!==installDate)return Response.json({error:'valid_install_date_required'},{status:400,headers:corsHeaders});const directv=!!b.directv,directvService=directv?(String(b.directv_service||'').trim().slice(0,120)||null):null,vivint=!!b.vivint,vivintService=vivint?(String(b.vivint_service||'').trim().slice(0,120)||null):null;const lines=Math.max(0,Math.min(20,Math.round(Number(b.mobile_phone_lines??b.att_mobile_lines??0))));const calculatedCommission=commissionSnapshot(rule,{isp,internet_product:product,internet_speed_mbps:speed,mobile_phone_lines:lines},classification);
- const voipLines=Math.max(0,Math.min(20,Math.round(Number(b.voip_home_phone_lines||0)))),mobileDeviceCount=Math.max(0,Math.min(20,Math.round(Number(b.mobile_device_count??b.att_device_count??0)))),mobileDeviceProtection=!!(b.mobile_device_protection??b.att_device_protection),attTotalHomeCare=isp==='AT&T'&&!!b.att_total_home_care;
- const {data:g}=await admin.from('compensation_admin_settings').select('manager_overrides_enabled').eq('singleton',true).maybeSingle();const mgrName=access.assigned_manager_name||null,mgrEmail=access.assigned_manager_email||null;let mgrEnabled=true,repEnabled=true;if(mgrName||mgrEmail){let managerQuery=admin.from('manager_override_controls').select('overrides_enabled');managerQuery=mgrEmail?managerQuery.eq('manager_email',String(mgrEmail).toLowerCase()):managerQuery.eq('manager_name',mgrName);const {data:m}=await managerQuery.maybeSingle();if(m)mgrEnabled=!!m.overrides_enabled}const {data:r}=await admin.from('rep_override_controls').select('overrides_enabled').eq('rep_email',user.email.toLowerCase()).maybeSingle();if(r)repEnabled=!!r.overrides_enabled;const globalEnabled=g?.manager_overrides_enabled??true;const snapshot={classification:calculatedCommission.pay_level,pay_level:calculatedCommission.pay_level,pay_level_label:calculatedCommission.pay_level_label,sale_context:saleContext,sale_origin:saleOrigin,admin_approval:adminApproval,base_commission:calculatedCommission.base_commission,att_mobile_originating_commission:calculatedCommission.att_mobile_originating_commission,mobile_phone_lines:lines,mobile_device_count:mobileDeviceCount,mobile_device_protection:mobileDeviceProtection,voip_home_phone_lines:voipLines,att_device_count:mobileDeviceCount,att_device_protection:mobileDeviceProtection,att_total_home_care:attTotalHomeCare,directv_compensation:rule?.directv_compensation??'not_configured',vivint_compensation:rule?.vivint_compensation??'not_configured',weekly_production_pay_increase:rule?.weekly_production_pay_increase||[],manager_override:{assigned_manager_name:mgrName,assigned_manager_email:mgrEmail,global_enabled:globalEnabled,manager_enabled:mgrEnabled,rep_enabled:repEnabled,effective_enabled:!!((mgrName||mgrEmail)&&globalEnabled&&mgrEnabled&&repEnabled),amount_per_sale:Number(rule?.manager_override?.amount_per_sale||25)},source:rule?.source||null};
- const order=String(b.provider_order_number||'').trim()||null,acct=String(b.provider_account_number||'').trim()||null;let verification_status='low_potential',verification_reason=b.low_potential_reason?String(b.low_potential_reason):(!order&&!acct?'missing_order_or_account_number':'not_yet_in_dealer_file'),providerRow:any=null;if(order||acct){const {data:rows}=await admin.from('provider_sales_rows').select('*').eq('provider',isp).order('created_at',{ascending:false}).limit(100);const matches=(rows||[]).filter((x:any)=>(order&&norm(x.order_number)===norm(order))||(acct&&norm(x.account_number)===norm(acct)));if(matches.length){const {data:links}=await admin.from('provider_seller_links').select('seller_identifier').eq('rep_user_id',user.id).eq('provider',isp).eq('active',true);const ids=new Set((links||[]).map((x:any)=>norm(x.seller_identifier)).filter(Boolean));if(!ids.size){verification_status='pending_verification';verification_reason='seller_account_not_linked';providerRow=matches[0]}else{providerRow=matches.find((x:any)=>ids.has(norm(x.seller_identifier))||ids.has(norm(x.seller_email))||ids.has(norm(x.seller_name)));if(providerRow){verification_status='verified_processed';verification_reason='dealer_file_and_seller_match'}else{verification_status='mismatch';verification_reason='order_found_but_seller_does_not_match_linked_mccoy_user';providerRow=matches[0]}}}}
- const competitionEligible=verification_status==='verified_processed'&&!outsideSystem;const row={rep_user_id:user.id,rep_email:user.email,rep_name:access.display_name||user.email,session_id:safeSessionId,lead_label:b.lead_label||null,customer_first_name:String(b.customer_first_name).trim(),customer_last_name:String(b.customer_last_name).trim(),customer_phone:b.customer_phone||null,customer_email:b.customer_email||null,service_address:String(b.service_address).trim(),isp,internet_product:b.internet_product||null,internet_speed_mbps:speed>0?speed:null,install_date:installDate,directv,directv_service:directvService,mobile_phone_lines:lines,mobile_device_count:mobileDeviceCount,mobile_device_protection:mobileDeviceProtection,att_mobile_lines:lines,vivint,vivint_service:vivintService,voip_home_phone_lines:voipLines,att_device_count:mobileDeviceCount,att_device_protection:mobileDeviceProtection,att_total_home_care:attTotalHomeCare,notes:b.notes||null,compensation_snapshot:snapshot,provider_order_number:order,provider_account_number:acct,verification_status,verification_reason,provider_sale_row_id:providerRow?.id||null,competition_eligible:competitionEligible,verified_at:verification_status==='verified_processed'?new Date().toISOString():null,low_potential_since:verification_status==='low_potential'?new Date().toISOString():null};const {data:sale,error:serr}=await admin.from('sales_records').insert(row).select('id,created_at').single();if(serr)throw serr;
- const parts:string[]=[];if(saleContext==='out_of_area_phone')parts.push('OUT OF AREA phone sale');if(product&&product!=='None')parts.push(product+(speed?' '+(speed/1000)+' Gig':''));if(voipLines)parts.push(String(voipLines)+' VoIP home phone line'+(voipLines===1?'':'s'));if(lines)parts.push(String(lines)+' AT&T mobile phone line'+(lines===1?'':'s'));if(mobileDeviceCount)parts.push(String(mobileDeviceCount)+' AT&T mobile device'+(mobileDeviceCount===1?'':'s'));if(mobileDeviceProtection)parts.push('AT&T Device Protection');if(attTotalHomeCare)parts.push('Total Home Care');if(directv)parts.push('DIRECTV'+(directvService?' — '+directvService:''));if(vivint)parts.push('Vivint'+(vivintService?' — '+vivintService:''));const msg='🎉 '+(access.display_name||user.email)+' closed '+isp+(parts.length?' — '+parts.join(' + '):'')+'!';const {error:ferr}=await admin.from('sales_feed').insert({sale_id:sale.id,rep_user_id:user.id,rep_name:access.display_name||user.email,isp,internet_product:b.internet_product||null,directv,mobile_phone_lines:lines,mobile_device_count:mobileDeviceCount,att_mobile_lines:lines,vivint,message:msg});if(ferr){await admin.from('sales_records').delete().eq('id',sale.id);throw ferr}return Response.json({ok:true,sale_id:sale.id,message:msg,compensation_snapshot:snapshot,verification:{status:verification_status,reason:verification_reason,competition_eligible:competitionEligible,requires_admin_approval:outsideSystem,admin_approval_status:adminApproval.status}},{headers:{...corsHeaders,'Cache-Control':'no-store'}})
-}catch(e:any){console.error('sale-submit',e);return Response.json({error:'sale_submit_failed',detail:String(e?.message||e).slice(0,180)},{status:500,headers:{...corsHeaders,'Cache-Control':'no-store'}})}})
+import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
+
+const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+const json = (body: unknown, status = 200) => Response.json(body, {
+  status,
+  headers: { ...corsHeaders, 'Cache-Control': 'no-store' }
+})
+
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  try {
+    const jwt = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/, '')
+    if (!jwt) return json({ error: 'unauthorized' }, 401)
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
+    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)
+    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)
+    const repEmail = user.email.toLowerCase()
+    const { data: access, error: accessError } = await admin.from('app_user_access').select('role,active,display_name,sales_classification,team_name,assigned_manager_name,assigned_manager_email').eq('email', repEmail).maybeSingle()
+    if (accessError) throw accessError
+    if (!access?.active) return json({ error: 'forbidden' }, 403)
+
+    const body = await request.json()
+    for (const key of ['customer_first_name', 'customer_last_name', 'service_address', 'isp']) {
+      if (!String(body[key] || '').trim()) return json({ error: `${key}_required` }, 400)
+    }
+    const isp = normalizeSaleProvider(body.isp)
+    if (!isp) return json({ error: 'invalid_provider' }, 400)
+
+    let providerCapture: any = null
+    let captureId = String(body.provider_capture_id || '').trim()
+    const captureClientRequestId = String(body.provider_capture_client_request_id || '').trim()
+    if (!captureId && isUuid(captureClientRequestId)) {
+      const { data: existingCapture, error: existingCaptureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('rep_user_id', user.id).eq('client_request_id', captureClientRequestId).maybeSingle()
+      if (existingCaptureError) throw existingCaptureError
+      if (existingCapture) { providerCapture = existingCapture; captureId = existingCapture.id }
+      else {
+        const fallbackRow = {
+          client_request_id: captureClientRequestId, rep_user_id: user.id, rep_email: repEmail, rep_name: access.display_name || user.email,
+          provider: isp, sale_context: body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field', session_id: isUuid(body.session_id) ? body.session_id : null,
+          lead_label: String(body.lead_label || '').trim().slice(0, 500) || null, service_address: String(body.service_address).trim().slice(0, 500),
+          seller_portal_label: null, portal_opened: false, portal_open_reason: 'sale_submit_fallback', status: 'details_required', metadata: { capture_version: 1, fallback: true }
+        }
+        const { data: insertedCapture, error: insertedCaptureError } = await admin.from('provider_sale_captures').insert(fallbackRow).select('id,provider,sale_context,status').maybeSingle()
+        if (insertedCaptureError && insertedCaptureError.code !== '23505') throw insertedCaptureError
+        if (insertedCapture) { providerCapture = insertedCapture; captureId = insertedCapture.id }
+        else {
+          const { data: racedCapture, error: racedCaptureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('rep_user_id', user.id).eq('client_request_id', captureClientRequestId).maybeSingle()
+          if (racedCaptureError) throw racedCaptureError
+          if (racedCapture) { providerCapture = racedCapture; captureId = racedCapture.id }
+        }
+      }
+    }
+    if (captureId) {
+      if (!isUuid(captureId)) return json({ error: 'invalid_provider_capture' }, 400)
+      let capture = providerCapture
+      if (!capture) {
+        const { data, error: captureError } = await admin.from('provider_sale_captures').select('id,provider,sale_context,status').eq('id', captureId).eq('rep_user_id', user.id).maybeSingle()
+        if (captureError) throw captureError
+        capture = data
+      }
+      if (!capture) return json({ error: 'provider_capture_not_found' }, 400)
+      if (capture.provider !== isp) return json({ error: 'provider_capture_mismatch' }, 400)
+      if (capture.status === 'cancelled') return json({ error: 'provider_capture_cancelled' }, 409)
+      providerCapture = capture
+      const { data: prior, error: priorError } = await admin.from('sales_records').select('id,compensation_snapshot,verification_status,verification_reason,competition_eligible').eq('provider_capture_id', capture.id).eq('rep_user_id', user.id).maybeSingle()
+      if (priorError) throw priorError
+      if (prior) return json({ ok: true, duplicate: true, sale_id: prior.id, compensation_snapshot: prior.compensation_snapshot, verification: { status: prior.verification_status, reason: prior.verification_reason, competition_eligible: prior.competition_eligible } })
+    }
+
+    const saleContext = providerCapture?.sale_context === 'out_of_area_phone' || body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field'
+    const outsideSystem = saleContext === 'out_of_area_phone'
+    const saleOrigin = outsideSystem ? 'outside_system' : 'mccoy_app'
+    const adminApproval = { required: outsideSystem, status: outsideSystem ? 'pending' : 'not_required', reviewed_by: null, reviewed_at: null, notes: null }
+
+    let safeSessionId: string | null = null
+    const sessionCandidate = String(body.session_id || '')
+    if (isUuid(sessionCandidate)) {
+      const { data: session } = await admin.from('test_sessions').select('id').eq('id', sessionCandidate).maybeSingle()
+      if (session?.id) safeSessionId = session.id
+    }
+
+    const classification = normalizePayLevel(access.sales_classification)
+    const { data: compensationRule } = await admin.from('compensation_rules').select('rule').eq('active', true).limit(1).maybeSingle()
+    const rule: any = compensationRule?.rule || {}
+    const product = String(body.internet_product || '')
+    const allowedSpeeds = new Set([1000, 2000, 3000, 5000, 8000, 10000])
+    const requestedSpeed = Math.max(0, Math.round(Number(body.internet_speed_mbps || 0)))
+    const speed = product === 'None' ? 0 : requestedSpeed
+    if (product !== 'None' && !allowedSpeeds.has(speed)) return json({ error: 'invalid_internet_speed', allowed_mbps: [...allowedSpeeds] }, 400)
+    const installDate = String(body.install_date || '').trim()
+    const installDateValue = new Date(`${installDate}T00:00:00Z`)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(installDate) || Number.isNaN(installDateValue.getTime()) || installDateValue.toISOString().slice(0, 10) !== installDate) return json({ error: 'valid_install_date_required' }, 400)
+
+    const directv = !!body.directv
+    const directvService = directv ? (String(body.directv_service || '').trim().slice(0, 120) || null) : null
+    const vivint = !!body.vivint
+    const vivintService = vivint ? (String(body.vivint_service || '').trim().slice(0, 120) || null) : null
+    const mobileLines = Math.max(0, Math.min(20, Math.round(Number(body.mobile_phone_lines ?? body.att_mobile_lines ?? 0))))
+    const mobileDeviceCount = Math.max(0, Math.min(20, Math.round(Number(body.mobile_device_count ?? body.att_device_count ?? 0))))
+    const mobileDeviceProtection = !!(body.mobile_device_protection ?? body.att_device_protection)
+    const voipLines = Math.max(0, Math.min(20, Math.round(Number(body.voip_home_phone_lines || 0))))
+    const attTotalHomeCare = isp === 'AT&T' && !!body.att_total_home_care
+    const calculatedCommission = commissionSnapshot(rule, { isp, internet_product: product, internet_speed_mbps: speed, mobile_phone_lines: mobileLines }, classification)
+
+    const { data: globalSettings } = await admin.from('compensation_admin_settings').select('manager_overrides_enabled').eq('singleton', true).maybeSingle()
+    const managerName = access.assigned_manager_name || null
+    const managerEmail = access.assigned_manager_email || null
+    let managerEnabled = true
+    let repEnabled = true
+    if (managerName || managerEmail) {
+      let managerQuery = admin.from('manager_override_controls').select('overrides_enabled')
+      managerQuery = managerEmail ? managerQuery.eq('manager_email', String(managerEmail).toLowerCase()) : managerQuery.eq('manager_name', managerName)
+      const { data: managerControl } = await managerQuery.maybeSingle()
+      if (managerControl) managerEnabled = !!managerControl.overrides_enabled
+    }
+    const { data: repControl } = await admin.from('rep_override_controls').select('overrides_enabled').eq('rep_email', repEmail).maybeSingle()
+    if (repControl) repEnabled = !!repControl.overrides_enabled
+    const globalEnabled = globalSettings?.manager_overrides_enabled ?? true
+    const snapshot = {
+      classification: calculatedCommission.pay_level, pay_level: calculatedCommission.pay_level, pay_level_label: calculatedCommission.pay_level_label,
+      sale_context: saleContext, sale_origin: saleOrigin, provider_capture_id: providerCapture?.id || null, admin_approval: adminApproval,
+      base_commission: calculatedCommission.base_commission, att_mobile_originating_commission: calculatedCommission.att_mobile_originating_commission,
+      mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount, mobile_device_protection: mobileDeviceProtection,
+      voip_home_phone_lines: voipLines, att_device_count: mobileDeviceCount, att_device_protection: mobileDeviceProtection, att_total_home_care: attTotalHomeCare,
+      directv_compensation: rule?.directv_compensation ?? 'not_configured', vivint_compensation: rule?.vivint_compensation ?? 'not_configured',
+      weekly_production_pay_increase: rule?.weekly_production_pay_increase || [],
+      manager_override: { assigned_manager_name: managerName, assigned_manager_email: managerEmail, global_enabled: globalEnabled, manager_enabled: managerEnabled, rep_enabled: repEnabled, effective_enabled: !!((managerName || managerEmail) && globalEnabled && managerEnabled && repEnabled), amount_per_sale: Number(rule?.manager_override?.amount_per_sale || 25) },
+      source: rule?.source || null
+    }
+
+    const orderNumber = String(body.provider_order_number || '').trim() || null
+    const accountNumber = String(body.provider_account_number || '').trim() || null
+    let verificationStatus = 'low_potential'
+    let verificationReason = body.low_potential_reason ? String(body.low_potential_reason) : (!orderNumber && !accountNumber ? 'missing_order_or_account_number' : 'not_yet_in_dealer_file')
+    let providerRow: any = null
+    if (orderNumber || accountNumber) {
+      const { data: providerRows, error: providerRowsError } = await admin.from('provider_sales_rows').select('*').eq('provider', isp).order('created_at', { ascending: false }).limit(100)
+      if (providerRowsError) throw providerRowsError
+      const matches = (providerRows || []).filter((row: any) => (orderNumber && norm(row.order_number) === norm(orderNumber)) || (accountNumber && norm(row.account_number) === norm(accountNumber)))
+      if (matches.length) {
+        const { data: sellerLinks, error: sellerLinksError } = await admin.from('provider_seller_links').select('seller_identifier').eq('rep_user_id', user.id).eq('provider', isp).eq('active', true)
+        if (sellerLinksError) throw sellerLinksError
+        const sellerIdentifiers = new Set((sellerLinks || []).map((row: any) => norm(row.seller_identifier)).filter(Boolean))
+        if (!sellerIdentifiers.size) { verificationStatus = 'pending_verification'; verificationReason = 'seller_account_not_linked'; providerRow = matches[0] }
+        else {
+          providerRow = matches.find((row: any) => sellerIdentifiers.has(norm(row.seller_identifier)) || sellerIdentifiers.has(norm(row.seller_email)) || sellerIdentifiers.has(norm(row.seller_name)))
+          if (providerRow) { verificationStatus = 'verified_processed'; verificationReason = 'dealer_file_and_seller_match' }
+          else { verificationStatus = 'mismatch'; verificationReason = 'order_found_but_seller_does_not_match_linked_mccoy_user'; providerRow = matches[0] }
+        }
+      }
+    }
+
+    const competitionEligible = verificationStatus === 'verified_processed' && !outsideSystem
+    const saleRow = {
+      rep_user_id: user.id, rep_email: user.email, rep_name: access.display_name || user.email, session_id: safeSessionId,
+      lead_label: body.lead_label || null, provider_capture_id: providerCapture?.id || null,
+      customer_first_name: String(body.customer_first_name).trim(), customer_last_name: String(body.customer_last_name).trim(),
+      customer_phone: body.customer_phone || null, customer_email: body.customer_email || null, service_address: String(body.service_address).trim(),
+      isp, internet_product: body.internet_product || null, internet_speed_mbps: speed > 0 ? speed : null, install_date: installDate,
+      directv, directv_service: directvService, mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount,
+      mobile_device_protection: mobileDeviceProtection, att_mobile_lines: mobileLines, vivint, vivint_service: vivintService,
+      voip_home_phone_lines: voipLines, att_device_count: mobileDeviceCount, att_device_protection: mobileDeviceProtection,
+      att_total_home_care: attTotalHomeCare, notes: body.notes || null, compensation_snapshot: snapshot,
+      provider_order_number: orderNumber, provider_account_number: accountNumber, verification_status: verificationStatus,
+      verification_reason: verificationReason, provider_sale_row_id: providerRow?.id || null, competition_eligible: competitionEligible,
+      verified_at: verificationStatus === 'verified_processed' ? new Date().toISOString() : null,
+      low_potential_since: verificationStatus === 'low_potential' ? new Date().toISOString() : null
+    }
+    const { data: sale, error: saleError } = await admin.from('sales_records').insert(saleRow).select('id,created_at').single()
+    if (saleError) throw saleError
+
+    const products: string[] = []
+    if (saleContext === 'out_of_area_phone') products.push('OUT OF AREA phone sale')
+    if (product && product !== 'None') products.push(`${product}${speed ? ` ${speed / 1000} Gig` : ''}`)
+    if (voipLines) products.push(`${voipLines} VoIP home phone line${voipLines === 1 ? '' : 's'}`)
+    if (mobileLines) products.push(`${mobileLines} AT&T mobile phone line${mobileLines === 1 ? '' : 's'}`)
+    if (mobileDeviceCount) products.push(`${mobileDeviceCount} AT&T mobile device${mobileDeviceCount === 1 ? '' : 's'}`)
+    if (mobileDeviceProtection) products.push('AT&T Device Protection')
+    if (attTotalHomeCare) products.push('Total Home Care')
+    if (directv) products.push(`DIRECTV${directvService ? ` — ${directvService}` : ''}`)
+    if (vivint) products.push(`Vivint${vivintService ? ` — ${vivintService}` : ''}`)
+    const message = `🎉 ${access.display_name || user.email} closed ${isp}${products.length ? ` — ${products.join(' + ')}` : ''}!`
+    const { error: feedError } = await admin.from('sales_feed').insert({ sale_id: sale.id, rep_user_id: user.id, rep_name: access.display_name || user.email, isp, internet_product: body.internet_product || null, directv, mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount, att_mobile_lines: mobileLines, vivint, message })
+    if (feedError) { await admin.from('sales_records').delete().eq('id', sale.id); throw feedError }
+
+    if (providerCapture?.id) {
+      const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', updated_at: new Date().toISOString() }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
+      if (captureUpdateError) console.error('provider capture status update failed', captureUpdateError)
+    }
+    return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
+  } catch (error) {
+    console.error('sale-submit', error)
+    return json({ error: 'sale_submit_failed', detail: String((error as Error)?.message || error).slice(0, 180) }, 500)
+  }
+})

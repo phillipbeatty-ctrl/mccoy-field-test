@@ -7,6 +7,7 @@
 
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const OUT_OF_AREA='OUT OF AREA';
+  const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const defaults={
     Brightspeed:{label:'BASS',url:''},
     Quantum:{label:'ASAP',url:'',openInNewTab:true},
@@ -56,6 +57,81 @@
 
   let pending=null,toastTimer=null;
   let saleGuard=false;
+  let returnNotifiedFor=null;
+  function readCapture(){
+    try{const value=JSON.parse(localStorage.getItem(CAPTURE_STORAGE_KEY)||'null');return value&&value.client_request_id&&value.provider?value:null;}catch(_){return null;}
+  }
+  function writeCapture(capture){
+    window.MCCOY_ACTIVE_PROVIDER_CAPTURE=capture||null;
+    if(capture)localStorage.setItem(CAPTURE_STORAGE_KEY,JSON.stringify(capture));else localStorage.removeItem(CAPTURE_STORAGE_KEY);
+  }
+  function newCaptureRequestId(){
+    if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
+    const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+    return [...bytes].map((value,index)=>([4,6,8,10].includes(index)?'-':'')+value.toString(16).padStart(2,'0')).join('');
+  }
+  function saleSourceContext(){
+    const currentState=typeof state!=='undefined'?state:null;
+    const selectedLeadId=Number(document.getElementById('fieldLeadSelect')?.value);
+    const lead=currentState?.activeDoorVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
+    let sessionId=null;
+    try{if(typeof telemetrySessionId!=='undefined'&&telemetrySessionId)sessionId=telemetrySessionId;}catch(_){}
+    return{session_id:sessionId,lead_label:lead?.address||lead?.fullAddress||null,service_address:lead?.address||lead?.fullAddress||null};
+  }
+  async function captureCall(action,payload={}){
+    if(typeof sb==='undefined')throw new Error('McCoy connection is not ready.');
+    const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
+    if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_sale_capture_failed');
+    return data;
+  }
+  function startProviderCapture(provider,outOfArea,portalResult){
+    const source=saleSourceContext(),info=portalInfo(provider),draft={
+      client_request_id:newCaptureRequestId(),provider,sale_context:outOfArea?'out_of_area_phone':'field',
+      service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
+      seller_portal_label:info.label,portal_opened:!!portalResult?.opened,portal_open_reason:portalResult?.reason||null,
+      started_at:new Date().toISOString(),status:portalResult?.opened?'dashboard_opened':'details_required'
+    };
+    writeCapture(draft);returnNotifiedFor=null;
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-started',{detail:{capture:draft}}));
+    const ready=captureCall('start',draft).then(data=>{
+      const active=readCapture();
+      if(active?.client_request_id!==draft.client_request_id)return data.capture;
+      const saved={...active,...data.capture};writeCapture(saved);
+      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:saved}}));
+      return saved;
+    }).catch(error=>{
+      console.error('Provider sale capture start failed',error);
+      const active=readCapture();
+      if(active?.client_request_id===draft.client_request_id){const failed={...active,capture_error:String(error?.message||error)};writeCapture(failed);window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-error',{detail:{capture:failed,error}}));}
+      return readCapture()||draft;
+    });
+    window.MCCOY_PROVIDER_CAPTURE_READY=ready;
+    return draft;
+  }
+  async function markCaptureReturned(){
+    const capture=readCapture();
+    if(!capture||capture.status==='recorded'||capture.status==='cancelled')return;
+    if(Date.now()-Date.parse(capture.started_at||capture.created_at||0)<900)return;
+    if(returnNotifiedFor===capture.client_request_id)return;
+    returnNotifiedFor=capture.client_request_id;
+    const returned={...capture,status:'details_required'};writeCapture(returned);
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-returned',{detail:{capture:returned}}));
+    try{
+      const ready=window.MCCOY_PROVIDER_CAPTURE_READY?await window.MCCOY_PROVIDER_CAPTURE_READY:returned;
+      if(!ready?.id)return;
+      const data=await captureCall('mark_returned',{capture_id:ready.id});
+      const active=readCapture();if(active?.client_request_id===capture.client_request_id)writeCapture({...active,...data.capture});
+    }catch(error){console.error('Provider sale return marker failed',error);}
+  }
+  window.MCCOY_CLEAR_PROVIDER_CAPTURE=captureId=>{
+    const active=readCapture();
+    if(!active||!captureId||active.id===captureId||active.client_request_id===captureId){writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;}
+  };
+  window.MCCOY_CANCEL_PROVIDER_CAPTURE=async()=>{
+    const capture=readCapture();if(!capture)return;
+    try{const ready=window.MCCOY_PROVIDER_CAPTURE_READY?await window.MCCOY_PROVIDER_CAPTURE_READY:capture;if(ready?.id)await captureCall('cancel',{capture_id:ready.id});}catch(error){console.error('Provider sale capture cancellation failed',error);}
+    writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;
+  };
   function currentProvider(){
     const selected=document.getElementById('sessionIsp')?.value;
     const saved=localStorage.getItem('mccoy_isp');
@@ -113,7 +189,7 @@
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
     const next=pending;panel.classList.remove('show');pending=null;
     window.MCCOY_SALE_CONTEXT=outOfArea?'out_of_area_phone':'field';
-    setProvider(provider);openSellerAccount(provider);
+    setProvider(provider);const portalResult=openSellerAccount(provider);startProviderCapture(provider,outOfArea,portalResult);
     saleGuard=true;next.target.click();
   });
 
@@ -126,4 +202,8 @@
   },true);
 
   window.MCCOY_OPEN_PROVIDER_PORTAL=openSellerAccount;
+  const restored=readCapture();if(restored)writeCapture(restored);
+  window.addEventListener('focus',()=>setTimeout(markCaptureReturned,120));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(markCaptureReturned,120);});
+  setTimeout(()=>{const capture=readCapture();if(capture)window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture}}));},700);
 })();
