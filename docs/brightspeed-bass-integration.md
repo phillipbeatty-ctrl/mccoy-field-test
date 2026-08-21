@@ -4,6 +4,8 @@ Status: **McCoy capture and reconciliation enabled; direct BASS API not connecte
 
 The rep-facing seller-account launcher is in `app-provider-sale-router.js`. Brightspeed is labeled `BASS` and uses `https://bass.docxtract.com/General/SimHomePage.aspx`. The launcher runs only after the rep chooses `SALE`; starting a knocking session or switching the session ISP does not open BASS. It relies on the provider's existing browser session or approved SSO and never stores provider credentials. Because BASS runs on a different web origin, McCoy cannot inspect the BASS page or infer that an order completed. McCoy instead persists the dashboard attempt, restores the sale form when the rep returns, and exposes unfinished attempts in Admin Provider Verification.
 
+Admin Provider Verification links directly to the approved BASS Orders Report at `https://bass.docxtract.com/Report/Orders_Report.aspx`. The downloaded report can be imported and reconciled for all reps. A redacted header row or sample export is still required to replace generic column detection with a locked BASS field map.
+
 ## What is already compatible
 
 McCoy has a provider capture and verification pipeline:
