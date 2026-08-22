@@ -6,6 +6,7 @@
   state.leadPageSize=50;
   state.leadView='map';
   let adminReps=[];
+  let managerAdministratorAssigned=true;
   let selectedMapLeadId=null;
   const selectedListLeadIds=new Set();
 
@@ -35,7 +36,7 @@
   const canAssignLeads=()=>isAdmin()||isManager();
   const managerStyle=document.createElement('style');managerStyle.textContent='body.blind-tester.lead-pool-manager #leadMapPanel .grid-2>.card:nth-child(2){display:block!important}';document.head.appendChild(managerStyle);
   function applyLeadAccessControls(){
-    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);const label=document.getElementById('mapAssignLabel');if(label)label.textContent=admin?'Assign to manager or rep':'Assign to rep';
+    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);const label=document.getElementById('mapAssignLabel');if(label)label.textContent=admin?'Assign to manager or rep':'Assign Admin-provided lead to rep';
     for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}
     for(const id of ['mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn','listRepSelect','listSelectPageBtn','listClearSelectionBtn','listAssignBtn']){const el=document.getElementById(id);if(el){el.hidden=!assigner;el.disabled=!assigner;}}
     const listBar=document.getElementById('leadListAssignmentBar');if(listBar){const visible=assigner&&state.leadView==='list'&&state.leadMode==='real';listBar.hidden=!visible;listBar.style.display=visible?'flex':'none';}
@@ -75,15 +76,15 @@
 
   async function loadAdminReps(){
     if(!canAssignLeads())return;
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
+    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];managerAdministratorAssigned=!isManager()||data?.administrator_assigned===true;renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
   }
-  function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&!adminReps.length){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent='No representatives have been assigned to you yet.';}}}
+  function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Admin-assigned Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;select.disabled=isManager()&&!managerAdministratorAssigned;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&(!managerAdministratorAssigned||!adminReps.length)){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent=managerAdministratorAssigned?'No representatives have been assigned to you yet.':'An Admin must be assigned as your manager before you can receive or assign leads.';}}}
 
   window.renderLeads=function(){
     const rows=filteredRows();
     const total=rows.length,pages=Math.max(1,Math.ceil(total/state.leadPageSize));if(state.leadPage>pages)state.leadPage=pages;
     const start=(state.leadPage-1)*state.leadPageSize,page=rows.slice(start,start+state.leadPageSize);
-    const fullCount=currentRows().length,scope=isAdmin()?'ALL LEADS':isManager()?'TEAM LEADS':'MY LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
+    const fullCount=currentRows().length,scope=isAdmin()?'ALL LEADS':isManager()?'ADMIN-ASSIGNED LEADS':'MY LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
     document.getElementById('leadPageLabel').textContent=`Page ${state.leadPage} of ${pages} · ${total.toLocaleString()} total`;
     document.getElementById('leadPrev').disabled=state.leadPage<=1;document.getElementById('leadNext').disabled=state.leadPage>=pages;
     const selectable=canAssignLeads()&&state.leadMode==='real';
