@@ -4,6 +4,7 @@ import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-c
 import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
 import { classifySaleEvidence, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
 import { normalizeVoipHomePhoneAddOn } from '../_shared/sale-products-core.mjs'
+import { saleDistanceAudit } from '../_shared/sale-location-core.mjs'
 
 const json = (body: unknown, status = 200) => Response.json(body, {
   status,
@@ -29,6 +30,8 @@ Deno.serve(async request => {
     }
     const isp = normalizeSaleProvider(body.isp)
     if (!isp) return json({ error: 'invalid_provider' }, 400)
+    const distanceLeadId = isUuid(String(body.lead_id || '')) ? String(body.lead_id) : null
+    const distanceAudit = saleDistanceAudit(body.rep_location, body.customer_map_location)
 
     let providerCapture: any = null
     let captureId = String(body.provider_capture_id || '').trim()
@@ -123,6 +126,7 @@ Deno.serve(async request => {
     const snapshot = {
       classification: calculatedCommission.pay_level, pay_level: calculatedCommission.pay_level, pay_level_label: calculatedCommission.pay_level_label,
       sale_context: saleContext, sale_origin: saleOrigin, provider_capture_id: providerCapture?.id || null, admin_approval: adminApproval,
+      distance_audit: { status: distanceAudit.status, distance_meters: distanceAudit.distance_meters, accuracy_meters: distanceAudit.accuracy_meters, recorded_at: distanceAudit.recorded_at, informational_only: true },
       base_commission: calculatedCommission.base_commission, att_mobile_originating_commission: calculatedCommission.att_mobile_originating_commission,
       mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount, mobile_device_protection: mobileDeviceProtection,
       voip_home_phone_lines: voipLines, att_device_count: mobileDeviceCount, att_device_protection: mobileDeviceProtection, att_total_home_care: attTotalHomeCare,
@@ -167,6 +171,9 @@ Deno.serve(async request => {
       lead_label: body.lead_label || null, provider_capture_id: providerCapture?.id || null,
       customer_first_name: String(body.customer_first_name).trim(), customer_last_name: String(body.customer_last_name).trim(),
       customer_phone: body.customer_phone || null, customer_email: body.customer_email || null, service_address: String(body.service_address).trim(),
+      distance_lead_id: distanceLeadId, rep_distance_from_customer_meters: distanceAudit.distance_meters,
+      rep_location_accuracy_meters: distanceAudit.accuracy_meters, distance_recorded_at: distanceAudit.recorded_at,
+      distance_measurement_status: distanceAudit.status,
       isp, internet_product: body.internet_product || null, internet_speed_mbps: speed > 0 ? speed : null, install_date: installDate,
       directv, directv_service: directvService, mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount,
       mobile_device_protection: mobileDeviceProtection, att_mobile_lines: mobileLines, vivint, vivint_service: vivintService,
