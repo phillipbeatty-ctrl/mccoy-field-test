@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
-import { assignedAdminManagerEmail, managerControlsLead, normalizeEmail } from '../_shared/manager-lead-assignment.mjs'
+import { assignedAdminManagerEmail, isManagerPermissionRole, managerControlsLead, normalizeEmail } from '../_shared/manager-lead-assignment.mjs'
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
 function statesForTeam(team:any){const normalized=String(team||'').trim().toLowerCase();if(normalized==='pacific northwest')return ['OR','WA'];if(normalized==='north carolina')return ['NC'];return []}
 function distanceMeters(lat1:number,lng1:number,lat2:number,lng2:number){const r=Math.PI/180,dlat=(lat2-lat1)*r,dlng=(lng2-lng1)*r;const a=Math.sin(dlat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dlng/2)**2;return 6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
@@ -11,7 +11,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}})
  const {data:{user}}=await admin.auth.getUser(jwt);if(!user?.email)return json({error:'unauthorized'},401)
  const {data:access}=await admin.from('app_user_access').select('role,active,team_name,assigned_manager_email,assigned_admin_email,display_name').eq('email',user.email.toLowerCase()).maybeSingle();if(!access?.active)return json({error:'inactive_account'},403)
- const isAdmin=access.role==='admin',isManager=access.role==='manager'
+ const isAdmin=access.role==='admin',isManager=isManagerPermissionRole(access.role)
  const body=await req.json().catch(()=>({})),action=String(body.action||'')
  const managerActions=['list_reps','assign_lead','assign_leads']
  if(action==='list_real_leads'||action==='create_field_address'){/* Every active account may work legitimate field leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
@@ -37,7 +37,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const getRepresentativeManager=async()=>{
    const managerEmail=String(access.assigned_manager_email||'').trim().toLowerCase();if(!managerEmail)return null
    const {data:manager,error:managerError}=await admin.from('app_user_access').select('email,role,active,assigned_manager_email,assigned_admin_email').eq('email',managerEmail).maybeSingle();if(managerError)throw managerError
-   if(manager?.role!=='manager')return null
+   if(!isManagerPermissionRole(manager?.role))return null
    const ownerEmail=normalizeEmail(manager.assigned_manager_email);if(!manager.active||!ownerEmail)return {invalid:true}
    const [{data:owner,error:ownerError},{data:profile,error:profileError}]=await Promise.all([
      admin.from('app_user_access').select('email,role,active').eq('email',ownerEmail).eq('role','admin').eq('active',true).maybeSingle(),
@@ -71,15 +71,15 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const getAssignmentPatch=async(rep:any)=>{
    if(isManager){const scope=await getManagerScope();if(!scope.adminAssigned)return {error:'administrator_assignment_required'};return {patch:{assigned_rep_id:rep?.id||null},assigned_manager_id:user.id,assigned_admin_email:scope.adminEmail,destination_role:rep?.role||'manager_pool'}}
    if(!rep)return {patch:{assigned_rep_id:null,assigned_manager_id:null,assigned_admin_email:null},assigned_manager_id:null,assigned_admin_email:null,destination_role:'unassigned'}
-   if(rep.role==='manager'){
+   if(isManagerPermissionRole(rep.role)){
      const ownerEmail=normalizeEmail(rep.assigned_manager_email);if(!ownerEmail)return {error:'manager_administrator_assignment_required'}
      const {data:owner,error:ownerError}=await admin.from('app_user_access').select('email,role,active').eq('email',ownerEmail).eq('role','admin').eq('active',true).maybeSingle();if(ownerError)throw ownerError;if(!owner)return {error:'manager_administrator_assignment_required'}
      const adminEmail=assignedAdminManagerEmail(rep,owner);if(!adminEmail)return {error:'manager_administrator_assignment_required'}
-     return {patch:{assigned_rep_id:null,assigned_manager_id:rep.id,assigned_admin_email:adminEmail},assigned_manager_id:rep.id,assigned_admin_email:adminEmail,destination_role:'manager'}
+     return {patch:{assigned_rep_id:null,assigned_manager_id:rep.id,assigned_admin_email:adminEmail},assigned_manager_id:rep.id,assigned_admin_email:adminEmail,destination_role:rep.role}
    }
    if(rep.role==='rep'&&rep.assigned_manager_email){
      const {data:manager,error:managerError}=await admin.from('app_user_access').select('email,role,active,assigned_manager_email,assigned_admin_email').eq('email',rep.assigned_manager_email).maybeSingle();if(managerError)throw managerError
-     if(manager?.role==='manager'){
+     if(isManagerPermissionRole(manager?.role)){
        const ownerEmail=normalizeEmail(manager.assigned_manager_email);if(!manager.active||!ownerEmail)return {error:'manager_administrator_assignment_required'}
        const [{data:profile,error:profileError},{data:owner,error:ownerError}]=await Promise.all([admin.from('users').select('id,active').eq('email',manager.email).maybeSingle(),admin.from('app_user_access').select('email,role,active').eq('email',ownerEmail).eq('role','admin').eq('active',true).maybeSingle()]);if(profileError)throw profileError;if(ownerError)throw ownerError;if(!profile?.active)return {error:'manager_profile_not_found'}
        const adminEmail=assignedAdminManagerEmail(manager,owner);if(!adminEmail)return {error:'manager_administrator_assignment_required'}
@@ -104,7 +104,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  }
  if(action==='list_reps'){
    if(isManager){const scope=await getManagerScope();return json({ok:true,reps:scope.adminAssigned?scope.reports.map(({assigned_manager_email,...rep}:any)=>rep):[],administrator_assigned:scope.adminAssigned})}
-   const {data:rows,error}=await admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_admin_email').eq('active',true).in('role',['rep','manager','admin']).order('display_name');if(error)throw error
+   const {data:rows,error}=await admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_admin_email').eq('active',true).in('role',['rep','manager','trainer','admin']).order('display_name');if(error)throw error
    const authUsers=await getAuthUsers(),reps=(rows||[]).map((account:any)=>{const profile=authUsers.find((candidate:any)=>String(candidate.email||'').toLowerCase()===String(account.email||'').toLowerCase());return {...account,user_id:profile?.id||null}}).filter((account:any)=>account.user_id)
    return json({ok:true,reps})
  }
@@ -128,7 +128,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
      }
    }
    const loadOwnershipDirectory=async()=>{
-     let query=admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_admin_email').eq('active',true).in('role',['admin','manager','rep','tester']);
+     let query=admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_admin_email').eq('active',true).in('role',['admin','manager','trainer','rep','tester']);
      if(!isAdmin){
        const permitted=[user.email,...(isManager?[managerScope.adminEmail,...managerScope.reports.map((report:any)=>report.email)]:[representativeManager?.email,representativeManager?.adminEmail])].filter(Boolean).map((email:any)=>String(email).toLowerCase());
        query=query.in('email',[...new Set(permitted)]);

@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { assignedAdminManagerEmail, managerControlsLead } from './manager-lead-assignment.mjs'
+import { assignedAdminManagerEmail, isManagerPermissionRole, managerControlsLead } from './manager-lead-assignment.mjs'
+
+test('Trainer has the same permission class as Manager without becoming an Admin', () => {
+  assert.equal(isManagerPermissionRole('manager'), true)
+  assert.equal(isManagerPermissionRole('trainer'), true)
+  assert.equal(isManagerPermissionRole('admin'), false)
+  assert.equal(isManagerPermissionRole('rep'), false)
+})
 
 test('a manager supervisor must be the same active Admin in both hierarchy fields', () => {
   const access = {

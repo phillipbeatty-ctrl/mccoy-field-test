@@ -20,7 +20,7 @@
   }
 
   function isRepRole(role){
-    return Boolean(role)&&role!=='admin'&&role!=='manager';
+    return Boolean(role)&&!['admin','manager','trainer'].includes(role);
   }
 
   function ensureStyles(){
@@ -52,8 +52,8 @@
     toggle=document.createElement('div');
     toggle.id='leadManagerPositionToggle';
     toggle.setAttribute('role','group');
-    toggle.setAttribute('aria-label','Manager Lead Pool position');
-    toggle.innerHTML=`<span class="lead-position-label">Manager position</span><button id="leadAssignPositionBtn" type="button" class="assign-btn">ASSIGN LEADS</button><button id="leadKnockPositionBtn" type="button" class="assign-btn">KNOCK DOORS</button>`;
+    toggle.setAttribute('aria-label','Manager or Trainer Lead Pool position');
+    toggle.innerHTML=`<span class="lead-position-label">Team lead position</span><button id="leadAssignPositionBtn" type="button" class="assign-btn">ASSIGN LEADS</button><button id="leadKnockPositionBtn" type="button" class="assign-btn">KNOCK DOORS</button>`;
     bar.appendChild(toggle);
     document.getElementById('leadAssignPositionBtn').addEventListener('click',()=>setManagerMode(ASSIGN_MODE));
     document.getElementById('leadKnockPositionBtn').addEventListener('click',()=>{
@@ -98,7 +98,7 @@
       refreshMapLayout();
       return;
     }
-    const manager=role==='manager';
+    const manager=['manager','trainer'].includes(role);
     const rep=isRepRole(role);
     const expanded=rep||(manager&&managerMode===KNOCK_MODE);
 
@@ -140,7 +140,7 @@
   }
 
   window.MCCOY_SET_MANAGER_LEAD_POSITION=mode=>{
-    if(currentRole()!=='manager')return false;
+    if(!['manager','trainer'].includes(currentRole()))return false;
     setManagerMode(mode);
     return true;
   };

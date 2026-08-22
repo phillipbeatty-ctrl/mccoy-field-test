@@ -62,7 +62,7 @@ Deno.serve(async(req)=>{
     const {data:access,error:accessError}=await admin.from('app_user_access').select('active,role').eq('email',currentEmail).maybeSingle()
     if(accessError)throw accessError
     if(!access?.active)return Response.json({error:'forbidden'},{status:403,headers:corsHeaders})
-    const [{data:accounts,error:accountError},sales]=await Promise.all([admin.from('app_user_access').select('email,display_name,role').eq('active',true).in('role',['rep','manager']),loadEligibleSales(admin)])
+    const [{data:accounts,error:accountError},sales]=await Promise.all([admin.from('app_user_access').select('email,display_name,role').eq('active',true).in('role',['rep','manager','trainer']),loadEligibleSales(admin)])
     if(accountError)throw accountError
     const boundaries=starts(),rankings=buildRepRankings(accounts||[],sales,boundaries,currentEmail)
     return Response.json({ok:true,leaders:{today:top(sales,boundaries.today),week:top(sales,boundaries.week),month:top(sales,boundaries.month),year:top(sales,boundaries.year),all_time:top(sales,null)},rankings,current_rep:rankings.find(entry=>entry.is_current_user)||null,period_starts:Object.fromEntries(rankingPeriods.map(period=>[period,boundaries[period].toISOString()])),timezone:'America/Los_Angeles',eligibility_policy:'isp_verified_and_admin_approved_when_required'},{headers:{...corsHeaders,'Cache-Control':'no-store'}})

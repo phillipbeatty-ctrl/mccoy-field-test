@@ -4,7 +4,7 @@
   function fmtMs(ms){if(ms==null)return '—';const s=Math.round(ms/1000),m=Math.floor(s/60);return m?`${m}m ${s%60}s`:`${s}s`;}
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   async function loadServerAnalytics(){
-    const access=window.MCCOY_ACCESS?.access;if(!access||!['admin','manager'].includes(access.role))return;
+    const access=window.MCCOY_ACCESS?.access;if(!access||!['admin','manager','trainer'].includes(access.role))return;
     const host=document.getElementById('efficiencySummary');if(host)host.innerHTML='<p class="muted">Loading secure server analytics…</p>';
     const {data,error}=await sb.functions.invoke('field-analytics',{body:{}});
     if(error||!data?.summary){if(host)host.innerHTML='<p class="muted">Server analytics unavailable for this session.</p>';console.error(error);return;}
@@ -25,5 +25,5 @@
       <p class="muted small">Engine ${esc(s.engineVersion)}. Proprietary formulas execute only in Supabase Edge Functions.</p>`;
   }
   window.loadServerAnalytics=loadServerAnalytics;
-  const poll=setInterval(()=>{const access=window.MCCOY_ACCESS?.access;if(access){clearInterval(poll);if(['admin','manager'].includes(access.role)){const host=document.getElementById('efficiencySummary');if(host){const b=document.createElement('button');b.className='assign-btn';b.textContent='REFRESH SERVER ANALYTICS';b.onclick=loadServerAnalytics;host.after(b);}loadServerAnalytics();}}},500);
+  const poll=setInterval(()=>{const access=window.MCCOY_ACCESS?.access;if(access){clearInterval(poll);if(['admin','manager','trainer'].includes(access.role)){const host=document.getElementById('efficiencySummary');if(host){const b=document.createElement('button');b.className='assign-btn';b.textContent='REFRESH SERVER ANALYTICS';b.onclick=loadServerAnalytics;host.after(b);}loadServerAnalytics();}}},500);
 })();

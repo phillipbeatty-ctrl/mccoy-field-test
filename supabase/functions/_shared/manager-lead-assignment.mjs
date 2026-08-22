@@ -2,6 +2,10 @@ export function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+export function isManagerPermissionRole(role) {
+  return role === 'manager' || role === 'trainer'
+}
+
 export function assignedAdminManagerEmail(access, administrator) {
   const assignedManagerEmail = normalizeEmail(access?.assigned_manager_email)
   const assignedAdminEmail = normalizeEmail(access?.assigned_admin_email)
