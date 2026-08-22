@@ -38,7 +38,7 @@
       <div class="lead-detail-address">${esc(address||'No address')}</div>
       <div class="lead-detail-grid">
         <div><span>Lead owner</span><strong>${esc(lead.ownerName||'Unassigned')}</strong></div>
-        <div><span>Owner role</span><strong>${esc(lead.ownerRole==='admin'?'Administrator':lead.ownerRole==='manager'?'Manager':lead.ownerRole==='rep'||lead.ownerRole==='tester'?'Representative':'Unassigned')}</strong></div>
+        <div><span>Owner role</span><strong>${esc(lead.ownerRole==='admin'?'Administrator':lead.ownerRole==='manager'?'Manager':lead.ownerRole==='trainer'?'Trainer':lead.ownerRole==='rep'||lead.ownerRole==='tester'?'Representative':'Unassigned')}</strong></div>
         <div><span>Owner email</span><strong>${esc(lead.ownerEmail||'—')}</strong></div>
         <div><span>Assigned administrator</span><strong>${esc(lead.assignedAdminName||lead.assignedAdminEmail||'Unassigned')}</strong></div>
         <div><span>Assigned manager</span><strong>${esc(lead.assignedManagerName||'Unassigned')}</strong></div>

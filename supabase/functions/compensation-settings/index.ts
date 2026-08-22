@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       const repMap = new Map((repControls || []).map((row:any) => [String(row.rep_email).toLowerCase(), row]))
       const managerByEmail = new Map((managerControls || []).filter((row:any)=>row.manager_email).map((row:any)=>[String(row.manager_email).toLowerCase(),row]))
       const managerByName = new Map((managerControls || []).map((row:any)=>[String(row.manager_name||''),row]))
-      const managerAccounts = (reps || []).filter((row:any)=>['manager','admin'].includes(row.role)).map((row:any)=>{
+      const managerAccounts = (reps || []).filter((row:any)=>['manager','trainer','admin'].includes(row.role)).map((row:any)=>{
         const control:any=managerByEmail.get(String(row.email).toLowerCase())||managerByName.get(String(row.display_name||''))
         return {manager_name:row.display_name||row.email,manager_email:row.email,overrides_enabled:control?.overrides_enabled??true,updated_at:control?.updated_at||null}
       })

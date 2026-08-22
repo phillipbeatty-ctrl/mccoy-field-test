@@ -6,6 +6,7 @@
   state.leadPageSize=50;
   state.leadView='map';
   let adminReps=[];
+  let managerAdministratorAssigned=true;
   let selectedMapLeadId=null;
   const selectedListLeadIds=new Set();
 
@@ -31,11 +32,11 @@
   tableMount.style.display='none';
 
   const isAdmin=()=>window.MCCOY_ACCESS?.access?.role==='admin';
-  const isManager=()=>window.MCCOY_ACCESS?.access?.role==='manager';
+  const isManager=()=>['manager','trainer'].includes(window.MCCOY_ACCESS?.access?.role);
   const canAssignLeads=()=>isAdmin()||isManager();
   const managerStyle=document.createElement('style');managerStyle.textContent='body.blind-tester.lead-pool-manager #leadMapPanel .grid-2>.card:nth-child(2){display:block!important}';document.head.appendChild(managerStyle);
   function applyLeadAccessControls(){
-    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);const label=document.getElementById('mapAssignLabel');if(label)label.textContent=admin?'Assign to manager or rep':'Assign to rep';
+    const admin=isAdmin(),manager=isManager(),assigner=canAssignLeads();document.body.classList.toggle('lead-pool-manager',manager);const label=document.getElementById('mapAssignLabel');if(label)label.textContent=admin?'Assign to manager or rep':'Assign Admin-provided lead to rep';
     for(const id of ['demoLeadMode','addDemoLeadsBtn','adminLeadImportBtn']){const el=document.getElementById(id);if(el){el.hidden=!admin;el.disabled=!admin;}}
     for(const id of ['mapRepSelect','mapAssignBtn','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn','listRepSelect','listSelectPageBtn','listClearSelectionBtn','listAssignBtn']){const el=document.getElementById(id);if(el){el.hidden=!assigner;el.disabled=!assigner;}}
     const listBar=document.getElementById('leadListAssignmentBar');if(listBar){const visible=assigner&&state.leadView==='list'&&state.leadMode==='real';listBar.hidden=!visible;listBar.style.display=visible?'flex':'none';}
@@ -46,10 +47,10 @@
   if(oldDemo){const clone=oldDemo.cloneNode(true);oldDemo.replaceWith(clone);clone.addEventListener('click',()=>{if(!isAdmin())return;const base=state.demoLeads.length+1;for(let i=0;i<10;i++){const team=i%2===0?'Pacific Northwest':'North Carolina';const streets=team==='Pacific Northwest'?pnwStreets:ncStreets;state.demoLeads.push({id:200000+base+i,address:`${2100+(base+i)*3} ${streets[i%streets.length]}`,city:'Demo City',stateCode:team==='North Carolina'?'NC':'OR',zip:'00000',fullAddress:`Demo Lead ${base+i}`,team,rep:null,disposition:'Uncontacted',isDemo:true,sourceSystem:'DEMO'});}switchMode('demo');});}
 
   function currentRows(){return state.leadMode==='demo'&&isAdmin()?state.demoLeads:state.realLeads;}
-  function ownerRoleLabel(role){return role==='admin'?'Admin':role==='manager'?'Manager':role==='tester'?'Rep':'Rep';}
+  function ownerRoleLabel(role){return role==='admin'?'Admin':role==='manager'?'Manager':role==='trainer'?'Trainer':role==='tester'?'Rep':'Rep';}
   function syncLeadOwnerFilter(){
     const select=document.getElementById('leadOwnerFilter');if(!select)return;
-    const previous=select.value,directory=(state.leadOwnershipDirectory||[]).slice().sort((a,b)=>{const rank={admin:0,manager:1,rep:2,tester:2};return (rank[a.role]??3)-(rank[b.role]??3)||String(a.display_name||a.email).localeCompare(String(b.display_name||b.email));});
+    const previous=select.value,directory=(state.leadOwnershipDirectory||[]).slice().sort((a,b)=>{const rank={admin:0,manager:1,trainer:1,rep:2,tester:2};return (rank[a.role]??3)-(rank[b.role]??3)||String(a.display_name||a.email).localeCompare(String(b.display_name||b.email));});
     select.innerHTML='<option value="">All owners</option>'+(isAdmin()?'<option value="__unassigned__">Unassigned leads</option>':'')+directory.map(account=>`<option value="${esc(account.user_id)}">${esc(account.display_name||account.email)} (${ownerRoleLabel(account.role)})</option>`).join('');
     if(previous==='__unassigned__'&&isAdmin())select.value=previous;else if(directory.some(account=>String(account.user_id)===String(previous)))select.value=previous;
     select.title='Filter leads by administrator, manager, or representative';
@@ -62,7 +63,7 @@
       const account=(state.leadOwnershipDirectory||[]).find(candidate=>String(candidate.user_id)===String(selectedOwner));
       if(!account)return false;
       if(account.role==='admin'){if(String(lead.assignedRepId||'')!==String(account.user_id)&&String(lead.assignedAdminEmail||'').toLowerCase()!==String(account.email||'').toLowerCase())return false;}
-      else if(account.role==='manager'){if(String(lead.assignedManagerId||'')!==String(account.user_id)&&String(lead.assignedRepId||'')!==String(account.user_id))return false;}
+      else if(['manager','trainer'].includes(account.role)){if(String(lead.assignedManagerId||'')!==String(account.user_id)&&String(lead.assignedRepId||'')!==String(account.user_id))return false;}
       else if(String(lead.assignedRepId||'')!==String(account.user_id))return false;
     }
     if(!search)return true;
@@ -75,15 +76,15 @@
 
   async function loadAdminReps(){
     if(!canAssignLeads())return;
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
+    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_reps'}});if(error)throw error;adminReps=data?.reps||[];managerAdministratorAssigned=!isManager()||data?.administrator_assigned===true;renderRepSelect();}catch(e){console.error('Lead rep list failed',e);}
   }
-  function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&!adminReps.length){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent='No representatives have been assigned to you yet.';}}}
+  function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Admin-assigned Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':r.role==='trainer'?' (Trainer)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;select.disabled=isManager()&&!managerAdministratorAssigned;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&(!managerAdministratorAssigned||!adminReps.length)){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent=managerAdministratorAssigned?'No representatives have been assigned to you yet.':'An Admin must be assigned as your supervisor before you can receive or assign leads.';}}}
 
   window.renderLeads=function(){
     const rows=filteredRows();
     const total=rows.length,pages=Math.max(1,Math.ceil(total/state.leadPageSize));if(state.leadPage>pages)state.leadPage=pages;
     const start=(state.leadPage-1)*state.leadPageSize,page=rows.slice(start,start+state.leadPageSize);
-    const fullCount=currentRows().length,scope=isAdmin()?'ALL LEADS':isManager()?'TEAM LEADS':'MY LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
+    const fullCount=currentRows().length,scope=isAdmin()?'ALL LEADS':isManager()?'ADMIN-ASSIGNED LEADS':'MY LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
     document.getElementById('leadPageLabel').textContent=`Page ${state.leadPage} of ${pages} · ${total.toLocaleString()} total`;
     document.getElementById('leadPrev').disabled=state.leadPage<=1;document.getElementById('leadNext').disabled=state.leadPage>=pages;
     const selectable=canAssignLeads()&&state.leadMode==='real';
@@ -110,16 +111,16 @@
   }
   function updateListSelectionStatus(message=''){const status=document.getElementById('listAssignMsg');if(status)status.textContent=message||`${selectedListLeadIds.size.toLocaleString()} lead${selectedListLeadIds.size===1?'':'s'} selected.`;}
   async function assignListSelection(){
-    if(!canAssignLeads()){updateListSelectionStatus('Only managers and administrators can assign leads.');return;}
+    if(!canAssignLeads()){updateListSelectionStatus('Only Managers, Trainers, and Administrators can assign leads.');return;}
     const ids=[...selectedListLeadIds];if(!ids.length){updateListSelectionStatus('Select at least one lead from the list.');return;}
     const email=document.getElementById('listRepSelect')?.value||'',button=document.getElementById('listAssignBtn');if(button)button.disabled=true;updateListSelectionStatus(`Assigning ${ids.length.toLocaleString()} selected leads…`);
     try{for(let index=0;index<ids.length;index+=500){const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_leads',lead_ids:ids.slice(index,index+500),rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'list_assignment_failed');}selectedListLeadIds.clear();await window.loadMcCoyLeads?.();switchView('list');updateListSelectionStatus(`${ids.length.toLocaleString()} lead${ids.length===1?'':'s'} assigned successfully.`);}catch(error){console.error('List assignment failed',error);updateListSelectionStatus(`Assignment failed${error?.message?': '+error.message:''}.`);}finally{if(button)button.disabled=false;}
   }
   async function assignSelected(){
     const l=state.realLeads.find(x=>x.id===selectedMapLeadId);if(!l)return;
-    if(!canAssignLeads()){document.getElementById('mapAssignMsg').textContent='Only managers and administrators can change real lead assignments.';return;}
+    if(!canAssignLeads()){document.getElementById('mapAssignMsg').textContent='Only Managers, Trainers, and Administrators can change real lead assignments.';return;}
     const email=document.getElementById('mapRepSelect').value,msg=document.getElementById('mapAssignMsg');msg.textContent='Saving assignment…';
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.assignedManagerId=data.assigned_manager_id||null;l.assignedAdminEmail=data.assigned_admin_email||null;if(window.MCCOY_APPLY_LEAD_OWNERSHIP)window.MCCOY_APPLY_LEAD_OWNERSHIP(l);else l.rep=r?.display_name||r?.email||null;msg.textContent=data.destination_role==='manager'?'Lead assigned to manager pool.':email?'Lead assigned successfully.':isManager()?'Lead returned to your manager pool.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
+    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_lead',lead_id:l.dbId,rep_email:email}});if(error||!data?.ok)throw error||new Error(data?.error||'assignment_failed');const r=adminReps.find(x=>x.email===email);l.assignedRepId=data.assigned_rep_id||null;l.assignedManagerId=data.assigned_manager_id||null;l.assignedAdminEmail=data.assigned_admin_email||null;if(window.MCCOY_APPLY_LEAD_OWNERSHIP)window.MCCOY_APPLY_LEAD_OWNERSHIP(l);else l.rep=r?.display_name||r?.email||null;msg.textContent=['manager','trainer'].includes(data.destination_role)?`Lead assigned to ${data.destination_role} pool.`:email?'Lead assigned successfully.':isManager()?'Lead returned to your Admin-assigned pool.':'Lead returned to unassigned pool.';renderLeads();selectMapLead(l.id);}catch(e){console.error(e);msg.textContent='Unable to save assignment.';}
   }
 
   document.getElementById('realLeadMode').onclick=()=>switchMode('real');
