@@ -6,7 +6,6 @@
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
 
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
-  const OUT_OF_AREA='OUT OF AREA';
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const defaults={
     Brightspeed:{label:'BASS',url:''},
@@ -46,14 +45,12 @@
   panel.setAttribute('role','dialog');
   panel.setAttribute('aria-modal','true');
   panel.setAttribute('aria-labelledby','providerRouterTitle');
-  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose Internet provider</h2><p id="providerRouterDescription" class="muted small">Select the seller account for this sale.</p><div class="provider-router-fields"><label>Sale provider or phone-sale mode<select id="providerRouterChoice"></select></label><label id="providerRouterActualRow" hidden>Internet provider for this phone sale<select id="providerRouterActual"></select></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
+  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose provider for this sale</h2><p id="providerRouterDescription" class="muted small">Select the Internet provider whose seller account will process this sale.</p><div class="provider-router-fields"><label>Internet Provider<select id="providerRouterChoice"></select></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
   document.body.appendChild(panel);
   const toast=document.createElement('div');toast.id='providerRouteToast';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);
 
   const choice=document.getElementById('providerRouterChoice');
-  const actual=document.getElementById('providerRouterActual');
-  for(const provider of [...PROVIDERS,OUT_OF_AREA])choice.add(new Option(provider,provider));
-  for(const provider of PROVIDERS)actual.add(new Option(provider,provider));
+  for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
   let pending=null,toastTimer=null;
   let saleGuard=false;
@@ -84,9 +81,9 @@
     if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_sale_capture_failed');
     return data;
   }
-  function startProviderCapture(provider,outOfArea,portalResult){
+  function startProviderCapture(provider,portalResult){
     const source=saleSourceContext(),info=portalInfo(provider),draft={
-      client_request_id:newCaptureRequestId(),provider,sale_context:outOfArea?'out_of_area_phone':'field',
+      client_request_id:newCaptureRequestId(),provider,sale_context:'field',
       service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
       seller_portal_label:info.label,portal_opened:!!portalResult?.opened,portal_open_reason:portalResult?.reason||null,
       started_at:new Date().toISOString(),status:portalResult?.opened?'dashboard_opened':'details_required'
@@ -162,34 +159,26 @@
     localStorage.setItem('mccoy_isp',provider);
     if(select&&select.value!==provider){select.value=provider;select.dispatchEvent(new Event('change',{bubbles:true}));}
   }
-  function syncOutOfArea(){
-    const out=choice.value===OUT_OF_AREA;
-    document.getElementById('providerRouterActualRow').hidden=!out;
-    document.getElementById('providerRouterStatus').textContent=out?'This sale will be recorded as an OUT OF AREA phone sale.':'';
-  }
   function showRouter(target){
-    const provider=currentProvider(),outOption=[...choice.options].find(option=>option.value===OUT_OF_AREA);
-    if(outOption)outOption.hidden=false;
-    choice.value=provider;actual.value=provider;syncOutOfArea();pending={target};
+    const provider=currentProvider();
+    choice.value=provider;document.getElementById('providerRouterStatus').textContent='';pending={target};
     document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
-    document.getElementById('providerRouterDescription').textContent='Select the provider, or choose OUT OF AREA for a phone sale.';
+    document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
     document.getElementById('providerRouterContinue').textContent='OPEN ACCOUNT & PROCESS SALE';
     panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
   function closeRouter(){panel.classList.remove('show');pending=null;}
 
-  choice.addEventListener('change',syncOutOfArea);
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
   panel.addEventListener('click',event=>{if(event.target===panel)closeRouter();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
   document.getElementById('providerRouterContinue').addEventListener('click',()=>{
     if(!pending)return;
-    const outOfArea=choice.value===OUT_OF_AREA;
-    const provider=outOfArea?actual.value:choice.value;
+    const provider=choice.value;
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
     const next=pending;panel.classList.remove('show');pending=null;
-    window.MCCOY_SALE_CONTEXT=outOfArea?'out_of_area_phone':'field';
-    setProvider(provider);const portalResult=openSellerAccount(provider);startProviderCapture(provider,outOfArea,portalResult);
+    window.MCCOY_SALE_CONTEXT='field';
+    setProvider(provider);const portalResult=openSellerAccount(provider);startProviderCapture(provider,portalResult);
     saleGuard=true;next.target.click();
   });
 
