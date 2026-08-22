@@ -3,6 +3,7 @@ import { weeklyProductionTier } from './compensation-calculator.mjs';
 export const ACCOUNTING_COLUMNS = Object.freeze([
   'id','order_date','install_date','session_id','rep_user_id','rep_name','rep_email','lead_label',
   'customer_first_name','customer_last_name','customer_phone','customer_email','service_address',
+  'distance_lead_id','rep_distance_from_customer_meters','rep_location_accuracy_meters','distance_recorded_at','distance_measurement_status',
   'isp','internet_product','internet_speed_mbps','directv','directv_service',
   'mobile_phone_lines','mobile_device_count','mobile_device_protection','att_mobile_lines',
   'att_device_count','att_device_protection','att_total_home_care','voip_home_phone_lines',
