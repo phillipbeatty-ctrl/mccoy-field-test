@@ -8,10 +8,11 @@
   function dateText(value){if(!value)return'Never';const date=new Date(value);return Number.isNaN(date.getTime())?'Unknown':date.toLocaleString();}
   function accessStateLabel(value){return({email_unconfirmed:'Email not confirmed',approval_requested:'Approval requested',access_inactive:'Access inactive',no_access_record:'McCoy access not created'})[value]||'Access pending';}
   function payLevelOptions(value){return `<option value="" ${value?'':'selected'}>Pay level required</option><option value="trainee" ${value==='trainee'?'selected':''}>Trainee</option><option value="experienced" ${value==='experienced'?'selected':''}>Experienced Rep</option><option value="active_manager_trainer" ${value==='active_manager_trainer'?'selected':''}>Active Manager / Trainer</option>`;}
+  function removeLegacyAccessRequests(){document.getElementById('accessAdminBtn')?.remove();document.getElementById('accessAdminPanel')?.remove();}
   function ensurePanel(){
     if(document.getElementById('userAdminBtn')) return;
-    const btn=document.createElement('button');btn.id='userAdminBtn';btn.textContent='Users & Managers';document.body.appendChild(btn);
-    const panel=document.createElement('div');panel.id='userAdminPanel';panel.innerHTML=`<div class="user-admin-card"><h2>Users & Managers</h2><p class="muted">Assign each manager to an administrator, then assign representatives to their manager. Admin accounts can also supervise reps directly.</p><div id="userAdminNotice" class="muted small"></div><div id="userAdminBody">Loading…</div><div style="text-align:right;margin-top:12px"><button id="userAdminClose" class="assign-btn">Close</button></div></div>`;document.body.appendChild(panel);
+    const btn=document.createElement('button');btn.id='userAdminBtn';btn.textContent='Users';document.body.appendChild(btn);
+    const panel=document.createElement('div');panel.id='userAdminPanel';panel.innerHTML=`<div class="user-admin-card"><h2>Users</h2><p class="muted">Assign each manager to an administrator, then assign representatives to their manager. Admin accounts can also supervise reps directly.</p><div id="userAdminNotice" class="muted small"></div><div id="userAdminBody">Loading…</div><div style="text-align:right;margin-top:12px"><button id="userAdminClose" class="assign-btn">Close</button></div></div>`;document.body.appendChild(panel);
     document.getElementById('userAdminClose').onclick=()=>panel.classList.remove('show');
     btn.onclick=async()=>{panel.classList.add('show');await loadUsers();};
   }
@@ -59,6 +60,7 @@
       });
     }catch(e){console.error(e);root.textContent='Unable to load users.';}
   }
-  function activateIfAdmin(){if(window.MCCOY_ACCESS?.access?.role==='admin'){ensurePanel();document.getElementById('userAdminBtn').style.display='block';}}
+  function activateIfAdmin(){if(window.MCCOY_ACCESS?.access?.role==='admin'){removeLegacyAccessRequests();ensurePanel();document.getElementById('userAdminBtn').style.display='block';}}
+  new MutationObserver(()=>{if(window.MCCOY_ACCESS?.access?.role==='admin')removeLegacyAccessRequests();}).observe(document.body,{childList:true,subtree:true});
   const t=setInterval(()=>{activateIfAdmin();if(window.MCCOY_ACCESS?.access?.role==='admin')clearInterval(t);},500);
 })();
