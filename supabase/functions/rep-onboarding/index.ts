@@ -100,8 +100,13 @@ Deno.serve(async(req)=>{
     }
     async function validateManager(mgrEmail:string|null){
       if(!mgrEmail) return {email:null,name:null}
-      const {data:m}=await admin.from('app_user_access').select('email,display_name,role,active,assigned_admin_email').eq('email',mgrEmail).maybeSingle()
+      const {data:m}=await admin.from('app_user_access').select('email,display_name,role,active,assigned_manager_email,assigned_admin_email').eq('email',mgrEmail).maybeSingle()
       if(!m?.active||!['manager','admin'].includes(m.role)) throw new Error('invalid_manager')
+      if(m.role==='manager'){
+        const supervisorEmail=String(m.assigned_manager_email||'').trim().toLowerCase()
+        if(!supervisorEmail||supervisorEmail!==String(m.assigned_admin_email||'').trim().toLowerCase())throw new Error('manager_requires_admin_manager')
+        await validateAdministrator(supervisorEmail)
+      }
       return {email:m.email,name:m.display_name||m.email}
     }
     async function validateAdministrator(adminEmail:string|null){
@@ -138,7 +143,8 @@ Deno.serve(async(req)=>{
       const primaryTeam=String(target.team_name||region).trim()||region
       await syncAppUserProfile(targetEmail,nextRole,primaryTeam,String(target.display_name||targetEmail),true)
       const {data:profile,error:profileError}=await admin.from('users').select('id').eq('email',targetEmail).eq('active',true).maybeSingle();if(profileError)throw profileError;if(!profile?.id)return json({error:'user_profile_not_found'},404)
-      const accessPatch={role:nextRole,team_name:primaryTeam,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:nextRole==='manager'?email:null,assigned_admin_name:nextRole==='manager'?(callerAccess.display_name||email):null}
+      const adminName=callerAccess.display_name||email
+      const accessPatch={role:nextRole,team_name:primaryTeam,assigned_manager_email:nextRole==='manager'?email:null,assigned_manager_name:nextRole==='manager'?adminName:null,assigned_admin_email:nextRole==='manager'?email:null,assigned_admin_name:nextRole==='manager'?adminName:null}
       const {error:accessError}=await admin.from('app_user_access').update(accessPatch).eq('email',targetEmail);if(accessError)throw accessError
       const {error:assignError}=await admin.from('teams').update({manager_user_id:profile.id}).eq('id',teamRow.id);if(assignError)throw assignError
       return json({ok:true,region_name:region,manager_email:targetEmail,manager_name:target.display_name||targetEmail,manager_role:nextRole})
@@ -149,15 +155,15 @@ Deno.serve(async(req)=>{
       const role=['rep','manager'].includes(String(body.role))?String(body.role):'rep'; const team=String(body.team_name||r.requested_team||'').trim().slice(0,120)||null
       const mgrRaw=String(body.assigned_manager_email||'').trim().toLowerCase()||null;let mgr={email:null as string|null,name:null as string|null}
       if(role==='rep'){try{mgr=await validateManager(mgrRaw)}catch{return json({error:'invalid_manager'},400)}}
-      let owner={email:null as string|null,name:null as string|null};if(role==='manager'){const ownerRaw=String(body.assigned_admin_email||email).trim().toLowerCase();try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
+      let owner={email:null as string|null,name:null as string|null};if(role==='manager'){const ownerRaw=String(body.assigned_manager_email||body.assigned_admin_email||email).trim().toLowerCase();try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator_manager'},400)};if(!owner.email)return json({error:'administrator_manager_required'},400)}
       const displayName=String(body.display_name||r.display_name||r.email).trim().slice(0,120),targetEmail=r.email.toLowerCase()
       const requestedClassification=payLevel(body.sales_classification)
       if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!requestedClassification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
       const classification=requestedClassification||(role==='rep'?'trainee':null)
-      const {error:aerr}=await admin.from('app_user_access').upsert({email:targetEmail,role,active:true,display_name:displayName,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
+      const {error:aerr}=await admin.from('app_user_access').upsert({email:targetEmail,role,active:true,display_name:displayName,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:role==='manager'?owner.email:null,assigned_manager_name:role==='rep'?mgr.name:role==='manager'?owner.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
       await syncAppUserProfile(targetEmail,role,team,displayName,true)
       const {error:rerr}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:String(body.notes||'').slice(0,1000)}).eq('id',requestId);if(rerr)throw rerr
-      return json({ok:true,approved_email:r.email,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
+      return json({ok:true,approved_email:r.email,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:role==='manager'?owner.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
     if(action==='grant_pending_account_access'){
       const target=String(body.email||'').trim().toLowerCase();if(!target)return json({error:'email_required'},400)
@@ -217,9 +223,9 @@ Deno.serve(async(req)=>{
       const team=String(body.team_name??current.team_name??'').trim().slice(0,120)||null
       const mgrRaw=String(body.assigned_manager_email||'').trim().toLowerCase()||null;let mgr={email:null as string|null,name:null as string|null}
       if(role==='rep'){try{mgr=await validateManager(mgrRaw)}catch{return json({error:'invalid_manager'},400)}}
-      const ownerValue=body.assigned_admin_email===undefined?current.assigned_admin_email:body.assigned_admin_email;const ownerRaw=String(ownerValue||'').trim().toLowerCase()||null;let owner={email:null as string|null,name:null as string|null}
-      if(role==='manager'){try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator'},400)}}
-      const {error}=await admin.from('app_user_access').update({role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_manager_name:role==='rep'?mgr.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
+      const ownerValue=body.assigned_manager_email!==undefined?body.assigned_manager_email:body.assigned_admin_email!==undefined?body.assigned_admin_email:current.assigned_manager_email||current.assigned_admin_email||email;const ownerRaw=String(ownerValue||'').trim().toLowerCase()||null;let owner={email:null as string|null,name:null as string|null}
+      if(role==='manager'){try{owner=await validateAdministrator(ownerRaw)}catch{return json({error:'invalid_administrator_manager'},400)};if(!owner.email)return json({error:'administrator_manager_required'},400)}
+      const {error}=await admin.from('app_user_access').update({role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:role==='manager'?owner.email:null,assigned_manager_name:role==='rep'?mgr.name:role==='manager'?owner.name:null,assigned_admin_email:role==='manager'?owner.email:null,assigned_admin_name:role==='manager'?owner.name:null}).eq('email',target);if(error)throw error
       const account=await findAuthAccountByEmail(target);if(!account?.id)throw new Error('user_profile_account_not_found')
       let rename:any={changed:false,display_name:nextDisplayName}
       let authMetadataSynced:boolean|null=null
@@ -238,7 +244,7 @@ Deno.serve(async(req)=>{
           await admin.from('user_display_name_changes').update({auth_metadata_synced:!metadataError,auth_metadata_error:metadataError?'auth_metadata_sync_failed':null}).eq('id',rename.audit_id)
         }
       }
-      return json({ok:true,email:target,display_name:nextDisplayName,display_name_changed:nameChanged,auth_metadata_synced:authMetadataSynced,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:null,assigned_admin_email:role==='manager'?owner.email:null})
+      return json({ok:true,email:target,display_name:nextDisplayName,display_name_changed:nameChanged,auth_metadata_synced:authMetadataSynced,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:role==='manager'?owner.email:null,assigned_admin_email:role==='manager'?owner.email:null})
     }
     if(action==='reject'){
       const requestId=String(body.request_id||''); if(!requestId) return json({error:'request_id_required'},400)
