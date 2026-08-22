@@ -88,12 +88,17 @@
     +'<div id="fieldAddressMsg" class="muted small" aria-live="polite"></div></div>';
   select.insertAdjacentElement('afterend',panel);
 
+  function applyAddressEntryAccess(){panel.hidden=window.MCCOY_ACCESS?.access?.role==='manager';}
+  window.addEventListener('mccoy-access-ready',applyAddressEntryAccess);
+  applyAddressEntryAccess();
+
   function message(value,ok){const el=document.getElementById('fieldAddressMsg');el.textContent=value;el.style.color=ok?'#166534':'#991b1b';}
   function teamForState(code){return code==='NC'?'North Carolina':(['OR','WA'].includes(code)?'Pacific Northwest':'Unassigned');}
 
   document.getElementById('addFieldAddressBtn').addEventListener('click',async()=>{
     const access=window.MCCOY_ACCESS?.access;
     if(!access?.active){message('Sign in with an approved McCoy account first.');return;}
+    if(access.role==='manager'){message('Managers can only work leads assigned by an Admin. Ask an Admin to add and assign this address.');return;}
     const address1=document.getElementById('fieldNewAddress').value.trim();
     const address2=document.getElementById('fieldNewAddress2').value.trim();
     const city=document.getElementById('fieldNewCity').value.trim();
