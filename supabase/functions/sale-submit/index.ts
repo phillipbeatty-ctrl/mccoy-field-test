@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
 import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
 import { classifySaleEvidence, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
+import { normalizeVoipHomePhoneAddOn } from '../_shared/sale-products-core.mjs'
 
 const json = (body: unknown, status = 200) => Response.json(body, {
   status,
@@ -101,7 +102,7 @@ Deno.serve(async request => {
     const mobileLines = Math.max(0, Math.min(20, Math.round(Number(body.mobile_phone_lines ?? body.att_mobile_lines ?? 0))))
     const mobileDeviceCount = Math.max(0, Math.min(20, Math.round(Number(body.mobile_device_count ?? body.att_device_count ?? 0))))
     const mobileDeviceProtection = !!(body.mobile_device_protection ?? body.att_device_protection)
-    const voipLines = Math.max(0, Math.min(20, Math.round(Number(body.voip_home_phone_lines || 0))))
+    const voipLines = normalizeVoipHomePhoneAddOn(body.voip_home_phone_add_on ?? body.voip_home_phone_lines, product)
     const attTotalHomeCare = isp === 'AT&T' && !!body.att_total_home_care
     const calculatedCommission = commissionSnapshot(rule, { isp, internet_product: product, internet_speed_mbps: speed, mobile_phone_lines: mobileLines }, classification)
 
@@ -182,7 +183,7 @@ Deno.serve(async request => {
     const products: string[] = []
     if (saleContext === 'out_of_area_phone') products.push('OUT OF AREA phone sale')
     if (product && product !== 'None') products.push(`${product}${speed ? ` ${speed / 1000} Gig` : ''}`)
-    if (voipLines) products.push(`${voipLines} VoIP home phone line${voipLines === 1 ? '' : 's'}`)
+    if (voipLines) products.push(`${isp} VoIP home phone add-on`)
     if (mobileLines) products.push(`${mobileLines} AT&T mobile phone line${mobileLines === 1 ? '' : 's'}`)
     if (mobileDeviceCount) products.push(`${mobileDeviceCount} AT&T mobile device${mobileDeviceCount === 1 ? '' : 's'}`)
     if (mobileDeviceProtection) products.push('AT&T Device Protection')

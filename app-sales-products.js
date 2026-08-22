@@ -1,4 +1,4 @@
-// McCoy sale product options: VoIP for ISPs and AT&T mobile products on every provider order.
+// McCoy sale product options: ISP-provided VoIP and AT&T mobile products on every provider order.
 (function(){
   if(window.MCCOY_SALES_PRODUCTS_PATCHED)return;
   window.MCCOY_SALES_PRODUCTS_PATCHED=true;
@@ -13,6 +13,10 @@
     .sale-product-options label{display:flex;align-items:center;gap:7px;padding:8px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;font-size:12px}
     .sale-product-options input[type=checkbox]{width:auto;margin:0}
     .sale-product-options input[type=number]{width:90px;margin-left:auto;padding:7px}
+    .sale-voip-addon{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #dbeafe;border-radius:9px;background:#eff6ff;cursor:pointer}
+    .sale-voip-addon input[type=checkbox]{width:auto;flex:0 0 auto;margin:0}
+    .sale-voip-copy{display:grid;gap:2px}.sale-voip-copy strong{margin:0;font-size:13px}.sale-voip-provider{font-size:11px;color:#4b5563}
+    .sale-voip-addon.voip-disabled{cursor:not-allowed;opacity:.62}
     .sale-product-hint{font-size:11px;color:#6b7280;margin-top:7px}
     @media(max-width:650px){.sale-product-options{grid-template-columns:1fr}.sale-product-box{grid-column:auto}}
   `;
@@ -23,17 +27,16 @@
     const product=byId('saleInternetProduct');
     if(!grid||!product)return false;
 
-    if(!byId('saleVoipLines')){
-      const input=document.createElement('input');
-      input.id='saleVoipLines';input.type='number';input.min='0';input.max='20';input.value='0';
-      input.placeholder='VoIP home phone lines';
+    if(!byId('saleVoipHomePhone')){
+      const row=document.createElement('label');row.id='saleVoipHomePhoneRow';row.className='sale-voip-addon';row.htmlFor='saleVoipHomePhone';
+      row.innerHTML='<input id="saleVoipHomePhone" type="checkbox" aria-describedby="saleVoipProvider"><span class="sale-voip-copy"><strong>VoIP home phone add-on</strong><span id="saleVoipProvider" class="sale-voip-provider">Provided by the selected Internet provider</span></span>';
       const speed=byId('saleSpeed');
-      if(speed?.parentNode===grid)grid.insertBefore(input,speed.nextSibling);else grid.appendChild(input);
+      if(speed?.parentNode===grid)grid.insertBefore(row,speed.nextSibling);else grid.appendChild(row);
     }
 
     if(!byId('mobileProductOptions')){
       const box=document.createElement('div');box.id='mobileProductOptions';box.className='sale-product-box';
-      box.innerHTML=`<strong>AT&amp;T mobile products on this order</strong><div class="sale-product-options"><label>AT&amp;T mobile phone lines <input id="saleMobileLinesMirror" type="number" min="0" max="20" value="0"></label><label>AT&amp;T mobile devices <input id="saleMobileDeviceCount" type="number" min="0" max="20" value="0"></label><label><input id="saleMobileDeviceProtection" type="checkbox"> AT&amp;T device protection</label><label id="saleAttTotalHomeCareRow"><input id="saleAttTotalHomeCare" type="checkbox"> Total Home Care (AT&amp;T Internet only)</label></div><div class="sale-product-hint">AT&amp;T mobile phone lines and devices can be added to any provider order by every rep. VoIP home phone lines remain available for Internet providers.</div>`;
+      box.innerHTML=`<strong>AT&amp;T mobile products on this order</strong><div class="sale-product-options"><label>AT&amp;T mobile phone lines <input id="saleMobileLinesMirror" type="number" min="0" max="20" value="0"></label><label>AT&amp;T mobile devices <input id="saleMobileDeviceCount" type="number" min="0" max="20" value="0"></label><label><input id="saleMobileDeviceProtection" type="checkbox"> AT&amp;T device protection</label><label id="saleAttTotalHomeCareRow"><input id="saleAttTotalHomeCare" type="checkbox"> Total Home Care (AT&amp;T Internet only)</label></div><div class="sale-product-hint">AT&amp;T mobile phone lines and devices can be added to any provider order by every rep. The VoIP home phone add-on is supplied by the ISP selected for the Internet sale.</div>`;
       grid.appendChild(box);
       const mirror=byId('saleMobileLinesMirror'),original=byId('saleMobile');
       if(original)original.style.display='none';
@@ -55,9 +58,11 @@
     const provider=byId('sessionIsp')?.value||'';
     const isAtt=provider==='AT&T';
     const isIsp=ISP_PROVIDERS.has(provider);
-    const voip=byId('saleVoipLines');
+    const voip=byId('saleVoipHomePhone'),voipRow=byId('saleVoipHomePhoneRow'),voipProvider=byId('saleVoipProvider');
     const mobile=byId('mobileProductOptions');
-    if(voip){voip.style.display=isIsp?'block':'none';if(!isIsp)voip.value='0';}
+    if(voipRow)voipRow.style.display=isIsp?'flex':'none';
+    if(voipProvider)voipProvider.textContent=provider?`Provided by ${provider}; no second provider selection is needed.`:'Provided by the selected Internet provider.';
+    if(voip&&!isIsp)voip.checked=false;
     if(mobile)mobile.style.display='block';
     const careRow=byId('saleAttTotalHomeCareRow'),care=byId('saleAttTotalHomeCare');if(careRow)careRow.style.display=isAtt?'flex':'none';if(!isAtt&&care)care.checked=false;
     if(isAtt){
@@ -68,6 +73,16 @@
       setProductOptions([['None','No internet']]);
     }
     window.MCCOY_SYNC_SALE_PRODUCT_UI?.();
+    syncVoipUi();
+  }
+
+  function syncVoipUi(){
+    const voip=byId('saleVoipHomePhone'),row=byId('saleVoipHomePhoneRow');if(!voip||!row)return;
+    const isIsp=ISP_PROVIDERS.has(byId('sessionIsp')?.value||'');
+    const hasInternet=byId('saleInternetProduct')?.value!=='None';
+    const disabled=!isIsp||!hasInternet;
+    voip.disabled=disabled;row.classList.toggle('voip-disabled',disabled);
+    if(disabled)voip.checked=false;
   }
 
   function readExtras(){
@@ -76,7 +91,8 @@
     const mobileDevices=Math.max(0,Math.min(20,Math.round(Number(byId('saleMobileDeviceCount')?.value||0))));
     const mobileProtection=!!byId('saleMobileDeviceProtection')?.checked;
     return {
-      voip_home_phone_lines:Math.max(0,Math.min(20,Math.round(Number(byId('saleVoipLines')?.value||0)))),
+      voip_home_phone_add_on:!!byId('saleVoipHomePhone')?.checked,
+      voip_home_phone_lines:byId('saleVoipHomePhone')?.checked?1:0,
       mobile_phone_lines:mobileLines,
       mobile_device_count:mobileDevices,
       mobile_device_protection:mobileProtection,
@@ -98,8 +114,9 @@
 
   const providerSelect=byId('sessionIsp');
   providerSelect?.addEventListener('change',syncProviderUi);
+  byId('saleInternetProduct')?.addEventListener('change',syncVoipUi);
   window.addEventListener('mccoy-sale-saved',()=>{
-    const voip=byId('saleVoipLines');if(voip)voip.value='0';
+    const voip=byId('saleVoipHomePhone');if(voip)voip.checked=false;
     const mirror=byId('saleMobileLinesMirror');if(mirror)mirror.value='0';
     const devices=byId('saleMobileDeviceCount');if(devices)devices.value='0';
     const protection=byId('saleMobileDeviceProtection');if(protection)protection.checked=false;
