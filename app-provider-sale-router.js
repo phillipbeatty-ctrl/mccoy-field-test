@@ -6,7 +6,6 @@
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
 
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
-  const OUT_OF_AREA='OUT OF AREA';
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const defaults={
     Brightspeed:{label:'BASS',url:''},
@@ -35,6 +34,7 @@
     #providerSaleRouter{position:fixed;inset:0;z-index:160000;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.78)}
     #providerSaleRouter.show{display:flex}.provider-router-card{width:min(520px,100%);border-radius:16px;background:#fff;padding:20px;box-shadow:0 24px 80px rgba(15,23,42,.35)}
     .provider-router-card h2{margin:0 0 6px}.provider-router-fields{display:grid;gap:10px;margin:16px 0}.provider-router-fields label{display:grid;gap:5px;font-size:12px;font-weight:800}
+    .provider-router-fields .provider-router-mode{display:flex;align-items:center;gap:9px;font-size:13px}.provider-router-mode input{width:18px;height:18px;margin:0;accent-color:#2563eb}
     .provider-router-fields select{width:100%;box-sizing:border-box;padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff}.provider-router-actions{display:flex;gap:9px}.provider-router-actions button{flex:1;min-height:44px}
     #providerRouteToast{position:fixed;left:50%;bottom:22px;z-index:160100;display:none;max-width:min(620px,calc(100vw - 28px));transform:translateX(-50%);border-radius:10px;padding:10px 14px;background:#111827;color:#fff;font-size:12px;box-shadow:0 12px 36px rgba(15,23,42,.3)}
     #providerRouteToast.show{display:block}@media(max-width:560px){.provider-router-actions{flex-direction:column}}
@@ -46,14 +46,13 @@
   panel.setAttribute('role','dialog');
   panel.setAttribute('aria-modal','true');
   panel.setAttribute('aria-labelledby','providerRouterTitle');
-  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose Internet provider</h2><p id="providerRouterDescription" class="muted small">Select the seller account for this sale.</p><div class="provider-router-fields"><label>Sale provider or phone-sale mode<select id="providerRouterChoice"></select></label><label id="providerRouterActualRow" hidden>Internet provider for this phone sale<select id="providerRouterActual"></select></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
+  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose provider for this sale</h2><p id="providerRouterDescription" class="muted small">Select the Internet provider whose seller account will process this sale.</p><div class="provider-router-fields"><label>Internet Provider<select id="providerRouterChoice"></select></label><label class="provider-router-mode"><input id="providerRouterOutOfArea" type="checkbox"><span>OUT OF AREA phone sale</span></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
   document.body.appendChild(panel);
   const toast=document.createElement('div');toast.id='providerRouteToast';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);
 
   const choice=document.getElementById('providerRouterChoice');
-  const actual=document.getElementById('providerRouterActual');
-  for(const provider of [...PROVIDERS,OUT_OF_AREA])choice.add(new Option(provider,provider));
-  for(const provider of PROVIDERS)actual.add(new Option(provider,provider));
+  const outOfAreaChoice=document.getElementById('providerRouterOutOfArea');
+  for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
   let pending=null,toastTimer=null;
   let saleGuard=false;
@@ -163,29 +162,26 @@
     if(select&&select.value!==provider){select.value=provider;select.dispatchEvent(new Event('change',{bubbles:true}));}
   }
   function syncOutOfArea(){
-    const out=choice.value===OUT_OF_AREA;
-    document.getElementById('providerRouterActualRow').hidden=!out;
-    document.getElementById('providerRouterStatus').textContent=out?'This sale will be recorded as an OUT OF AREA phone sale.':'';
+    document.getElementById('providerRouterStatus').textContent=outOfAreaChoice.checked?'This sale will be recorded as an OUT OF AREA phone sale.':'';
   }
   function showRouter(target){
-    const provider=currentProvider(),outOption=[...choice.options].find(option=>option.value===OUT_OF_AREA);
-    if(outOption)outOption.hidden=false;
-    choice.value=provider;actual.value=provider;syncOutOfArea();pending={target};
+    const provider=currentProvider();
+    choice.value=provider;outOfAreaChoice.checked=false;syncOutOfArea();pending={target};
     document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
-    document.getElementById('providerRouterDescription').textContent='Select the provider, or choose OUT OF AREA for a phone sale.';
+    document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
     document.getElementById('providerRouterContinue').textContent='OPEN ACCOUNT & PROCESS SALE';
     panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
   function closeRouter(){panel.classList.remove('show');pending=null;}
 
-  choice.addEventListener('change',syncOutOfArea);
+  outOfAreaChoice.addEventListener('change',syncOutOfArea);
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
   panel.addEventListener('click',event=>{if(event.target===panel)closeRouter();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
   document.getElementById('providerRouterContinue').addEventListener('click',()=>{
     if(!pending)return;
-    const outOfArea=choice.value===OUT_OF_AREA;
-    const provider=outOfArea?actual.value:choice.value;
+    const outOfArea=outOfAreaChoice.checked;
+    const provider=choice.value;
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
     const next=pending;panel.classList.remove('show');pending=null;
     window.MCCOY_SALE_CONTEXT=outOfArea?'out_of_area_phone':'field';
