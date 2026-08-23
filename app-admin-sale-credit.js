@@ -72,7 +72,7 @@
 
   function recordMatches(record,filter,needle){
     const sale=record.sale||{};
-    const filterMatch=filter==='all'||(filter==='verified'&&sale.verification_status==='verified_processed'&&sale.required_metrics_complete===true&&sale.sale_status!=='not_a_sale')||(filter==='review_queue'&&sale.sale_credit_review_queued===true)||(filter==='unverified'&&sale.verification_status!=='verified_processed'&&sale.sale_status!=='not_a_sale')||(filter==='not_a_sale'&&sale.sale_status==='not_a_sale');
+    const filterMatch=filter==='all'||(filter==='verified'&&sale.verification_status==='verified_processed'&&sale.required_metrics_complete===true&&sale.sale_status!=='not_a_sale')||(filter==='review_queue'&&sale.sale_credit_review_queued===true&&sale.sale_status!=='not_a_sale')||(filter==='unverified'&&sale.verification_status!=='verified_processed'&&sale.sale_status!=='not_a_sale')||(filter==='not_a_sale'&&sale.sale_status==='not_a_sale');
     return filterMatch&&(!needle||JSON.stringify(record).toLowerCase().includes(needle));
   }
 
