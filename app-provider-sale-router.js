@@ -7,6 +7,7 @@
 
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
+  const PORTAL_CONTEXT_STORAGE_KEY='mccoy_last_provider_portal_context_v1';
   const defaults={
     Brightspeed:{label:'BASS',url:''},
     Quantum:{label:'ASAP',url:''},
@@ -139,11 +140,31 @@
     toastTimer=setTimeout(()=>toast.classList.remove('show'),5200);
   }
   function portalInfo(provider){return portals[provider]||{label:`${provider} seller account`,url:''};}
+  function readPortalContext(){
+    try{const value=JSON.parse(localStorage.getItem(PORTAL_CONTEXT_STORAGE_KEY)||'null');return value?.provider&&value?.sessionGroup?value:null;}catch(_){return null;}
+  }
+  function portalAccountMessage(provider){
+    const info=portalInfo(provider),account=String(info.accountContext||'').trim();
+    if(!account)return '';
+    const previous=readPortalContext();
+    if(info.sessionGroup&&previous?.sessionGroup===info.sessionGroup&&previous.provider!==provider){
+      return `Sara Plus may still be signed into the ${previous.provider} account. Sign out there and use your assigned ${account} account before placing this order. McCoy will record this capture only as ${provider}.`;
+    }
+    return `Sara Plus account required: ${account}. Confirm Sara Plus is signed into your assigned ${account} account. McCoy will record this capture only as ${provider}.`;
+  }
+  function updatePortalStatus(){
+    const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider);
+    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} will open in the McCoy sales popup.`);
+  }
   function openSellerAccount(provider){
     const info=portalInfo(provider),raw=String(info.url||'').trim();
     if(!raw){notify(`${provider} selected. ${info.label} link is not configured yet.`);return{opened:false,reason:'not_configured'};}
     let url;try{url=new URL(raw);}catch(_){notify(`${info.label} link is invalid and was not opened.`);return{opened:false,reason:'invalid_url'};}
     if(url.protocol!=='https:'){notify(`${info.label} must use a secure HTTPS address.`);return{opened:false,reason:'insecure_url'};}
+    // ASP.NET cookieless-session segments are temporary authentication tokens.
+    // Never publish or reuse one from a copied Sara Plus URL. The stable route
+    // creates a fresh session and preserves SubmitOrders.aspx as the return page.
+    if(/(^|\.)saraplus\.com$/i.test(url.hostname))url.pathname=url.pathname.replace(/\/\(S\([^/]+\)\)/i,'');
     // Keep the provider dashboard in a reusable McCoy-managed popup while
     // leaving authentication entirely on the provider's secure origin.
     const target=`mccoy_${provider.toLowerCase().replace(/[^a-z0-9]+/g,'_')}_seller`;
@@ -155,7 +176,11 @@
     const sellerWindow=window.open(url.href,target,features);
     if(!sellerWindow){notify(`Allow pop-ups for McCoy to open ${info.label}.`);return{opened:false,reason:'popup_blocked'};}
     try{sellerWindow.opener=null;sellerWindow.focus();}catch(_){}
-    notify(`${info.label} opened in the McCoy sales popup. Its existing provider login or approved SSO session will be reused.`);
+    const accountMessage=portalAccountMessage(provider);
+    if(info.sessionGroup){
+      try{localStorage.setItem(PORTAL_CONTEXT_STORAGE_KEY,JSON.stringify({provider,sessionGroup:info.sessionGroup,openedAt:new Date().toISOString()}));}catch(_){}
+    }
+    notify(accountMessage||`${info.label} opened in the McCoy sales popup. Its existing provider login or approved SSO session will be reused.`);
     return{opened:true,reason:null};
   }
   function setProvider(provider){
@@ -165,15 +190,16 @@
   }
   function showRouter(target){
     const provider=currentProvider();
-    choice.value=provider;document.getElementById('providerRouterStatus').textContent='';pending={target};
+    choice.value=provider;pending={target};
     document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
     document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
     document.getElementById('providerRouterContinue').textContent='OPEN ACCOUNT & PROCESS SALE';
-    panel.classList.add('show');setTimeout(()=>choice.focus(),30);
+    updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
   function closeRouter(){panel.classList.remove('show');pending=null;}
 
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
+  choice.addEventListener('change',updatePortalStatus);
   panel.addEventListener('click',event=>{if(event.target===panel)closeRouter();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
   document.getElementById('providerRouterContinue').addEventListener('click',()=>{

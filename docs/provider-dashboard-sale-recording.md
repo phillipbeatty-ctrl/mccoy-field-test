@@ -39,10 +39,27 @@ provider's authentication controls.
 
 - Quantum: Quantum ASAP
 - Brightspeed: BASS
-- DIRECTV: DIRECTV Sales & Service Portal
+- AT&T: Sara Plus — AT&T account
+- DIRECTV: Sara Plus — DIRECTV account
 - Vivint: Vivint Order Entry Tool
 
-DIRECTV and Vivint use the same popup, capture, seller-link, rep-report, dealer-report,
+AT&T and DIRECTV deliberately use separate McCoy provider contexts even though both
+open the stable Sara Plus login route with Submit Orders as its return page:
+`https://www.saraplus.com/e/ServicePages/Login.aspx?ReturnUrl=%2fe%2fDealerPages%2fSubmitOrders.aspx`.
+After Sara Plus authenticates the rep, it returns that popup to Submit Orders. Each provider gets its own popup target, capture,
+seller links, report imports, reconciliation, ranking evidence, and accounting evidence.
+Because both Sara Plus accounts use the same web origin, the browser can reuse the
+other account's Sara Plus cookies across popup windows. McCoy therefore identifies the
+required account before opening Sara Plus and warns when the previously opened context
+was the other provider. The rep must sign out of the other Sara Plus account and sign
+into the account assigned for the selected provider. McCoy never stores either account's
+username or password and cannot isolate or clear Sara Plus cookies.
+
+Never save a copied Sara Plus URL containing `/(S(...))/`. That segment is a temporary
+ASP.NET session identifier, not an account-specific order-site address. McCoy strips a
+session segment if one is ever supplied and opens the stable Submit Orders route instead.
+
+AT&T, DIRECTV, and Vivint use the same popup, capture, seller-link, rep-report, dealer-report,
 deduplication, ABANDONED exclusion, and Sale Credit review lifecycle as Quantum and
 Brightspeed. Their provider exports may be Excel HTML, CSV, or tab-delimited text.
 Portal access alone is never proof of a sale and never unlocks rankings or pay.
