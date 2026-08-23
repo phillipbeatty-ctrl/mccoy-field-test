@@ -20,7 +20,11 @@ assert.equal(paid[0].current_earned_pay, 300);
 const withCancellation = fifteen.map((sale,index) => index === 0 ? {...sale,sale_status:'cancelled',competition_eligible:false} : sale);
 const reduced = annotateEarnedPay(withCancellation, rule);
 assert.equal(reduced[0].current_earned_pay, 0);
-assert.equal(reduced[0].cancellation_reduction, 275);
+assert.equal(reduced[0].cancellation_reduction, 0);
+assert.equal(reduced[0].pay_status, 'cancelled_unpaid_no_chargeback');
+const cancelledAfterPayment = annotateEarnedPay([{...withCancellation[0],commission_paid_amount:275,commission_chargeback_amount:275}],rule)[0];
+assert.equal(cancelledAfterPayment.cancellation_reduction, 275);
+assert.equal(cancelledAfterPayment.pay_status, 'cancelled_paid_chargeback');
 assert.equal(reduced[1].weekly_production_increase_per_sale, 0);
 assert.equal(reduced[1].current_earned_pay, 275);
 

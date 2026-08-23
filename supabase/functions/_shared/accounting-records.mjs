@@ -11,7 +11,8 @@ export const ACCOUNTING_COLUMNS = Object.freeze([
   'verification_status','verification_reason','provider_sale_row_id','sale_status','competition_eligible','verified_at',
   'low_potential_since','notes','commission_pay_level','base_commission',
   'att_mobile_originating_commission','weekly_production_increase_per_sale','current_earned_pay',
-  'cancellation_reduction','pay_status','compensation_rule_source','compensation_snapshot'
+  'cancellation_reduction','pay_status','compensation_rule_source','compensation_snapshot',
+  'commission_gross_amount','commission_chargeback_applied','commission_paid_amount','commission_paid_at','commission_chargeback_amount'
 ]);
 
 function approvalAllows(snapshot) {
@@ -69,7 +70,8 @@ export function annotateEarnedPay(records, rule) {
     const scheduled = (base != null && Number.isFinite(base) ? base : 0) + (Number.isFinite(mobile) ? mobile : 0);
     const cancelled = sale.sale_status === 'cancelled';
     let payStatus = 'not_eligible';
-    if (cancelled) payStatus = 'cancelled_reduction';
+    const paidAmount = Number(sale.commission_paid_amount || 0);
+    if (cancelled) payStatus = paidAmount > 0 ? 'cancelled_paid_chargeback' : 'cancelled_unpaid_no_chargeback';
     else if (!eligible) payStatus = String(sale.verification_status || 'pending_verification');
     else if (!priced) payStatus = 'accounting_review_required';
     else payStatus = 'earned';
@@ -80,7 +82,7 @@ export function annotateEarnedPay(records, rule) {
       att_mobile_originating_commission: Number.isFinite(mobile) ? mobile : 0,
       weekly_production_increase_per_sale: increase,
       current_earned_pay: eligible && priced ? scheduled + increase : 0,
-      cancellation_reduction: cancelled ? Number(snapshot?.cancellation?.reduction_amount ?? scheduled) || 0 : 0,
+      cancellation_reduction: cancelled && paidAmount > 0 ? Number(sale.commission_chargeback_amount || paidAmount) : 0,
       pay_status: payStatus,
       compensation_rule_source: snapshot.source || null
     };

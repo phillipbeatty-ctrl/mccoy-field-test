@@ -11,7 +11,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const body=await req.json().catch(()=>({}));let targetEmail=String(body.tester_email||viewerEmail).trim().toLowerCase();
  const {data:targetAccess}=await admin.from('app_user_access').select('email,active,display_name,assigned_manager_email,assigned_manager_name').eq('email',targetEmail).maybeSingle();if(!targetAccess?.active)return Response.json({error:'tester_not_found'},{status:404,headers:corsHeaders});
  const {data:per}=await admin.from('rep_metrics_visibility').select('*').eq('rep_email',targetEmail).maybeSingle();
- const repEnabled=!!global?.global_rep_metrics_enabled && !!per?.rep_metrics_enabled;
+ const repEnabled=!!global?.global_rep_metrics_enabled && (per?.rep_metrics_enabled ?? true);
  const mgrEnabled=!!global?.global_manager_metrics_enabled && (per?.manager_metrics_enabled ?? true);
  let allowed=false,scope='none';
  if(viewer.role==='admin'){allowed=true;scope='admin';}
