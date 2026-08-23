@@ -2,7 +2,7 @@
 // confirms the exact portal address. Never place usernames or passwords here.
 window.MCCOY_PROVIDER_PORTALS=Object.freeze({
   Quantum:Object.freeze({label:'Quantum ASAP',url:'https://qfasap.docxtract.com/Login.aspx'}),
-  Brightspeed:Object.freeze({label:'BASS',url:'https://bass.docxtract.com/General/SimHomePage.aspx',reportUrl:'https://bass.docxtract.com/Report/Orders_Report.aspx'}),
+  Brightspeed:Object.freeze({label:'BASS',url:'https://bass.docxtract.com/General/SimHomePage.aspx',reportUrl:'https://bass.docxtract.com/Report/Orders_Report.aspx',reportLabel:'OPEN BASS ORDERS REPORT'}),
   'AT&T':Object.freeze({label:'AT&T seller account',url:''}),
   'T-Mobile / T-Fiber':Object.freeze({label:'T-Mobile seller account',url:''}),
   Kinetic:Object.freeze({label:'Kinetic seller account',url:''}),

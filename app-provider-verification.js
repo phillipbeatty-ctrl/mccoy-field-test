@@ -3,11 +3,10 @@
 (function(){
   const providers=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const dealerProviders=['Mixed / Auto-detect',...providers];
-  const reportLinks={
-    Brightspeed:{url:'https://bass.docxtract.com/Report/Orders_Report.aspx',label:'OPEN BASS ORDERS REPORT'},
-    DIRECTV:{url:'https://directv-dmp.my.site.com/SNS/login?locale=us',label:'OPEN DIRECTV SALES REPORT'},
-    Vivint:{url:'https://oetool.vivint.com/',label:'OPEN VIVINT SALES REPORT'}
-  };
+  const reportLinks=Object.fromEntries(providers.map(provider=>{
+    const portal=window.MCCOY_PROVIDER_PORTALS?.[provider]||{};
+    return [provider,{url:String(portal.reportUrl||''),label:String(portal.reportLabel||`OPEN ${provider.toUpperCase()} SALES REPORT`)}];
+  }));
   const esc=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const label=value=>String(value||'').replace(/_/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
   let unmatchedSellers=[];
