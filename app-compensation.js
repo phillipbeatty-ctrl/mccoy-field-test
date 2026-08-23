@@ -34,7 +34,7 @@
     card=document.createElement('div');
     card.className='card rep-rankings-card';
     card.id='dashboardRepRankings';
-    card.innerHTML='<div class="rep-rankings-head"><div><h2>Rep Sales Rankings</h2><p>Every active rep, Manager, and Trainer, ranked by ISP-verified eligible sales.</p></div><div class="rep-ranking-controls"><select id="repRankingPeriod" aria-label="Choose ranking period"><option value="today">Today</option><option value="week" selected>This Week</option><option value="month">This Month</option><option value="year">This Year</option></select><button id="repRankingsRefresh" class="assign-btn">Refresh</button></div></div><div class="rep-ranking-summary"><div class="rep-ranking-stat"><span id="repPersonalRankLabel">Your Rank</span><strong id="repPersonalRank">—</strong></div><div class="rep-ranking-stat"><span>Sales Today</span><strong id="repPersonalToday">0</strong></div><div class="rep-ranking-stat"><span>Sales This Week</span><strong id="repPersonalWeek">0</strong></div><div class="rep-ranking-stat"><span>Sales This Month</span><strong id="repPersonalMonth">0</strong></div><div class="rep-ranking-stat"><span>Sales This Year</span><strong id="repPersonalYear">0</strong></div></div><p id="repRankingPerson" class="rep-ranking-person"></p><div class="rep-ranking-table-wrap"><table class="rep-ranking-table" aria-label="Individual representative sales rankings"><thead><tr><th scope="col">Rank</th><th scope="col">Representative</th><th scope="col">Today</th><th scope="col">This Week</th><th scope="col">This Month</th><th scope="col">This Year</th></tr></thead><tbody id="repRankingRows"><tr><td colspan="6">Loading rep rankings…</td></tr></tbody></table></div>';
+    card.innerHTML='<div class="rep-rankings-head"><div><h2>Rep Sales Rankings</h2><p>Every active rep, Manager, and Trainer, ranked by provider-verified eligible sales.</p><p id="rankingAuthorityStatus" class="rep-ranking-person">Loading authoritative rankings…</p></div><div class="rep-ranking-controls"><select id="repRankingPeriod" aria-label="Choose ranking period"><option value="today">Today</option><option value="week" selected>This Week</option><option value="month">This Month</option><option value="year">This Year</option></select><button id="repRankingsRefresh" class="assign-btn">Refresh</button></div></div><div class="rep-ranking-summary"><div class="rep-ranking-stat"><span id="repPersonalRankLabel">Your Rank</span><strong id="repPersonalRank">—</strong></div><div class="rep-ranking-stat"><span>Sales Today</span><strong id="repPersonalToday">0</strong></div><div class="rep-ranking-stat"><span>Sales This Week</span><strong id="repPersonalWeek">0</strong></div><div class="rep-ranking-stat"><span>Sales This Month</span><strong id="repPersonalMonth">0</strong></div><div class="rep-ranking-stat"><span>Sales This Year</span><strong id="repPersonalYear">0</strong></div></div><p id="repRankingPerson" class="rep-ranking-person"></p><div class="rep-ranking-table-wrap"><table class="rep-ranking-table" aria-label="Individual representative sales rankings"><thead><tr><th scope="col">Rank</th><th scope="col">Representative</th><th scope="col">Today</th><th scope="col">This Week</th><th scope="col">This Month</th><th scope="col">This Year</th></tr></thead><tbody id="repRankingRows"><tr><td colspan="6">Loading rep rankings…</td></tr></tbody></table></div>';
     dashboard.insertBefore(card,dashboard.firstChild);
     document.getElementById('repRankingPeriod').onchange=function(){
       selectedRankingPeriod=rankingLabels[this.value]?this.value:'week';
@@ -59,13 +59,16 @@
     const title=document.getElementById('repPersonalRankLabel');
     if(title)title.textContent=personal?'Your Rank':'Top Rep Rank';
     const rank=document.getElementById('repPersonalRank');
-    if(rank)rank.textContent=highlighted?'#'+highlighted.ranks[selectedRankingPeriod]:'—';
+    const movement=Number(highlighted?.rank_movement?.[selectedRankingPeriod]||0),movementLabel=movement>0?` ↑${movement}`:movement<0?` ↓${Math.abs(movement)}`:'';
+    if(rank)rank.textContent=highlighted?'#'+highlighted.ranks[selectedRankingPeriod]+movementLabel:'—';
     for(const [period,id] of [['today','repPersonalToday'],['week','repPersonalWeek'],['month','repPersonalMonth'],['year','repPersonalYear']]){
       const stat=document.getElementById(id);
       if(stat)stat.textContent=String(Number(highlighted?.[period+'_sales']||0));
     }
     const person=document.getElementById('repRankingPerson');
-    if(person)person.textContent=highlighted?(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'.':'No active representatives are available.';
+    if(person)person.textContent=highlighted?(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.':'No active representatives are available.';
+    const authority=document.getElementById('rankingAuthorityStatus');
+    if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · ${pending} sale${pending===1?'':'s'} pending review and excluded.`;}
     const body=document.getElementById('repRankingRows');
     if(!body)return;
     body.replaceChildren();
@@ -77,7 +80,8 @@
     for(const rep of rankings){
       const row=document.createElement('tr');
       if(rep.is_current_user)row.className='current-rep';
-      createRankingCell(row,'#'+rep.ranks[selectedRankingPeriod]);
+      const change=Number(rep.rank_movement?.[selectedRankingPeriod]||0),changeLabel=change>0?` ↑${change}`:change<0?` ↓${Math.abs(change)}`:'';
+      createRankingCell(row,'#'+rep.ranks[selectedRankingPeriod]+changeLabel);
       const name=createRankingCell(row,rep.rep_name||'Rep');
       if(rep.is_current_user){const badge=document.createElement('span');badge.className='rep-ranking-you';badge.textContent='You';name.appendChild(badge);}
       for(const period of ['today','week','month','year'])createRankingCell(row,Number(rep[period+'_sales']||0));
