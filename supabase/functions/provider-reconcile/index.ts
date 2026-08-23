@@ -237,6 +237,18 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   const requestedScope = String(body.source_scope || '').toLowerCase()
   const sourceScope = requestedScope === 'dealer_account' ? 'dealer_account' : 'rep_account'
   if (sourceScope === 'dealer_account' && access.role !== 'admin') return json({ error: 'admin_only' }, 403)
+  let corporateProviders = new Set<string>()
+  if (sourceScope === 'dealer_account') {
+    const { data: corporateAccess, error: corporateAccessError } = await admin
+      .from('provider_corporate_access')
+      .select('provider')
+      .eq('mccoy_user_id', user.id)
+      .eq('mccoy_email', user.email.toLowerCase())
+      .eq('active', true)
+    if (corporateAccessError) throw corporateAccessError
+    corporateProviders = new Set((corporateAccess || []).map((row: any) => normalizeSaleProvider(row.provider)).filter(Boolean))
+    if (!corporateProviders.size) return json({ error: 'corporate_provider_access_required' }, 403)
+  }
 
   const text = String(body.report_text || body.csv_text || '')
   if (!text.trim()) return json({ error: 'report_required' }, 400)
@@ -285,6 +297,10 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
       error: 'provider_not_detected',
       detail: 'The report has no provider column. Select its ISP instead of Mixed / Auto-detect and import it again.'
     }, 400)
+  }
+  if (sourceScope === 'dealer_account') {
+    const unauthorizedProviders = [...new Set(orderRows.map(row => row.rowProvider).filter(provider => !corporateProviders.has(provider)))]
+    if (unauthorizedProviders.length) return json({ error: 'corporate_provider_not_authorized', providers: unauthorizedProviders }, 403)
   }
 
   const fileHash = await sha256(text)
