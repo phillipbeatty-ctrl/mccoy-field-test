@@ -5,6 +5,7 @@ import { normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs
 import {
   classifySaleEvidence,
   crossReferenceRepRow,
+  isAbandonedProviderStatus,
   isBassReportDefinitionXml,
   mapReportEvidence,
   normalizeEvidenceToken,
@@ -77,7 +78,7 @@ async function providerEvidence(admin: any, selectedProvider: string) {
     .order('created_at', { ascending: false })
     .limit(5000)
   if (error) throw error
-  return data || []
+  return (data || []).filter((row: any) => !isAbandonedProviderStatus(row.provider_status))
 }
 
 async function reconcile(admin: any, sale: any, cache?: { evidence: Map<string, any[]>, sellers: Map<string, Set<string>> }) {
@@ -161,19 +162,20 @@ function chunked<T>(values: T[], size = 200) {
 async function crossReferenceDealerImport(admin: any, importRow: any) {
   const { data: dealerRows, error: dealerError } = await admin
     .from('provider_sales_rows')
-    .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,sale_date')
+    .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,sale_date,provider_status')
     .eq('import_id', importRow.id)
     .eq('evidence_scope', 'dealer_account')
   if (dealerError) throw dealerError
 
-  const providers = [...new Set((dealerRows || []).map((row: any) => row.provider).filter(Boolean))] as string[]
+  const eligibleDealerRows = (dealerRows || []).filter((row: any) => !isAbandonedProviderStatus(row.provider_status))
+  const providers = [...new Set(eligibleDealerRows.map((row: any) => row.provider).filter(Boolean))] as string[]
   const summary: Record<string, number> = { matched_dealer: 0, missing_from_dealer: 0, conflict: 0, not_assessed: 0 }
   const now = new Date().toISOString()
   for (const selectedProvider of providers) {
-    const relevantDealerRows = (dealerRows || []).filter((row: any) => row.provider === selectedProvider)
+    const relevantDealerRows = eligibleDealerRows.filter((row: any) => row.provider === selectedProvider)
     const { data: repRows, error: repError } = await admin
       .from('provider_sales_rows')
-      .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,sale_date,cross_reference_status')
+      .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,sale_date,provider_status,cross_reference_status')
       .eq('provider', selectedProvider)
       .eq('evidence_scope', 'rep_account')
       .order('created_at', { ascending: false })
@@ -181,7 +183,7 @@ async function crossReferenceDealerImport(admin: any, importRow: any) {
     if (repError) throw repError
 
     const grouped = new Map<string, string[]>()
-    for (const repRow of repRows || []) {
+    for (const repRow of (repRows || []).filter((row: any) => !isAbandonedProviderStatus(row.provider_status))) {
       const result = crossReferenceRepRow(repRow, relevantDealerRows, importRow.report_period_start, importRow.report_period_end)
       if (!['matched_dealer', 'missing_from_dealer', 'conflict'].includes(result.status)) {
         summary.not_assessed++
@@ -285,21 +287,23 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
     const detectedProvider = normalizeSaleProvider(pickReportValue(raw, ['provider', 'carrier', 'isp', 'brand', 'product provider']))
     return { raw, rowProvider: selectedProvider || detectedProvider, evidence: mapReportEvidence(raw) }
   })
-  const orderRows = normalizedRows.filter(row => row.evidence.orderNumber || row.evidence.accountNumber)
-  if (!orderRows.length) {
+  const recognizedOrderRows = normalizedRows.filter(row => row.evidence.orderNumber || row.evidence.accountNumber)
+  if (!recognizedOrderRows.length) {
     return json({
       error: 'report_has_no_recognized_orders',
       detail: 'No order or account identifiers were found. For BASS, run All Orders and export result rows containing Order # or BASS Order ID.'
     }, 400)
   }
-  if (orderRows.some(row => !row.rowProvider)) {
+  const abandonedExcluded = recognizedOrderRows.filter(row => isAbandonedProviderStatus(row.evidence.providerStatus)).length
+  const orderRows = recognizedOrderRows.filter(row => !isAbandonedProviderStatus(row.evidence.providerStatus))
+  if (recognizedOrderRows.some(row => !row.rowProvider)) {
     return json({
       error: 'provider_not_detected',
       detail: 'The report has no provider column. Select its ISP instead of Mixed / Auto-detect and import it again.'
     }, 400)
   }
   if (sourceScope === 'dealer_account') {
-    const unauthorizedProviders = [...new Set(orderRows.map(row => row.rowProvider).filter(provider => !corporateProviders.has(provider)))]
+    const unauthorizedProviders = [...new Set(recognizedOrderRows.map(row => row.rowProvider).filter(provider => !corporateProviders.has(provider)))]
     if (unauthorizedProviders.length) return json({ error: 'corporate_provider_not_authorized', providers: unauthorizedProviders }, 403)
   }
 
@@ -309,7 +313,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   duplicateQuery = sourceScope === 'rep_account' ? duplicateQuery.eq('source_rep_user_id', user.id) : duplicateQuery.is('source_rep_user_id', null)
   const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle()
   if (duplicateError) throw duplicateError
-  if (duplicate) return json({ ok: true, duplicate: true, import_id: duplicate.id, mapped: duplicate.mapped_row_count, rows: rows.length - 1 })
+  if (duplicate) return json({ ok: true, duplicate: true, import_id: duplicate.id, mapped: duplicate.mapped_row_count, rows: rows.length - 1, abandoned_excluded: abandonedExcluded })
 
   const sourceRepUserId = sourceScope === 'rep_account' ? user.id : null
   const sourceRepEmail = sourceScope === 'rep_account' ? user.email.toLowerCase() : null
@@ -363,7 +367,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
 
   const { error: importUpdateError } = await admin.from('provider_sales_imports').update({
     mapped_row_count: mapped,
-    notes: `${mapped} rows contained an order or account identifier.`
+    notes: `${mapped} rows contained an order or account identifier and were imported. ${abandonedExcluded} ABANDONED rows were excluded.`
   }).eq('id', importRow.id)
   if (importUpdateError) throw importUpdateError
 
@@ -376,6 +380,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
     source_scope: sourceScope,
     rows: rows.length - 1,
     mapped,
+    abandoned_excluded: abandonedExcluded,
     verified_after_import: salesResult.verified,
     sales_checked: salesResult.total,
     cross_reference: crossReference,
@@ -421,6 +426,76 @@ Deno.serve(async request => {
       }, { onConflict: 'rep_user_id,provider,seller_identifier' })
       if (error) throw error
       return json({ ok: true })
+    }
+
+    if (action === 'assign_unmatched_seller') {
+      if (access.role !== 'admin') return json({ error: 'admin_only' }, 403)
+      const selectedProvider = normalizeSaleProvider(body.provider)
+      const sellerIdentifier = String(body.seller_identifier || '').trim()
+      const sellerName = String(body.seller_name || '').trim() || null
+      const repUserId = String(body.rep_user_id || '').trim()
+      if (!selectedProvider || !sellerIdentifier || !repUserId) return json({ error: 'provider_seller_rep_required' }, 400)
+
+      const { data: targetAuth, error: targetAuthError } = await admin.auth.admin.getUserById(repUserId)
+      if (targetAuthError || !targetAuth?.user?.email) return json({ error: 'rep_not_found' }, 404)
+      const repEmail = targetAuth.user.email.toLowerCase()
+      const { data: targetAccess, error: targetAccessError } = await admin
+        .from('app_user_access').select('display_name,active').eq('email', repEmail).maybeSingle()
+      if (targetAccessError) throw targetAccessError
+      if (!targetAccess?.active) return json({ error: 'active_rep_required' }, 400)
+      const repName = String(targetAccess.display_name || repEmail)
+
+      const { data: activeLinks, error: activeLinksError } = await admin
+        .from('provider_seller_links').select('id,rep_user_id,seller_identifier,seller_name')
+        .eq('provider', selectedProvider).eq('active', true)
+      if (activeLinksError) throw activeLinksError
+      const identityKeys = new Set([normalizeEvidenceToken(sellerIdentifier), normalizeEvidenceToken(sellerName)].filter(Boolean))
+      const conflictingLinkIds = (activeLinks || []).filter((link: any) =>
+        String(link.rep_user_id) !== repUserId
+        && [link.seller_identifier, link.seller_name].some(value => identityKeys.has(normalizeEvidenceToken(value)))
+      ).map((link: any) => link.id)
+      if (conflictingLinkIds.length) {
+        const { error } = await admin.from('provider_seller_links').update({ active: false }).in('id', conflictingLinkIds)
+        if (error) throw error
+      }
+
+      const { error: linkError } = await admin.from('provider_seller_links').upsert({
+        rep_user_id: repUserId, rep_email: repEmail, provider: selectedProvider,
+        seller_identifier: sellerIdentifier, seller_name: sellerName, active: true
+      }, { onConflict: 'rep_user_id,provider,seller_identifier' })
+      if (linkError) throw linkError
+
+      const { data: candidates, error: candidateError } = await admin
+        .from('provider_sales_rows')
+        .select('id,seller_identifier,seller_name,materialized_sale_id,materialization_status')
+        .eq('provider', selectedProvider)
+        .in('materialization_status', ['unmatched_seller', 'seller_mismatch_review'])
+        .limit(10000)
+      if (candidateError) throw candidateError
+      const matching = (candidates || []).filter((row: any) =>
+        [row.seller_identifier, row.seller_name].some(value => identityKeys.has(normalizeEvidenceToken(value)))
+      )
+      const retryIds = matching.filter((row: any) => row.materialization_status === 'unmatched_seller').map((row: any) => row.id)
+      for (const ids of chunked(retryIds)) {
+        const { error } = await admin.from('provider_sales_rows').update({
+          materialization_reason: 'Admin assigned unmatched provider seller identity; reprocessing historical evidence.'
+        }).in('id', ids)
+        if (error) throw error
+      }
+      const { data: refreshed, error: refreshedError } = retryIds.length
+        ? await admin.from('provider_sales_rows').select('id,materialized_sale_id,materialization_status').in('id', retryIds)
+        : { data: [], error: null }
+      if (refreshedError) throw refreshedError
+      const materialized = (refreshed || []).filter((row: any) => row.materialized_sale_id).length
+      const conflicts = matching.filter((row: any) => row.materialization_status === 'seller_mismatch_review').length
+
+      const { error: auditError } = await admin.from('provider_seller_assignment_history').insert({
+        provider: selectedProvider, seller_identifier: sellerIdentifier, seller_name: sellerName,
+        affected_row_count: matching.length, rep_user_id: repUserId, rep_email: repEmail, rep_name: repName,
+        assigned_by_user_id: user.id, assigned_by_email: user.email.toLowerCase()
+      })
+      if (auditError) throw auditError
+      return json({ ok: true, affected: matching.length, retried: retryIds.length, materialized, conflicts })
     }
 
     if (action === 'reconcile_all') {
@@ -493,6 +568,30 @@ Deno.serve(async request => {
         .in('cross_reference_status', ['missing_from_dealer', 'conflict'])
         .order('cross_referenced_at', { ascending: false })
         .limit(200)
+      const { data: unmatchedRows } = await admin
+        .from('provider_sales_rows')
+        .select('provider,seller_identifier,seller_name,provider_status,materialization_status')
+        .in('materialization_status', ['unmatched_seller', 'seller_mismatch_review'])
+        .order('created_at', { ascending: false })
+        .limit(10000)
+      const unmatchedMap = new Map<string, any>()
+      for (const row of unmatchedRows || []) {
+        if (isAbandonedProviderStatus(row.provider_status)) continue
+        const identifier = String(row.seller_identifier || row.seller_name || '').trim()
+        if (!identifier) continue
+        const key = `${row.provider}:${normalizeEvidenceToken(identifier)}`
+        const current = unmatchedMap.get(key) || { provider: row.provider, seller_identifier: identifier, seller_name: row.seller_name || null, rows: 0, conflicts: 0 }
+        current.rows++
+        if (row.materialization_status === 'seller_mismatch_review') current.conflicts++
+        unmatchedMap.set(key, current)
+      }
+      const { data: accessUsers } = await admin.from('app_user_access').select('email,display_name,role,active').eq('active', true).order('display_name')
+      const { data: authUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const authByEmail = new Map((authUsers?.users || []).map((candidate: any) => [String(candidate.email || '').toLowerCase(), candidate.id]))
+      const activeUsers = (accessUsers || []).map((candidate: any) => ({
+        user_id: authByEmail.get(String(candidate.email || '').toLowerCase()) || null,
+        email: candidate.email, display_name: candidate.display_name || candidate.email, role: candidate.role
+      })).filter((candidate: any) => candidate.user_id)
       const counts: Record<string, number> = {}
       for (const sale of sales || []) counts[sale.verification_status] = (counts[sale.verification_status] || 0) + 1
       return json({
@@ -500,6 +599,8 @@ Deno.serve(async request => {
         counts,
         imports: imports || [],
         discrepancies: discrepancies || [],
+        unmatched_sellers: [...unmatchedMap.values()].sort((a, b) => b.rows - a.rows || String(a.seller_name || a.seller_identifier).localeCompare(String(b.seller_name || b.seller_identifier))),
+        active_users: activeUsers,
         low_potential: (sales || []).filter((sale: any) => sale.verification_status === 'low_potential').slice(0, 100),
         recent_sales: (sales || []).slice(0, 50)
       })
