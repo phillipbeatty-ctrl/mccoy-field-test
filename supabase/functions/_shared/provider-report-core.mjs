@@ -22,6 +22,8 @@ export const normalizeEvidenceToken = value => String(value ?? '')
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, '')
 
+export const isAbandonedProviderStatus = value => /\babandoned\b/i.test(String(value ?? '').trim())
+
 export const pickReportValue = (record, keys) => {
   for (const expected of keys || []) {
     const key = Object.keys(record || {}).find(candidate => normalizeEvidenceToken(candidate) === normalizeEvidenceToken(expected))
