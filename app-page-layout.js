@@ -1,8 +1,9 @@
 (()=>{
   const descriptions={
     dashboard:'Social and Competition Tracking',
-    sales:'Sale Hub',
+    sales:'Sales Hub',
     field:'Sales, door knocking, pay progress, and field coaching',
+    'customer-list':'Complete customer sales and Admin review controls',
     teams:'McCoy Team-members',
     leads:'Lead dispositioning & Tracking',
     settings:''
@@ -40,7 +41,6 @@
     const topbar=title?.closest('.topbar');
     const wrap=title?.parentElement;
     if(!title||!topbar||!wrap)return;
-
     let subtitle=document.getElementById('pageSubtitle');
     if(!subtitle){
       subtitle=wrap.querySelector('.muted');
@@ -52,32 +52,19 @@
         wrap.appendChild(subtitle);
       }
     }
-
-    wrap.style.display='flex';
-    wrap.style.alignItems='baseline';
-    wrap.style.gap='14px';
-    wrap.style.flexWrap='wrap';
-    wrap.style.minWidth='0';
-    title.style.margin='0';
-    subtitle.style.margin='0';
-    subtitle.style.whiteSpace='nowrap';
+    wrap.style.display='flex';wrap.style.alignItems='baseline';wrap.style.gap='14px';wrap.style.flexWrap='wrap';wrap.style.minWidth='0';
+    title.style.margin='0';subtitle.style.margin='0';subtitle.style.whiteSpace='nowrap';
   }
 
   function setPageHeader(view,titleText){
     ensureHeaderLayout();
-    const title=document.getElementById('pageTitle');
-    const subtitle=document.getElementById('pageSubtitle');
+    const title=document.getElementById('pageTitle'),subtitle=document.getElementById('pageSubtitle');
     if(title)title.textContent=titleText||'';
-    if(subtitle){
-      const text=descriptions[view]||'';
-      subtitle.textContent=text;
-      subtitle.style.display=text?'block':'none';
-    }
+    if(subtitle){const text=descriptions[view]||'';subtitle.textContent=text;subtitle.style.display=text?'block':'none';}
   }
 
   function activate(view){
-    const btn=document.querySelector(`.nav-btn[data-view="${view}"]`);
-    const section=document.getElementById(view);
+    const btn=document.querySelector(`.nav-btn[data-view="${view}"]`),section=document.getElementById(view);
     if(!btn||!section)return;
     document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active',x===btn));
     document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x===section));
@@ -87,26 +74,16 @@
 
   function moveImportButtonToSidebar(){
     ensureSidebarImportStyles();
-    const nav=document.querySelector('.sidebar nav');
-    const importBtn=document.getElementById('adminLeadImportBtn');
-    const systemBtn=nav?.querySelector('.nav-btn[data-view="settings"]');
+    const nav=document.querySelector('.sidebar nav'),importBtn=document.getElementById('adminLeadImportBtn'),systemBtn=nav?.querySelector('.nav-btn[data-view="settings"]');
     if(!nav||!importBtn||!systemBtn)return;
-    importBtn.textContent='IMPORT REAL LEADS';
-    importBtn.className='sidebar-import-leads-btn';
-    importBtn.removeAttribute('style');
-    nav.insertBefore(importBtn,systemBtn);
+    importBtn.textContent='IMPORT REAL LEADS';importBtn.className='sidebar-import-leads-btn';importBtn.removeAttribute('style');nav.insertBefore(importBtn,systemBtn);
   }
 
   function reorderNav(){
-    const nav=document.querySelector('.sidebar nav');
-    if(!nav)return;
-    ['dashboard','field','teams','leads'].forEach(view=>{
-      const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);
-      if(btn)nav.appendChild(btn);
-    });
+    const nav=document.querySelector('.sidebar nav');if(!nav)return;
+    ['dashboard','field','customer-list','teams','leads'].forEach(view=>{const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);if(btn)nav.appendChild(btn);});
     moveImportButtonToSidebar();
-    const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');
-    if(systemBtn)nav.appendChild(systemBtn);
+    const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');if(systemBtn)nav.appendChild(systemBtn);
   }
 
   function bindHeaders(){
@@ -118,15 +95,7 @@
   }
 
   function init(){
-    ensureSidebarImportStyles();
-    reorderNav();
-    bindHeaders();
-    ensureHeaderLayout();
-    activate('dashboard');
-    setTimeout(moveImportButtonToSidebar,250);
-    setTimeout(moveImportButtonToSidebar,900);
+    ensureSidebarImportStyles();reorderNav();bindHeaders();ensureHeaderLayout();activate('dashboard');setTimeout(moveImportButtonToSidebar,250);setTimeout(moveImportButtonToSidebar,900);
   }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
-  else init();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
