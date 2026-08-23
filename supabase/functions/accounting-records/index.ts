@@ -146,11 +146,15 @@ Deno.serve(async req=>{
     const body=await req.json().catch(()=>({})),action=String(body.action||'customer_list')
 
     if(action==='customer_list'){
-      const records=await loadSales(admin,{repEmail:email,limit:5000})
-      const rule=await activeRule(admin),rows=annotateEarnedPay(records,rule).sort((left:any,right:any)=>String(right.created_at).localeCompare(String(left.created_at)))
-      const customerRows=rows.map((row:any)=>({id:row.id,order_date:row.created_at,install_date:row.install_date,customer_first_name:row.customer_first_name,customer_last_name:row.customer_last_name,customer_phone:row.customer_phone,customer_email:row.customer_email,service_address:row.service_address,isp:row.isp,internet_product:row.internet_product,internet_speed_mbps:row.internet_speed_mbps,voip_home_phone_lines:row.voip_home_phone_lines,directv:row.directv,directv_service:row.directv_service,vivint:row.vivint,vivint_service:row.vivint_service,mobile_phone_lines:row.mobile_phone_lines,provider_order_number:row.provider_order_number,provider_account_number:row.provider_account_number,verification_status:row.verification_status,verification_reason:row.verification_reason,sale_status:row.sale_status,current_earned_pay:row.current_earned_pay,cancellation_reduction:row.cancellation_reduction,pay_status:row.pay_status}))
-      await admin.from('customer_list_access_log').insert({user_id:user.id,user_email:email,record_count:customerRows.length,filters:{scope:'own_sales'}})
-      return json({ok:true,display_name:access.display_name||email,records:customerRows,summary:{orders:customerRows.length,current_earned_pay:customerRows.reduce((sum:number,row:any)=>sum+Number(row.current_earned_pay||0),0),cancellation_reductions:customerRows.reduce((sum:number,row:any)=>sum+Number(row.cancellation_reduction||0),0)}})
+      const adminScope=access.role==='admin'
+      const records=await loadSales(admin,{repEmail:adminScope?null:email,limit:50000})
+      const rule=await activeRule(admin)
+      const rows=annotateEarnedPay(records,rule)
+        .filter((row:any)=>row.sale_status!=='not_a_sale'&&row.required_metrics_complete===true)
+        .sort((left:any,right:any)=>String(right.created_at).localeCompare(String(left.created_at)))
+      const customerRows=rows.map((row:any)=>({id:row.id,order_date:row.order_date,install_date:row.install_date,rep_name:row.rep_name,rep_email:row.rep_email,customer_first_name:row.customer_first_name,customer_last_name:row.customer_last_name,customer_phone:row.customer_phone,customer_email:row.customer_email,service_address:row.service_address,isp:row.isp,internet_product:row.internet_product,internet_speed_mbps:row.internet_speed_mbps,voip_home_phone_lines:row.voip_home_phone_lines,directv:row.directv,directv_service:row.directv_service,vivint:row.vivint,vivint_service:row.vivint_service,mobile_phone_lines:row.mobile_phone_lines,provider_order_number:row.provider_order_number,provider_account_number:row.provider_account_number,verification_status:row.verification_status,verification_reason:row.verification_reason,sale_status:row.sale_status,current_earned_pay:row.current_earned_pay,cancellation_reduction:row.cancellation_reduction,pay_status:row.pay_status}))
+      await admin.from('customer_list_access_log').insert({user_id:user.id,user_email:email,record_count:customerRows.length,filters:{scope:adminScope?'all_valid_sales':'own_valid_sales',required_metrics_complete:true,not_a_sale_excluded:true}})
+      return json({ok:true,display_name:access.display_name||email,admin_scope:adminScope,records:customerRows,summary:{orders:customerRows.length,current_earned_pay:customerRows.reduce((sum:number,row:any)=>sum+Number(row.current_earned_pay||0),0),cancellation_reductions:customerRows.reduce((sum:number,row:any)=>sum+Number(row.cancellation_reduction||0),0)}})
     }
 
     if(!canAudit)return json({error:'admin_or_accounting_required'},403)

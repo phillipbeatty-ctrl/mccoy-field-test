@@ -180,6 +180,8 @@
   }
 
   const poll=setInterval(()=>{if(!window.MCCOY_ACCESS?.user)return;clearInterval(poll);loadPayProgress();loadLeaders();probe();setInterval(()=>{loadPayProgress();loadLeaders();},60000);},400);
+  window.MCCOY_REFRESH_RANKINGS=()=>Promise.all([loadPayProgress(),loadLeaders()]);
   window.addEventListener('mccoy-sale-saved',()=>{loadPayProgress();loadLeaders();});
+  window.addEventListener('mccoy-live-sales-changed',()=>{loadPayProgress();loadLeaders();});
   document.querySelector('.nav-btn[data-view="dashboard"]')?.addEventListener('click',()=>{if(window.MCCOY_ACCESS?.user)loadLeaders();});
 })();

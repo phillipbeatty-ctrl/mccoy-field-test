@@ -97,6 +97,9 @@ Deno.serve(async request => {
     const installDate = String(body.install_date || '').trim()
     const installDateValue = new Date(`${installDate}T00:00:00Z`)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(installDate) || Number.isNaN(installDateValue.getTime()) || installDateValue.toISOString().slice(0, 10) !== installDate) return json({ error: 'valid_install_date_required' }, 400)
+    const orderDate = String(body.order_date || '').trim()
+    const orderDateValue = new Date(`${orderDate}T00:00:00Z`)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(orderDate) || Number.isNaN(orderDateValue.getTime()) || orderDateValue.toISOString().slice(0, 10) !== orderDate) return json({ error: 'valid_order_date_required' }, 400)
 
     const directv = !!body.directv
     const directvService = directv ? (String(body.directv_service || '').trim().slice(0, 120) || null) : null
@@ -137,6 +140,7 @@ Deno.serve(async request => {
     }
 
     const orderNumber = String(body.provider_order_number || '').trim() || null
+    if (!orderNumber) return json({ error: 'provider_order_number_required' }, 400)
     const accountNumber = String(body.provider_account_number || '').trim() || null
     let verificationStatus = 'low_potential'
     let verificationReason = body.low_potential_reason ? String(body.low_potential_reason) : (!orderNumber && !accountNumber ? 'missing_order_or_account_number' : 'not_yet_in_dealer_file')
@@ -175,12 +179,14 @@ Deno.serve(async request => {
       rep_location_accuracy_meters: distanceAudit.accuracy_meters, distance_recorded_at: distanceAudit.recorded_at,
       distance_measurement_status: distanceAudit.status,
       isp, internet_product: body.internet_product || null, internet_speed_mbps: speed > 0 ? speed : null, install_date: installDate,
+      order_date: orderDate,
       directv, directv_service: directvService, mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount,
       mobile_device_protection: mobileDeviceProtection, att_mobile_lines: mobileLines, vivint, vivint_service: vivintService,
       voip_home_phone_lines: voipLines, att_device_count: mobileDeviceCount, att_device_protection: mobileDeviceProtection,
       att_total_home_care: attTotalHomeCare, notes: body.notes || null, compensation_snapshot: snapshot,
       provider_order_number: orderNumber, provider_account_number: accountNumber, verification_status: verificationStatus,
       verification_reason: verificationReason, provider_sale_row_id: providerRow?.id || null, competition_eligible: competitionEligible,
+      ranking_eligible: competitionEligible, ranking_verified_at: competitionEligible ? new Date().toISOString() : null,
       verified_at: verificationStatus === 'verified_processed' ? new Date().toISOString() : null,
       low_potential_since: verificationStatus === 'low_potential' ? new Date().toISOString() : null
     }
@@ -198,9 +204,6 @@ Deno.serve(async request => {
     if (directv) products.push(`DIRECTV${directvService ? ` — ${directvService}` : ''}`)
     if (vivint) products.push(`Vivint${vivintService ? ` — ${vivintService}` : ''}`)
     const message = `🎉 ${access.display_name || user.email} closed ${isp}${products.length ? ` — ${products.join(' + ')}` : ''}!`
-    const { error: feedError } = await admin.from('sales_feed').insert({ sale_id: sale.id, rep_user_id: user.id, rep_name: access.display_name || user.email, isp, internet_product: body.internet_product || null, directv, mobile_phone_lines: mobileLines, mobile_device_count: mobileDeviceCount, att_mobile_lines: mobileLines, vivint, message })
-    if (feedError) { await admin.from('sales_records').delete().eq('id', sale.id); throw feedError }
-
     if (providerCapture?.id) {
       const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', updated_at: new Date().toISOString() }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
       if (captureUpdateError) console.error('provider capture status update failed', captureUpdateError)

@@ -72,14 +72,14 @@
 
   function renderLiveWins(rows){
     const root=byId('dashboardSalesFeed');if(!root)return;root.replaceChildren();
-    const wins=rows.slice(0,20);
-    if(!wins.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No sales posted this month yet.';root.appendChild(empty);return;}
-    for(const win of wins){const item=document.createElement('div');item.className='feed-item';const message=document.createElement('strong'),time=document.createElement('div');message.textContent=win.message||`${win.rep_name||'A rep'} logged a sale`;time.className='muted small';time.textContent=new Date(win.created_at).toLocaleString();item.append(message,time);root.appendChild(item);}
+    const wins=[];for(const row of rows){const messages=Array.isArray(row.celebration_messages)&&row.celebration_messages.length?row.celebration_messages:[row.message||`${row.rep_name||'A rep'} logged a sale`];for(const message of messages)wins.push({message,created_at:row.created_at});}
+    if(!wins.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No verified sales posted this month yet.';root.appendChild(empty);return;}
+    for(const win of wins.slice(0,30)){const item=document.createElement('div');item.className='feed-item';const message=document.createElement('strong'),time=document.createElement('div');message.textContent=win.message;time.className='muted small';time.textContent=new Date(win.created_at).toLocaleString();item.append(message,time);root.appendChild(item);}
   }
 
   async function loadSales(){
     const start=new Date();start.setDate(1);start.setHours(0,0,0,0);
-    const {data,error}=await sb.from('sales_feed').select('created_at,rep_user_id,rep_name,isp,directv,att_mobile_lines,vivint,message').gte('created_at',start.toISOString()).order('created_at',{ascending:false}).limit(100);if(error)throw error;
+    const {data,error}=await sb.from('sales_feed').select('id,created_at,rep_user_id,rep_name,isp,directv,att_mobile_lines,vivint,message,celebration_messages,celebration_types,ranking_eligible_at_event').eq('ranking_eligible_at_event',true).gte('created_at',start.toISOString()).order('created_at',{ascending:false}).limit(100);if(error)throw error;
     renderLiveWins(data||[]);
   }
 
@@ -94,13 +94,13 @@
   function initialize(){
     if(initialized||!isRep())return;initialized=true;ensureDashboard();renderSummary();byId('repDashboardSalesRefresh').onclick=refresh;refresh();
     refreshTimer=setInterval(refresh,60000);
-    salesChannel=sb.channel('mccoy-rep-dashboard-sales-feed').on('postgres_changes',{event:'INSERT',schema:'public',table:'sales_feed'},()=>loadSales().catch(error=>console.error('Rep Live Wins refresh failed',error))).subscribe();
   }
 
   window.addEventListener('mccoy-access-ready',initialize);
   window.addEventListener('mccoy-real-leads-progress',renderSummary);
   window.addEventListener('mccoy-real-leads-loaded',renderSummary);
   window.addEventListener('mccoy-sale-saved',refresh);
+  window.addEventListener('mccoy-live-sales-changed',()=>refresh());
   const accessPoll=setInterval(()=>{if(window.MCCOY_ACCESS?.access){clearInterval(accessPoll);initialize();}},300);
   window.addEventListener('beforeunload',()=>{if(refreshTimer)clearInterval(refreshTimer);if(salesChannel)sb.removeChannel(salesChannel);});
 })();
