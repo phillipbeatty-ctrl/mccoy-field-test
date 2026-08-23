@@ -1,7 +1,7 @@
 // McCoy Field Coach V9.2 admin user management.
 (function(){
   const css=document.createElement('style');
-  css.textContent=`#userAdminBtn{position:fixed;right:14px;bottom:58px;z-index:2600;display:none;border:0;border-radius:999px;padding:9px 13px;background:#374151;color:#fff;font-size:12px;cursor:pointer}#userAdminPanel{position:fixed;inset:0;z-index:140001;background:rgba(17,24,39,.78);display:none;align-items:center;justify-content:center;padding:16px}#userAdminPanel.show{display:flex}.user-admin-card{width:min(1280px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.pending-account-section{margin:16px 0 22px;padding:14px;border:1px solid #f3d28b;border-radius:12px;background:#fffbeb}.pending-account-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.pending-account-heading h3{margin:0}.pending-account-count{padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800}.pending-account-list{display:grid;gap:9px;margin-top:12px}.pending-account-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(280px,1.5fr);gap:14px;padding:11px;border:1px solid #fde7b0;border-radius:10px;background:#fff}.pending-account-details{display:grid;gap:3px;font-size:12px;color:#4b5563}.pending-account-state{display:inline-block;width:max-content;margin-bottom:3px;padding:3px 7px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800}.pending-account-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}.active-users-heading{margin:0 0 8px}.user-admin-row{padding:12px 0;border-top:1px solid #eef0f2}.user-admin-grid{display:grid;grid-template-columns:minmax(165px,1.4fr) 1fr 1.25fr 1fr 1.25fr auto;gap:8px;align-items:center}.user-admin-grid input,.user-admin-grid select{min-width:0;padding:9px;border:1px solid #d1d5db;border-radius:8px;background:#fff}.user-admin-grid select[data-pay-level="unassigned"]{border-color:#f59e0b;background:#fffbeb}.user-password-actions{margin-top:10px}.user-password-form{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;margin-top:8px}.user-password-form[hidden]{display:none!important}.user-password-form input{min-width:0;padding:9px;border:1px solid #d1d5db;border-radius:8px}.user-password-message{margin-top:6px;font-size:12px}@media(max-width:700px){.pending-account-row,.user-password-form{grid-template-columns:1fr}.user-admin-grid{grid-template-columns:1fr}}`;
+  css.textContent=`#userAdminBtn{display:none!important}#userAdminPanel{display:none;margin-top:14px}#userAdminPanel.show{display:block}.user-admin-card{width:100%;overflow:visible}.user-admin-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.user-admin-heading h2{margin:0}.pending-account-section{margin:16px 0 22px;padding:14px;border:1px solid #f3d28b;border-radius:12px;background:#fffbeb}.pending-account-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.pending-account-heading h3{margin:0}.pending-account-count{padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:11px;font-weight:800}.pending-account-list{display:grid;gap:9px;margin-top:12px}.pending-account-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(280px,1.5fr);gap:14px;padding:11px;border:1px solid #fde7b0;border-radius:10px;background:#fff}.pending-account-details{display:grid;gap:3px;font-size:12px;color:#4b5563}.pending-account-state{display:inline-block;width:max-content;margin-bottom:3px;padding:3px 7px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:800}.pending-account-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}.active-users-heading{margin:0 0 8px}.user-admin-row{padding:12px 0;border-top:1px solid #eef0f2}.user-admin-grid{display:grid;grid-template-columns:minmax(165px,1.4fr) 1fr 1.25fr 1fr 1.25fr auto;gap:8px;align-items:center}.user-admin-grid input,.user-admin-grid select{min-width:0;padding:9px;border:1px solid #d1d5db;border-radius:8px;background:#fff}.user-admin-grid select[data-pay-level="unassigned"]{border-color:#f59e0b;background:#fffbeb}.user-password-actions{margin-top:10px}.user-password-form{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;margin-top:8px}.user-password-form[hidden]{display:none!important}.user-password-form input{min-width:0;padding:9px;border:1px solid #d1d5db;border-radius:8px}.user-password-message{margin-top:6px;font-size:12px}@media(max-width:700px){.user-admin-heading,.pending-account-row,.user-password-form{grid-template-columns:1fr;display:grid}.user-admin-grid{grid-template-columns:1fr}}`;
   document.head.appendChild(css);
   async function onboarding(action,payload={}){const {data,error}=await sb.functions.invoke('rep-onboarding',{body:{action,...payload}});if(error)throw error;return data;}
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -12,11 +12,22 @@
   const roleLabel=role=>role==='admin'?'Admin':role==='manager'?'Manager':role==='trainer'?'Trainer':'Rep';
   function removeLegacyAccessRequests(){document.getElementById('accessAdminBtn')?.remove();document.getElementById('accessAdminPanel')?.remove();}
   function ensurePanel(){
-    if(document.getElementById('userAdminBtn')) return;
-    const btn=document.createElement('button');btn.id='userAdminBtn';btn.textContent='Users';document.body.appendChild(btn);
-    const panel=document.createElement('div');panel.id='userAdminPanel';panel.innerHTML=`<div class="user-admin-card"><h2>Users</h2><p class="muted">Every Manager and Trainer must have an Admin supervisor. Assign trainee reps to a team and to the Manager or Trainer responsible for them.</p><div id="userAdminNotice" class="muted small"></div><div id="userAdminBody">Loading…</div><div style="text-align:right;margin-top:12px"><button id="userAdminClose" class="assign-btn">Close</button></div></div>`;document.body.appendChild(panel);
-    document.getElementById('userAdminClose').onclick=()=>panel.classList.remove('show');
-    btn.onclick=async()=>{panel.classList.add('show');await loadUsers();};
+    document.getElementById('userAdminBtn')?.remove();
+    const teams=document.getElementById('teams');
+    if(!teams)return null;
+    let panel=document.getElementById('userAdminPanel');
+    if(!panel){
+      panel=document.createElement('section');
+      panel.id='userAdminPanel';
+      panel.setAttribute('aria-label','Users and access administration');
+      panel.innerHTML=`<div class="user-admin-card card"><div class="user-admin-heading"><div><h2>Users & Access</h2><p class="muted">Every Manager and Trainer must have an Admin supervisor. Assign trainee reps to a team and to the Manager or Trainer responsible for them.</p></div><button id="userAdminRefresh" class="assign-btn">Refresh Users</button></div><div id="userAdminNotice" class="muted small" role="status" aria-live="polite"></div><div id="userAdminBody">Loading…</div></div>`;
+      teams.appendChild(panel);
+      document.getElementById('userAdminRefresh').onclick=()=>loadUsers();
+      document.querySelector('.nav-btn[data-view="teams"]')?.addEventListener('click',()=>loadUsers());
+    }else if(panel.parentElement!==teams){
+      teams.appendChild(panel);
+    }
+    return panel;
   }
   async function loadUsers(){
     const root=document.getElementById('userAdminBody'),notice=document.getElementById('userAdminNotice');root.textContent='Loading…';notice.textContent='';
@@ -71,7 +82,17 @@
       });
     }catch(e){console.error(e);root.textContent='Unable to load users.';}
   }
-  function activateIfAdmin(){if(window.MCCOY_ACCESS?.access?.role==='admin'){removeLegacyAccessRequests();ensurePanel();document.getElementById('userAdminBtn').style.display='block';}}
-  new MutationObserver(()=>{if(window.MCCOY_ACCESS?.access?.role==='admin')removeLegacyAccessRequests();}).observe(document.body,{childList:true,subtree:true});
+  function activateIfAdmin(){
+    document.getElementById('userAdminBtn')?.remove();
+    const isAdmin=window.MCCOY_ACCESS?.access?.role==='admin';
+    const existing=document.getElementById('userAdminPanel');
+    if(!isAdmin){existing?.classList.remove('show');return;}
+    removeLegacyAccessRequests();
+    const panel=ensurePanel();
+    if(!panel)return;
+    panel.classList.add('show');
+    if(!panel.dataset.usersLoaded){panel.dataset.usersLoaded='1';loadUsers();}
+  }
+  new MutationObserver(()=>{document.getElementById('userAdminBtn')?.remove();if(window.MCCOY_ACCESS?.access?.role==='admin')removeLegacyAccessRequests();}).observe(document.body,{childList:true,subtree:true});
   const t=setInterval(()=>{activateIfAdmin();if(window.MCCOY_ACCESS?.access?.role==='admin')clearInterval(t);},500);
 })();

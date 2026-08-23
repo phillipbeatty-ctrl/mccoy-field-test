@@ -98,7 +98,7 @@
     ensureRosterBox();const grid=document.getElementById('teamRosterGrid'),message=document.getElementById('teamRosterMessage');if(!grid||!message)return;
     const leaderLabel=role=>role==='admin'?'Admin supervisor':role==='trainer'?'Trainer':'Manager';
     const groups=rosters.map(roster=>`<section class="manager-team"><div class="manager-team-head"><h3>${esc(roster.manager_name||'Team lead')}</h3><div class="muted small">${esc(leaderLabel(roster.manager_role))} · ${(roster.reps||[]).length} rep${(roster.reps||[]).length===1?'':'s'}</div><div class="manager-team-regions">${(roster.regions||[]).length?(roster.regions||[]).map(region=>`<span class="manager-team-region">${esc(region)}</span>`).join(''):'<span class="muted small">No managed region</span>'}</div></div>${repList(roster.reps||[])}</section>`);
-    if(unassignedReps.length)groups.push(`<section class="manager-team unassigned"><div class="manager-team-head"><h3>Unassigned Reps</h3><div class="muted small">Assign these reps—including trainees—to a team and Manager or Trainer in Users.</div></div>${repList(unassignedReps)}</section>`);
+    if(unassignedReps.length)groups.push(`<section class="manager-team unassigned"><div class="manager-team-head"><h3>Unassigned Reps</h3><div class="muted small">Assign these reps—including trainees—to a team and Manager or Trainer in Users & Access below.</div></div>${repList(unassignedReps)}</section>`);
     grid.innerHTML=groups.join('')||'<div class="muted">No Manager or Trainer teams are available yet.</div>';message.textContent=`${rosters.length} team lead${rosters.length===1?'':'s'} · ${rosters.reduce((sum,roster)=>sum+(roster.reps||[]).length,0)} assigned rep${rosters.reduce((sum,roster)=>sum+(roster.reps||[]).length,0)===1?'':'s'}`;
   }
 
