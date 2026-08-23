@@ -120,11 +120,14 @@ async function applyReconciliation(admin: any, sale: any, cache?: { evidence: Ma
   const priorSnapshot = sale.compensation_snapshot && typeof sale.compensation_snapshot === 'object' ? sale.compensation_snapshot : {}
   const scheduledReduction = Number(priorSnapshot.base_commission || 0) + Number(priorSnapshot.att_mobile_originating_commission || 0)
   const saleStatus = providerCancelled ? 'cancelled' : sale.sale_status
-  const eligible = result.status === 'verified_processed' && approvalAllowsEligibility(sale) && saleStatus !== 'cancelled'
+  const rankingEligible = result.status === 'verified_processed' && approvalAllowsEligibility(sale)
+  const eligible = rankingEligible && saleStatus !== 'cancelled'
   const patch: Record<string, unknown> = {
     verification_status: result.status,
     verification_reason: result.reason,
     competition_eligible: eligible,
+    ranking_eligible: rankingEligible,
+    ranking_verified_at: rankingEligible ? (sale.ranking_verified_at || new Date().toISOString()) : null,
     provider_sale_row_id: result.row?.id || null,
     verified_at: result.status === 'verified_processed' ? new Date().toISOString() : null,
     low_potential_since: result.status === 'low_potential' ? (sale.low_potential_since || new Date().toISOString()) : null

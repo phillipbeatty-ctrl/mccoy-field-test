@@ -33,7 +33,7 @@ Deno.serve(async req=>{
       const pending:any[]=[]
       for(let page=0;page<10;page++){
         const {data,error}=await admin.from('sales_records')
-          .select('id,created_at,rep_name,rep_email,isp,service_address,provider_order_number,provider_account_number,verification_status,verification_reason,competition_eligible,sale_status,compensation_snapshot')
+          .select('id,created_at,rep_name,rep_email,isp,service_address,provider_order_number,provider_account_number,verification_status,verification_reason,competition_eligible,ranking_eligible,ranking_verified_at,sale_status,compensation_snapshot')
           .order('created_at',{ascending:false})
           .range(page*500,page*500+499)
         if(error)throw error
@@ -55,8 +55,9 @@ Deno.serve(async req=>{
       if(!outsideSystem(previous))return json({error:'outside_system_sale_required'},400)
       const reviewedAt=new Date().toISOString()
       const snapshot={...previous,sale_origin:'outside_system',admin_approval:{required:true,status:decision,reviewed_by:email,reviewed_at:reviewedAt,notes}}
-      const competitionEligible=decision==='approved'&&sale.verification_status==='verified_processed'&&sale.sale_status!=='cancelled'
-      const {error:updateError}=await admin.from('sales_records').update({compensation_snapshot:snapshot,competition_eligible:competitionEligible}).eq('id',saleId)
+      const rankingEligible=decision==='approved'&&sale.verification_status==='verified_processed'
+      const competitionEligible=rankingEligible&&sale.sale_status!=='cancelled'
+      const {error:updateError}=await admin.from('sales_records').update({compensation_snapshot:snapshot,competition_eligible:competitionEligible,ranking_eligible:rankingEligible,ranking_verified_at:rankingEligible?(sale.ranking_verified_at||reviewedAt):null}).eq('id',saleId)
       if(updateError)throw updateError
       return json({ok:true,sale_id:saleId,decision,reviewed_at:reviewedAt,competition_eligible:competitionEligible})
     }
