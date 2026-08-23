@@ -3,11 +3,21 @@ import assert from 'node:assert/strict'
 import {
   classifySaleEvidence,
   crossReferenceRepRow,
+  isAbandonedProviderStatus,
   isBassReportDefinitionXml,
   mapReportEvidence,
+  parseDelimitedReport,
   parseHtmlTableReport,
   safeReportPayload
 } from './provider-report-core.mjs'
+
+test('ABANDONED status matching is exact and case-insensitive', () => {
+  assert.equal(isAbandonedProviderStatus('ABANDONED'), true)
+  assert.equal(isAbandonedProviderStatus(' abandoned '), true)
+  assert.equal(isAbandonedProviderStatus('ABANDONED - duplicate'), true)
+  assert.equal(isAbandonedProviderStatus('CANCELLED'), false)
+  assert.equal(isAbandonedProviderStatus('Not abandoned'), true)
+})
 
 const dealer = {
   id: 'dealer-row', evidence_scope: 'dealer_account', order_number: 'BASS-101',
@@ -92,6 +102,46 @@ test('real BASS column labels map order, seller, address, date, and status evide
     saleDate: '2026-08-20',
     providerStatus: 'Complete'
   })
+})
+
+test('DIRECTV and Vivint-style report labels map into the shared evidence contract', () => {
+  assert.deepEqual(mapReportEvidence({
+    'Agreement Number': 'DTV-1001',
+    'Customer Account Number': 'DTV-A-9',
+    'Dealer ID': 'dealer-42',
+    'Sales Rep Name': 'Example Rep',
+    Customer: 'DIRECTV Customer',
+    'Installation Address': '100 Satellite Way',
+    'Order Entry Date': '2026-08-22',
+    'Activation Status': 'Active'
+  }), {
+    orderNumber: 'DTV-1001', accountNumber: 'DTV-A-9', sellerIdentifier: 'dealer-42',
+    sellerName: 'Example Rep', sellerEmail: null, customerName: 'DIRECTV Customer',
+    serviceAddress: '100 Satellite Way', saleDate: '2026-08-22', providerStatus: 'Active'
+  })
+  assert.deepEqual(mapReportEvidence({
+    'Service Agreement Number': 'VIV-2002',
+    'Subscriber Account Number': 'VIV-A-7',
+    'Consultant ID': 'consultant-8',
+    Consultant: 'Vivint Rep',
+    Subscriber: 'Vivint Customer',
+    'Service Location': '200 Security Ln',
+    'Contract Date': '2026-08-23',
+    'Install Status': 'Scheduled'
+  }), {
+    orderNumber: 'VIV-2002', accountNumber: 'VIV-A-7', sellerIdentifier: 'consultant-8',
+    sellerName: 'Vivint Rep', sellerEmail: null, customerName: 'Vivint Customer',
+    serviceAddress: '200 Security Ln', saleDate: '2026-08-23', providerStatus: 'Scheduled'
+  })
+})
+
+test('shared report parser accepts CSV and tab-delimited provider exports', () => {
+  assert.deepEqual(parseDelimitedReport('Order Number,Sales Rep Name\nDTV-1,"Rep, One"'), [
+    ['Order Number', 'Sales Rep Name'], ['DTV-1', 'Rep, One']
+  ])
+  assert.deepEqual(parseDelimitedReport('Service Agreement Number\tConsultant\nVIV-1\tRep Two'), [
+    ['Service Agreement Number', 'Consultant'], ['VIV-1', 'Rep Two']
+  ])
 })
 
 test('BASS report-definition XML is distinguished from order-result data', () => {

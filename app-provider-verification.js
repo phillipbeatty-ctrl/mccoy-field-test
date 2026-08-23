@@ -3,7 +3,11 @@
 (function(){
   const providers=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const dealerProviders=['Mixed / Auto-detect',...providers];
-  const reportUrls={Brightspeed:'https://bass.docxtract.com/Report/Orders_Report.aspx'};
+  const reportLinks={
+    Brightspeed:{url:'https://bass.docxtract.com/Report/Orders_Report.aspx',label:'OPEN BASS ORDERS REPORT'},
+    DIRECTV:{url:'https://directv-dmp.my.site.com/SNS/login?locale=us',label:'OPEN DIRECTV SALES REPORT'},
+    Vivint:{url:'https://oetool.vivint.com/',label:'OPEN VIVINT SALES REPORT'}
+  };
   const esc=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const label=value=>String(value||'').replace(/_/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
   let unmatchedSellers=[];
@@ -39,11 +43,11 @@
       <div class="pv-grid">
         <div class="pv-section">
           <h3>My Seller-Account Report</h3>
-          <p class="muted small">Run the provider report and export the order-result rows as Excel (.xls) or CSV, then choose the exact report date range and upload it here. A BASS report-definition XML lists columns and filters but contains no orders, so it cannot verify sales.</p>
+          <p class="muted small">Run the provider report and export the order-result rows as Excel (.xls), CSV, or tab-delimited text, then choose the exact report date range and upload it here. A BASS report-definition XML lists columns and filters but contains no orders, so it cannot verify sales.</p>
           <select id="pvRepProvider" aria-label="Provider for my seller-account report">${providers.map(provider=>`<option>${provider}</option>`).join('')}</select>
           <a id="pvRepReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN BASS ORDERS REPORT</a>
           <div class="pv-period"><label>Report start<input id="pvRepStart" type="date"></label><label>Report end<input id="pvRepEnd" type="date"></label></div>
-          <input id="pvRepCsv" type="file" accept=".xls,.csv,.xml,application/vnd.ms-excel,text/csv,text/xml,application/xml">
+          <input id="pvRepCsv" type="file" accept=".xls,.csv,.tsv,.txt,.xml,application/vnd.ms-excel,text/csv,text/tab-separated-values,text/plain,text/xml,application/xml">
           <button type="button" id="pvRepImport" class="primary" style="width:100%;margin-top:5px">UPLOAD MY REPORT</button>
           <div id="pvRepMsg" class="pv-msg" role="status" aria-live="polite"></div>
         </div>
@@ -58,11 +62,11 @@
         <div class="pv-grid" style="margin-top:14px">
           <div class="pv-section">
             <h3>Dealer-Level ISP Report</h3>
-            <p class="muted small">Run and export the authoritative dealer order results as Excel (.xls) or CSV. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact coverage dates before treating missing orders as discrepancies.</p>
+            <p class="muted small">Run and export the authoritative dealer order results as Excel (.xls), CSV, or tab-delimited text. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact coverage dates before treating missing orders as discrepancies.</p>
             <select id="pvDealerProvider">${dealerProviders.map(provider=>`<option>${provider}</option>`).join('')}</select>
             <a id="pvDealerReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN CORPORATE BASS ORDERS REPORT</a>
             <div class="pv-period"><label>Coverage start<input id="pvDealerStart" type="date"></label><label>Coverage end<input id="pvDealerEnd" type="date"></label></div>
-            <input id="pvDealerCsv" type="file" accept=".xls,.csv,.xml,application/vnd.ms-excel,text/csv,text/xml,application/xml">
+            <input id="pvDealerCsv" type="file" accept=".xls,.csv,.tsv,.txt,.xml,application/vnd.ms-excel,text/csv,text/tab-separated-values,text/plain,text/xml,application/xml">
             <button type="button" id="pvDealerImport" class="primary" style="width:100%;margin-top:5px">IMPORT & VERIFY</button>
             <div id="pvDealerMsg" class="pv-msg" role="status" aria-live="polite"></div>
             <div id="pvImports" class="pv-msg"></div>
@@ -127,8 +131,8 @@
   }
   function syncReportLink(selectId,linkId){
     const provider=document.getElementById(selectId)?.value;
-    const link=document.getElementById(linkId);const url=reportUrls[provider];
-    if(!link)return;link.style.display=url?'block':'none';if(url)link.href=url;
+    const link=document.getElementById(linkId),config=reportLinks[provider];
+    if(!link)return;link.style.display=config?.url?'block':'none';if(config?.url){link.href=config.url;link.textContent=config.label;}
   }
   function setDefaultPeriod(prefix){
     const end=new Date();const start=new Date(end);start.setDate(start.getDate()-30);

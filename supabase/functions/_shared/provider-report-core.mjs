@@ -1,21 +1,49 @@
 export const REPORT_SCOPES = Object.freeze(['rep_account', 'dealer_account'])
 
 export const BASS_REPORT_FIELDS = Object.freeze({
-  orderNumber: ['Order #', 'CTLOrderID', 'BASS Order ID', 'ASAPOrderID', 'PRID', 'order number', 'order id', 'order', 'confirmation number', 'confirmation #'],
-  accountNumber: ['Account Number', 'AccountNumber', 'account #', 'account id', 'customer account', 'ban'],
-  sellerIdentifier: ['Sales Person ID', 'SalesAgentID', 'Sales Person Username', 'SalesAgentUserName', 'SubAgent Username', 'SubAgentUserName', 'seller id', 'agent id', 'rep id', 'sales rep id', 'employee id', 'salesperson id'],
-  sellerName: ['Sales Person Name', 'SalesAgentName', 'seller name', 'agent name', 'rep name', 'sales rep', 'salesperson name', 'salesperson', 'agent'],
+  orderNumber: ['Order #', 'CTLOrderID', 'BASS Order ID', 'ASAPOrderID', 'PRID', 'order number', 'order id', 'order', 'confirmation number', 'confirmation #', 'service order number', 'customer order number', 'work order number', 'job number', 'agreement number', 'service agreement number'],
+  accountNumber: ['Account Number', 'AccountNumber', 'account #', 'account id', 'customer account', 'customer account number', 'subscriber account number', 'ban'],
+  sellerIdentifier: ['Sales Person ID', 'SalesAgentID', 'Sales Person Username', 'SalesAgentUserName', 'SubAgent Username', 'SubAgentUserName', 'seller id', 'agent id', 'rep id', 'sales rep id', 'employee id', 'salesperson id', 'dealer id', 'dealer number', 'dealer code', 'agent number', 'consultant id', 'representative id', 'employee number'],
+  sellerName: ['Sales Person Name', 'SalesAgentName', 'seller name', 'agent name', 'rep name', 'sales rep', 'sales rep name', 'salesperson name', 'salesperson', 'agent', 'representative', 'consultant', 'dealer rep', 'submitted by', 'created by'],
   sellerEmail: ['seller email', 'agent email', 'rep email', 'sales rep email'],
-  customerName: ['Customer Name', 'CustomerName', 'subscriber name', 'name'],
-  serviceAddress: ['service address', 'address', 'install address'],
+  customerName: ['Customer Name', 'CustomerName', 'subscriber name', 'account name', 'customer', 'subscriber', 'name'],
+  serviceAddress: ['service address', 'address', 'install address', 'installation address', 'service location', 'customer address', 'property address'],
   streetAddress: ['Street Address', 'StreetAddress', 'street'],
   unit: ['Unit', 'unit number', 'apt', 'apartment'],
   city: ['City'],
   state: ['State'],
   zipCode: ['Zip Code', 'ZipCode', 'Zip', 'postal code'],
-  saleDate: ['Create Date', 'Create Time', 'CreateTime', 'sale date', 'order date', 'created date', 'submitted date', 'date'],
-  providerStatus: ['Order Status', 'OrderStatusCode', 'status', 'sale status']
+  saleDate: ['Create Date', 'Create Time', 'CreateTime', 'sale date', 'order date', 'order entry date', 'created date', 'created at', 'submitted date', 'submitted at', 'submission date', 'contract date', 'agreement date', 'date'],
+  providerStatus: ['Order Status', 'OrderStatusCode', 'status', 'sale status', 'order state', 'activation status', 'install status', 'account status', 'disposition']
 })
+
+export function parseDelimitedReport(text) {
+  const source = String(text ?? '')
+  const firstLine = source.split(/\r?\n/, 1)[0] || ''
+  const candidates = [',', '\t', ';']
+  const delimiter = candidates
+    .map(value => ({ value, count: firstLine.split(value).length - 1 }))
+    .sort((left, right) => right.count - left.count)[0]
+  if (!delimiter?.count) return source.trim() ? [[source.trim()]] : []
+  const output = []
+  let row = [], cell = '', quoted = false
+  for (let index = 0; index < source.length; index++) {
+    const current = source[index], next = source[index + 1]
+    if (current === '"') {
+      if (quoted && next === '"') { cell += '"'; index++ } else quoted = !quoted
+    } else if (current === delimiter.value && !quoted) {
+      row.push(cell); cell = ''
+    } else if ((current === '\n' || current === '\r') && !quoted) {
+      if (current === '\r' && next === '\n') index++
+      row.push(cell); cell = ''
+      if (row.some(value => value.trim())) output.push(row)
+      row = []
+    } else cell += current
+  }
+  row.push(cell)
+  if (row.some(value => value.trim())) output.push(row)
+  return output
+}
 
 export const normalizeEvidenceToken = value => String(value ?? '')
   .trim()

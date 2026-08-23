@@ -34,3 +34,15 @@ McCoy does not inject scripts into provider login pages. If a provider's own
 cross-origin page rejects keyboard input, the app can reopen it in a clean full
 tab and surface recovery instructions, but it cannot bypass or rewrite the
 provider's authentication controls.
+
+## Connected seller portals
+
+- Quantum: Quantum ASAP
+- Brightspeed: BASS
+- DIRECTV: DIRECTV Sales & Service Portal
+- Vivint: Vivint Order Entry Tool
+
+DIRECTV and Vivint use the same popup, capture, seller-link, rep-report, dealer-report,
+deduplication, ABANDONED exclusion, and Sale Credit review lifecycle as Quantum and
+Brightspeed. Their provider exports may be Excel HTML, CSV, or tab-delimited text.
+Portal access alone is never proof of a sale and never unlocks rankings or pay.

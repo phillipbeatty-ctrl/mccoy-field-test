@@ -9,6 +9,7 @@ import {
   isBassReportDefinitionXml,
   mapReportEvidence,
   normalizeEvidenceToken,
+  parseDelimitedReport,
   parseHtmlTableReport,
   pickReportValue,
   safeReportPayload
@@ -18,30 +19,6 @@ const json = (body: unknown, status = 200) => Response.json(body, {
   status,
   headers: { ...corsHeaders, 'Cache-Control': 'no-store' }
 })
-
-function parseCsv(text: string) {
-  const output: string[][] = []
-  let row: string[] = []
-  let cell = ''
-  let quoted = false
-  for (let index = 0; index < text.length; index++) {
-    const current = text[index]
-    const next = text[index + 1]
-    if (current === '"') {
-      if (quoted && next === '"') { cell += '"'; index++ } else quoted = !quoted
-    } else if (current === ',' && !quoted) {
-      row.push(cell); cell = ''
-    } else if ((current === '\n' || current === '\r') && !quoted) {
-      if (current === '\r' && next === '\n') index++
-      row.push(cell); cell = ''
-      if (row.some(value => value.trim())) output.push(row)
-      row = []
-    } else cell += current
-  }
-  row.push(cell)
-  if (row.some(value => value.trim())) output.push(row)
-  return output
-}
 
 function reportDate(value: unknown) {
   const text = String(value ?? '').trim()
@@ -258,7 +235,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
   let reportFormat = 'csv'
   let rows: string[][]
   if (/<table(?:\s|>)/i.test(text)) {
-    reportFormat = 'bass_html_xls'
+    reportFormat = 'html_table_xls'
     rows = parseHtmlTableReport(text)
   } else if (isBassReportDefinitionXml(text)) {
     return json({
@@ -270,7 +247,7 @@ async function uploadReport(admin: any, user: any, access: any, body: any) {
       error: 'unsupported_xml_order_export',
       detail: 'This XML format does not contain supported BASS order rows. Export the completed BASS report results as Excel (.xls) or CSV.'
     }, 400)
-  } else rows = parseCsv(text)
+  } else rows = parseDelimitedReport(text)
   if (rows.length < 2) return json({ error: 'report_has_no_data' }, 400)
 
   const selectedProvider = body.provider ? normalizeSaleProvider(body.provider) : null

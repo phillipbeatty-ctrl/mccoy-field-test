@@ -11,7 +11,17 @@ window.MCCOY_PROVIDER_PORTALS=Object.freeze({
   Lightcurve:Object.freeze({label:'Lightcurve seller account',url:''}),
   'Ripple Fiber':Object.freeze({label:'Ripple Fiber seller account',url:''}),
   Starlink:Object.freeze({label:'Starlink seller account',url:''}),
-  DIRECTV:Object.freeze({label:'DIRECTV seller account',url:''}),
-  Vivint:Object.freeze({label:'Vivint seller account',url:''}),
+  DIRECTV:Object.freeze({
+    label:'DIRECTV Sales & Service Portal',
+    url:'https://directv-dmp.my.site.com/SNS/login?locale=us',
+    reportUrl:'https://directv-dmp.my.site.com/SNS/login?locale=us',
+    reportLabel:'OPEN DIRECTV SALES REPORT'
+  }),
+  Vivint:Object.freeze({
+    label:'Vivint Order Entry Tool',
+    url:'https://oetool.vivint.com/',
+    reportUrl:'https://oetool.vivint.com/',
+    reportLabel:'OPEN VIVINT SALES REPORT'
+  }),
   Other:Object.freeze({label:'Seller account',url:''})
 });
