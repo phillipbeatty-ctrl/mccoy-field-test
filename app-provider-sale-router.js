@@ -8,7 +8,7 @@
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const defaults={
-    Brightspeed:{label:'BASS',url:''},
+    Brightspeed:{label:'BASS',url:'',openInNewTab:true},
     Quantum:{label:'ASAP',url:'',openInNewTab:true},
     'AT&T':{label:'AT&T seller account',url:''},
     'T-Mobile / T-Fiber':{label:'T-Mobile seller account',url:''},
@@ -26,7 +26,11 @@
   const portals=Object.fromEntries(PROVIDERS.map(provider=>{
     const value=configured[provider];
     const override=typeof value==='string'?{url:value}:value||{};
-    return [provider,{...defaults[provider],...override}];
+    // Provider authentication must always run in a full browser tab. This is
+    // deliberately enforced after configured overrides so a current or future
+    // provider cannot accidentally fall back to an embedded window that
+    // swallows characters such as @, punctuation, or password symbols.
+    return [provider,{...defaults[provider],...override,openInNewTab:true}];
   }));
 
   const style=document.createElement('style');
@@ -144,14 +148,14 @@
     if(!raw){notify(`${provider} selected. ${info.label} link is not configured yet.`);return{opened:false,reason:'not_configured'};}
     let url;try{url=new URL(raw);}catch(_){notify(`${info.label} link is invalid and was not opened.`);return{opened:false,reason:'invalid_url'};}
     if(url.protocol!=='https:'){notify(`${info.label} must use a secure HTTPS address.`);return{opened:false,reason:'insecure_url'};}
-    // ASAP's legacy login works best as a full browser tab. A fresh tab also
-    // prevents embedded/popup keyboard handling from swallowing characters
-    // such as @ on mobile and international keyboard layouts.
-    const target=info.openInNewTab?'_blank':`mccoy_${provider.toLowerCase().replace(/[^a-z0-9]+/g,'_')}_seller`;
+    // All provider logins use a fresh, full browser tab. McCoy never embeds a
+    // provider login, captures its keystrokes, stores credentials, or attempts
+    // to autofill authentication fields.
+    const target='_blank';
     const sellerWindow=window.open(url.href,target);
     if(!sellerWindow){notify(`Allow pop-ups for McCoy to open ${info.label}.`);return{opened:false,reason:'popup_blocked'};}
     try{sellerWindow.opener=null;sellerWindow.focus();}catch(_){}
-    notify(`${info.label} opened${info.openInNewTab?' in a full browser tab':''}. Its existing provider login or approved SSO session will be reused.`);
+    notify(`${info.label} opened in a full browser tab with normal keyboard input enabled. Its existing provider login or approved SSO session will be reused.`);
     return{opened:true,reason:null};
   }
   function setProvider(provider){
