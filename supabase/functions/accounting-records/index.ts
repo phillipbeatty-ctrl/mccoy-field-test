@@ -159,7 +159,7 @@ Deno.serve(async req=>{
 
     if(!canAudit)return json({error:'admin_or_accounting_required'},403)
     if(action==='status'){
-      const {data:reps,error}=await admin.from('app_user_access').select('email,display_name,role,active').eq('active',true).in('role',['rep','manager','trainer']).order('display_name')
+      const {data:reps,error}=await admin.from('app_user_access').select('email,display_name,role,active').eq('active',true).order('display_name')
       if(error)throw error
       return json({ok:true,can_audit:true,delivery:config(),reps:reps||[]})
     }
