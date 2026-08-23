@@ -1,0 +1,32 @@
+// Admin-only audited sale credit reassignment for accounting and rankings.
+(function(){
+  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const css=document.createElement('style');
+  css.textContent=`#saleCreditBtn{position:fixed;right:14px;bottom:102px;z-index:2600;display:none;border:0;border-radius:999px;padding:9px 13px;background:#1d4ed8;color:#fff;font-size:12px;cursor:pointer}#saleCreditPanel{position:fixed;inset:0;z-index:140002;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(17,24,39,.78)}#saleCreditPanel.show{display:flex}.sale-credit-card{width:min(1120px,100%);max-height:92vh;overflow:auto;padding:20px;border-radius:16px;background:#fff}.sale-credit-row{display:grid;grid-template-columns:minmax(250px,1.5fr) minmax(190px,1fr) minmax(220px,1.2fr) auto;gap:8px;align-items:center;padding:12px 0;border-top:1px solid #e5e7eb}.sale-credit-row select,.sale-credit-row input{min-width:0;padding:9px;border:1px solid #d1d5db;border-radius:8px;background:#fff}.sale-credit-evidence{font-size:12px;color:#4b5563}@media(max-width:760px){.sale-credit-row{grid-template-columns:1fr}}`;
+  document.head.appendChild(css);
+
+  function ensurePanel(){
+    if(document.getElementById('saleCreditBtn'))return;
+    const button=document.createElement('button');button.id='saleCreditBtn';button.textContent='Sale Credit';document.body.appendChild(button);
+    const panel=document.createElement('div');panel.id='saleCreditPanel';panel.innerHTML=`<div class="sale-credit-card"><h2>Sale Credit</h2><p class="muted">Admin may change the McCoy user credited for accounting and rankings. Provider-reported seller evidence, verification state, and the full change history are preserved.</p><div id="saleCreditNotice" class="muted small"></div><div id="saleCreditRows">Loading…</div><div style="text-align:right;margin-top:12px"><button id="saleCreditClose" class="assign-btn">Close</button></div></div>`;document.body.appendChild(panel);
+    document.getElementById('saleCreditClose').onclick=()=>panel.classList.remove('show');
+    button.onclick=async()=>{panel.classList.add('show');await loadSales();};
+  }
+
+  async function loadSales(){
+    const root=document.getElementById('saleCreditRows'),notice=document.getElementById('saleCreditNotice');root.textContent='Loading…';notice.textContent='';
+    try{
+      const [{data:sales,error:salesError},{data:users,error:usersError}]=await Promise.all([
+        sb.from('sales_records').select('id,created_at,rep_email,rep_name,provider_reported_rep_email,provider_reported_rep_name,customer_first_name,customer_last_name,service_address,isp,provider_order_number,verification_status,competition_eligible,credit_assigned_at,credit_assignment_reason').order('created_at',{ascending:false}).limit(150),
+        sb.from('app_user_access').select('email,display_name,role,active').eq('active',true).order('display_name')
+      ]);
+      if(salesError)throw salesError;if(usersError)throw usersError;
+      const options=(users||[]).map(user=>`<option value="${esc(user.email)}">${esc(user.display_name||user.email)} (${esc(user.role)})</option>`).join('');
+      if(!sales?.length){root.innerHTML='<p class="muted small">No sale records are available.</p>';return;}
+      root.innerHTML=sales.map((sale,index)=>`<div class="sale-credit-row"><div><strong>${esc(sale.isp)} · ${esc(sale.provider_order_number||'No provider order #')}</strong><div>${esc(sale.customer_first_name)} ${esc(sale.customer_last_name)}</div><div class="sale-credit-evidence">Current credit: ${esc(sale.rep_name||sale.rep_email)} · Provider seller: ${esc(sale.provider_reported_rep_name||sale.provider_reported_rep_email||'Not yet reported')} · ${esc(sale.verification_status)}${sale.competition_eligible?' · ranking eligible':' · excluded from rankings'}</div></div><select id="saleCreditUser${index}" aria-label="Credited McCoy user"><option value="${esc(sale.rep_email)}">${esc(sale.rep_name||sale.rep_email)} (current)</option>${options}</select><input id="saleCreditReason${index}" maxlength="240" placeholder="Reason required" aria-label="Reassignment reason"><button id="saleCreditSave${index}" class="primary">Apply</button></div>`).join('');
+      sales.forEach((sale,index)=>{document.getElementById('saleCreditSave'+index).onclick=async()=>{const button=document.getElementById('saleCreditSave'+index),email=document.getElementById('saleCreditUser'+index).value,reason=document.getElementById('saleCreditReason'+index).value.trim();if(!reason){notice.textContent='Enter a reason before changing sale credit.';return;}if(email.toLowerCase()===String(sale.rep_email).toLowerCase()){notice.textContent='Choose a different user.';return;}button.disabled=true;button.textContent='Applying…';try{const {error}=await sb.rpc('admin_reassign_sale_credit',{p_sale_id:sale.id,p_new_rep_email:email,p_reason:reason});if(error)throw error;notice.textContent='Sale credit updated. Accounting and rankings will use the selected user; provider evidence remains unchanged.';await loadSales();window.dispatchEvent(new CustomEvent('mccoy-sale-credit-changed',{detail:{saleId:sale.id}}));}catch(error){notice.textContent=error?.message||'Unable to update sale credit.';button.disabled=false;button.textContent='Apply';}};});
+    }catch(error){console.error(error);root.textContent='Unable to load sale credit controls.';notice.textContent=error?.message||'';}
+  }
+
+  const timer=setInterval(()=>{if(window.MCCOY_ACCESS?.access){clearInterval(timer);if(window.MCCOY_ACCESS.access.role==='admin'){ensurePanel();document.getElementById('saleCreditBtn').style.display='block';}}},400);
+})();
