@@ -6,6 +6,7 @@
   const reportUrls={Brightspeed:'https://bass.docxtract.com/Report/Orders_Report.aspx'};
   const esc=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const label=value=>String(value||'').replace(/_/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+  let unmatchedSellers=[];
 
   const css=document.createElement('style');
   css.textContent=`
@@ -79,6 +80,18 @@
         </div>
 
         <div class="pv-section" style="margin-top:14px">
+          <h3>Assign Unmatched Provider Sales</h3>
+          <p class="muted small">Assign an unlinked ISP seller identity to an active McCoy user. This applies all matching historical rows and future imports. Existing sale-credit conflicts remain blocked for separate audited review.</p>
+          <div class="pv-grid">
+            <label class="small"><strong>Unmatched ISP seller</strong><select id="pvUnmatchedSeller" aria-label="Unmatched ISP seller"><option value="">Loading unmatched sellers…</option></select></label>
+            <label class="small"><strong>Apply sales to</strong><select id="pvTargetUser" aria-label="McCoy user receiving provider sales"><option value="">Choose an active McCoy user</option></select></label>
+          </div>
+          <div id="pvAssignPreview" class="pv-msg">Choose a seller and McCoy user to preview the assignment.</div>
+          <button type="button" id="pvAssignUnmatched" class="primary" style="width:100%;margin-top:7px">ASSIGN HISTORICAL & FUTURE SALES</button>
+          <div id="pvAssignMsg" class="pv-msg" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="pv-section" style="margin-top:14px">
           <h3>Verification Summary</h3><div id="pvStats" class="pv-stats"></div>
         </div>
         <div class="pv-section" style="margin-top:14px">
@@ -143,6 +156,11 @@
       ['verified_processed','Verified'],['low_potential','Low Potential'],['pending_verification','Pending'],['mismatch','Mismatch']
     ],data.counts);
     document.getElementById('pvImports').innerHTML=importHistory(data.imports);
+    unmatchedSellers=data.unmatched_sellers||[];
+    const unmatchedSelect=document.getElementById('pvUnmatchedSeller');
+    unmatchedSelect.innerHTML='<option value="">Choose an unmatched seller</option>'+unmatchedSellers.map((item,index)=>`<option value="${index}">${esc(item.provider)} · ${esc(item.seller_name||item.seller_identifier)} · ${Number(item.rows||0).toLocaleString()} rows${item.conflicts?` · ${Number(item.conflicts).toLocaleString()} conflict`:''}</option>`).join('');
+    const targetSelect=document.getElementById('pvTargetUser');
+    targetSelect.innerHTML='<option value="">Choose an active McCoy user</option>'+(data.active_users||[]).map(item=>`<option value="${esc(item.user_id)}">${esc(item.display_name)} · ${esc(item.role)} · ${esc(item.email)}</option>`).join('');
     const discrepancies=data.discrepancies||[];
     document.getElementById('pvDiscrepancies').innerHTML=discrepancies.length?`<div class="pv-table-wrap"><table class="pv-table"><thead><tr><th>Rep</th><th>Provider</th><th>Order / Account</th><th>Sale Date</th><th>Result</th></tr></thead><tbody>${discrepancies.map(item=>`<tr><td>${esc(item.source_rep_email||'—')}</td><td>${esc(item.provider)}</td><td>${esc(item.order_number||'—')}<br>${esc(item.account_number||'—')}</td><td>${item.sale_date?new Date(item.sale_date).toLocaleDateString():'—'}</td><td class="pv-warn">${esc(label(item.cross_reference_status))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted small">No rep/dealer discrepancies in the currently covered report periods.</div>';
 
@@ -184,6 +202,9 @@
   document.getElementById('pvDealerProvider').addEventListener('change',()=>syncReportLink('pvDealerProvider','pvDealerReportLink'));
   document.getElementById('pvRefresh').onclick=load;
   document.getElementById('pvLink').onclick=async()=>{const message=document.getElementById('pvLinkMsg');try{await call('link_seller',{rep_email:document.getElementById('pvRepEmail').value.trim(),provider:document.getElementById('pvLinkProvider').value,seller_identifier:document.getElementById('pvSellerId').value.trim(),seller_name:document.getElementById('pvSellerName').value.trim()||null});message.textContent='Seller identity linked. Recheck sales to apply the authoritative link.';}catch(error){message.textContent='Could not link seller identity: '+(error?.message||error);}};
+  const updateAssignmentPreview=()=>{const seller=unmatchedSellers[Number(document.getElementById('pvUnmatchedSeller').value)];const target=document.getElementById('pvTargetUser').selectedOptions?.[0]?.textContent;document.getElementById('pvAssignPreview').textContent=seller&&target?`${seller.rows} ${seller.provider} rows for ${seller.seller_name||seller.seller_identifier} will be assigned to ${target}. ${seller.conflicts||0} existing credit conflicts will remain blocked for Sale Credit review.`:'Choose a seller and McCoy user to preview the assignment.';};
+  document.getElementById('pvUnmatchedSeller').onchange=updateAssignmentPreview;document.getElementById('pvTargetUser').onchange=updateAssignmentPreview;
+  document.getElementById('pvAssignUnmatched').onclick=async()=>{const message=document.getElementById('pvAssignMsg');const seller=unmatchedSellers[Number(document.getElementById('pvUnmatchedSeller').value)];const repUserId=document.getElementById('pvTargetUser').value;if(!seller||!repUserId){message.textContent='Choose both an unmatched seller and an active McCoy user.';return;}const button=document.getElementById('pvAssignUnmatched');button.disabled=true;try{const result=await call('assign_unmatched_seller',{provider:seller.provider,seller_identifier:seller.seller_identifier,seller_name:seller.seller_name,rep_user_id:repUserId});message.textContent=`Assigned ${result.affected} provider rows; ${result.materialized} historical sales now carry the selected McCoy credit. ${result.conflicts} existing credit conflicts remain for Sale Credit review.`;await loadAdmin();}catch(error){message.textContent='Assignment failed: '+(error?.message||error);}finally{button.disabled=false;}};
   syncReportLink('pvRepProvider','pvRepReportLink');syncReportLink('pvDealerProvider','pvDealerReportLink');setDefaultPeriod('pvRep');setDefaultPeriod('pvDealer');
   window.addEventListener('mccoy-sale-saved',()=>{if(panel.classList.contains('show'))setTimeout(load,100);});
   const timer=setInterval(()=>{const access=window.MCCOY_ACCESS?.access;if(!access)return;btn.style.display=access.active===false?'none':'block';if(access.role==='admin'){btn.textContent='Provider Verification';document.getElementById('pvAdminOnly').hidden=false;document.getElementById('pvSubtitle').textContent='Rep-account reports provide preliminary evidence; dealer-level ISP reports remain authoritative.';}clearInterval(timer);},400);
