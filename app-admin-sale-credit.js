@@ -65,7 +65,7 @@
     root.textContent='Loading all sale account data…';notice.textContent='';
     try{
       const [recordsResult,usersResult]=await Promise.all([loadDashboardPages(),sb.from('app_user_access').select('email,display_name,role,active').eq('active',true).order('display_name')]);
-      if(usersResult.error)throw usersResult.error;state.records=recordsResult;state.users=usersResult.data||[];notice.textContent=`Loaded ${state.records.length} complete sale account record${state.records.length===1?'':'s'}.`;renderSales();await loadBank(force);
+      if(usersResult.error)throw usersResult.error;state.records=recordsResult;state.users=usersResult.data||[];notice.textContent=`Loaded ${state.records.length} sale account record${state.records.length===1?'':'s'}.`;renderSales();await loadBank(force);
     }catch(error){console.error(error);root.textContent='Unable to load sale credit controls.';notice.textContent=error?.message||'';}
   }
 
