@@ -8,8 +8,8 @@
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const defaults={
-    Brightspeed:{label:'BASS',url:'',openInNewTab:true},
-    Quantum:{label:'ASAP',url:'',openInNewTab:true},
+    Brightspeed:{label:'BASS',url:''},
+    Quantum:{label:'ASAP',url:''},
     'AT&T':{label:'AT&T seller account',url:''},
     'T-Mobile / T-Fiber':{label:'T-Mobile seller account',url:''},
     Kinetic:{label:'Kinetic seller account',url:''},
@@ -26,11 +26,7 @@
   const portals=Object.fromEntries(PROVIDERS.map(provider=>{
     const value=configured[provider];
     const override=typeof value==='string'?{url:value}:value||{};
-    // Provider authentication must always run in a full browser tab. This is
-    // deliberately enforced after configured overrides so a current or future
-    // provider cannot accidentally fall back to an embedded window that
-    // swallows characters such as @, punctuation, or password symbols.
-    return [provider,{...defaults[provider],...override,openInNewTab:true}];
+    return [provider,{...defaults[provider],...override}];
   }));
 
   const style=document.createElement('style');
@@ -148,14 +144,18 @@
     if(!raw){notify(`${provider} selected. ${info.label} link is not configured yet.`);return{opened:false,reason:'not_configured'};}
     let url;try{url=new URL(raw);}catch(_){notify(`${info.label} link is invalid and was not opened.`);return{opened:false,reason:'invalid_url'};}
     if(url.protocol!=='https:'){notify(`${info.label} must use a secure HTTPS address.`);return{opened:false,reason:'insecure_url'};}
-    // All provider logins use a fresh, full browser tab. McCoy never embeds a
-    // provider login, captures its keystrokes, stores credentials, or attempts
-    // to autofill authentication fields.
-    const target='_blank';
-    const sellerWindow=window.open(url.href,target);
+    // Keep the provider dashboard in a reusable McCoy-managed popup while
+    // leaving authentication entirely on the provider's secure origin.
+    const target=`mccoy_${provider.toLowerCase().replace(/[^a-z0-9]+/g,'_')}_seller`;
+    const width=Math.min(1180,Math.max(720,window.screen?.availWidth||1000));
+    const height=Math.min(900,Math.max(640,window.screen?.availHeight||760));
+    const left=Math.max(0,Math.round(((window.screen?.availWidth||width)-width)/2));
+    const top=Math.max(0,Math.round(((window.screen?.availHeight||height)-height)/2));
+    const features=`popup=yes,resizable=yes,scrollbars=yes,width=${width},height=${height},left=${left},top=${top}`;
+    const sellerWindow=window.open(url.href,target,features);
     if(!sellerWindow){notify(`Allow pop-ups for McCoy to open ${info.label}.`);return{opened:false,reason:'popup_blocked'};}
     try{sellerWindow.opener=null;sellerWindow.focus();}catch(_){}
-    notify(`${info.label} opened in a full browser tab with normal keyboard input enabled. Its existing provider login or approved SSO session will be reused.`);
+    notify(`${info.label} opened in the McCoy sales popup. Its existing provider login or approved SSO session will be reused.`);
     return{opened:true,reason:null};
   }
   function setProvider(provider){

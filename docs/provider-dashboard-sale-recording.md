@@ -4,9 +4,9 @@ McCoy uses the same capture and verification lifecycle for Quantum ASAP, Brights
 
 1. Selecting `SALE` and choosing a provider creates a durable dashboard capture tied to the signed-in rep, provider, field session, and service address.
 2. McCoy opens the approved external seller portal without storing or autofilling provider credentials.
-   Every provider login opens in a fresh, full browser tab. This shared rule also
-   applies to providers connected later and prevents McCoy popups or embedded
-   login surfaces from intercepting username/password characters.
+   Every provider login opens in a reusable McCoy-managed popup. This shared
+   rule also applies to providers connected later. Authentication remains on
+   the provider's secure origin; McCoy does not read or store credentials.
 3. When the rep returns, McCoy restores the sale form. Reloading McCoy also restores an unfinished capture from the browser, while the server keeps the audit record.
 4. Saving the sale links `sales_records.provider_capture_id` to the capture. Reusing the same capture returns the existing sale instead of creating a duplicate.
 5. Admin can see open, details-required, recorded, and cancelled captures in Provider Verification.
