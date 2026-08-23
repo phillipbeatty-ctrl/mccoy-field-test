@@ -59,7 +59,8 @@ Deno.serve(async(req)=>{
     }
     if(action==='list_users'){
       const {data,error}=await admin.from('app_user_access').select('email,display_name,role,active,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('active',true).order('display_name'); if(error) throw error
-      return json({ok:true,users:data||[],pay_levels:PAY_LEVELS})
+      const {data:secondary}=await admin.from('secondary_admin_assignments').select('secondary_email').eq('active',true).maybeSingle()
+      return json({ok:true,users:data||[],pay_levels:PAY_LEVELS,can_assign_secondary_admin:user.id==='f9053207-1af1-4ed1-be43-28f4bf5d7732'&&email==='phillip.beatty@gmail.com',secondary_admin_email:secondary?.secondary_email||null})
     }
     if(action==='list_pending_accounts'){
       const authUsers:any[]=[]
@@ -132,6 +133,13 @@ Deno.serve(async(req)=>{
       let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
       const parts=String(displayName||'').trim().split(/\s+/).filter(Boolean);const firstName=parts.shift()||null,lastName=parts.join(' ')||null
       const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
+    }
+    if(action==='set_secondary_admin'){
+      if(user.id!=='f9053207-1af1-4ed1-be43-28f4bf5d7732'||email!=='phillip.beatty@gmail.com')return json({error:'original_owner_only'},403)
+      const scoped=createClient(url,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}})
+      const {data,error}=await scoped.rpc('owner_set_secondary_admin',{p_target_email:String(body.email||'').trim().toLowerCase(),p_enabled:body.enabled!==false})
+      if(error)return json({error:error.message||'secondary_admin_update_failed'},400)
+      return json(data||{ok:true})
     }
     if(action==='assign_region_manager'){
       const region=String(body.region_name||'').trim();if(!REGIONS.includes(region as any))return json({error:'invalid_region'},400)
@@ -219,6 +227,9 @@ Deno.serve(async(req)=>{
       if(/[\u0000-\u001f\u007f]/.test(nextDisplayName))return json({error:'display_name_contains_invalid_characters'},400)
       const nameChanged=nextDisplayName!==displayName(current.display_name||target)
       const role=['rep','manager','trainer','admin'].includes(String(body.role))?String(body.role):current.role
+      if(role==='admin'&&current.role!=='admin')return json({error:'use_secondary_admin_control'},403)
+      if(current.role==='admin'&&role!=='admin')return json({error:'use_secondary_admin_control'},403)
+      if(target==='phillip.beatty@gmail.com'&&email!==target)return json({error:'original_owner_protected'},403)
       const classification=body.sales_classification===undefined?payLevel(current.sales_classification):payLevel(body.sales_classification)
       if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!classification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
       const team=String(body.team_name??current.team_name??'').trim().slice(0,120)||null
