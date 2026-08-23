@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
 import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
-import { classifySaleEvidence, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
+import { classifySaleEvidence, isAbandonedProviderStatus, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
 import { normalizeVoipHomePhoneAddOn } from '../_shared/sale-products-core.mjs'
 import { saleDistanceAudit } from '../_shared/sale-location-core.mjs'
 
@@ -152,7 +152,7 @@ Deno.serve(async request => {
       const { data: sellerLinks, error: sellerLinksError } = await admin.from('provider_seller_links').select('seller_identifier').eq('rep_user_id', user.id).eq('provider', isp).eq('active', true)
       if (sellerLinksError) throw sellerLinksError
       const evidence = classifySaleEvidence({
-        rows: providerRows || [],
+        rows: (providerRows || []).filter((row: any) => !isAbandonedProviderStatus(row.provider_status)),
         repUserId: user.id,
         sellerIdentifiers: new Set((sellerLinks || []).map((row: any) => normalizeEvidenceToken(row.seller_identifier)).filter(Boolean)),
         orderNumber,
