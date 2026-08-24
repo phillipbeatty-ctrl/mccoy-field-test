@@ -4,6 +4,7 @@ import {
   boundedText,
   captureStartStatus,
   isUuid,
+  normalizeSaleOutcome,
   normalizeSaleProvider
 } from '../_shared/provider-sale-capture-core.mjs'
 
@@ -125,17 +126,19 @@ Deno.serve(async request => {
       return json({ ok: true, capture: updated })
     }
 
-    if (action === 'cancel') {
+    if (action === 'set_outcome' || action === 'cancel') {
       const captureId = String(body.capture_id || '')
       if (!isUuid(captureId)) return json({ error: 'valid_capture_id_required' }, 400)
+      const outcome = action === 'cancel' ? 'abandoned' : normalizeSaleOutcome(body.outcome)
+      if (outcome !== 'abandoned') return json({ error: 'abandoned_outcome_required' }, 400)
       const now = new Date().toISOString()
       const { data: capture, error: updateError } = await admin
         .from('provider_sale_captures')
-        .update({ status: 'cancelled', updated_at: now })
+        .update({ status: 'cancelled', rep_outcome: 'abandoned', rep_outcome_at: now, updated_at: now })
         .eq('id', captureId)
         .eq('rep_user_id', user.id)
         .in('status', ['dashboard_opened', 'details_required'])
-        .select('id,status,updated_at')
+        .select('id,status,rep_outcome,rep_outcome_at,updated_at')
         .maybeSingle()
       if (updateError) throw updateError
       if (!capture) return json({ error: 'capture_not_open' }, 409)
@@ -146,7 +149,7 @@ Deno.serve(async request => {
       const isAdmin = access.role === 'admin'
       let query = admin
         .from('provider_sale_captures')
-        .select('id,created_at,updated_at,rep_user_id,rep_email,rep_name,provider,sale_context,service_address,seller_portal_label,portal_opened,portal_open_reason,status,return_count,last_returned_at,sales_records!sales_records_provider_capture_id_fkey(id,verification_status,verification_reason,competition_eligible,sale_status)')
+        .select('id,created_at,updated_at,rep_user_id,rep_email,rep_name,provider,sale_context,service_address,seller_portal_label,portal_opened,portal_open_reason,status,rep_outcome,rep_outcome_at,return_count,last_returned_at,sales_records!sales_records_provider_capture_id_fkey(id,verification_status,verification_reason,competition_eligible,sale_status)')
         .order('created_at', { ascending: false })
         .limit(isAdmin ? 500 : 100)
       if (!isAdmin) query = query.eq('rep_user_id', user.id)
