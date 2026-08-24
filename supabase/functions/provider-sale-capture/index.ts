@@ -58,7 +58,17 @@ Deno.serve(async request => {
 
       const portalOpened = body.portal_opened === true
       const saleContext = body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field'
-      const sessionId = isUuid(body.session_id) ? String(body.session_id) : null
+      let sessionId: string | null = null
+      if (isUuid(body.session_id)) {
+        const { data: session, error: sessionError } = await admin
+          .from('test_sessions')
+          .select('id')
+          .eq('id', String(body.session_id))
+          .eq('tester_user_id', user.id)
+          .maybeSingle()
+        if (sessionError) throw sessionError
+        if (session?.id) sessionId = session.id
+      }
       const row = {
         client_request_id: clientRequestId,
         rep_user_id: user.id,

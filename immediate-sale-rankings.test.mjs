@@ -35,8 +35,23 @@ test('unfinished and disqualified records never become ranking sales', () => {
   assert.equal(isImmediateProcessedSaleRankingEligible({ ...valid, compensation_snapshot: { sale_origin: 'outside_system', admin_approval: { status: 'rejected' } } }), false)
 })
 
+test('owned capture-only completions rank without customer or order metrics', () => {
+  const captureOnly = {
+    ...valid,
+    provider_capture_id: '89d5d41a-d452-46d5-a701-47a2390f0f30',
+    required_metrics_complete: false,
+    compensation_snapshot: {
+      sale_origin: 'mccoy_app',
+      capture_only_completion: { enabled: true }
+    }
+  }
+  assert.equal(isImmediateProcessedSaleRankingEligible(captureOnly), true)
+  assert.equal(isImmediateProcessedSaleRankingEligible({ ...captureOnly, provider_capture_id: null }), false)
+  assert.equal(isImmediateProcessedSaleRankingEligible({ ...captureOnly, rep_reported_outcome: 'abandoned' }), false)
+})
+
 test('sale commit, reconciliation, and SQL share the immediate ranking policy', () => {
-  assert.match(submit, /ranking_eligible: true, ranking_verified_at: new Date\(\)\.toISOString\(\)/)
+  assert.match(submit, /ranking_eligible: true/)
   assert.match(reconcile, /isImmediateProcessedSaleRankingEligible/)
   assert.match(migration, /sales_records_zz_processed_ranking_policy/)
   assert.match(migration, /new\.rep_reported_outcome='completed'/)

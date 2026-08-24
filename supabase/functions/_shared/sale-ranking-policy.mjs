@@ -4,9 +4,10 @@ export function isImmediateProcessedSaleRankingEligible(sale = {}) {
     : {}
   const origin = String(snapshot.sale_origin || '').trim().toLowerCase()
   const outsideDecision = String(snapshot?.admin_approval?.status || '').trim().toLowerCase()
+  const captureOnly = sale.provider_capture_id != null && snapshot?.capture_only_completion?.enabled === true
 
   return sale.rep_reported_outcome === 'completed'
-    && sale.required_metrics_complete === true
+    && (sale.required_metrics_complete === true || captureOnly)
     && String(sale.sale_status || '').trim().toLowerCase() !== 'not_a_sale'
     && String(sale.admin_review_disposition || '').trim().toLowerCase() !== 'not_a_sale'
     && sale.ranking_credit_excluded !== true

@@ -9,13 +9,14 @@ McCoy uses the same capture and verification lifecycle for Quantum ASAP, Brights
    including future ones, and avoids mobile and tablet popup blockers.
    Authentication remains on the provider's secure origin; McCoy does not read
    or store credentials.
-3. The rep uses browser Back to return to McCoy after processing the order. McCoy automatically restores the unfinished capture and opens the Completed Sale / Abandoned form. Reloading McCoy also restores the capture from the browser, while the server keeps the audit record.
-4. Saving the sale links `sales_records.provider_capture_id` to the capture. Reusing the same capture returns the existing sale instead of creating a duplicate.
-5. Admin can see open, details-required, recorded, and cancelled captures in Provider Verification.
-6. Each rep can import a CSV exported from the same seller account used to process the order. McCoy records the authenticated McCoy user, provider, report period, file digest, and normalized order evidence. Exact duplicate files are ignored.
-7. A rep-account match is preliminary evidence only. It sets the sale to pending verification and never unlocks rankings, pay progress, or cancellation adjustments by itself.
-8. Admin imports the dealer-level export for each ISP. Every dealer import automatically cross-references covered rep-report rows and surfaces missing or conflicting orders.
-9. Dealer order/account plus the Admin-linked seller identity controls `competition_eligible`. A capture or editable rep export alone never counts for rankings or pay-increase tracking.
+3. The rep uses browser Back to return to McCoy after processing the order. McCoy automatically restores the unfinished capture and shows exactly two actions: `COMPLETE SALE` and `ABANDONED`. McCoy does not ask the rep to re-enter customer, order, product, installation, or account information.
+4. `COMPLETE SALE` links `sales_records.provider_capture_id` to the owned capture and updates rankings immediately. The record remains pending provider evidence for accounting and review; McCoy does not invent missing customer or order values. Reusing the same capture returns the existing sale instead of creating a duplicate.
+5. `ABANDONED` closes the capture and creates no sale, ranking entry, accounting record, customer record, or celebration.
+6. Admin can see open, details-required, recorded, and cancelled captures in Provider Verification.
+7. Each rep can import a CSV exported from the same seller account used to process the order. McCoy records the authenticated McCoy user, provider, report period, file digest, and normalized order evidence. Exact duplicate files are ignored.
+8. A rep-account match is preliminary evidence only. It can support accounting review but does not independently establish provider verification or commission amounts.
+9. Admin imports the dealer-level export for each ISP. Every dealer import automatically cross-references covered rep-report rows and surfaces missing or conflicting orders.
+10. Dealer order/account plus the Admin-linked seller identity controls `competition_eligible` and accounting evidence. Ranking credit begins with the capture-backed `COMPLETE SALE` outcome and is removed if the record is rejected, marked not-a-sale, or explicitly excluded.
 
 ## Recommended operating cadence
 
@@ -28,7 +29,7 @@ McCoy does not store provider passwords and does not scrape authenticated cross-
 
 ## Integration boundary
 
-External dashboards are different web origins and cannot be read by McCoy browser code. A completed order can become automatically verified only when the provider supplies an approved API, signed webhook, SFTP/report feed, or export. Until provider transports and credentials are supplied, McCoy guarantees that the attempt and rep-entered sale are not lost, while Admin dashboard-file reconciliation supplies the verification evidence.
+External dashboards are different web origins and cannot be read by McCoy browser code. A completed order can become automatically verified only when the provider supplies an approved API, signed webhook, SFTP/report feed, or export. Until provider transports and credentials are supplied, McCoy preserves the authenticated provider capture and the rep's completed/abandoned outcome, while Admin dashboard-file reconciliation supplies the customer, order, accounting, and verification evidence.
 
 Provider usernames, passwords, access tokens, and private keys must never be stored in frontend code or sent through the capture endpoint.
 
