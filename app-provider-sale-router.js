@@ -135,6 +135,11 @@
     const saved=localStorage.getItem('mccoy_isp');
     return PROVIDERS.includes(selected)?selected:(PROVIDERS.includes(saved)?saved:'Quantum');
   }
+  function isTesterPkb(){
+    const email=String(window.MCCOY_ACCESS?.user?.email||'').trim().toLowerCase();
+    const displayName=String(window.MCCOY_ACCESS?.access?.display_name||'').trim().toLowerCase();
+    return email==='phillipkbeatty@gmail.com'&&displayName==='tester pkb';
+  }
   function notify(message){
     clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');
     toastTimer=setTimeout(()=>toast.classList.remove('show'),5200);
@@ -208,6 +213,7 @@
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
     const next=pending;panel.classList.remove('show');pending=null;
     window.MCCOY_SALE_CONTEXT='field';
+    window.MCCOY_TESTER_PKB_SALE=false;
     setProvider(provider);const portalResult=openSellerAccount(provider);startProviderCapture(provider,portalResult);
     saleGuard=true;next.target.click();
   });
@@ -216,6 +222,12 @@
     const saleButton=event.target?.closest?.('[data-disp="Sale"]');
     if(saleButton&&!window.MCCOY_SALE_CONFIRMED){
       if(saleGuard){saleGuard=false;return;}
+      if(isTesterPkb()){
+        event.preventDefault();event.stopImmediatePropagation();
+        const provider=currentProvider();window.MCCOY_SALE_CONTEXT='field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
+        startProviderCapture(provider,{opened:false,reason:'tester_pkb_dashboard_bypass'});
+        saleGuard=true;saleButton.click();return;
+      }
       event.preventDefault();event.stopImmediatePropagation();showRouter(saleButton);
     }
   },true);
