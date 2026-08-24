@@ -29,6 +29,7 @@ Deno.serve(async request => {
     if (saleOutcome !== 'completed') return json({ error: 'completed_sale_outcome_required' }, 400)
     const testerSimulationRequested = body.tester_simulation === true
     const testerSimulation = testerSimulationRequested && isTesterPkbIdentity(repEmail, access.display_name)
+    const repDisplayName = testerSimulation ? 'Ghost' : (access.display_name || user.email)
     if (testerSimulationRequested && !testerSimulation) return json({ error: 'tester_simulation_forbidden' }, 403)
     if (testerSimulation) {
       const simulationProvider = normalizeSaleProvider(body.isp)
@@ -36,19 +37,19 @@ Deno.serve(async request => {
       const today = new Date().toISOString().slice(0, 10)
       const simulationId = crypto.randomUUID().toUpperCase()
       Object.assign(body, {
-        customer_first_name: 'Tester',
-        customer_last_name: 'PKB Simulation',
+        customer_first_name: 'Ghost',
+        customer_last_name: 'Benchmark',
         customer_phone: null,
         customer_email: null,
-        service_address: 'TESTER PKB SIMULATION — NO CUSTOMER',
+        service_address: 'GHOST SIMULATION — NO CUSTOMER',
         internet_product: simulationProvider === 'AT&T' ? 'Fiber' : 'Internet',
         internet_speed_mbps: 1000,
         order_date: today,
         install_date: today,
-        provider_order_number: `PKB-TEST-${simulationId}`,
+        provider_order_number: `GHOST-TEST-${simulationId}`,
         provider_account_number: null,
         low_potential_reason: null,
-        notes: 'Authorized Tester PKB simulation; no provider order was placed.'
+        notes: 'Authorized Ghost benchmark simulation; no provider order was placed.'
       })
     }
     for (const key of ['customer_first_name', 'customer_last_name', 'service_address', 'isp']) {
@@ -68,7 +69,7 @@ Deno.serve(async request => {
       if (existingCapture) { providerCapture = existingCapture; captureId = existingCapture.id }
       else {
         const fallbackRow = {
-          client_request_id: captureClientRequestId, rep_user_id: user.id, rep_email: repEmail, rep_name: access.display_name || user.email,
+          client_request_id: captureClientRequestId, rep_user_id: user.id, rep_email: repEmail, rep_name: repDisplayName,
           provider: isp, sale_context: body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field', session_id: isUuid(body.session_id) ? body.session_id : null,
           lead_label: String(body.lead_label || '').trim().slice(0, 500) || null, service_address: String(body.service_address).trim().slice(0, 500),
           seller_portal_label: null, portal_opened: false, portal_open_reason: 'sale_submit_fallback', status: 'details_required', metadata: { capture_version: 1, fallback: true }
@@ -163,7 +164,7 @@ Deno.serve(async request => {
       weekly_production_pay_increase: rule?.weekly_production_pay_increase || [],
       manager_override: { assigned_manager_name: managerName, assigned_manager_email: managerEmail, global_enabled: globalEnabled, manager_enabled: managerEnabled, rep_enabled: repEnabled, effective_enabled: !!((managerName || managerEmail) && globalEnabled && managerEnabled && repEnabled), amount_per_sale: Number(rule?.manager_override?.amount_per_sale || 25) },
       source: rule?.source || null,
-      tester_simulation: testerSimulation ? { enabled: true, account: 'Tester PKB', provider_dashboard_bypassed: true, provider_evidence_claimed: false } : { enabled: false }
+      tester_simulation: testerSimulation ? { enabled: true, account: 'Ghost', provider_dashboard_bypassed: true, provider_evidence_claimed: false } : { enabled: false }
     }
 
     const orderNumber = String(body.provider_order_number || '').trim() || null
@@ -198,7 +199,7 @@ Deno.serve(async request => {
 
     const competitionEligible = (verificationStatus === 'verified_processed' && !outsideSystem) || testerSimulation
     const saleRow = {
-      rep_user_id: user.id, rep_email: user.email, rep_name: access.display_name || user.email, session_id: safeSessionId,
+      rep_user_id: user.id, rep_email: user.email, rep_name: repDisplayName, session_id: safeSessionId,
       lead_label: body.lead_label || null, provider_capture_id: providerCapture?.id || null,
       customer_first_name: String(body.customer_first_name).trim(), customer_last_name: String(body.customer_last_name).trim(),
       customer_phone: body.customer_phone || null, customer_email: body.customer_email || null, service_address: String(body.service_address).trim(),
@@ -231,7 +232,9 @@ Deno.serve(async request => {
     if (attTotalHomeCare) products.push('Total Home Care')
     if (directv) products.push(`DIRECTV${directvService ? ` — ${directvService}` : ''}`)
     if (vivint) products.push(`Vivint${vivintService ? ` — ${vivintService}` : ''}`)
-    const message = `🎉 ${access.display_name || user.email} closed ${isp}${products.length ? ` — ${products.join(' + ')}` : ''}!`
+    const message = testerSimulation
+      ? `👻 Ghost recorded a verified ${isp} benchmark simulation.`
+      : `🎉 ${repDisplayName} closed ${isp}${products.length ? ` — ${products.join(' + ')}` : ''}!`
     if (providerCapture?.id) {
       const completedAt = new Date().toISOString()
       const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', rep_outcome: 'completed', rep_outcome_at: completedAt, updated_at: completedAt }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
