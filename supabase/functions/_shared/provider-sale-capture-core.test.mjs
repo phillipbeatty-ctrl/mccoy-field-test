@@ -1,10 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  SALE_OUTCOMES,
   SALE_PROVIDERS,
   boundedText,
   captureStartStatus,
   isUuid,
+  normalizeSaleOutcome,
   normalizeSaleProvider
 } from './provider-sale-capture-core.mjs'
 
@@ -29,6 +31,14 @@ test('normalizes every configured provider dashboard', () => {
     assert.ok(SALE_PROVIDERS.includes(expected))
   }
   assert.equal(normalizeSaleProvider('unknown provider'), null)
+})
+
+test('requires an explicit completed or abandoned outcome', () => {
+  assert.deepEqual(SALE_OUTCOMES, ['completed', 'abandoned'])
+  assert.equal(normalizeSaleOutcome('COMPLETED SALE'), 'completed')
+  assert.equal(normalizeSaleOutcome('abandoned order'), 'abandoned')
+  assert.equal(normalizeSaleOutcome('cancelled'), null)
+  assert.equal(normalizeSaleOutcome(''), null)
 })
 
 test('validates request identifiers and capture lifecycle state', () => {
