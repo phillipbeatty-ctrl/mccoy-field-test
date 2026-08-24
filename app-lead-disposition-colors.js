@@ -42,6 +42,14 @@
 
   function norm(v){return String(v||'').trim().toLowerCase();}
   function colorFor(disposition){return palette[norm(disposition)]||'#fbbf24';}
+  function colorForLead(lead){
+    if(/^#[0-9a-f]{6}$/i.test(String(lead?.pinColor||'')))return lead.pinColor;
+    const core=window.MCCOY_DOOR_WORKFLOW_CORE;
+    if(lead?.pinColorSource==='stage')return core?.pinState({stage:lead.stage})?.color||colorFor(lead.disposition);
+    if(lead?.pinColorSource==='visit_result')return core?.pinState({visitResult:lead.visitResult})?.color||colorFor(lead.disposition);
+    if(lead?.stage||lead?.visitResult)return core?.pinState({stage:lead.stage,visitResult:lead.visitResult,previousColor:colorFor(lead.disposition)})?.color||colorFor(lead.disposition);
+    return colorFor(lead?.disposition);
+  }
 
   function leadForMarker(el){
     const title=(el.getAttribute('title')||'').trim();
@@ -65,9 +73,9 @@
   function applyColors(){
     document.querySelectorAll('.lead-house-icon').forEach(el=>{
       const lead=leadForMarker(el);
-      const color=colorFor(lead?.disposition);
+      const color=colorForLead(lead);
       el.style.setProperty('--mccoy-lead-color',color);
-      if(lead?.disposition)el.dataset.disposition=lead.disposition;
+      if(lead?.pinDisposition||lead?.disposition)el.dataset.disposition=lead.pinDisposition||lead.disposition;
     });
   }
 
@@ -76,11 +84,9 @@
     if(!controls||document.getElementById('leadDispositionLegend'))return;
     const legend=document.createElement('div');
     legend.id='leadDispositionLegend';
-    const items=[
-      ['Uncontacted','#fbbf24'],['Not Home','#3b82f6'],['Contacted','#06b6d4'],['Interested','#8b5cf6'],
-      ['Follow Up','#f59e0b'],['Sale','#65a30d'],['Not Interested','#ef4444'],['Do Not Knock','#991b1b'],['Bad Address','#6b7280']
-    ];
-    legend.innerHTML=items.map(([name,color])=>`<span class="disp-key"><span class="disp-dot" style="background:${color}"></span>${name}</span>`).join('');
+    const resultItems=(window.MCCOY_DOOR_WORKFLOW_CORE?.VISIT_RESULTS||[]).map(item=>[item.label,item.color]);
+    const stageItems=(window.MCCOY_DOOR_WORKFLOW_CORE?.STAGES||[]).map(item=>[item.label,item.color]);
+    legend.innerHTML=`<strong>Visit Result</strong>${resultItems.map(([name,color])=>`<span class="disp-key"><span class="disp-dot" style="background:${color}"></span>${name}</span>`).join('')}<strong>Stage</strong>${stageItems.map(([name,color])=>`<span class="disp-key"><span class="disp-dot" style="background:${color}"></span>${name}</span>`).join('')}`;
     controls.appendChild(legend);
   }
 
