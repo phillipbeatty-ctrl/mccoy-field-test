@@ -25,6 +25,7 @@
       document.getElementById('fieldState').textContent='Knocking — Session Active';startBtn.classList.add('hidden');document.getElementById('stopKnockingBtn').classList.remove('hidden');
       document.getElementById('geoBox').textContent=gps?`Start GPS: ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)} (±${Math.round(gps.accuracy)}m)`:'Session connected; waiting for a location fix.';updateGpsQualityBox(gps?{...gps,ageMs:0}:null);telemetryStatus('Field session connected.',true);setStartBusy(false);
       await saveTestEvent({eventType:'session_start',eventTime:startedAt,gps,payload:{rawEvent:true,clientVersion:CLIENT_VERSION}});
+      window.dispatchEvent(new CustomEvent('mccoy-field-session-started',{detail:{sessionId:newSessionId,startedAt}}));
       window.MCCOY_SESSION_CONTROL?.beginControlLoop?.();
     }catch(err){console.error('Secure session start failed',err);telemetrySessionId=null;fail(err?.message||'Field session could not be started.');}
   },true);
