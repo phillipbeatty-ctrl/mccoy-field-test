@@ -138,7 +138,7 @@
   function isTesterPkb(){
     const email=String(window.MCCOY_ACCESS?.user?.email||'').trim().toLowerCase();
     const displayName=String(window.MCCOY_ACCESS?.access?.display_name||'').trim().toLowerCase();
-    return email==='phillipkbeatty@gmail.com'&&displayName==='tester pkb';
+    return email==='phillipkbeatty@gmail.com'&&displayName==='ghost';
   }
   function notify(message){
     clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');
@@ -252,7 +252,7 @@
       if(isTesterPkb()){
         event.preventDefault();event.stopImmediatePropagation();
         const provider=currentProvider();window.MCCOY_SALE_CONTEXT='field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
-        startProviderCapture(provider,{opened:false,reason:'tester_pkb_dashboard_bypass'});
+        startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'});
         saleGuard=true;saleButton.click();return;
       }
       event.preventDefault();event.stopImmediatePropagation();showRouter(saleButton);
