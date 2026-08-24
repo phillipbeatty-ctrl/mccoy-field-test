@@ -96,9 +96,9 @@ Deno.serve(async request => {
       if (capture.provider !== isp) return json({ error: 'provider_capture_mismatch' }, 400)
       if (capture.status === 'cancelled') return json({ error: 'provider_capture_cancelled' }, 409)
       providerCapture = capture
-      const { data: prior, error: priorError } = await admin.from('sales_records').select('id,compensation_snapshot,verification_status,verification_reason,competition_eligible').eq('provider_capture_id', capture.id).eq('rep_user_id', user.id).maybeSingle()
+      const { data: prior, error: priorError } = await admin.from('sales_records').select('id,compensation_snapshot,verification_status,verification_reason,competition_eligible,ranking_eligible').eq('provider_capture_id', capture.id).eq('rep_user_id', user.id).maybeSingle()
       if (priorError) throw priorError
-      if (prior) return json({ ok: true, duplicate: true, sale_id: prior.id, compensation_snapshot: prior.compensation_snapshot, verification: { status: prior.verification_status, reason: prior.verification_reason, competition_eligible: prior.competition_eligible } })
+      if (prior) return json({ ok: true, duplicate: true, sale_id: prior.id, compensation_snapshot: prior.compensation_snapshot, verification: { status: prior.verification_status, reason: prior.verification_reason, competition_eligible: prior.competition_eligible, ranking_eligible: prior.ranking_eligible } })
     }
 
     const saleContext = providerCapture?.sale_context === 'out_of_area_phone' || body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field'
@@ -215,7 +215,9 @@ Deno.serve(async request => {
       provider_order_number: orderNumber, provider_account_number: accountNumber, verification_status: verificationStatus,
       rep_reported_outcome: 'completed', rep_reported_outcome_at: new Date().toISOString(),
       verification_reason: verificationReason, provider_sale_row_id: providerRow?.id || null, competition_eligible: competitionEligible,
-      ranking_eligible: competitionEligible, ranking_verified_at: competitionEligible ? new Date().toISOString() : null,
+      // A completed McCoy submission ranks as soon as this insert commits.
+      // Provider verification remains the accounting and competition evidence gate.
+      ranking_eligible: true, ranking_verified_at: new Date().toISOString(),
       verified_at: verificationStatus === 'verified_processed' ? new Date().toISOString() : null,
       low_potential_since: verificationStatus === 'low_potential' ? new Date().toISOString() : null
     }
@@ -240,7 +242,7 @@ Deno.serve(async request => {
       const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', rep_outcome: 'completed', rep_outcome_at: completedAt, updated_at: completedAt }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
       if (captureUpdateError) console.error('provider capture status update failed', captureUpdateError)
     }
-    return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, tester_simulation: testerSimulation, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
+    return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, ranking_eligible: true, tester_simulation: testerSimulation, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
   } catch (error) {
     console.error('sale-submit', error)
     return json({ error: 'sale_submit_failed', detail: String((error as Error)?.message || error).slice(0, 180) }, 500)

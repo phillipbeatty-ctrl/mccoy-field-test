@@ -149,7 +149,7 @@ Deno.serve(async request => {
       const isAdmin = access.role === 'admin'
       let query = admin
         .from('provider_sale_captures')
-        .select('id,created_at,updated_at,rep_user_id,rep_email,rep_name,provider,sale_context,service_address,seller_portal_label,portal_opened,portal_open_reason,status,rep_outcome,rep_outcome_at,return_count,last_returned_at,sales_records!sales_records_provider_capture_id_fkey(id,verification_status,verification_reason,competition_eligible,sale_status)')
+        .select('id,client_request_id,created_at,updated_at,rep_user_id,rep_email,rep_name,provider,sale_context,session_id,lead_label,service_address,seller_portal_label,portal_opened,portal_open_reason,status,rep_outcome,rep_outcome_at,return_count,last_returned_at,sales_records!sales_records_provider_capture_id_fkey(id,verification_status,verification_reason,competition_eligible,ranking_eligible,sale_status)')
         .order('created_at', { ascending: false })
         .limit(isAdmin ? 500 : 100)
       if (!isAdmin) query = query.eq('rep_user_id', user.id)
