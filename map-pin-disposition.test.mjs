@@ -16,7 +16,8 @@ test('clicking a Lead Pool map pin opens the shared disposition panel',()=>{
 test('map dispositions reuse authoritative start and completion workflows',()=>{
   assert.match(detail,/MCCOY_START_DOOR_VISIT\?\.\(\{automatic:false\}\)/);
   assert.match(detail,/MCCOY_COMPLETE_DOOR_VISIT\?\.\('spotio'/);
-  assert.match(detail,/same ownership, session, GPS, distance, and verified-sale rules as Sales Hub/);
+  assert.match(detail,/Disposition is allowed regardless of door verification/);
+  assert.match(detail,/Location accuracy and distance are coaching signals only/);
   assert.doesNotMatch(detail,/sb\.from\(['"]leads['"]\)\.update/);
 });
 

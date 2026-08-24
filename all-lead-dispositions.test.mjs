@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const migration=fs.readFileSync(new URL('./supabase/migrations/20260824090000_all_users_all_lead_dispositions.sql',import.meta.url),'utf8');
+const migration=fs.readFileSync(new URL('./supabase/migrations/20260824152622_coaching_only_door_location.sql',import.meta.url),'utf8');
 const edge=fs.readFileSync(new URL('./supabase/functions/lead-admin/index.ts',import.meta.url),'utf8');
 const pool=fs.readFileSync(new URL('./app-lead-pool.js',import.meta.url),'utf8');
 const spotio=fs.readFileSync(new URL('./supabase/migrations/20260824070000_spotio_pin_dispositions.sql',import.meta.url),'utf8');
@@ -15,10 +15,12 @@ test('every active field role may start an audited visit on every real lead',()=
   assert.match(migration,/'lead_assignment_changed',false/);
 });
 
-test('all-lead authority does not remove location, distance, or verified-sale controls',()=>{
-  assert.match(migration,/verified_lead_location_required/);
-  assert.match(migration,/p_accuracy_meters>150/);
-  assert.match(migration,/v_distance>402\.336/);
+test('all-lead authority keeps verified-sale control while door verification becomes coaching-only',()=>{
+  assert.doesNotMatch(migration,/raise exception 'verified_lead_location_required'/);
+  assert.doesNotMatch(migration,/raise exception 'fresh_current_location_required'/);
+  assert.doesNotMatch(migration,/raise exception 'outside_quarter_mile_sale_only'/);
+  assert.match(migration,/'door_location_authorization_required',false/);
+  assert.match(migration,/'door_location_coaching_only',true/);
   assert.match(spotio,/sale_made_requires_completed_sale/);
   assert.match(migration,/revoke all on function public\.record_door_visit_start[\s\S]+from public,anon/);
 });

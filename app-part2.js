@@ -12,11 +12,12 @@ function leadAddressContext(){
 }
 function leadBySelect(){return leadAddressContext().lead||null;}
 function currentGps(){const gps=snapshotGpsInstant?.()||state.latestGps||null;return gps&&Number.isFinite(Number(gps.lat))&&Number.isFinite(Number(gps.lng))?gps:null;}
+function gpsAuditParams(gps){
+  const latitude=Number(gps?.lat),longitude=Number(gps?.lng),accuracy=Number(gps?.accuracy),capturedAt=Number(gps?.capturedAt),validCoordinates=Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180;
+  return{p_latitude:validCoordinates?latitude:null,p_longitude:validCoordinates?longitude:null,p_accuracy_meters:Number.isFinite(accuracy)&&accuracy>=0?accuracy:null,p_gps_captured_at:Number.isFinite(capturedAt)&&capturedAt>0?new Date(capturedAt).toISOString():null};
+}
 function doorErrorMessage(error){
   const value=String(error?.message||error||'').replace(/_/g,' ');
-  if(/outside quarter mile sale only/i.test(value))return 'Outside the ¼-mile lead limit. Only SALE is allowed; enter the customer service address in the sale form.';
-  if(/fresh current location|required current location|usable location accuracy/i.test(value))return 'A fresh usable GPS fix is required for non-sale door activity. Keep location enabled and retry.';
-  if(/verified lead location/i.test(value))return 'This lead does not have a verified door location. Choose another mapped lead or process only a completed sale with its service address.';
   if(/active visit must/i.test(value))return 'Finish this visit or use CORRECT LEAD before starting another door.';
   if(/lead not assigned|outside assigned pool/i.test(value))return 'This lead is outside your assigned lead pool.';
   if(/typed address required/i.test(value))return 'Type a complete ad-hoc service address before starting this activity.';
@@ -55,26 +56,22 @@ window.MCCOY_START_DOOR_VISIT=async function({automatic=false}={}){
   const addressContext=leadAddressContext(),isTyped=addressContext.kind==='typed'&&addressContext.valid,selectedLead=addressContext.lead;
   if(!isTyped&&!selectedLead?.dbId){if(!automatic)alert(addressContext.kind==='invalid'?'Type a complete address (at least 5 characters).':'Choose an assigned lead or type an ad-hoc address first.');return false;}
   const lead=isTyped?window.MCCOY_LEAD_ADDRESS_CORE.adHocLead(addressContext.address):selectedLead;
-  let gps=currentGps();
-  if(!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps)){
-    try{gps=await Promise.race([getGPSOnce(),new Promise(resolve=>setTimeout(()=>resolve(null),4500))]);if(gps)state.latestGps=gps;}catch(_){}
-  }
-  if(!gps){if(!automatic)alert('A fresh GPS fix is required for this door.');return false;}
-  const distance=isTyped?{withinRange:true,distance:null}:window.MCCOY_DOOR_WORKFLOW_CORE?.distanceState(lead,gps);
-  if(!distance?.withinRange){if(!automatic)alert(distance?.reason==='lead_location_unverified'?'This lead does not have a verified door location.':'Outside the ¼-mile lead limit. Type that service address as an ad-hoc address to disposition it, or process a completed sale.');return false;}
-  const button=document.getElementById('arriveDoorBtn');doorStartInFlight=true;if(button)button.disabled=true;setDoorStatus(isTyped?'Starting audited ad-hoc address activity…':'Verifying this door and current distance…');
+  const gps=currentGps(),gpsParams=gpsAuditParams(gps);
+  if(!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps))window.requestFreshGpsInBackground?.();
+  const button=document.getElementById('arriveDoorBtn');doorStartInFlight=true;if(button)button.disabled=true;setDoorStatus(isTyped?'Starting ad-hoc address activity; location is coaching-only…':'Starting activity; door location will be recorded for coaching when available…');
   try{
     const rpc=isTyped?'record_ad_hoc_door_visit_start':'record_door_visit_start',params=isTyped?{
-      p_session_id:telemetrySessionId,p_service_address:addressContext.address,p_latitude:Number(gps.lat),p_longitude:Number(gps.lng),p_accuracy_meters:Number(gps.accuracy),p_gps_captured_at:new Date(Number(gps.capturedAt)||Date.now()).toISOString()
-    }:{p_session_id:telemetrySessionId,p_lead_id:lead.dbId,p_selection_source:automatic?'automatic_nearest':'manual_lead',p_latitude:Number(gps.lat),p_longitude:Number(gps.lng),p_accuracy_meters:Number(gps.accuracy),p_gps_captured_at:new Date(Number(gps.capturedAt)||Date.now()).toISOString()};
+      p_session_id:telemetrySessionId,p_service_address:addressContext.address,...gpsParams
+    }:{p_session_id:telemetrySessionId,p_lead_id:lead.dbId,p_selection_source:automatic?'automatic_nearest':'manual_lead',...gpsParams};
     const {data,error}=await sb.rpc(rpc,params);
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_start_failed');
     const arrivedAt=Date.parse(data.started_at)||Date.now();
     if(state.lastDispositionEndedAt)saveTestEvent({eventType:'transition_interval',leadLabel:lead.address,eventTime:arrivedAt,gps,dwellMs:arrivedAt-state.lastDispositionEndedAt,payload:{rawEvent:true,fromDispositionToNextPhysicalKnock:true}});
-    state.activeDoorVisit={serverVisitId:data.visit_id,lead,arrivedAt,arrivalGps:gps,automaticSelection:isTyped?false:automatic,arrivalDistanceMeters:data.distance_meters==null?null:Number(data.distance_meters),selectionSource:isTyped?'typed_address':(automatic?'automatic_nearest':'manual_lead')};
+    state.activeDoorVisit={serverVisitId:data.visit_id,lead,arrivedAt,arrivalGps:gps,automaticSelection:isTyped?false:automatic,arrivalDistanceMeters:data.distance_meters==null?null:Number(data.distance_meters),doorLocationVerified:Boolean(data.door_location_verified),selectionSource:isTyped?'typed_address':(automatic?'automatic_nearest':'manual_lead')};
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';startDoorTimer();
     if(gps)state.breadcrumbs.push({...gps,eventType:'door_arrival',leadId:lead.id});
-    setDoorStatus(`${isTyped?'Ad-hoc activity started':automatic?'Closest lead auto-selected and arrival recorded':'Arrival recorded'} for ${lead.address}.`);
+    const coachingStatus=data.door_location_verified?'Door location verified for coaching.':'Door location not verified; disposition remains available.';
+    setDoorStatus(`${isTyped?'Ad-hoc activity started':automatic?'Closest lead auto-selected and arrival recorded':'Activity started'} for ${lead.address}. ${coachingStatus}`);
     window.dispatchEvent(new CustomEvent('mccoy-door-visit-started',{detail:{visitId:data.visit_id,leadId:lead.dbId||null,automatic:isTyped?false:automatic,selectionSource:state.activeDoorVisit.selectionSource,address:lead.address}}));
     return true;
   }catch(error){console.error('Door visit start failed',error);setDoorStatus(doorErrorMessage(error),true);if(!automatic)alert(doorErrorMessage(error));return false;}
@@ -89,26 +86,21 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     if(!automatic)alert('Arrive at the selected door first.');
     return false;
   }
-  let gps=currentGps();
-  if(disposition!=='sale'&&!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps)){
-    try{const fresh=await Promise.race([getGPSOnce(),new Promise(resolve=>setTimeout(()=>resolve(null),4500))]);if(fresh){gps=fresh;state.latestGps=fresh;}}catch(_){}
-  }
+  const gps=currentGps(),gpsParams=gpsAuditParams(gps);
+  if(!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps))window.requestFreshGpsInBackground?.();
   const button=disposition==='sale'?document.querySelector('[data-disp="Sale"]'):document.getElementById('savePinDispositionBtn');doorCompletionInFlight=true;if(button)button.disabled=true;
   setDoorStatus(automatic?'Applying automatic door outcome…':'Saving door outcome…');
   try{
     let data,error;
     if(disposition==='sale')({data,error}=await sb.rpc('record_door_visit_completion',{
-      p_visit_id:visit.serverVisitId,p_disposition:'sale',p_latitude:gps?Number(gps.lat):null,p_longitude:gps?Number(gps.lng):null,
-      p_accuracy_meters:gps&&Number.isFinite(Number(gps.accuracy))?Number(gps.accuracy):null,p_gps_captured_at:gps?new Date(Number(gps.capturedAt)||Date.now()).toISOString():null,
-      p_automatic:automatic,p_auto_reason:autoReason,p_provider_sale_id:saleId,p_service_address:serviceAddress
+      p_visit_id:visit.serverVisitId,p_disposition:'sale',...gpsParams,p_automatic:automatic,p_auto_reason:autoReason,p_provider_sale_id:saleId,p_service_address:serviceAddress
     }));
     else{
       let selection={activityType,visitResult,stage};
       if(disposition==='auto')selection=window.MCCOY_DOOR_WORKFLOW_CORE.autoDispositionForDwell(Date.now()-visit.arrivedAt);
       ({data,error}=await sb.rpc('record_spotio_door_visit_completion',{
         p_visit_id:visit.serverVisitId,p_activity_type:selection.activityType,p_visit_result:selection.visitResult,p_stage:selection.stage||null,
-        p_latitude:gps?Number(gps.lat):null,p_longitude:gps?Number(gps.lng):null,p_accuracy_meters:gps&&Number.isFinite(Number(gps.accuracy))?Number(gps.accuracy):null,
-        p_gps_captured_at:gps?new Date(Number(gps.capturedAt)||Date.now()).toISOString():null,p_automatic:automatic,p_auto_reason:autoReason
+        ...gpsParams,p_automatic:automatic,p_auto_reason:autoReason
       }));
     }
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_completion_failed');
@@ -118,7 +110,8 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     if(gps&&lead)state.breadcrumbs.push({...gps,eventType:'disposition',leadId:lead.id,disposition:display});
     state.lastDispositionEndedAt=endedAt;state.activeDoorVisit=null;clearInterval(doorTimerHandle);
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
-    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}.`);
+    const coachingStatus=data.door_location_verified?'Door location verified for coaching.':'Door location not verified; the disposition was still saved.';
+    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}. ${coachingStatus}`);
     renderActivities();renderStats();renderLeads();
     renderPinDispositionControls();window.MCCOY_APPLY_DISPOSITION_COLORS?.();
     window.dispatchEvent(new CustomEvent('mccoy-door-visit-completed',{detail:{visitId:visit.serverVisitId,leadId:lead?.dbId||null,disposition:display,activityType:data.activity_type||null,visitResult:data.visit_result||null,stage:data.stage||null,contactStatus,automatic}}));

@@ -6,7 +6,7 @@
 
   const css=document.createElement('style');
   css.textContent=`
-    .mccoy-live-location-icon{background:transparent!important;border:0!important}
+    .mccoy-live-location-icon{display:grid!important;place-items:center;background:transparent!important;border:0!important;cursor:pointer;pointer-events:auto;touch-action:manipulation}
     .mccoy-live-location-icon .live-location-pin{position:relative;width:24px;height:24px;border:4px solid #fff;border-radius:50%;background:#2563eb;box-shadow:0 1px 5px rgba(15,23,42,.55)}
     .mccoy-live-location-icon .live-location-pin:before{content:"";position:absolute;inset:-9px;border:3px solid rgba(37,99,235,.32);border-radius:50%;animation:mccoy-location-pulse 1.8s ease-out infinite}
     .mccoy-live-location-icon.signal-lost .live-location-pin{background:#d97706}
@@ -27,7 +27,7 @@
   const accuracy=document.createElement('div');accuracy.id='liveLocationAccuracy';accuracy.className='muted small';accuracy.textContent='Accuracy: unavailable';controls.appendChild(accuracy);
 
   const locationLayer=L.layerGroup().addTo(map);
-  const icon=stateName=>L.divIcon({className:`mccoy-live-location-icon${stateName==='signal_lost'?' signal-lost':''}`,html:'<div class="live-location-pin" aria-hidden="true"></div>',iconSize:[32,32],iconAnchor:[16,16],tooltipAnchor:[0,-18]});
+  const icon=stateName=>L.divIcon({className:`mccoy-live-location-icon${stateName==='signal_lost'?' signal-lost':''}`,html:'<div class="live-location-pin" aria-hidden="true"></div>',iconSize:[44,44],iconAnchor:[22,22],tooltipAnchor:[0,-24]});
   let marker=null,accuracyCircle=null,lastAccepted=null,pendingJump=null,follow=false,gpsErrorReason=null,freshnessTimer=null;
 
   function activeSession(){return Boolean(state?.session);}
@@ -46,16 +46,20 @@
     if(resetFix){lastAccepted=null;pendingJump=null;gpsErrorReason=null;}
     clearFreshnessTimer();setFollow(false);statusText(message,'inactive');accuracyText(null);
   }
-  function zoomToLocation(event){
-    event?.originalEvent?.preventDefault?.();if(event&&window.L?.DomEvent)L.DomEvent.stopPropagation(event);
+  function centerOnLocation({minimumZoom=18,zoomStep=2,announce=true}={}){
     if(!activeSession()||!lastAccepted||!core.freshness(lastAccepted).visible)return;
-    const targetZoom=Math.min(19,Math.max(18,map.getZoom()+2));map.setView([lastAccepted.lat,lastAccepted.lng],targetZoom,{animate:true});
+    const targetZoom=Math.min(19,Math.max(minimumZoom,map.getZoom()+zoomStep));map.stop?.();map.setView([lastAccepted.lat,lastAccepted.lng],targetZoom,{animate:true});
     const lastKnown=core.freshness(lastAccepted).state!=='live'||Boolean(gpsErrorReason)||Boolean(pendingJump);
-    statusText(lastKnown?'Zoomed to your last known location. The marker is not live.':'Zoomed to your current location.',lastKnown?'signal_lost':'live');
+    if(announce)statusText(lastKnown?'Zoomed to your last known location. The marker is not live.':'Zoomed to your current location.',lastKnown?'signal_lost':'live');
+  }
+  function zoomToLocation(event){
+    const domEvent=event?.originalEvent||event;
+    if(domEvent&&window.L?.DomEvent)L.DomEvent.stop(domEvent);else{domEvent?.preventDefault?.();domEvent?.stopPropagation?.();}
+    centerOnLocation();
   }
   function showFix(fix,stateName='live'){
     const latLng=[fix.lat,fix.lng],lastKnown=stateName==='signal_lost',circleColor=lastKnown?'#d97706':'#2563eb',title=lastKnown?'Your last known location':'Your current location';
-    if(!marker){marker=L.marker(latLng,{icon:icon(stateName),keyboard:false,zIndexOffset:1200,title:`${title} · tap to zoom in`}).addTo(locationLayer);marker.bindTooltip(`${title} · tap to zoom in`);marker.on('click',zoomToLocation);}
+    if(!marker){marker=L.marker(latLng,{icon:icon(stateName),keyboard:true,interactive:true,bubblingMouseEvents:false,zIndexOffset:1200,title:`${title} · tap to zoom in`}).addTo(locationLayer);marker.bindTooltip(`${title} · tap to zoom in`);marker.on('click',zoomToLocation);}
     else{marker.setLatLng(latLng);marker.setIcon(icon(stateName));}
     const markerTitle=`${title} · tap to zoom in`;marker.setOpacity(lastKnown?0.68:1);marker.setTooltipContent(`${markerTitle} · ±${Math.round(fix.accuracy)}m`);marker.options.title=markerTitle;marker.getElement?.()?.setAttribute('title',markerTitle);
     if(!accuracyCircle)accuracyCircle=L.circle(latLng,{radius:Math.max(3,fix.accuracy),color:circleColor,weight:1,opacity:.65,fillColor:circleColor,fillOpacity:.10,interactive:false}).addTo(locationLayer);
@@ -107,7 +111,7 @@
     if(!lastAccepted&&state.latestGps)receiveFix(state.latestGps);
     const fresh=lastAccepted?core.freshness(lastAccepted):null;
     if(!lastAccepted||fresh?.state!=='live'||gpsErrorReason||pendingJump){setFollow(false);statusText('A current GPS fix is required before the map can follow you.','signal_lost');window.requestFreshGpsInBackground?.();return;}
-    setFollow(!follow);if(follow)map.setView([lastAccepted.lat,lastAccepted.lng],Math.max(map.getZoom(),17),{animate:true});
+    setFollow(!follow);if(follow)centerOnLocation({minimumZoom:17,zoomStep:0,announce:false});
   });
   map.on('dragstart',()=>{if(follow){setFollow(false);statusText('Current location is still available. Follow paused because you moved the map.','live');}});
   window.addEventListener('mccoy-gps-update',event=>receiveFix(event.detail?.gps));
