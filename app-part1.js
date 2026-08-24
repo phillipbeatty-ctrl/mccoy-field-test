@@ -224,11 +224,17 @@ function getGPSOnce(){
   });
 }
 
+function publishGpsUpdate(gps,source='watch'){
+  if(!gps)return;
+  window.dispatchEvent(new CustomEvent('mccoy-gps-update',{detail:{gps:{...gps},source,sessionActive:Boolean(state.session)}}));
+}
+
 function startGpsWatch(){
   if(!navigator.geolocation || state.gpsWatchId!==null) return;
   state.gpsWatchId = navigator.geolocation.watchPosition(
     p=>{
       state.latestGps = {lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};
+      publishGpsUpdate(state.latestGps,'watch');
       if(state.session){
         state.breadcrumbs.push({...state.latestGps, eventType:"breadcrumb"});
         const now=Date.now();
@@ -258,7 +264,7 @@ function snapshotGpsInstant(){
 function requestFreshGpsInBackground(callback){
   if(!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
-    p=>{const fresh={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};state.latestGps=fresh;if(callback) callback(fresh);},
+    p=>{const fresh={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};state.latestGps=fresh;publishGpsUpdate(fresh,'fresh_request');if(callback) callback(fresh);},
     ()=>{},
     {enableHighAccuracy:true,timeout:5000,maximumAge:0}
   );
@@ -279,7 +285,7 @@ document.getElementById("startKnockingBtn").addEventListener("click", async ()=>
   try{gps=await getGPSOnce(); state.latestGps=gps;}catch(e){}
   const startedAt=Date.now();
   state.session={startedAt,startGps:gps};
-  if(gps) state.breadcrumbs.push({...gps,eventType:"session_start"});
+  if(gps){state.breadcrumbs.push({...gps,eventType:"session_start"});publishGpsUpdate(gps,'session_start');}
   startGpsWatch();
   document.getElementById("fieldState").textContent="Knocking — Session Active";
   document.getElementById("startKnockingBtn").classList.add("hidden");

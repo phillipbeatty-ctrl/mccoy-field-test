@@ -84,7 +84,7 @@
     const rows=filteredRows();
     const total=rows.length,pages=Math.max(1,Math.ceil(total/state.leadPageSize));if(state.leadPage>pages)state.leadPage=pages;
     const start=(state.leadPage-1)*state.leadPageSize,page=rows.slice(start,start+state.leadPageSize);
-    const fullCount=currentRows().length,scope=isAdmin()?'ALL LEADS':isManager()?'ADMIN-ASSIGNED LEADS':'MY LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
+    const fullCount=currentRows().length,scope='ALL LEADS';document.getElementById('leadPoolCount').textContent=`${state.leadMode==='real'?scope:'DEMO'} · ${total.toLocaleString()}${total!==fullCount?' of '+fullCount.toLocaleString():''} leads`;
     document.getElementById('leadPageLabel').textContent=`Page ${state.leadPage} of ${pages} · ${total.toLocaleString()} total`;
     document.getElementById('leadPrev').disabled=state.leadPage<=1;document.getElementById('leadNext').disabled=state.leadPage>=pages;
     const selectable=canAssignLeads()&&state.leadMode==='real';

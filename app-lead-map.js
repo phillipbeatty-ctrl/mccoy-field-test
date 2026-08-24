@@ -90,7 +90,7 @@
     for(const lead of leads){
       const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
       marker.bindTooltip(`${lead.address}${lead.ownerName&&lead.ownerRole!=='unassigned'?' · Owner: '+lead.ownerName:''}`);
-      marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);});
+      marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id}}));});
       markerByLead.set(lead.dbId,marker);markers.push(marker);bounds.push([Number(lead.lat),Number(lead.lng)]);
     }
     if(typeof leadLayer.addLayers==='function')leadLayer.addLayers(markers);else for(const marker of markers)leadLayer.addLayer(marker);
@@ -98,6 +98,7 @@
     if(bounds.length&&(fit||firstFit)){map.fitBounds(bounds,{padding:[18,18],maxZoom:16});firstFit=false;}
   }
   window.MCCOY_RENDER_LEAD_MAP=renderPins;
+  window.MCCOY_LEAD_MAP={map,canvas,renderPins,invalidateSize:options=>map.invalidateSize(options||{pan:false}),fitLeadPins:()=>renderPins(true)};
   window.MCCOY_INVALIDATE_LEAD_MAP=()=>setTimeout(()=>{
     if(panel.style.display==='none')return;
     map.invalidateSize({pan:false});

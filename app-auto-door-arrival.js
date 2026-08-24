@@ -46,6 +46,7 @@
     const sessionStart=state.session?.startedAt||null;
     if(sessionStart!==observedSessionStart){observedSessionStart=sessionStart;autoArrivedLeadIds.clear();resetCandidate();lastFixAt=0;}
     if(!sessionStart||state.activeDoorVisit)return;
+    if(window.MCCOY_LEAD_ADDRESS?.current?.().kind==='typed'){resetCandidate();return;}
     const gps=state.latestGps||null,capturedAt=Number(gps?.capturedAt||0),lat=Number(gps?.lat),lng=Number(gps?.lng),accuracy=Number(gps?.accuracy);
     if(!capturedAt||capturedAt===lastFixAt)return;
     lastFixAt=capturedAt;

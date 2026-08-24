@@ -122,7 +122,7 @@
       state.realLeads=state.realLeads||[];state.realLeads.unshift(lead);state.leadMode='real';state.leads=state.realLeads;
       if(typeof window.renderLeads==='function')window.renderLeads();
       if(typeof window.renderFieldLeadSelect==='function')window.renderFieldLeadSelect();
-      select.value=String(lead.id);
+      select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));
       window.MCCOY_RENDER_LEAD_MAP?.(false);
       updateClosestDoorAddress();
       message(gps?'Address added to the real-lead map and selected for this door.':'Address added and selected. Enable location to place it on the map.',true);
