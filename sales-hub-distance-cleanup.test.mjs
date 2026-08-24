@@ -31,7 +31,7 @@ test('silent location automation retains correction without rendering distance',
 
 test('distance never decides which service address or lead label reaches sale processing',()=>{
   assert.doesNotMatch(sales,/doorContext\?\.withinRange\?\(lead\?\.address/);
-  assert.match(sales,/doorContext\?\.address\|\|capture\?\.service_address\|\|\(lead\?\.address\|\|lead\?\.fullAddress\)/);
+  assert.match(sales,/capture\.service_address\|\|doorContext\?\.address\|\|\(lead\?\.address\|\|lead\?\.fullAddress\)/);
   assert.doesNotMatch(providerRouter,/distanceContext&&!distanceContext\.withinRange/);
   assert.match(providerRouter,/lead_label:typedAddress\|\|\(lead\?\.address\|\|lead\?\.fullAddress\|\|null\)/);
 });
@@ -49,5 +49,6 @@ test('sale distance remains an informational field attached to the saved sale',(
 
 test('cache versions force the cleaned Sales Hub assets to replace the redundant UI',()=>{
   for(const asset of ['app-door-workflow-core.js','app-field-addresses.js','app-typed-lead-address.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082414`));
-  for(const asset of ['app-part1.js','app-distance-to-lead.js','app-provider-sale-router.js','app-sales.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082416`));
+  for(const asset of ['app-part1.js','app-distance-to-lead.js','app-provider-sale-router.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082416`));
+  assert.match(html,/app-sales\.js\?v=2026082417/);
 });

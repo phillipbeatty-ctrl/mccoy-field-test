@@ -107,7 +107,7 @@
   if(window.sb?.functions?.invoke){
     const originalInvoke=sb.functions.invoke.bind(sb.functions);
     sb.functions.invoke=(name,options)=>{
-      if(name==='sale-submit'&&options?.body)options={...options,body:{...options.body,...readExtras()}};
+      if(name==='sale-submit'&&options?.body&&options.body.capture_only_completion!==true)options={...options,body:{...options.body,...readExtras()}};
       return originalInvoke(name,options);
     };
   }
