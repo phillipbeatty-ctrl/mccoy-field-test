@@ -103,6 +103,16 @@ test('self-location marker adds no manager feed, remote read, or local movement 
   assert.doesNotMatch(mapUi,/L\.polyline|trail|location_events|supabase|\.from\(|manager|trainer/i)
 })
 
+test('one tap on the self-location marker centers and zooms without enabling Follow mode',()=>{
+  assert.match(mapUi,/marker\.on\('click',zoomToLocation\)/)
+  assert.doesNotMatch(mapUi,/marker\.on\('dblclick'/)
+  assert.match(mapUi,/Math\.min\(19,Math\.max\(18,map\.getZoom\(\)\+2\)\)/)
+  assert.match(mapUi,/map\.setView\(\[lastAccepted\.lat,lastAccepted\.lng\],targetZoom/)
+  assert.match(mapUi,/Zoomed to your last known location\. The marker is not live/)
+  const zoomBody=mapUi.slice(mapUi.indexOf('function zoomToLocation'),mapUi.indexOf('function showFix'))
+  assert.doesNotMatch(zoomBody,/setFollow\(/)
+})
+
 test('live-location scripts load around the Leaflet map in dependency order',()=>{
   const coreAt=index.indexOf('app-live-location-core.js'),mapAt=index.indexOf('app-lead-map.js'),uiAt=index.indexOf('app-live-location-map.js')
   assert.ok(coreAt>0&&mapAt>coreAt&&uiAt>mapAt)

@@ -46,11 +46,18 @@
     if(resetFix){lastAccepted=null;pendingJump=null;gpsErrorReason=null;}
     clearFreshnessTimer();setFollow(false);statusText(message,'inactive');accuracyText(null);
   }
+  function zoomToLocation(event){
+    event?.originalEvent?.preventDefault?.();if(event&&window.L?.DomEvent)L.DomEvent.stopPropagation(event);
+    if(!activeSession()||!lastAccepted||!core.freshness(lastAccepted).visible)return;
+    const targetZoom=Math.min(19,Math.max(18,map.getZoom()+2));map.setView([lastAccepted.lat,lastAccepted.lng],targetZoom,{animate:true});
+    const lastKnown=core.freshness(lastAccepted).state!=='live'||Boolean(gpsErrorReason)||Boolean(pendingJump);
+    statusText(lastKnown?'Zoomed to your last known location. The marker is not live.':'Zoomed to your current location.',lastKnown?'signal_lost':'live');
+  }
   function showFix(fix,stateName='live'){
     const latLng=[fix.lat,fix.lng],lastKnown=stateName==='signal_lost',circleColor=lastKnown?'#d97706':'#2563eb',title=lastKnown?'Your last known location':'Your current location';
-    if(!marker){marker=L.marker(latLng,{icon:icon(stateName),keyboard:false,zIndexOffset:1200,title}).addTo(locationLayer);marker.bindTooltip(title);}
+    if(!marker){marker=L.marker(latLng,{icon:icon(stateName),keyboard:false,zIndexOffset:1200,title:`${title} · tap to zoom in`}).addTo(locationLayer);marker.bindTooltip(`${title} · tap to zoom in`);marker.on('click',zoomToLocation);}
     else{marker.setLatLng(latLng);marker.setIcon(icon(stateName));}
-    marker.setOpacity(lastKnown?0.68:1);marker.setTooltipContent(`${title} · ±${Math.round(fix.accuracy)}m`);marker.options.title=title;marker.getElement?.()?.setAttribute('title',title);
+    const markerTitle=`${title} · tap to zoom in`;marker.setOpacity(lastKnown?0.68:1);marker.setTooltipContent(`${markerTitle} · ±${Math.round(fix.accuracy)}m`);marker.options.title=markerTitle;marker.getElement?.()?.setAttribute('title',markerTitle);
     if(!accuracyCircle)accuracyCircle=L.circle(latLng,{radius:Math.max(3,fix.accuracy),color:circleColor,weight:1,opacity:.65,fillColor:circleColor,fillOpacity:.10,interactive:false}).addTo(locationLayer);
     else{accuracyCircle.setLatLng(latLng);accuracyCircle.setRadius(Math.max(3,fix.accuracy));accuracyCircle.setStyle({color:circleColor,fillColor:circleColor});}
     accuracyText(fix,lastKnown);
@@ -111,5 +118,5 @@
   window.addEventListener('pagehide',clearFreshnessTimer);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){clearFreshnessTimer();return;}if(activeSession()&&state.latestGps)receiveFix(state.latestGps);refreshFreshness();scheduleFreshness();});
   if(activeSession()&&state.latestGps)receiveFix(state.latestGps);else refreshFreshness();
-  window.MCCOY_LIVE_LOCATION_MAP={receiveFix,receiveError,refresh:refreshFreshness,clear:clearLocation,isFollowing:()=>follow};
+  window.MCCOY_LIVE_LOCATION_MAP={receiveFix,receiveError,refresh:refreshFreshness,clear:clearLocation,zoom:zoomToLocation,isFollowing:()=>follow};
 })();
