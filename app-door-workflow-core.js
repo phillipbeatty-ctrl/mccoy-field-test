@@ -104,9 +104,9 @@
 
   function normalizedAddress(value){return String(value||'').trim().replace(/\s+/g,' ');}
   function saleAddress({withinRange,leadAddress,manualAddress,providerAddress}){
-    if(normalizedAddress(providerAddress))return{address:normalizedAddress(providerAddress),source:'provider'};
-    if(withinRange&&normalizedAddress(leadAddress))return{address:normalizedAddress(leadAddress),source:'lead'};
     if(normalizedAddress(manualAddress))return{address:normalizedAddress(manualAddress),source:'manual'};
+    if(normalizedAddress(providerAddress))return{address:normalizedAddress(providerAddress),source:'provider'};
+    if(normalizedAddress(leadAddress))return{address:normalizedAddress(leadAddress),source:'lead'};
     return{address:'',source:'required'};
   }
 

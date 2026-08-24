@@ -1,24 +1,17 @@
-// Distance to Lead: automatic nearest-lead selection, resumable visits, and
-// conservative dwell/location-based automatic dispositions.
+// Silent location engine: automatic nearest-lead selection, resumable visits,
+// and sale-only distance audit context. Distance is never rendered as a field metric.
 (function(){
   if(window.MCCOY_DISTANCE_TO_LEAD_CONTROL)return;
   const core=window.MCCOY_DOOR_WORKFLOW_CORE,select=document.getElementById('fieldLeadSelect');
   if(!core||!select)return;
-  const panel=document.getElementById('closestDoorAddress')||document.createElement('div');
-  if(!panel.id){panel.id='closestDoorAddress';select.insertAdjacentElement('beforebegin',panel);}
-  panel.className='geo-box distance-to-lead';panel.setAttribute('role','group');panel.setAttribute('aria-label','Distance to Lead');
-  panel.style.cssText='margin:0 0 10px;border-color:#93c5fd;background:#eff6ff;color:#172554;display:grid;gap:8px';
-  panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong>DISTANCE TO LEAD</strong><span id="distanceLeadMode" style="font-size:11px;font-weight:900;padding:3px 7px;border-radius:999px;background:#dbeafe">AUTO</span></div>'
-    +'<div id="distanceLeadStatus">Waiting for a current location and assigned leads…</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="useClosestLeadBtn" type="button" class="assign-btn">USE CLOSEST LEAD</button><button id="correctDoorLeadBtn" type="button" class="assign-btn" hidden>CORRECT LEAD</button></div>'
-    +'<label id="outsideSaleAddressWrap" hidden style="display:grid;gap:5px;font-size:12px;font-weight:800">Service address for an out-of-area SALE<input id="outsideSaleAddress" autocomplete="street-address" placeholder="Required unless supplied by provider" style="padding:10px;border:1px solid #93c5fd;border-radius:8px;background:#fff"></label>'
-    +'<div id="distanceLeadRule" class="muted small">Assigned leads enforce the ¼-mile rule. Typed ad-hoc addresses can be dispositioned inside or outside assigned areas with fresh GPS retained for audit. Completed sales are allowed at any distance.</div>';
+  document.getElementById('closestDoorAddress')?.remove();
+  const arriveButton=document.getElementById('arriveDoorBtn'),correctButton=document.createElement('button');
+  correctButton.id='correctDoorLeadBtn';correctButton.type='button';correctButton.className='assign-btn';correctButton.textContent='CORRECT LEAD';correctButton.hidden=true;correctButton.setAttribute('aria-describedby','doorVisitStatus');arriveButton?.insertAdjacentElement('afterend',correctButton);
 
-  let manualLeadLocked=false,autoChanging=false,lastNearest=null,lastState=null,providerAddress='';
+  let manualLeadLocked=false,autoChanging=false,providerAddress='';
   let arrivalCandidate=null,arrivalHits=0,departureCandidate=null,departureHits=0,resumeAttempted=false;
   const byId=id=>document.getElementById(id);
   const label=lead=>lead?.fullAddress||[lead?.address,lead?.city,[lead?.stateCode,lead?.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Selected lead';
-  const formatDistance=meters=>{const feet=Number(meters)*3.28084;return feet<1000?`${Math.round(feet)} ft`:`${(feet/5280).toFixed(2)} mi`;};
   const selectedLead=()=>{const value=String(select.value||'');return(state.leads||[]).find(lead=>String(lead.id)===value||String(lead.dbId)===value)||state.activeDoorVisit?.lead||null;};
   const addressContext=()=>window.MCCOY_LEAD_ADDRESS?.current?.()||{kind:'empty',address:'',lead:null,valid:false};
   function ensureOption(lead){if(!lead)return;let option=[...select.options].find(item=>item.value===String(lead.id));if(!option){option=new Option(label(lead),String(lead.id));select.add(option);}}
@@ -34,39 +27,16 @@
       if(nearest&&nearest.distance<=core.QUARTER_MILE_METERS){if(String(select.value)!==String(nearest.lead.id))chooseLead(nearest.lead,true);}
       else if(select.value){autoChanging=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;}
     }
-    if(typed){lastNearest=nearest;lastState={withinRange:false,distance:null,reason:'typed_address',lead:null,nearest,typed:true,address:typed.address,selectionSource:'typed_address'};return lastState;}
+    if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,nearest,typed:true,address:typed.address,selectionSource:'typed_address'};
     const current=selectedLead(),distance=core.distanceState(current,gps);
-    lastNearest=nearest;lastState={...distance,lead:current,nearest};
-    return lastState;
+    return{...distance,lead:current,nearest};
   }
 
   function render(){
-    const current=calculate(),mode=byId('distanceLeadMode'),status=byId('distanceLeadStatus'),manualWrap=byId('outsideSaleAddressWrap'),correct=byId('correctDoorLeadBtn');
-    if(mode){mode.textContent=current.typed?'TYPED':manualLeadLocked?'MANUAL':'AUTO';mode.style.background=current.typed?'#ffedd5':manualLeadLocked?'#fef3c7':'#dbeafe';}
+    const current=calculate(),correct=byId('correctDoorLeadBtn');
     if(correct)correct.hidden=!state.activeDoorVisit;
     select.disabled=!!state.activeDoorVisit;
     window.MCCOY_LEAD_ADDRESS?.setDisabled?.(!!state.activeDoorVisit);
-    if(manualWrap)manualWrap.hidden=!!current.withinRange||!!current.typed;
-    if(state.activeDoorVisit){
-      const dwell=Date.now()-state.activeDoorVisit.arrivedAt;
-      status.textContent=`Active door: ${label(state.activeDoorVisit.lead)} · ${current.distance==null?'distance unavailable':formatDistance(current.distance)} · ${dwell>=60000?'Contacted threshold reached; departure defaults to No Sale.':'Visit timer active.'}`;
-      panel.style.borderColor='#60a5fa';panel.style.background='#eff6ff';return current;
-    }
-    if(current.typed){
-      const fresh=core.isFreshGps(state.latestGps||null);
-      status.textContent=`Ad-hoc address: ${current.address} · ${fresh?'Ready to start inside or outside assigned areas.':'Waiting for a fresh GPS fix to start; completed-sale entry remains available.'}`;panel.style.borderColor=fresh?'#f97316':'#f59e0b';panel.style.background='#fff7ed';return current;
-    }
-    if(!core.isFreshGps(state.latestGps||null)){
-      status.textContent='Location unavailable or stale. Non-sale dispositions are locked; only a completed SALE with a service address is allowed.';panel.style.borderColor='#f59e0b';panel.style.background='#fffbeb';return current;
-    }
-    if(!current.lead){
-      status.textContent=lastNearest?'No verified lead is within ¼ mile. Enter the service address to process only a completed SALE.':'No verified mapped leads are available. Enter the service address to process only a completed SALE.';panel.style.borderColor='#f59e0b';panel.style.background='#fffbeb';return current;
-    }
-    if(current.withinRange){
-      status.textContent=`${manualLeadLocked?'Selected':'Closest'}: ${label(current.lead)} · ${formatDistance(current.distance)} away · Door outcomes enabled.`;panel.style.borderColor='#22c55e';panel.style.background='#f0fdf4';
-    }else{
-      status.textContent=`Selected lead is ${current.distance==null?'not precisely mapped':formatDistance(current.distance)+' away'}. Outside ¼ mile: only SALE is enabled, and a service address is required.`;panel.style.borderColor='#f59e0b';panel.style.background='#fffbeb';
-    }
     return current;
   }
 
@@ -85,13 +55,14 @@
 
   function providerAddressFrom(capture){
     const value=String(capture?.service_address||'').trim();if(!value)return;
-    providerAddress=value;const input=byId('outsideSaleAddress');if(input&&!input.value)input.value=value;render();
+    providerAddress=value;render();
   }
   function saleContext(){
-    const current=render(),typed=addressContext(),manual=current.typed?typed.address:(byId('outsideSaleAddress')?.value||''),leadAddress=label(current.lead);
-    if(current.typed)return{ok:true,address:typed.address,source:'typed_address',withinRange:false,lead:null,distanceMeters:null,selectionSource:'typed_address'};
-    return{...core.saleAddress({withinRange:current.withinRange,leadAddress,manualAddress:manual,providerAddress}),withinRange:current.withinRange,lead:current.lead,distanceMeters:current.distance};
+    const current=render(),context=addressContext(),lead=current.lead||context.lead||null,contextAddress=context.valid?String(context.address||'').trim():'',leadAddress=lead?label(lead):'',address=contextAddress||providerAddress||leadAddress;
+    return{ok:!!address,address,source:context.kind==='typed'?'typed_address':contextAddress?'lead':providerAddress?'provider':'lead',withinRange:current.withinRange,lead:context.kind==='typed'?null:lead,distanceMeters:current.distance,selectionSource:context.kind==='typed'?'typed_address':null};
   }
+
+  function useClosest(){manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest&&nearest.distance<=core.QUARTER_MILE_METERS)chooseLead(nearest.lead,true);return render();}
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
@@ -132,16 +103,14 @@
 
   select.addEventListener('change',event=>{if((event.isTrusted||!autoChanging)&&!state.activeDoorVisit){manualLeadLocked=!!select.value;resetArrival();render();}});
   window.addEventListener('mccoy-lead-address-changed',event=>{if(!state.activeDoorVisit){manualLeadLocked=event.detail?.context?.kind==='typed'||event.detail?.context?.kind==='assigned';resetArrival();render();}});
-  byId('useClosestLeadBtn').addEventListener('click',()=>{manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest&&nearest.distance<=core.QUARTER_MILE_METERS)chooseLead(nearest.lead,true);render();});
-  byId('correctDoorLeadBtn').addEventListener('click',correctLead);
-  byId('outsideSaleAddress').addEventListener('input',render);
+  byId('correctDoorLeadBtn')?.addEventListener('click',correctLead);
   for(const eventName of ['mccoy-provider-sale-capture-started','mccoy-provider-sale-capture-ready','mccoy-provider-sale-returned','mccoy-provider-sale-capture-restored'])window.addEventListener(eventName,event=>providerAddressFrom(event.detail?.capture));
-  window.addEventListener('mccoy-provider-sale-abandoned',()=>setTimeout(evaluateAutomation,150));
-  window.addEventListener('mccoy-door-visit-started',render);window.addEventListener('mccoy-door-visit-completed',()=>{manualLeadLocked=false;resetArrival();resetDeparture();render();});
+  window.addEventListener('mccoy-provider-sale-abandoned',()=>{providerAddress='';setTimeout(evaluateAutomation,150);});
+  window.addEventListener('mccoy-door-visit-started',render);window.addEventListener('mccoy-door-visit-completed',()=>{manualLeadLocked=false;providerAddress='';resetArrival();resetDeparture();render();});
   for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded'])window.addEventListener(eventName,()=>{if(state.activeDoorVisit?.lead?.dbId){const loaded=(state.leads||[]).find(item=>String(item.dbId)===String(state.activeDoorVisit.lead.dbId));if(loaded){state.activeDoorVisit.lead=loaded;chooseLead(loaded,false);}}render();});
   window.addEventListener('mccoy-access-ready',resumeWorkflow);setTimeout(()=>{if(window.MCCOY_ACCESS?.access)resumeWorkflow();},900);
-  const timer=setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Distance to Lead evaluation failed',error);}},750);
+  const timer=setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750);
   window.addEventListener('beforeunload',()=>clearInterval(timer));
-  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,useClosest:()=>byId('useClosestLeadBtn').click(),correctLead};
+  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,useClosest,correctLead};
   render();
 })();

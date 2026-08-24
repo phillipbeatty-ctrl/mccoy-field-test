@@ -77,7 +77,7 @@
     let sessionId=null;
     try{if(typeof telemetrySessionId!=='undefined'&&telemetrySessionId)sessionId=telemetrySessionId;}catch(_){}
     const typedAddress=addressContext?.kind==='typed'?addressContext.address:null;
-    return{session_id:sessionId,lead_label:typedAddress||(distanceContext&&!distanceContext.withinRange?null:(lead?.address||lead?.fullAddress||null)),service_address:typedAddress||(distanceContext?distanceContext.address:(lead?.address||lead?.fullAddress||null)),selection_source:typedAddress?'typed_address':null};
+    return{session_id:sessionId,lead_label:typedAddress||(lead?.address||lead?.fullAddress||null),service_address:typedAddress||(distanceContext?.address||(lead?.address||lead?.fullAddress||null)),selection_source:typedAddress?'typed_address':null};
   }
   async function captureCall(action,payload={}){
     if(typeof sb==='undefined')throw new Error('McCoy connection is not ready.');
