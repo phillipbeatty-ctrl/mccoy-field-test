@@ -39,8 +39,8 @@
     return{kind:'assigned',lead,address:lead.fullAddress||lead.address,valid:true};
   }
   function wireDisposition(lead){
-    const start=document.getElementById('mapPinStartBtn'),save=document.getElementById('mapPinSaveBtn'),sale=document.getElementById('mapPinSaleBtn');
-    if(!start||!save||!sale)return;
+    const start=document.getElementById('mapPinStartBtn'),save=document.getElementById('mapPinSaveBtn'),sale=document.getElementById('mapPinSaleBtn'),remove=document.getElementById('mapDeleteLeadBtn');
+    if(!start||!save||!sale||!remove)return;
     const active=()=>state.activeDoorVisit||null,sameActive=()=>String(active()?.lead?.dbId||'')===String(lead.dbId||'');
     function sync(){const visit=active();start.disabled=!!visit;save.disabled=!sameActive();start.textContent=sameActive()?'PIN ACTIVITY ACTIVE':visit?'FINISH ACTIVE ACTIVITY FIRST':'START PIN ACTIVITY';}
     start.addEventListener('click',async()=>{
@@ -61,6 +61,7 @@
       else mapDispositionMessage('Disposition was not saved. Review the Sales Hub door status and retry.',true);
     });
     sale.addEventListener('click',()=>{selectLeadForWorkflow(lead);document.getElementById('processSaleBtn')?.click();});
+    remove.addEventListener('click',async()=>{remove.disabled=true;const removed=await window.MCCOY_DELETE_LEAD?.(lead);if(removed){activeLeadId=null;const detail=ensureDetailPanel();if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Select another lead to view details.</div>';}else remove.disabled=false;});
     sync();
   }
 
@@ -91,7 +92,7 @@
           <label>Visit Result<select id="mapLeadVisitResult">${optionList(visitResults,'Select result')}</select></label>
           <label>Stage<select id="mapLeadStage">${optionList(stages,'No stage change')}</select></label>
         </div>
-        <div class="map-pin-disposition-actions"><button id="mapPinStartBtn" type="button" class="assign-btn">START PIN ACTIVITY</button><button id="mapPinSaveBtn" type="button" class="primary">SAVE PIN DISPOSITION</button><button id="mapPinSaleBtn" type="button" class="success">PROCESS SALE</button></div>
+        <div class="map-pin-disposition-actions"><button id="mapPinStartBtn" type="button" class="assign-btn">START PIN ACTIVITY</button><button id="mapPinSaveBtn" type="button" class="primary">SAVE PIN DISPOSITION</button><button id="mapPinSaleBtn" type="button" class="success">PROCESS SALE</button><button id="mapDeleteLeadBtn" type="button" class="danger">DELETE LEAD</button></div>
         <div id="mapPinDispositionMsg" class="muted small" role="status" aria-live="polite">Disposition is allowed regardless of door verification. Location accuracy and distance are coaching signals only; verified-sale rules still apply.</div>
       </div>
       <div class="muted small lead-detail-help">Edit the address in Correct Lead and press ENTER to save it and correct the house location automatically.</div>`;

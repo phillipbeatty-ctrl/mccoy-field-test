@@ -8,6 +8,7 @@
   let adminReps=[];
   let managerAdministratorAssigned=true;
   let selectedMapLeadId=null;
+  let duplicateSnapshot=null,leadCleanupBusy=false;
   const selectedListLeadIds=new Set();
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -22,7 +23,7 @@
 
   const toolbar=card.querySelector('.toolbar');
   if(toolbar){
-    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="leadMapView" class="primary">MAP / ASSIGN</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="assign-btn">LIST</button><span id="leadPoolCount" class="badge badge-demo"></span></div>`);
+    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="leadMapView" class="primary">MAP / ASSIGN</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="assign-btn">LIST</button><button id="checkDuplicateLeadsBtn" type="button" class="assign-btn">CHECK DUPLICATES</button><span id="leadPoolCount" class="badge badge-demo"></span></div><div id="leadCleanupStatus" class="muted small" role="status" aria-live="polite" style="margin:-4px 0 10px">Duplicate check has not been run.</div>`);
     toolbar.insertAdjacentHTML('afterend',`<div id="leadPager" style="display:none;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><div><button id="leadPrev" class="assign-btn">Previous</button><button id="leadNext" class="assign-btn" style="margin-left:6px">Next</button></div><div><span id="leadPageLabel" class="muted small"></span><select id="leadPageSize" style="margin-left:8px;padding:7px"><option>50</option><option>100</option><option>250</option></select></div></div>`);
   }
 
@@ -80,6 +81,45 @@
   }
   function renderRepSelect(){const options=`<option value="">${isManager()?'Return to My Admin-assigned Pool':'Unassigned'}</option>`+adminReps.map(r=>`<option value="${esc(r.email)}">${esc(r.display_name||r.email)}${r.role==='admin'?' (Admin)':r.role==='manager'?' (Manager)':r.role==='trainer'?' (Trainer)':''}</option>`).join('');for(const id of ['mapRepSelect','listRepSelect']){const select=document.getElementById(id);if(!select)continue;const current=select.value;select.innerHTML=options;select.disabled=isManager()&&!managerAdministratorAssigned;if(current&&adminReps.some(rep=>rep.email===current))select.value=current;}if(isManager()&&(!managerAdministratorAssigned||!adminReps.length)){for(const id of ['mapAssignMsg','listAssignMsg']){const msg=document.getElementById(id);if(msg)msg.textContent=managerAdministratorAssigned?'No representatives have been assigned to you yet.':'An Admin must be assigned as your supervisor before you can receive or assign leads.';}}}
 
+  function cleanupMessage(text,error=false){const status=document.getElementById('leadCleanupStatus');if(status){status.textContent=text;status.style.color=error?'#991b1b':'';}}
+  function resetDuplicateControl(){duplicateSnapshot=null;const button=document.getElementById('checkDuplicateLeadsBtn');if(button){button.textContent='CHECK DUPLICATES';button.className='assign-btn';button.disabled=false;}}
+  async function checkOrRemoveDuplicates(){
+    if(leadCleanupBusy)return;
+    const button=document.getElementById('checkDuplicateLeadsBtn');if(!button)return;
+    leadCleanupBusy=true;button.disabled=true;
+    try{
+      if(!duplicateSnapshot){
+        cleanupMessage('Verifying normalized street, unit, city, state, and ZIP values…');
+        const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'duplicate_status'}});if(error||!data?.ok)throw error||new Error(data?.error||'duplicate_check_failed');
+        const groups=Number(data.duplicate_address_groups||0),extras=Number(data.extra_leads||0),removable=Number(data.removable_extra_leads||0),blocked=Number(data.blocked_by_active_visits||0);
+        if(!removable){resetDuplicateControl();cleanupMessage(blocked?`${groups.toLocaleString()} duplicate address group${groups===1?'':'s'} found, but active visits currently protect all ${blocked.toLocaleString()} extra lead${blocked===1?'':'s'}.`:'No duplicate lead addresses were found.');return;}
+        duplicateSnapshot=data;button.textContent=`REMOVE ${removable.toLocaleString()} DUPLICATE${removable===1?'':'S'}`;button.className='danger';
+        cleanupMessage(`Verified ${groups.toLocaleString()} duplicate address group${groups===1?'':'s'} with ${extras.toLocaleString()} extra lead${extras===1?'':'s'}. Unit numbers remain separate.${blocked?` ${blocked.toLocaleString()} active visit${blocked===1?' is':'s are'} protected.`:''} Click REMOVE to confirm cleanup.`);
+        return;
+      }
+      const removable=Number(duplicateSnapshot.removable_extra_leads||0),extras=Number(duplicateSnapshot.extra_leads||0);
+      if(!window.confirm(`Remove ${removable.toLocaleString()} verified duplicate lead${removable===1?'':'s'} from the Lead Pool? The strongest record at each address will remain, and every removal will be retained in the audit history.`)){cleanupMessage('Duplicate cleanup canceled. No leads were removed.');return;}
+      cleanupMessage(`Removing ${removable.toLocaleString()} verified duplicate lead${removable===1?'':'s'}…`);
+      const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'remove_duplicate_leads',snapshot_token:duplicateSnapshot.snapshot_token,expected_extra_leads:extras}});if(error||!data?.ok)throw error||new Error(data?.error||'duplicate_cleanup_failed');
+      const removed=Number(data.removed||0),blocked=Number(data.blocked_by_active_visits||0);resetDuplicateControl();selectedListLeadIds.clear();await window.loadMcCoyLeads?.();cleanupMessage(`Removed ${removed.toLocaleString()} verified duplicate lead${removed===1?'':'s'} from the Lead Pool.${blocked?` ${blocked.toLocaleString()} active visit${blocked===1?' remains':'s remain'} protected.`:''}`);
+    }catch(error){console.error('Lead duplicate cleanup failed',error);resetDuplicateControl();cleanupMessage('Duplicate cleanup could not be completed. The lead list was not reported as cleaned; run CHECK DUPLICATES again.',true);}
+    finally{leadCleanupBusy=false;if(button)button.disabled=false;}
+  }
+
+  async function deleteLead(lead){
+    if(!lead||leadCleanupBusy)return false;
+    const address=[lead.address,lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ')||'this lead';
+    if(!window.confirm(`DELETE ${address} from the Lead Pool? The removal will be recorded for audit and can be recovered from the database.`))return false;
+    if(lead.isDemo){state.demoLeads=state.demoLeads.filter(candidate=>candidate!==lead);state.leads=state.demoLeads;renderLeads();cleanupMessage(`Deleted demo lead ${address}.`);return true;}
+    leadCleanupBusy=true;cleanupMessage(`Deleting ${address}…`);
+    try{
+      const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'delete_lead',lead_id:lead.dbId}});if(error||!data?.ok)throw error||new Error(data?.error||'lead_removal_failed');
+      selectedListLeadIds.delete(lead.dbId);if(selectedMapLeadId===lead.id)selectedMapLeadId=null;resetDuplicateControl();await window.loadMcCoyLeads?.();cleanupMessage(`Deleted ${address} from the Lead Pool. Audit history was preserved.`);return true;
+    }catch(error){console.error('Lead deletion failed',error);cleanupMessage('Lead could not be deleted. Finish any active visit on that lead and try again.',true);return false;}
+    finally{leadCleanupBusy=false;}
+  }
+  window.MCCOY_DELETE_LEAD=deleteLead;
+
   window.renderLeads=function(){
     const rows=filteredRows();
     const total=rows.length,pages=Math.max(1,Math.ceil(total/state.leadPageSize));if(state.leadPage>pages)state.leadPage=pages;
@@ -88,8 +128,9 @@
     document.getElementById('leadPageLabel').textContent=`Page ${state.leadPage} of ${pages} · ${total.toLocaleString()} total`;
     document.getElementById('leadPrev').disabled=state.leadPage<=1;document.getElementById('leadNext').disabled=state.leadPage>=pages;
     const selectable=canAssignLeads()&&state.leadMode==='real';
-    tableMount.innerHTML=`<table><thead><tr>${selectable?'<th><input id="leadSelectPageCheckbox" type="checkbox" aria-label="Select all leads on this page"></th>':''}<th>Type</th><th>Address</th><th>Team</th><th>Owner</th><th>Assigned Rep</th><th>Disposition</th>${state.leadMode==='real'?'<th>Map</th>':''}</tr></thead><tbody>${page.map(l=>`<tr>${selectable?`<td><input class="lead-list-checkbox" type="checkbox" data-lead-id="${esc(l.dbId)}" ${selectedListLeadIds.has(l.dbId)?'checked':''} aria-label="Select ${esc(l.address)}"></td>`:''}<td><strong>${l.isDemo?'DEMO':'REAL'}</strong></td><td>${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</td><td>${esc(l.team)}</td><td>${esc(l.ownerName||'Unassigned')}${l.ownerRole&&l.ownerRole!=='unassigned'?` <span class="muted small">(${esc(ownerRoleLabel(l.ownerRole))})</span>`:''}</td><td>${esc(l.assignedRepName||l.rep||'Unassigned')}</td><td>${esc(l.disposition)}</td>${state.leadMode==='real'?`<td><button class="assign-btn map-one" data-id="${l.id}">View / Assign</button></td>`:''}</tr>`).join('')}</tbody></table>`;
+    tableMount.innerHTML=`<table><thead><tr>${selectable?'<th><input id="leadSelectPageCheckbox" type="checkbox" aria-label="Select all leads on this page"></th>':''}<th>Type</th><th>Address</th><th>Team</th><th>Owner</th><th>Assigned Rep</th><th>Disposition</th>${state.leadMode==='real'?'<th>Map</th>':''}<th>Remove</th></tr></thead><tbody>${page.map(l=>`<tr>${selectable?`<td><input class="lead-list-checkbox" type="checkbox" data-lead-id="${esc(l.dbId)}" ${selectedListLeadIds.has(l.dbId)?'checked':''} aria-label="Select ${esc(l.address)}"></td>`:''}<td><strong>${l.isDemo?'DEMO':'REAL'}</strong></td><td>${esc([l.address,l.city,l.stateCode,l.zip].filter(Boolean).join(', '))}</td><td>${esc(l.team)}</td><td>${esc(l.ownerName||'Unassigned')}${l.ownerRole&&l.ownerRole!=='unassigned'?` <span class="muted small">(${esc(ownerRoleLabel(l.ownerRole))})</span>`:''}</td><td>${esc(l.assignedRepName||l.rep||'Unassigned')}</td><td>${esc(l.disposition)}</td>${state.leadMode==='real'?`<td><button class="assign-btn map-one" data-id="${l.id}">View / Assign</button></td>`:''}<td><button type="button" class="danger delete-one" data-id="${l.id}" aria-label="Delete ${esc(l.address)}">DELETE</button></td></tr>`).join('')}</tbody></table>`;
     tableMount.querySelectorAll('.map-one').forEach(b=>b.addEventListener('click',()=>{selectedMapLeadId=Number(b.dataset.id);switchView('map');selectMapLead(selectedMapLeadId);}));
+    tableMount.querySelectorAll('.delete-one').forEach(button=>button.addEventListener('click',()=>{const lead=currentRows().find(candidate=>String(candidate.id)===String(button.dataset.id));if(lead)deleteLead(lead);}));
     if(selectable){tableMount.querySelectorAll('.lead-list-checkbox').forEach(box=>box.addEventListener('change',()=>{if(box.checked)selectedListLeadIds.add(box.dataset.leadId);else selectedListLeadIds.delete(box.dataset.leadId);updateListSelectionStatus();}));const all=document.getElementById('leadSelectPageCheckbox');if(all){all.checked=page.length>0&&page.every(lead=>selectedListLeadIds.has(lead.dbId));all.onchange=()=>{for(const lead of page){if(all.checked)selectedListLeadIds.add(lead.dbId);else selectedListLeadIds.delete(lead.dbId);}renderLeads();updateListSelectionStatus();}}}
     renderFieldLeadSelect();
     if(state.leadView==='map')renderMapList();
@@ -134,6 +175,7 @@
   document.getElementById('leadOwnerFilter')?.addEventListener('change',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('leadSearch').addEventListener('input',()=>{state.leadPage=1;renderLeads();});
   document.getElementById('mapAssignBtn').onclick=assignSelected;
+  document.getElementById('checkDuplicateLeadsBtn').onclick=checkOrRemoveDuplicates;
   document.getElementById('listAssignBtn').onclick=assignListSelection;
   document.getElementById('listClearSelectionBtn').onclick=()=>{selectedListLeadIds.clear();renderLeads();updateListSelectionStatus();};
   document.getElementById('listSelectPageBtn').onclick=()=>{const start=(state.leadPage-1)*state.leadPageSize;for(const lead of filteredRows().slice(start,start+state.leadPageSize))if(lead.dbId)selectedListLeadIds.add(lead.dbId);renderLeads();updateListSelectionStatus();};
