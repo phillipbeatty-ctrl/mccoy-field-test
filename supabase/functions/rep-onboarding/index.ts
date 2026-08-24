@@ -60,7 +60,8 @@ Deno.serve(async(req)=>{
     if(action==='list_users'){
       const {data,error}=await admin.from('app_user_access').select('email,display_name,role,active,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('active',true).order('display_name'); if(error) throw error
       const {data:secondary}=await admin.from('secondary_admin_assignments').select('secondary_email').eq('active',true).maybeSingle()
-      return json({ok:true,users:data||[],pay_levels:PAY_LEVELS,can_assign_secondary_admin:user.id==='f9053207-1af1-4ed1-be43-28f4bf5d7732'&&email==='phillip.beatty@gmail.com',secondary_admin_email:secondary?.secondary_email||null})
+      const {data:removalHistory,error:removalHistoryError}=await admin.from('user_account_removal_history').select('id,target_email,target_display_name,target_role,reason,status,requested_by_email,requested_at,finalized_at').order('requested_at',{ascending:false}).limit(25);if(removalHistoryError)throw removalHistoryError
+      return json({ok:true,users:data||[],removal_history:removalHistory||[],pay_levels:PAY_LEVELS,can_assign_secondary_admin:user.id==='f9053207-1af1-4ed1-be43-28f4bf5d7732'&&email==='phillip.beatty@gmail.com',secondary_admin_email:secondary?.secondary_email||null})
     }
     if(action==='list_pending_accounts'){
       const authUsers:any[]=[]
@@ -216,6 +217,32 @@ Deno.serve(async(req)=>{
       const {error:passwordError}=await admin.auth.admin.updateUserById(account.id,{password})
       if(passwordError)return json({error:'password_update_failed',detail:passwordError.message||'Unable to update this password.'},400)
       return json({ok:true,email:target,password_updated:true})
+    }
+    if(action==='preview_user_removal'||action==='remove_user_account'){
+      const target=String(body.email||'').trim().toLowerCase()
+      if(!target)return json({error:'email_required'},400)
+      if(target===email)return json({error:'cannot_delete_own_account'},403)
+      const account=await findAuthAccountByEmail(target)
+      if(!account?.id||account.deleted_at)return json({error:'active_auth_account_not_found'},404)
+      const {data:preview,error:previewError}=await admin.rpc('admin_user_account_removal_preview',{p_target_user_id:account.id,p_target_email:target})
+      if(previewError)return json({error:'account_removal_preview_failed',detail:previewError.message||'Unable to inspect this account.'},400)
+      if(preview?.protected_original_owner)return json({error:'original_owner_account_is_protected'},403)
+      if(preview?.protected_admin)return json({error:'revoke_secondary_admin_before_account_removal'},403)
+      if(preview?.blocked_by_storage)return json({error:'storage_objects_must_be_reassigned_before_account_removal',storage_objects:preview.storage_objects||0},409)
+      if(action==='preview_user_removal')return json({ok:true,email:target,impact:preview})
+
+      const confirmation=String(body.confirmation_email||'').trim().toLowerCase(),reason=String(body.reason||'').trim().replace(/\s+/g,' ')
+      if(confirmation!==target)return json({error:'exact_email_confirmation_required'},400)
+      if(reason.length<10||reason.length>500||/[\u0000-\u001f\u007f]/.test(reason))return json({error:'removal_reason_must_be_10_to_500_printable_characters'},400)
+      const {data:prepared,error:prepareError}=await admin.rpc('admin_prepare_user_account_removal',{p_target_user_id:account.id,p_target_email:target,p_changed_by:user.id,p_changed_by_email:email,p_reason:reason})
+      if(prepareError)return json({error:'account_removal_prepare_failed',detail:prepareError.message||'Unable to remove live McCoy access.'},400)
+      const auditId=prepared?.audit_id
+      const {error:deleteError}=await admin.auth.admin.deleteUser(account.id,true)
+      const errorCode=deleteError?String(deleteError.code||deleteError.name||'auth_delete_failed').slice(0,200):null
+      const {error:finalizeError}=await admin.rpc('admin_finalize_user_account_removal',{p_audit_id:auditId,p_changed_by:user.id,p_changed_by_email:email,p_auth_deleted:!deleteError,p_error_code:errorCode})
+      if(deleteError)return json({error:'auth_account_delete_failed',detail:deleteError.message||'McCoy access was removed, but Auth deletion must be retried.',access_removed:true,audit_id:auditId},502)
+      if(finalizeError){console.error('user removal audit finalization failed',finalizeError);return json({ok:true,email:target,auth_deleted:true,access_removed:true,audit_pending:true})}
+      return json({ok:true,email:target,auth_deleted:true,access_removed:true,audit_id:auditId,impact:preview,cleanup:prepared?.cleanup||{}})
     }
     if(action==='update_user'){
       const target=String(body.email||'').trim().toLowerCase(); if(!target) return json({error:'email_required'},400)
