@@ -17,6 +17,18 @@ function doorErrorMessage(error){
   return value||'Door workflow could not be saved. Check connection and retry.';
 }
 function setDoorStatus(message,error=false){const status=document.getElementById('doorVisitStatus');if(status){status.textContent=message;status.style.color=error?'#991b1b':'';}}
+function selectedPinDisposition(){
+  const core=window.MCCOY_DOOR_WORKFLOW_CORE,activityType=core?.activityType(document.getElementById('leadActivityType')?.value),visitResult=core?.visitResult(document.getElementById('leadVisitResult')?.value),stage=core?.stage(document.getElementById('leadStage')?.value);
+  return{activityType,visitResult,stage};
+}
+function renderPinDispositionControls(){
+  const lead=state.activeDoorVisit?.lead||leadBySelect(),selection=selectedPinDisposition(),core=window.MCCOY_DOOR_WORKFLOW_CORE;
+  const preview=core?.pinState({stage:selection.stage,visitResult:selection.visitResult,previousColor:lead?.pinColor,previousSource:lead?.pinColorSource});
+  const previewBox=document.getElementById('pinDispositionPreview'),dot=previewBox?.querySelector('.pin-preview-dot'),label=previewBox?.querySelector('span:last-child');
+  if(dot)dot.style.background=preview?.color||'#fbbf24';
+  if(label)label.textContent=selection.stage?`Stage will control the pin: ${selection.stage}.`:selection.visitResult?`Visit Result will control the pin: ${selection.visitResult}.`:'Select a Visit Result or Stage.';
+  const current=document.getElementById('currentPinDisposition');if(current){const currentLabel=lead?.pinDisposition||lead?.stage||lead?.visitResult||lead?.disposition||'Prospecting';current.textContent=`Current pin: ${currentLabel}`;current.style.borderColor=lead?.pinColor||'';}
+}
 
 document.getElementById('setCalibrationLeadBtn')?.addEventListener('click',async()=>{
   if(!state.session){alert('Start a field session first.');return;}
@@ -62,7 +74,7 @@ window.MCCOY_START_DOOR_VISIT=async function({automatic=false}={}){
   finally{doorStartInFlight=false;if(button)button.disabled=false;}
 };
 
-window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,autoReason=null,saleId=null,serviceAddress=null}={}){
+window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,autoReason=null,saleId=null,serviceAddress=null,activityType=null,visitResult=null,stage=null}={}){
   if(doorCompletionInFlight)return false;
   const visit=state.activeDoorVisit;
   if(!visit?.serverVisitId){
@@ -70,43 +82,64 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     if(!automatic)alert('Arrive at the selected door first.');
     return false;
   }
-  const gps=currentGps(),button=document.querySelector(`[data-disp="${disposition}"]`);doorCompletionInFlight=true;if(button)button.disabled=true;
+  let gps=currentGps();
+  if(disposition!=='sale'&&!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps)){
+    try{const fresh=await Promise.race([getGPSOnce(),new Promise(resolve=>setTimeout(()=>resolve(null),4500))]);if(fresh){gps=fresh;state.latestGps=fresh;}}catch(_){}
+  }
+  const button=disposition==='sale'?document.querySelector('[data-disp="Sale"]'):document.getElementById('savePinDispositionBtn');doorCompletionInFlight=true;if(button)button.disabled=true;
   setDoorStatus(automatic?'Applying automatic door outcome…':'Saving door outcome…');
   try{
-    const {data,error}=await sb.rpc('record_door_visit_completion',{
-      p_visit_id:visit.serverVisitId,p_disposition:disposition,p_latitude:gps?Number(gps.lat):null,p_longitude:gps?Number(gps.lng):null,
+    let data,error;
+    if(disposition==='sale')({data,error}=await sb.rpc('record_door_visit_completion',{
+      p_visit_id:visit.serverVisitId,p_disposition:'sale',p_latitude:gps?Number(gps.lat):null,p_longitude:gps?Number(gps.lng):null,
       p_accuracy_meters:gps&&Number.isFinite(Number(gps.accuracy))?Number(gps.accuracy):null,p_gps_captured_at:gps?new Date(Number(gps.capturedAt)||Date.now()).toISOString():null,
       p_automatic:automatic,p_auto_reason:autoReason,p_provider_sale_id:saleId,p_service_address:serviceAddress
-    });
+    }));
+    else{
+      let selection={activityType,visitResult,stage};
+      if(disposition==='auto')selection=window.MCCOY_DOOR_WORKFLOW_CORE.autoDispositionForDwell(Date.now()-visit.arrivedAt);
+      ({data,error}=await sb.rpc('record_spotio_door_visit_completion',{
+        p_visit_id:visit.serverVisitId,p_activity_type:selection.activityType,p_visit_result:selection.visitResult,p_stage:selection.stage||null,
+        p_latitude:gps?Number(gps.lat):null,p_longitude:gps?Number(gps.lng):null,p_accuracy_meters:gps&&Number.isFinite(Number(gps.accuracy))?Number(gps.accuracy):null,
+        p_gps_captured_at:gps?new Date(Number(gps.capturedAt)||Date.now()).toISOString():null,p_automatic:automatic,p_auto_reason:autoReason
+      }));
+    }
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_completion_failed');
-    const endedAt=Date.now(),lead=visit.lead,display=data.visit_outcome||disposition,contactStatus=data.contact_status||null,dwellMs=Number(data.dwell_ms??endedAt-visit.arrivedAt);
-    if(lead)lead.disposition=display;
-    state.activities.unshift({lead:lead||{address:serviceAddress||'Customer address'},disposition:display,visitOutcome:display,contactStatus,at:new Date(endedAt),gps,dwellMs,automatic});
+    const endedAt=Date.now(),lead=visit.lead,isSale=disposition==='sale',display=isSale?'Sale Made':(data.effective_disposition||data.visit_result||data.visit_outcome||disposition),contactStatus=data.contact_status||null,dwellMs=Number(data.dwell_ms??endedAt-visit.arrivedAt);
+    if(lead){lead.disposition=display;lead.lastActivityType=isSale?'Visit':data.activity_type;lead.visitResult=isSale?'Contacted':data.visit_result;lead.stage=isSale?'Sale Made':(data.stage||lead.stage||'Prospecting');lead.pinColor=isSale?'#22c55e':(data.pin_color||lead.pinColor);lead.pinColorSource=isSale?'stage':(data.pin_color_source||lead.pinColorSource);lead.pinDisposition=display;}
+    state.activities.unshift({lead:lead||{address:serviceAddress||'Customer address'},disposition:display,activityType:isSale?'Visit':data.activity_type,visitOutcome:data.visit_result||display,contactStatus,stage:isSale?'Sale Made':data.stage,at:new Date(endedAt),gps,dwellMs,automatic});
     if(gps&&lead)state.breadcrumbs.push({...gps,eventType:'disposition',leadId:lead.id,disposition:display});
     state.lastDispositionEndedAt=endedAt;state.activeDoorVisit=null;clearInterval(doorTimerHandle);
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
-    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${contactStatus?` · ${contactStatus}`:''}.`);
+    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}.`);
     renderActivities();renderStats();renderLeads();
-    window.dispatchEvent(new CustomEvent('mccoy-door-visit-completed',{detail:{visitId:visit.serverVisitId,leadId:lead?.dbId||null,disposition:display,contactStatus,automatic}}));
+    renderPinDispositionControls();window.MCCOY_APPLY_DISPOSITION_COLORS?.();
+    window.dispatchEvent(new CustomEvent('mccoy-door-visit-completed',{detail:{visitId:visit.serverVisitId,leadId:lead?.dbId||null,disposition:display,activityType:data.activity_type||null,visitResult:data.visit_result||null,stage:data.stage||null,contactStatus,automatic}}));
     return true;
   }catch(error){console.error('Door visit completion failed',error);setDoorStatus(doorErrorMessage(error),true);if(!automatic)alert(doorErrorMessage(error));return false;}
   finally{doorCompletionInFlight=false;if(button)button.disabled=false;}
 };
 
 document.getElementById('arriveDoorBtn')?.addEventListener('click',()=>window.MCCOY_START_DOOR_VISIT({automatic:false}));
-document.querySelectorAll('[data-disp]').forEach(button=>button.addEventListener('click',()=>{
-  const disposition=String(button.dataset.disp||'');
-  if(disposition==='Sale'&&!window.MCCOY_SALE_CONFIRMED)return;
-  window.MCCOY_COMPLETE_DOOR_VISIT(disposition.toLowerCase(),{automatic:false});
-}));
+document.getElementById('savePinDispositionBtn')?.addEventListener('click',()=>{
+  const selection=selectedPinDisposition();
+  if(!selection.activityType){alert('Choose an Activity Type.');return;}
+  if(!selection.visitResult){alert('Choose a Visit Result before saving.');document.getElementById('leadVisitResult')?.focus();return;}
+  if(selection.stage==='Sale Made'){document.getElementById('processSaleBtn')?.click();return;}
+  window.MCCOY_COMPLETE_DOOR_VISIT('spotio',{automatic:false,...selection});
+});
+document.querySelector('[data-disp="Sale"]')?.addEventListener('click',()=>{if(window.MCCOY_SALE_CONFIRMED)window.MCCOY_COMPLETE_DOOR_VISIT('sale',{automatic:false});});
+for(const id of ['leadActivityType','leadVisitResult','leadStage','fieldLeadSelect'])document.getElementById(id)?.addEventListener('change',renderPinDispositionControls);
+for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded','mccoy-door-visit-started'])window.addEventListener(eventName,renderPinDispositionControls);
 
 function renderStats(){
   const startedAt=state.session?.startedAt;
   const activities=startedAt?state.activities.filter(activity=>activity.at.getTime()>=startedAt):state.activities;
-  const stats={doorsCount:activities.length,contactsCount:activities.filter(activity=>activity.contactStatus==='Contacted'||activity.disposition==='Sale').length,salesCount:activities.filter(activity=>activity.disposition==='Sale').length};
+  const stats={doorsCount:activities.length,contactsCount:activities.filter(activity=>activity.contactStatus==='Contacted'||activity.disposition==='Sale Made').length,salesCount:activities.filter(activity=>activity.disposition==='Sale'||activity.disposition==='Sale Made').length};
   Object.entries(stats).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=String(value);});
 }
-function renderActivities(){const el=document.getElementById('activityLog');if(!el)return;el.innerHTML=state.activities.slice(0,8).map(activity=>`<div class="activity-item"><strong>${activity.disposition}</strong>${activity.contactStatus?` · ${activity.contactStatus}`:''} — ${activity.lead?.address||'Customer address'}<div class="muted">${activity.at.toLocaleTimeString()} • Visit ${fmtDoor(activity.dwellMs)}${activity.automatic?' • Automatic':''}</div></div>`).join('');}
+function renderActivities(){const el=document.getElementById('activityLog');if(!el)return;el.innerHTML=state.activities.slice(0,8).map(activity=>`<div class="activity-item"><strong>${activity.disposition}</strong>${activity.activityType?` · ${activity.activityType}`:''} — ${activity.lead?.address||'Customer address'}<div class="muted">${activity.at.toLocaleTimeString()} • Visit ${fmtDoor(activity.dwellMs)}${activity.automatic?' • Automatic':''}</div></div>`).join('');}
 function renderEfficiency(){const el=document.getElementById('efficiencySummary');if(el)el.innerHTML='<p class="muted small">Competitive field analytics are computed on the McCoy server and are not contained in this browser build.</p>';}
 function renderAll(){renderDashboard();renderTeams();renderLeads();renderStats();renderActivities();renderEfficiency();}
 renderAll();
+renderPinDispositionControls();
