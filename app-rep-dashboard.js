@@ -65,9 +65,9 @@
 
   function renderMonthlySales(rankings){
     const root=byId('dashboardMonthlyLeaders');if(!root)return;root.replaceChildren();
-    const leaders=(rankings||[]).filter(row=>Number(row.month_sales||0)>0).sort((left,right)=>(left.ranks?.month||Number.MAX_SAFE_INTEGER)-(right.ranks?.month||Number.MAX_SAFE_INTEGER)).slice(0,10);
+    const leaders=(rankings||[]).filter(row=>(!row.is_ghost||row.ghost_visibility?.month?.visible!==false)&&Number(row.month_sales||0)>0).sort((left,right)=>(left.ranks?.month||Number.MAX_SAFE_INTEGER)-(right.ranks?.month||Number.MAX_SAFE_INTEGER)).slice(0,10);
     if(!leaders.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No ISP-verified monthly totals yet.';root.appendChild(empty);return;}
-    leaders.forEach((leader,index)=>{const line=document.createElement('div');line.className='leader-row';const name=document.createElement('span'),count=document.createElement('strong'),sales=Number(leader.month_sales||0);name.textContent=`${index+1}. ${leader.rep_name||'Rep'}`;count.textContent=`${sales} sale${sales===1?'':'s'}`;line.append(name,count);const detail=document.createElement('div');detail.className='muted small';detail.textContent=`${Number(leader.month_mobile_lines||0)} mobile lines · ${Number(leader.month_directv||0)} DIRECTV · ${Number(leader.month_vivint||0)} Vivint`;root.append(line,detail);});
+    leaders.forEach((leader,index)=>{const line=document.createElement('div');line.className='leader-row';const name=document.createElement('span'),count=document.createElement('strong'),sales=Number(leader.month_sales||0);name.textContent=`${index+1}. ${leader.rep_name||'Rep'}`;count.textContent=leader.is_ghost&&!leader.ghost_visibility?.month?.revealed?'Hidden goal':`${sales} sale${sales===1?'':'s'}`;line.append(name,count);const detail=document.createElement('div');detail.className='muted small';detail.textContent=leader.is_ghost?'Ghost benchmark':`${Number(leader.month_mobile_lines||0)} mobile lines · ${Number(leader.month_directv||0)} DIRECTV · ${Number(leader.month_vivint||0)} Vivint`;root.append(line,detail);});
   }
 
   function renderLiveWins(rows){
