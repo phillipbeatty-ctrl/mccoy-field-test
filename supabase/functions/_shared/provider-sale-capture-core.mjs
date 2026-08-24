@@ -14,6 +14,8 @@ export const SALE_PROVIDERS = Object.freeze([
   'Other'
 ])
 
+export const SALE_OUTCOMES = Object.freeze(['completed', 'abandoned'])
+
 const normalized = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 
 export function normalizeSaleProvider(value) {
@@ -31,6 +33,13 @@ export function normalizeSaleProvider(value) {
   if (input.includes('directv')) return 'DIRECTV'
   if (input.includes('vivint') || input.includes('vivant')) return 'Vivint'
   if (input === 'other') return 'Other'
+  return null
+}
+
+export function normalizeSaleOutcome(value) {
+  const input = normalized(value)
+  if (input === 'completed' || input === 'completedsale') return 'completed'
+  if (input === 'abandoned' || input === 'abandonedorder' || input === 'abandonedsale') return 'abandoned'
   return null
 }
 
