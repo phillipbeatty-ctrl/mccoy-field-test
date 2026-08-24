@@ -6,6 +6,7 @@ import {
   boundedText,
   captureStartStatus,
   isUuid,
+  isTesterPkbIdentity,
   normalizeSaleOutcome,
   normalizeSaleProvider
 } from './provider-sale-capture-core.mjs'
@@ -39,6 +40,13 @@ test('requires an explicit completed or abandoned outcome', () => {
   assert.equal(normalizeSaleOutcome('abandoned order'), 'abandoned')
   assert.equal(normalizeSaleOutcome('cancelled'), null)
   assert.equal(normalizeSaleOutcome(''), null)
+})
+
+test('limits the provider-dashboard simulation to the exact Tester PKB account', () => {
+  assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Tester PKB'), true)
+  assert.equal(isTesterPkbIdentity('PHILLIPKBEATTY@GMAIL.COM', ' tester pkb '), true)
+  assert.equal(isTesterPkbIdentity('phillip.beatty@gmail.com', 'Tester PKB'), false)
+  assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Phillip Beatty'), false)
 })
 
 test('validates request identifiers and capture lifecycle state', () => {
