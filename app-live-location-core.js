@@ -49,11 +49,27 @@
     return distance!==null&&distance<=Math.max(75,(left.accuracy+right.accuracy)*2);
   }
 
-  function shouldAppendTrail(previous,next){
-    const left=normalizeGps(previous),right=normalizeGps(next);if(!right)return false;if(!left)return true;
-    const distance=metersBetween(left,right),elapsed=right.capturedAt-left.capturedAt;
-    return elapsed>=10_000||(distance!==null&&distance>=3);
+  function geolocationErrorReason(error){
+    const code=Number(error?.code);
+    if(code===1)return'permission_denied';
+    if(code===2)return'position_unavailable';
+    if(code===3)return'timeout';
+    return'unknown';
   }
 
-  return{LIVE_MAX_AGE_MS,SIGNAL_GRACE_MS,MAX_VISUAL_ACCURACY_METERS,normalizeGps,freshness,metersBetween,isImplausibleJump,confirmsJump,shouldAppendTrail};
+  function evaluateFix(previous,pending,raw,now=Date.now()){
+    const fix=normalizeGps(raw),fresh=freshness(fix,now);
+    if(!fix)return{action:'reject',fix:null,pending:null,freshness:fresh,reason:'invalid'};
+    if(fresh.state==='expired')return{action:'expired',fix,pending:null,freshness:fresh,reason:'stale'};
+    if(fresh.state==='signal_lost')return{action:'last_known',fix,pending:null,freshness:fresh,reason:'stale'};
+    if(pending){
+      if(confirmsJump(pending,fix))return{action:'accept',fix,pending:null,freshness:fresh,reason:'confirmed_jump'};
+      if(!previous||!isImplausibleJump(previous,fix))return{action:'accept',fix,pending:null,freshness:fresh,reason:'recovered'};
+      return{action:'pending',fix:null,pending:fix,freshness:fresh,reason:'implausible_jump'};
+    }
+    if(previous&&isImplausibleJump(previous,fix))return{action:'pending',fix:null,pending:fix,freshness:fresh,reason:'implausible_jump'};
+    return{action:'accept',fix,pending:null,freshness:fresh,reason:'normal'};
+  }
+
+  return{LIVE_MAX_AGE_MS,SIGNAL_GRACE_MS,MAX_VISUAL_ACCURACY_METERS,normalizeGps,freshness,metersBetween,isImplausibleJump,confirmsJump,geolocationErrorReason,evaluateFix};
 });
