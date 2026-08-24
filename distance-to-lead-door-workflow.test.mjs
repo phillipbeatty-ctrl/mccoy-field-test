@@ -23,9 +23,24 @@ test('quarter-mile boundary and closest verified lead are deterministic',()=>{
 })
 
 test('automatic disposition is conservative until a full minute',()=>{
-  assert.equal(JSON.stringify(core.autoDispositionForDwell(44_999)),JSON.stringify({visitOutcome:'Visit',contactStatus:'Not Contacted',disposition:'visit'}))
-  assert.equal(JSON.stringify(core.autoDispositionForDwell(59_999)),JSON.stringify({visitOutcome:'Visit',contactStatus:'Not Contacted',disposition:'visit'}))
-  assert.equal(JSON.stringify(core.autoDispositionForDwell(60_000)),JSON.stringify({visitOutcome:'No Sale',contactStatus:'Contacted',disposition:'no_sale'}))
+  assert.equal(JSON.stringify(core.autoDispositionForDwell(44_999)),JSON.stringify({activityType:'Visit',visitResult:'No Answer',stage:null,visitOutcome:'No Answer',contactStatus:'Not Contacted',disposition:'visit'}))
+  assert.equal(JSON.stringify(core.autoDispositionForDwell(59_999)),JSON.stringify({activityType:'Visit',visitResult:'No Answer',stage:null,visitOutcome:'No Answer',contactStatus:'Not Contacted',disposition:'visit'}))
+  assert.equal(JSON.stringify(core.autoDispositionForDwell(60_000)),JSON.stringify({activityType:'Visit',visitResult:'Contacted',stage:null,visitOutcome:'Contacted',contactStatus:'Contacted',disposition:'no_sale'}))
+})
+
+test('SPOTIO-style disposition labels and colors stay exact',()=>{
+  assert.equal(JSON.stringify(core.ACTIVITY_TYPES),JSON.stringify(['Visit','Call','Appointment','Text','Qualify','Investigate & Estimate','Make a Proposal','Get Feedback']))
+  assert.equal(JSON.stringify(core.VISIT_RESULTS.map(item=>[item.label,item.color])),JSON.stringify([['No Answer','#fbbf24'],['Contacted','#9ca3af'],['Follow-Up','#3b82f6']]))
+  assert.equal(JSON.stringify(core.STAGES.map(item=>[item.label,item.color])),JSON.stringify([
+    ['Prospecting','#fbbf24'],['Hot Lead','#c4b5fd'],['Contacted','#93c5fd'],['Follow Up','#1d4ed8'],['Migrator','#f97316'],
+    ['Existing Customer','#ffffff'],['SMB','#ec4899'],['Sale Made','#22c55e'],['No Sale','#9ca3af'],['Admin Hold','#581c87']
+  ]))
+})
+
+test('Stage wins only when supplied in the same save',()=>{
+  assert.equal(JSON.stringify(core.pinState({visitResult:'Follow-Up'})),JSON.stringify({label:'Follow-Up',color:'#3b82f6',source:'visit_result'}))
+  assert.equal(JSON.stringify(core.pinState({visitResult:'No Answer',stage:'Hot Lead'})),JSON.stringify({label:'Hot Lead',color:'#c4b5fd',source:'stage'}))
+  assert.equal(JSON.stringify(core.pinState({previousColor:'#123456',previousSource:'legacy'})),JSON.stringify({label:null,color:'#123456',source:'legacy'}))
 })
 
 test('provider or manual address is required when outside the lead radius',()=>{
