@@ -4,6 +4,24 @@
   root.MCCOY_DOOR_WORKFLOW_CORE=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const QUARTER_MILE_METERS=402.336;
+  const ACTIVITY_TYPES=['Visit','Call','Appointment','Text','Qualify','Investigate & Estimate','Make a Proposal','Get Feedback'];
+  const VISIT_RESULTS=[
+    {label:'No Answer',color:'#fbbf24'},
+    {label:'Contacted',color:'#9ca3af'},
+    {label:'Follow-Up',color:'#3b82f6'}
+  ];
+  const STAGES=[
+    {label:'Prospecting',color:'#fbbf24'},
+    {label:'Hot Lead',color:'#c4b5fd'},
+    {label:'Contacted',color:'#93c5fd'},
+    {label:'Follow Up',color:'#1d4ed8'},
+    {label:'Migrator',color:'#f97316'},
+    {label:'Existing Customer',color:'#ffffff'},
+    {label:'SMB',color:'#ec4899'},
+    {label:'Sale Made',color:'#22c55e'},
+    {label:'No Sale',color:'#9ca3af'},
+    {label:'Admin Hold',color:'#581c87'}
+  ];
 
   function finiteCoordinate(value,min,max){
     const number=Number(value);
@@ -56,8 +74,23 @@
 
   function autoDispositionForDwell(dwellMs){
     return Number(dwellMs)>=60000
-      ?{visitOutcome:'No Sale',contactStatus:'Contacted',disposition:'no_sale'}
-      :{visitOutcome:'Visit',contactStatus:'Not Contacted',disposition:'visit'};
+      ?{activityType:'Visit',visitResult:'Contacted',stage:null,visitOutcome:'Contacted',contactStatus:'Contacted',disposition:'no_sale'}
+      :{activityType:'Visit',visitResult:'No Answer',stage:null,visitOutcome:'No Answer',contactStatus:'Not Contacted',disposition:'visit'};
+  }
+
+  function optionByLabel(options,value){
+    const key=String(value||'').trim().toLowerCase().replace(/[\s-]+/g,' ');
+    return options.find(option=>String(option.label||option).toLowerCase().replace(/[\s-]+/g,' ')===key)||null;
+  }
+  function activityType(value){const match=optionByLabel(ACTIVITY_TYPES,value);return match?String(match):null;}
+  function visitResult(value){return optionByLabel(VISIT_RESULTS,value)?.label||null;}
+  function stage(value){return optionByLabel(STAGES,value)?.label||null;}
+  function pinState({stage:stageValue,visitResult:resultValue,previousColor='#fbbf24',previousSource='legacy'}={}){
+    const stageMatch=optionByLabel(STAGES,stageValue);
+    if(stageMatch)return{label:stageMatch.label,color:stageMatch.color,source:'stage'};
+    const resultMatch=optionByLabel(VISIT_RESULTS,resultValue);
+    if(resultMatch)return{label:resultMatch.label,color:resultMatch.color,source:'visit_result'};
+    return{label:null,color:previousColor||'#fbbf24',source:previousSource||'legacy'};
   }
 
   function shouldAutoArrive({distance,accuracy,candidateHits}){
@@ -77,5 +110,5 @@
     return{address:'',source:'required'};
   }
 
-  return{QUARTER_MILE_METERS,metersBetween,isFreshGps,verifiedLead,nearestLead,distanceState,autoDispositionForDwell,shouldAutoArrive,shouldAutoDepart,saleAddress};
+  return{QUARTER_MILE_METERS,ACTIVITY_TYPES,VISIT_RESULTS,STAGES,metersBetween,isFreshGps,verifiedLead,nearestLead,distanceState,autoDispositionForDwell,activityType,visitResult,stage,pinState,shouldAutoArrive,shouldAutoDepart,saleAddress};
 });
