@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 
 const migration=readFileSync(new URL('./supabase/migrations/20260824050000_ghost_automatic_overtake_visibility.sql',import.meta.url),'utf8')
+const adminRecords=readFileSync(new URL('./supabase/migrations/20260824060000_restore_admin_ghost_record_controls.sql',import.meta.url),'utf8')
 const originalGhost=readFileSync(new URL('./supabase/migrations/20260823090000_ghost_ranking_benchmarks.sql',import.meta.url),'utf8')
 const rankingsUi=readFileSync(new URL('./app-compensation.js',import.meta.url),'utf8')
 const salesUi=readFileSync(new URL('./app-sales.js',import.meta.url),'utf8')
@@ -23,11 +24,12 @@ test('Ghost is always ranked with real users using the no-tie velocity rule',()=
   assert.match(rankingsUi,/ghostVisibleFor\(\)/)
 })
 
-test('Overtake visibility is automatic and can reset only through Ghost sales',()=>{
+test('Overtake stays active while Admin controls Ghost ranking records',()=>{
   assert.match(migration,/'number_visibility','public_only_while_real_user_ranks_ahead'/)
-  assert.match(migration,/'disable_public_reveal_rule','record_verified_ghost_sales_until_ghost_retakes_rank_1'/)
-  assert.match(migration,/'all_time_record',false/)
-  assert.match(rankingsUi,/sign in to Ghost and record enough verified sales/)
+  assert.match(adminRecords,/'rank_source','admin_ghost_limits'/)
+  assert.match(adminRecords,/'test_sale_policy','auditable_testing_and_accounting_not_ghost_rank_totals'/)
+  assert.match(adminRecords,/'all_time_record',false/)
+  assert.match(rankingsUi,/Save Ghost Records/)
 })
 
 test('Tester simulations are verified Ghost ranking and accounting records',()=>{
