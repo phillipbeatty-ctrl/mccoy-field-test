@@ -14,7 +14,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const isAdmin=access.role==='admin',isManager=isManagerPermissionRole(access.role)
  const body=await req.json().catch(()=>({})),action=String(body.action||'')
  const managerActions=['list_reps','assign_lead','assign_leads']
- if(action==='list_real_leads'||action==='create_field_address'){/* Every active account may work legitimate field leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
+ if(action==='list_real_leads'){/* Every active account may work assigned legitimate field leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
  let authUsersPromise:Promise<any[]>|null=null
  const getAuthUsers=async()=>{if(!authUsersPromise)authUsersPromise=admin.auth.admin.listUsers({page:1,perPage:1000}).then(({data,error}:any)=>{if(error)throw error;return data?.users||[]});return await authUsersPromise}
  let managerScopePromise:Promise<any>|null=null
@@ -89,7 +89,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    return {patch:{assigned_rep_id:rep.id,assigned_manager_id:null,assigned_admin_email:null},assigned_manager_id:null,assigned_admin_email:null,destination_role:rep.role}
  }
  if(action==='create_field_address'){
-   if(isManager)return json({error:'manager_leads_must_be_assigned_by_admin'},403)
+   if(!isAdmin)return json({error:'admin_only'},403)
    const address1=String(body.address1||'').trim(),address2=String(body.address2||'').trim(),city=String(body.city||'').trim(),state=String(body.state||'').trim().toUpperCase(),zip=String(body.zip||'').trim();
    if(address1.length<4)return json({error:'valid_street_address_required'},400);
    if(state&&state.length!==2)return json({error:'state_must_be_two_letters'},400);

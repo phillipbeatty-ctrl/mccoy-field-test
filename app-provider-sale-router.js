@@ -71,10 +71,11 @@
   function saleSourceContext(){
     const currentState=typeof state!=='undefined'?state:null;
     const selectedLeadId=Number(document.getElementById('fieldLeadSelect')?.value);
-    const lead=currentState?.activeDoorVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
+    const distanceContext=window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()||null;
+    const lead=distanceContext?.lead||currentState?.activeDoorVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
     let sessionId=null;
     try{if(typeof telemetrySessionId!=='undefined'&&telemetrySessionId)sessionId=telemetrySessionId;}catch(_){}
-    return{session_id:sessionId,lead_label:lead?.address||lead?.fullAddress||null,service_address:lead?.address||lead?.fullAddress||null};
+    return{session_id:sessionId,lead_label:distanceContext&&!distanceContext.withinRange?null:(lead?.address||lead?.fullAddress||null),service_address:distanceContext?distanceContext.address:(lead?.address||lead?.fullAddress||null)};
   }
   async function captureCall(action,payload={}){
     if(typeof sb==='undefined')throw new Error('McCoy connection is not ready.');

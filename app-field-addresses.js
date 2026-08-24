@@ -43,6 +43,7 @@
     return feet<1000?`${Math.round(feet)} ft away`:`${(feet/5280).toFixed(2)} mi away`;
   }
   function updateClosestDoorAddress(){
+    if(window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.render)return window.MCCOY_DISTANCE_TO_LEAD_CONTROL.render();
     const gps=state.latestGps||null,lat=Number(gps?.lat),lng=Number(gps?.lng);
     if(!Number.isFinite(lat)||!Number.isFinite(lng)){
       closestBox.dataset.closestLeadId='';
@@ -76,7 +77,7 @@
   panel.id='fieldAddressEntry';
   panel.className='field-address-entry';
   panel.style.cssText='margin:0 0 14px;padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff';
-  panel.innerHTML='<summary style="cursor:pointer;font-weight:800;color:#1455d9">ADD ADDRESS NOT LISTED</summary>'
+  panel.innerHTML='<summary style="cursor:pointer;font-weight:800;color:#1455d9">ADMIN: ADD ADDRESS NOT LISTED</summary>'
     +'<div style="display:grid;gap:8px;margin-top:10px">'
     +'<input id="fieldNewAddress" autocomplete="street-address" placeholder="Street address" style="padding:10px;border:1px solid #d1d5db;border-radius:8px">'
     +'<input id="fieldNewAddress2" autocomplete="address-line2" placeholder="Apartment or unit (optional)" style="padding:10px;border:1px solid #d1d5db;border-radius:8px">'
@@ -88,8 +89,7 @@
     +'<div id="fieldAddressMsg" class="muted small" aria-live="polite"></div></div>';
   select.insertAdjacentElement('afterend',panel);
 
-  const hasManagerPermissions=role=>role==='manager'||role==='trainer';
-  function applyAddressEntryAccess(){panel.hidden=hasManagerPermissions(window.MCCOY_ACCESS?.access?.role);}
+  function applyAddressEntryAccess(){panel.hidden=window.MCCOY_ACCESS?.access?.role!=='admin';}
   window.addEventListener('mccoy-access-ready',applyAddressEntryAccess);
   applyAddressEntryAccess();
 
@@ -99,7 +99,7 @@
   document.getElementById('addFieldAddressBtn').addEventListener('click',async()=>{
     const access=window.MCCOY_ACCESS?.access;
     if(!access?.active){message('Sign in with an approved McCoy account first.');return;}
-    if(hasManagerPermissions(access.role)){message('Managers and Trainers can only work leads assigned by an Admin. Ask an Admin to add and assign this address.');return;}
+    if(access.role!=='admin'){message('Only an Admin can add a new lead address. Use the sale service-address field for an out-of-area completed sale.');return;}
     const address1=document.getElementById('fieldNewAddress').value.trim();
     const address2=document.getElementById('fieldNewAddress2').value.trim();
     const city=document.getElementById('fieldNewCity').value.trim();

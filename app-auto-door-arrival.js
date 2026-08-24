@@ -1,6 +1,7 @@
 // Automatically record ARRIVED AT DOOR only when both the door coordinates and
 // the browser location meet a strict, high-confidence 5 ft ±2 ft boundary.
 (()=>{
+  if(window.MCCOY_DISTANCE_TO_LEAD_CONTROL)return;
   if(window.MCCOY_AUTO_DOOR_ARRIVAL)return;
   window.MCCOY_AUTO_DOOR_ARRIVAL=true;
 
