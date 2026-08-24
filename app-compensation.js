@@ -44,18 +44,16 @@
     const record=rep?.personal_records?.[period]||{},cell=document.createElement('td'),count=document.createElement('strong'),when=document.createElement('small');
     const ghostPeriod=period==='day'?'today':period,state=rep?.ghost_visibility?.[ghostPeriod];
     cell.className='rep-ranking-record';
-    if(rep?.is_ghost&&rep?.ghost_numbers_hidden===true){count.textContent='Hidden';when.textContent='Visible to Admin and Ghost only';}
-    else if(rep?.is_ghost&&state?.visible===false&&!rep?.is_current_user){count.textContent='—';when.textContent='Benchmark retired';}
-    else{count.textContent=String(Number(record.count||0));when.textContent=rep?.is_ghost?'Admin benchmark':recordPeriodLabel(period,record.period_start);}
+    if(rep?.is_ghost&&state?.revealed===false){count.textContent='Hidden';when.textContent='Reveals automatically when a real user overtakes Ghost';}
+    else{count.textContent=String(Number(record.count||0));when.textContent=rep?.is_ghost?'Verified Ghost-account record':recordPeriodLabel(period,record.period_start);}
     cell.append(count,when);row.appendChild(cell);return cell;
   }
 
   function ghostPeriodState(rep,period){return rep?.is_ghost?rep?.ghost_visibility?.[period]||null:null;}
-  function ghostVisibleFor(rep,period){const state=ghostPeriodState(rep,period);return !rep?.is_ghost||state?.visible!==false;}
+  function ghostVisibleFor(){return true;}
   function rankingMetric(rep,period){
     const state=ghostPeriodState(rep,period);
-    if(rep?.is_ghost&&rep?.ghost_numbers_hidden===true)return 'Hidden';
-    if(rep?.is_ghost&&state?.visible===false&&!rep?.is_current_user)return '—';
+    if(rep?.is_ghost&&state?.revealed===false)return 'Hidden';
     return String(Number(rep?.[period+'_sales']||0));
   }
 
@@ -70,7 +68,7 @@
   }
 
   function velocityTitle(rep,period){
-    if(rep?.is_ghost)return 'Ghost placement follows the benchmark rule.';
+    if(rep?.is_ghost&&ghostPeriodState(rep,period)?.revealed===false)return 'Ghost is #1; this total is private until a real user overtakes it.';
     const metric=rep?.ranking_velocity?.[period]||{},seconds=Number(metric.elapsed_seconds);
     if(!Number.isFinite(seconds))return 'No tie-speed window is available for this period.';
     const hours=seconds/3600;
@@ -81,25 +79,10 @@
     const root=document.getElementById('ghostRankingAdminSettings'),settings=data?.ghost_admin_settings;
     if(!root)return;
     root.replaceChildren();
-    root.hidden=!settings?.can_edit;
-    if(!settings?.can_edit)return;
+    root.hidden=!settings;
+    if(!settings)return;
     root.className='ghost-ranking-admin';
-    const values={day:Number(settings.day_goal||3),week:Number(settings.week_goal||15),month:Number(settings.month_goal||30),year:Number(settings.year_goal||600)};
-    const minimums=settings.minimums||{day:3,week:15,month:30,year:600};
-    root.innerHTML='<strong>👻 Ghost Benchmark Controls</strong><p>Ghost is #1 until a real rep reaches a period goal, #2 after one rep reaches it, and hidden after two reps reach it. Ghost numbers are visible only to Admin and the Ghost account.</p><div class="ghost-goal-grid"></div><div class="ghost-ranking-actions"><button type="button" class="primary">Save Ghost Goals</button><span role="status" aria-live="polite"></span></div>';
-    const grid=root.querySelector('.ghost-goal-grid');
-    for(const [period,label] of Object.entries({day:'Per day',week:'Per week',month:'Per month',year:'Per year'})){
-      const field=document.createElement('label'),input=document.createElement('input');field.textContent=label;input.type='number';input.name=period;input.min=String(Number(minimums[period]||1));input.max=period==='year'?'100000':period==='month'?'20000':period==='week'?'5000':'1000';input.value=String(values[period]);field.appendChild(input);grid.appendChild(field);
-    }
-    const button=root.querySelector('button'),status=root.querySelector('[role="status"]');
-    button.onclick=async()=>{
-      const goals={};for(const period of ['day','week','month','year'])goals[period]=Number(root.querySelector(`input[name="${period}"]`)?.value);
-      if(Object.keys(goals).some(period=>!Number.isInteger(goals[period])||goals[period]<Number(minimums[period]))){status.textContent='Use whole numbers at or above 3/day, 15/week, 30/month, and 600/year.';return;}
-      button.disabled=true;status.textContent='Saving…';
-      try{const {data:result,error}=await sb.rpc('admin_set_ghost_ranking_goals',{p_day_goal:goals.day,p_week_goal:goals.week,p_month_goal:goals.month,p_year_goal:goals.year});if(error||!result?.ok)throw error||new Error('ghost_goal_save_failed');status.textContent='Ghost goals saved and audited.';await loadLeaders();}
-      catch(error){console.error('Ghost goal save failed',error);status.textContent='Unable to save Ghost goals. Retry.';}
-      finally{button.disabled=false;}
-    };
+    root.innerHTML='<strong>👻 Ghost Overtake Control · Always Active</strong><p>Ghost is always listed. A period total is revealed automatically while a real user ranks ahead of Ghost. There is no Admin switch. To make that total private again, sign in to Ghost and record enough verified sales for Ghost to retake #1 in that period.</p>';
   }
 
   function ensureDashboardRankings(){
@@ -151,11 +134,11 @@
     for(const [period,countId,whenId] of [['day','repRecordDay','repRecordDayWhen'],['week','repRecordWeek','repRecordWeekWhen'],['month','repRecordMonth','repRecordMonthWhen'],['year','repRecordYear','repRecordYearWhen']]){
       const record=highlighted?.personal_records?.[period]||{},count=document.getElementById(countId),when=document.getElementById(whenId);
       const ghostPeriod=period==='day'?'today':period,state=ghostPeriodState(highlighted,ghostPeriod);
-      if(count)count.textContent=highlighted?.is_ghost&&highlighted?.ghost_numbers_hidden===true?'Hidden':highlighted?.is_ghost&&state?.visible===false&&!highlighted?.is_current_user?'—':String(Number(record.count||0));
-      if(when)when.textContent=highlighted?.is_ghost?(highlighted?.ghost_numbers_hidden===true?'Visible to Admin and Ghost only':state?.visible===false?'Hidden from public rankings · your benchmark remains visible':'Admin benchmark'):recordPeriodLabel(period,record.period_start);
+      if(count)count.textContent=highlighted?.is_ghost&&state?.revealed===false?'Hidden':String(Number(record.count||0));
+      if(when)when.textContent=highlighted?.is_ghost?(state?.revealed===false?'Reveals when a real user overtakes Ghost':'Verified Ghost-account record'):recordPeriodLabel(period,record.period_start);
     }
     const person=document.getElementById('repRankingPerson');
-    if(person)person.textContent=highlighted?(highlighted.is_ghost?'Ghost benchmark · '+(ghostPeriodState(highlighted,selectedRankingPeriod)?.visible===false?'Two real reps reached the goal, so Ghost is hidden for this period.':'Placement is based on how many real reps reached the Admin goal.'):(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.'):'No active representatives are available.';
+    if(person)person.textContent=highlighted?(highlighted.is_ghost?'Ghost is always ranked from verified Ghost-account sales. Its total is public only while a real user holds #1 for this period.':(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.'):'No active representatives are available.';
     const authority=document.getElementById('rankingAuthorityStatus');
     if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · ${pending} sale${pending===1?'':'s'} pending review and excluded · Sales/Hr is provisional below 1 tracked field hour and is generated from authenticated McCoy workday sessions · Equal totals: faster accumulation wins.`;}
     const body=document.getElementById('repRankingRows');
@@ -173,7 +156,7 @@
       const rankCell=createRankingCell(row,'#'+rep.ranks[selectedRankingPeriod]+changeLabel);rankCell.title=velocityTitle(rep,selectedRankingPeriod);
       const name=createRankingCell(row,rep.rep_name||'Rep');
       if(rep.is_current_user){const badge=document.createElement('span');badge.className='rep-ranking-you';badge.textContent='You';name.appendChild(badge);}
-      if(rep.is_ghost){const badge=document.createElement('span');badge.className='ghost-ranking-badge';badge.textContent='BENCHMARK';name.appendChild(badge);}
+      if(rep.is_ghost){const badge=document.createElement('span');badge.className='ghost-ranking-badge';badge.textContent='GHOST';name.appendChild(badge);}
       for(const period of ['today','week','month','year'])createRankingCell(row,rankingMetric(rep,period));
       const repSph=salesPerHourMetric(rep),sphCell=createRankingCell(row,repSph.rate),sphRankCell=createRankingCell(row,repSph.rank);sphCell.title=repSph.hours;sphRankCell.title=repSph.hours;
       for(const period of ['day','week','month','year'])createRecordCell(row,rep,period);
@@ -194,7 +177,7 @@
       for(const [key,nameId,countId] of map){
         const leader=data.leaders?.[key],name=document.getElementById(nameId),count=document.getElementById(countId);
         if(name)name.textContent=leader?.name||'No sales yet';
-        if(count)count.textContent=leader?leader.count+' sale'+(leader.count===1?'':'s'):'';
+        if(count)count.textContent=leader?(leader.hidden||leader.count==null?'Hidden':leader.count+' sale'+(leader.count===1?'':'s')):'';
       }
       renderDashboardRankings(data);
     }catch(error){
