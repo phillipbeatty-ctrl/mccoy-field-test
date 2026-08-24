@@ -62,9 +62,11 @@
   function salesPerHourMetric(rep){
     if(rep?.is_ghost)return {rate:'Excluded',rank:'—',hours:'Ghost is excluded from sales/hour.'};
     const metric=rep?.sales_per_hour||{},rate=Number(metric.rate),hours=Number(metric.tracked_hours),rank=Number(metric.rank);
-    if(!Number.isFinite(hours)||hours<=0)return {rate:'0.00',rank:rank>0?'#'+rank:'—',hours:'No tracked field-session hours this week; ranked after users with tracked time.'};
-    if(!Number.isFinite(rate))return {rate:'0.00',rank:rank>0?'#'+rank:'—',hours:'Tracked time exists, but the rate is unavailable.'};
-    return {rate:rate.toFixed(2),rank:rank>0?'#'+rank:'—',hours:`${hours.toFixed(2)} tracked hour${hours===1?'':'s'} this week`};
+    const minimum=Number(metric.minimum_tracked_hours)||1,provisional=metric.provisional===true||!Number.isFinite(hours)||hours<minimum;
+    const suffix=provisional?' · Provisional':'';
+    if(!Number.isFinite(hours)||hours<=0)return {rate:'0.00'+suffix,rank:rank>0?'#'+rank:'—',hours:`Provisional until ${minimum.toFixed(0)} tracked field hour. No field-session time is recorded this week.`};
+    if(!Number.isFinite(rate))return {rate:'0.00'+suffix,rank:rank>0?'#'+rank:'—',hours:`Provisional until ${minimum.toFixed(0)} tracked field hour. Tracked time exists, but the rate is unavailable.`};
+    return {rate:rate.toFixed(2)+suffix,rank:rank>0?'#'+rank:'—',hours:`${hours.toFixed(2)} tracked hour${hours===1?'':'s'} this week${provisional?` · Provisional until ${minimum.toFixed(0)} hour`:''}`};
   }
 
   function velocityTitle(rep,period){
@@ -155,7 +157,7 @@
     const person=document.getElementById('repRankingPerson');
     if(person)person.textContent=highlighted?(highlighted.is_ghost?'Ghost benchmark · '+(ghostPeriodState(highlighted,selectedRankingPeriod)?.visible===false?'Two real reps reached the goal, so Ghost is hidden for this period.':'Placement is based on how many real reps reached the Admin goal.'):(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.'):'No active representatives are available.';
     const authority=document.getElementById('rankingAuthorityStatus');
-    if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · ${pending} sale${pending===1?'':'s'} pending review and excluded · Equal totals: faster accumulation wins.`;}
+    if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · ${pending} sale${pending===1?'':'s'} pending review and excluded · Sales/Hr is provisional below 1 tracked field hour · Equal totals: faster accumulation wins.`;}
     const body=document.getElementById('repRankingRows');
     if(!body)return;
     body.replaceChildren();
