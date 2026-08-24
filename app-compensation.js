@@ -82,7 +82,33 @@
     root.hidden=!settings;
     if(!settings)return;
     root.className='ghost-ranking-admin';
-    root.innerHTML='<strong>👻 Ghost Overtake Control · Always Active</strong><p>Ghost is always listed. A period total is revealed automatically while a real user ranks ahead of Ghost. There is no Admin switch. To make that total private again, sign in to Ghost and record enough verified sales for Ghost to retake #1 in that period.</p>';
+    const minimums=settings.minimums||{};
+    root.innerHTML='<strong>👻 Ghost Ranking Records · Admin Controlled</strong><p>Overtake comparison stays active. Ghost test sales remain available for testing and accounting, but Admin-set records control Ghost\'s day, week, month, and year rankings.</p><div class="ghost-goal-grid"><label>Best Day<input id="ghostDayGoal" type="number" inputmode="numeric"></label><label>Best Week<input id="ghostWeekGoal" type="number" inputmode="numeric"></label><label>Best Month<input id="ghostMonthGoal" type="number" inputmode="numeric"></label><label>Best Year<input id="ghostYearGoal" type="number" inputmode="numeric"></label></div><div class="ghost-ranking-actions"><button id="saveGhostRankingGoals" class="primary" type="button">Save Ghost Records</button><span id="ghostRankingSaveStatus" role="status" aria-live="polite"></span></div>';
+    const fields=[
+      ['ghostDayGoal','day_goal',minimums.day||3],
+      ['ghostWeekGoal','week_goal',minimums.week||15],
+      ['ghostMonthGoal','month_goal',minimums.month||30],
+      ['ghostYearGoal','year_goal',minimums.year||600]
+    ];
+    for(const [id,key,minimum] of fields){const input=document.getElementById(id);input.min=String(minimum);input.max=key==='year_goal'?'100000':key==='month_goal'?'20000':key==='week_goal'?'5000':'1000';input.value=String(Number(settings[key]||minimum));}
+    const save=document.getElementById('saveGhostRankingGoals'),status=document.getElementById('ghostRankingSaveStatus');
+    save.disabled=settings.can_edit!==true;
+    save.onclick=async()=>{
+      save.disabled=true;status.textContent='Saving…';
+      try{
+        const values=Object.fromEntries(fields.map(([id,key,minimum])=>[key,Math.trunc(Number(document.getElementById(id).value)||minimum)]));
+        const {data,error}=await sb.rpc('admin_set_ghost_ranking_goals',{
+          p_day_goal:values.day_goal,p_week_goal:values.week_goal,
+          p_month_goal:values.month_goal,p_year_goal:values.year_goal
+        });
+        if(error)throw error;
+        status.textContent='Ghost ranking records saved.';
+        await loadLeaders();
+      }catch(error){
+        console.error('Ghost record update failed',error);
+        status.textContent=error?.message||'Unable to save Ghost records.';
+      }finally{save.disabled=settings.can_edit!==true;}
+    };
   }
 
   function ensureDashboardRankings(){
