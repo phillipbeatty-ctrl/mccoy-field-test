@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const context={globalThis:{},module:{exports:{}}};
 vm.runInNewContext(fs.readFileSync(new URL('./app-lead-address-core.js',import.meta.url),'utf8'),context);
 const core=context.module.exports;
-const migration=fs.readFileSync(new URL('./supabase/migrations/20260824080000_typed_ad_hoc_lead_dispositions.sql',import.meta.url),'utf8');
+const migration=fs.readFileSync(new URL('./supabase/migrations/20260824152622_coaching_only_door_location.sql',import.meta.url),'utf8');
 const client=fs.readFileSync(new URL('./app-part2.js',import.meta.url),'utf8');
 const distance=fs.readFileSync(new URL('./app-distance-to-lead.js',import.meta.url),'utf8');
 const typedUi=fs.readFileSync(new URL('./app-typed-lead-address.js',import.meta.url),'utf8');
@@ -37,7 +37,7 @@ test('server creates an owned-session typed-address audit without lead membershi
   assert.match(migration,/record_ad_hoc_door_visit_start/);
   assert.match(migration,/coalesce\(v_access\.role,''\) not in \('admin','manager','trainer','rep','tester'\)/);
   assert.match(migration,/tester_user_id=v_uid and ended_at is null/);
-  assert.match(migration,/p_accuracy_meters>150/);
+  assert.match(migration,/if p_accuracy_meters between 0 and 100000 then v_accuracy:=p_accuracy_meters/);
   assert.match(migration,/'selection_source','typed_address'/);
   assert.match(migration,/'assigned_area_required',false/);
   assert.match(migration,/'lead_pool_membership_created',false/);
@@ -45,12 +45,13 @@ test('server creates an owned-session typed-address audit without lead membershi
   assert.match(migration,/grant execute on function public\.record_ad_hoc_door_visit_start[\s\S]+to authenticated/);
 });
 
-test('non-sale typed-address completion keeps fresh GPS but skips assigned-lead distance only for the explicit source',()=>{
+test('typed-address completion preserves its audit identity while location remains optional coaching evidence',()=>{
   assert.match(migration,/v_is_typed:=v_visit\.selection_source='typed_address' and v_visit\.lead_id is null/);
-  assert.match(migration,/if p_gps_captured_at is null[\s\S]+fresh_current_location_required/);
-  assert.match(migration,/if not v_is_typed then[\s\S]+outside_quarter_mile_sale_only/);
+  assert.doesNotMatch(migration,/raise exception 'fresh_current_location_required'/);
+  assert.doesNotMatch(migration,/raise exception 'outside_quarter_mile_sale_only'/);
+  assert.match(migration,/'door_location_verification_possible',false/);
   assert.match(migration,/'selection_source',v_visit\.selection_source/);
-  assert.match(migration,/typed-address activities require fresh GPS but may be completed inside or outside assigned areas/);
+  assert.match(migration,/Location evidence is optional and coaching-only/);
 });
 
 test('Sales Hub routes typed addresses through the dedicated RPC and preserves sale context',()=>{

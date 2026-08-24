@@ -106,10 +106,15 @@ test('self-location marker adds no manager feed, remote read, or local movement 
 test('one tap on the self-location marker centers and zooms without enabling Follow mode',()=>{
   assert.match(mapUi,/marker\.on\('click',zoomToLocation\)/)
   assert.doesNotMatch(mapUi,/marker\.on\('dblclick'/)
-  assert.match(mapUi,/Math\.min\(19,Math\.max\(18,map\.getZoom\(\)\+2\)\)/)
+  assert.match(mapUi,/const domEvent=event\?\.originalEvent\|\|event/)
+  assert.match(mapUi,/L\.DomEvent\.stop\(domEvent\)/)
+  assert.doesNotMatch(mapUi,/L\.DomEvent\.stopPropagation\(event\)/)
+  assert.match(mapUi,/iconSize:\[44,44\]/)
+  assert.match(mapUi,/Math\.min\(19,Math\.max\(minimumZoom,map\.getZoom\(\)\+zoomStep\)\)/)
+  assert.match(mapUi,/map\.stop\?\.\(\);map\.setView\(\[lastAccepted\.lat,lastAccepted\.lng\],targetZoom/)
   assert.match(mapUi,/map\.setView\(\[lastAccepted\.lat,lastAccepted\.lng\],targetZoom/)
   assert.match(mapUi,/Zoomed to your last known location\. The marker is not live/)
-  const zoomBody=mapUi.slice(mapUi.indexOf('function zoomToLocation'),mapUi.indexOf('function showFix'))
+  const zoomBody=mapUi.slice(mapUi.indexOf('function centerOnLocation'),mapUi.indexOf('function showFix'))
   assert.doesNotMatch(zoomBody,/setFollow\(/)
 })
 

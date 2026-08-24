@@ -46,7 +46,7 @@
     start.addEventListener('click',async()=>{
       if(!state.session){mapDispositionMessage('Start a field session before recording a map-pin activity.',true);document.getElementById('startKnockingBtn')?.focus();return;}
       if(active()&&!sameActive()){mapDispositionMessage('Finish or correct the active address before starting this pin.',true);return;}
-      selectLeadForWorkflow(lead);mapDispositionMessage('Checking ownership, GPS, and distance…');
+      selectLeadForWorkflow(lead);mapDispositionMessage('Starting activity; door location will be recorded for coaching when available…');
       const ok=await window.MCCOY_START_DOOR_VISIT?.({automatic:false});
       mapDispositionMessage(ok?'Pin activity started. Choose the result and save when complete.':'Pin activity was not started. Review the Sales Hub door status.',!ok);sync();
     });
@@ -92,7 +92,7 @@
           <label>Stage<select id="mapLeadStage">${optionList(stages,'No stage change')}</select></label>
         </div>
         <div class="map-pin-disposition-actions"><button id="mapPinStartBtn" type="button" class="assign-btn">START PIN ACTIVITY</button><button id="mapPinSaveBtn" type="button" class="primary">SAVE PIN DISPOSITION</button><button id="mapPinSaleBtn" type="button" class="success">PROCESS SALE</button></div>
-        <div id="mapPinDispositionMsg" class="muted small" role="status" aria-live="polite">Uses the same ownership, session, GPS, distance, and verified-sale rules as Sales Hub.</div>
+        <div id="mapPinDispositionMsg" class="muted small" role="status" aria-live="polite">Disposition is allowed regardless of door verification. Location accuracy and distance are coaching signals only; verified-sale rules still apply.</div>
       </div>
       <div class="muted small lead-detail-help">Edit the address in Correct Lead and press ENTER to save it and correct the house location automatically.</div>`;
     wireDisposition(lead);

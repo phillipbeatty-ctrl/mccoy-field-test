@@ -10,7 +10,8 @@ function loadCore(){
 }
 
 const core=loadCore()
-const migration=fs.readFileSync(new URL('./supabase/migrations/20260824020000_distance_to_lead_door_workflow.sql',import.meta.url),'utf8')
+const schemaMigration=fs.readFileSync(new URL('./supabase/migrations/20260824020000_distance_to_lead_door_workflow.sql',import.meta.url),'utf8')
+const migration=fs.readFileSync(new URL('./supabase/migrations/20260824152622_coaching_only_door_location.sql',import.meta.url),'utf8')
 
 test('quarter-mile boundary and closest verified lead are deterministic',()=>{
   assert.equal(core.QUARTER_MILE_METERS,402.336)
@@ -50,11 +51,15 @@ test('provider or manual address is required when outside the lead radius',()=>{
   assert.equal(core.saleAddress({withinRange:false,leadAddress:'1 Main St',manualAddress:'',providerAddress:''}).source,'required')
 })
 
-test('server owns non-sale distance enforcement and completed-sale override',()=>{
-  assert.match(migration,/v_distance>402\.336 then raise exception 'outside_quarter_mile_sale_only'/)
-  assert.match(migration,/if v_disposition<>'sale' then/)
-  assert.match(migration,/sales_records_sync_completed_door_workflow/)
+test('server records distance for coaching without using it as disposition authorization',()=>{
+  assert.doesNotMatch(migration,/raise exception 'outside_quarter_mile_sale_only'/)
+  assert.doesNotMatch(migration,/raise exception 'verified_lead_location_required'/)
+  assert.match(migration,/'quarter_mile_coaching_threshold_meters',402\.336/)
+  assert.match(migration,/'door_location_authorization_required',false/)
   assert.match(migration,/auth_user_id=v_uid/)
-  assert.match(migration,/one_active_session_idx/)
-  assert.match(migration,/revoke all on public\.door_visits from public,anon,authenticated/)
+  assert.match(migration,/open_owned_field_session_required/)
+  assert.match(migration,/owned_door_visit_not_found/)
+  assert.match(schemaMigration,/sales_records_sync_completed_door_workflow/)
+  assert.match(schemaMigration,/one_active_session_idx/)
+  assert.match(schemaMigration,/revoke all on public\.door_visits from public,anon,authenticated/)
 })
