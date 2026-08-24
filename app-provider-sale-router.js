@@ -53,7 +53,7 @@
   const choice=document.getElementById('providerRouterChoice');
   for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
-  let pending=null,toastTimer=null,routing=false;
+  let pending=null,toastTimer=null,routing=false,serverRecoveryStarted=false;
   let saleGuard=false;
   let returnNotifiedFor=null;
   function readCapture(){
@@ -84,6 +84,19 @@
     const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
     if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_sale_capture_failed');
     return data;
+  }
+  async function recoverServerCapture(){
+    if(serverRecoveryStarted||readCapture()||!window.MCCOY_ACCESS?.access?.active)return;
+    serverRecoveryStarted=true;
+    try{
+      const data=await captureCall('list',{open_only:true}),captures=Array.isArray(data?.captures)?data.captures:[];
+      const capture=captures.find(item=>item?.status==='dashboard_opened'||item?.status==='details_required');
+      if(!capture)return;
+      const restored={...capture,client_request_id:capture.client_request_id||capture.id,started_at:capture.created_at||capture.updated_at||new Date().toISOString(),recovered_from_server:true};
+      writeCapture(restored);returnNotifiedFor=null;
+      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture:restored}}));
+      await markCaptureReturned(true);
+    }catch(error){serverRecoveryStarted=false;console.error('Provider sale capture recovery failed',error);}
   }
   function startProviderCapture(provider,portalResult){
     const source=saleSourceContext(),info=portalInfo(provider),draft={
@@ -264,6 +277,8 @@
 
   window.MCCOY_OPEN_PROVIDER_PORTAL=openSellerAccount;
   const restored=readCapture();if(restored)writeCapture(restored);
+  window.addEventListener('mccoy-access-ready',recoverServerCapture);
+  const recoveryPoll=setInterval(()=>{if(!window.MCCOY_ACCESS?.access)return;clearInterval(recoveryPoll);recoverServerCapture();},300);
   window.addEventListener('focus',()=>setTimeout(markCaptureReturned,120));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(markCaptureReturned,120);});
   setTimeout(()=>{

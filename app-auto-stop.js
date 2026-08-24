@@ -19,6 +19,7 @@
     const start=document.getElementById('startKnockingBtn'),stop=document.getElementById('stopKnockingBtn');
     start?.classList.remove('hidden');stop?.classList.add('hidden');
     if(start){start.disabled=false;start.textContent='START KNOCKING';}
+    if(stop){stop.disabled=false;stop.textContent='STOP SESSION';}
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
     const visit=document.getElementById('doorVisitStatus');if(visit)visit.textContent='No active door visit.';
     document.getElementById('fieldState').textContent=reasonLabel||'Session stopped';
@@ -74,8 +75,8 @@
     telemetryStatus('Closing field session…',true);
     const data=await callControl('manual_stop');
     if(!data?.ok){
-      if(stopBtn){stopBtn.disabled=false;stopBtn.textContent='STOP KNOCKING';}
-      telemetryStatus('Could not close the session on the server. Try Stop Knocking again.',false);
+      if(stopBtn){stopBtn.disabled=false;stopBtn.textContent='STOP SESSION';}
+      telemetryStatus('Could not close the session on the server. Try Stop Session again.',false);
       return;
     }
     const label='Session Complete';

@@ -70,7 +70,7 @@
       const {data,error}=await sb.rpc('resume_door_workflow');if(error||!data?.ok)throw error||new Error('resume_failed');
       const session=data.session;if(!session||state.session)return;
       telemetrySessionId=session.id;state.session={startedAt:Date.parse(session.started_at)||Date.now(),startGps:null,resumed:true};state.lastTelemetryBreadcrumbAt=0;
-      startGpsWatch();startTimer();byId('fieldState').textContent='Knocking — Session Resumed';byId('startKnockingBtn').classList.add('hidden');byId('stopKnockingBtn').classList.remove('hidden');telemetryStatus('Field session resumed after provider return.',true);
+      startGpsWatch();startTimer();byId('fieldState').textContent='Knocking — Session Resumed';byId('startKnockingBtn').classList.add('hidden');const stopBtn=byId('stopKnockingBtn');stopBtn.classList.remove('hidden');stopBtn.disabled=false;stopBtn.textContent='STOP SESSION';telemetryStatus('Field session resumed after provider return.',true);
       const visit=data.visit;
       if(visit){
         let lead=(state.leads||[]).find(item=>String(item.dbId)===String(visit.lead_id));

@@ -275,7 +275,7 @@ document.getElementById("startKnockingBtn").addEventListener("click", async ()=>
   startGpsWatch();
   document.getElementById("fieldState").textContent="Knocking — Session Active";
   document.getElementById("startKnockingBtn").classList.add("hidden");
-  document.getElementById("stopKnockingBtn").classList.remove("hidden");
+  const stopButton=document.getElementById("stopKnockingBtn");stopButton.classList.remove("hidden");stopButton.disabled=false;stopButton.textContent="STOP SESSION";
   document.getElementById("geoBox").textContent=gps?`Start GPS: ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)} (±${Math.round(gps.accuracy)}m)`:"GPS permission unavailable; session still started in demo.";
   updateGpsQualityBox(gps?{...gps,ageMs:0}:null);
   startTimer();

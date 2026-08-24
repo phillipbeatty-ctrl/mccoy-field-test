@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { isCancelledProviderStatus } from '../_shared/accounting-records.mjs'
 import { normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
+import { isImmediateProcessedSaleRankingEligible } from '../_shared/sale-ranking-policy.mjs'
 import {
   classifySaleEvidence,
   crossReferenceRepRow,
@@ -98,8 +99,9 @@ async function applyReconciliation(admin: any, sale: any, cache?: { evidence: Ma
   const priorSnapshot = sale.compensation_snapshot && typeof sale.compensation_snapshot === 'object' ? sale.compensation_snapshot : {}
   const scheduledReduction = Number(priorSnapshot.base_commission || 0) + Number(priorSnapshot.att_mobile_originating_commission || 0)
   const saleStatus = providerCancelled ? 'cancelled' : sale.sale_status
-  const rankingEligible = result.status === 'verified_processed' && approvalAllowsEligibility(sale)
-  const eligible = rankingEligible && saleStatus !== 'cancelled'
+  const rankingEligible = isImmediateProcessedSaleRankingEligible({ ...sale, sale_status: saleStatus })
+    || (result.status === 'verified_processed' && approvalAllowsEligibility(sale))
+  const eligible = result.status === 'verified_processed' && approvalAllowsEligibility(sale) && saleStatus !== 'cancelled'
   const patch: Record<string, unknown> = {
     verification_status: result.status,
     verification_reason: result.reason,
