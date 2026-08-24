@@ -10,6 +10,9 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const {data:global}=await admin.from('metrics_visibility_settings').select('*').order('id').limit(1).maybeSingle();
  const body=await req.json().catch(()=>({}));let targetEmail=String(body.tester_email||viewerEmail).trim().toLowerCase();
  const {data:targetAccess}=await admin.from('app_user_access').select('email,active,role,display_name,assigned_manager_email,assigned_manager_name').eq('email',targetEmail).maybeSingle();if(!targetAccess?.active)return Response.json({error:'user_not_found'},{status:404,headers:corsHeaders});
+ const targetIsGhost=targetEmail==='phillipkbeatty@gmail.com'&&String(targetAccess.display_name||'').trim().toLowerCase()==='ghost';
+ const viewerIsGhost=viewerEmail==='phillipkbeatty@gmail.com'&&String(viewer.display_name||'').trim().toLowerCase()==='ghost';
+ if(targetIsGhost&&viewer.role!=='admin'&&!viewerIsGhost)return Response.json({error:'ghost_metrics_hidden'},{status:403,headers:{...corsHeaders,'Cache-Control':'no-store'}});
  const {data:per}=await admin.from('rep_metrics_visibility').select('*').eq('rep_email',targetEmail).maybeSingle();
  const repEnabled=!!global?.global_rep_metrics_enabled && (per?.rep_metrics_enabled ?? true);
  const mgrEnabled=!!global?.global_manager_metrics_enabled && (per?.manager_metrics_enabled ?? true);

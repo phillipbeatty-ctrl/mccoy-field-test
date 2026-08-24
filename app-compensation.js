@@ -44,8 +44,8 @@
     const record=rep?.personal_records?.[period]||{},cell=document.createElement('td'),count=document.createElement('strong'),when=document.createElement('small');
     const ghostPeriod=period==='day'?'today':period,state=rep?.ghost_visibility?.[ghostPeriod];
     cell.className='rep-ranking-record';
-    if(rep?.is_ghost&&state?.visible===false){count.textContent='—';when.textContent='Benchmark retired';}
-    else if(rep?.is_ghost&&state?.revealed===false){count.textContent='Hidden';when.textContent='Goal not reached yet';}
+    if(rep?.is_ghost&&rep?.ghost_numbers_hidden===true){count.textContent='Hidden';when.textContent='Visible to Admin and Ghost only';}
+    else if(rep?.is_ghost&&state?.visible===false&&!rep?.is_current_user){count.textContent='—';when.textContent='Benchmark retired';}
     else{count.textContent=String(Number(record.count||0));when.textContent=rep?.is_ghost?'Admin benchmark':recordPeriodLabel(period,record.period_start);}
     cell.append(count,when);row.appendChild(cell);return cell;
   }
@@ -54,8 +54,8 @@
   function ghostVisibleFor(rep,period){const state=ghostPeriodState(rep,period);return !rep?.is_ghost||state?.visible!==false;}
   function rankingMetric(rep,period){
     const state=ghostPeriodState(rep,period);
-    if(rep?.is_ghost&&state?.visible===false)return '—';
-    if(rep?.is_ghost&&state?.revealed===false)return 'Hidden';
+    if(rep?.is_ghost&&rep?.ghost_numbers_hidden===true)return 'Hidden';
+    if(rep?.is_ghost&&state?.visible===false&&!rep?.is_current_user)return '—';
     return String(Number(rep?.[period+'_sales']||0));
   }
 
@@ -86,7 +86,7 @@
     root.className='ghost-ranking-admin';
     const values={day:Number(settings.day_goal||3),week:Number(settings.week_goal||15),month:Number(settings.month_goal||30),year:Number(settings.year_goal||600)};
     const minimums=settings.minimums||{day:3,week:15,month:30,year:600};
-    root.innerHTML='<strong>👻 Ghost Benchmark Controls</strong><p>Ghost is #1 until a real rep reaches a period goal, #2 after one rep reaches it, and hidden after two reps reach it. Goal values stay hidden from reps until the first rep reaches them.</p><div class="ghost-goal-grid"></div><div class="ghost-ranking-actions"><button type="button" class="primary">Save Ghost Goals</button><span role="status" aria-live="polite"></span></div>';
+    root.innerHTML='<strong>👻 Ghost Benchmark Controls</strong><p>Ghost is #1 until a real rep reaches a period goal, #2 after one rep reaches it, and hidden after two reps reach it. Ghost numbers are visible only to Admin and the Ghost account.</p><div class="ghost-goal-grid"></div><div class="ghost-ranking-actions"><button type="button" class="primary">Save Ghost Goals</button><span role="status" aria-live="polite"></span></div>';
     const grid=root.querySelector('.ghost-goal-grid');
     for(const [period,label] of Object.entries({day:'Per day',week:'Per week',month:'Per month',year:'Per year'})){
       const field=document.createElement('label'),input=document.createElement('input');field.textContent=label;input.type='number';input.name=period;input.min=String(Number(minimums[period]||1));input.max=period==='year'?'100000':period==='month'?'20000':period==='week'?'5000':'1000';input.value=String(values[period]);field.appendChild(input);grid.appendChild(field);
@@ -151,8 +151,8 @@
     for(const [period,countId,whenId] of [['day','repRecordDay','repRecordDayWhen'],['week','repRecordWeek','repRecordWeekWhen'],['month','repRecordMonth','repRecordMonthWhen'],['year','repRecordYear','repRecordYearWhen']]){
       const record=highlighted?.personal_records?.[period]||{},count=document.getElementById(countId),when=document.getElementById(whenId);
       const ghostPeriod=period==='day'?'today':period,state=ghostPeriodState(highlighted,ghostPeriod);
-      if(count)count.textContent=highlighted?.is_ghost&&state?.revealed===false?'Hidden':highlighted?.is_ghost&&state?.visible===false?'—':String(Number(record.count||0));
-      if(when)when.textContent=highlighted?.is_ghost?(state?.visible===false?'Benchmark retired':state?.revealed===false?'Goal not reached yet':'Admin benchmark'):recordPeriodLabel(period,record.period_start);
+      if(count)count.textContent=highlighted?.is_ghost&&highlighted?.ghost_numbers_hidden===true?'Hidden':highlighted?.is_ghost&&state?.visible===false&&!highlighted?.is_current_user?'—':String(Number(record.count||0));
+      if(when)when.textContent=highlighted?.is_ghost?(highlighted?.ghost_numbers_hidden===true?'Visible to Admin and Ghost only':state?.visible===false?'Hidden from public rankings · your benchmark remains visible':'Admin benchmark'):recordPeriodLabel(period,record.period_start);
     }
     const person=document.getElementById('repRankingPerson');
     if(person)person.textContent=highlighted?(highlighted.is_ghost?'Ghost benchmark · '+(ghostPeriodState(highlighted,selectedRankingPeriod)?.visible===false?'Two real reps reached the goal, so Ghost is hidden for this period.':'Placement is based on how many real reps reached the Admin goal.'):(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.'):'No active representatives are available.';
