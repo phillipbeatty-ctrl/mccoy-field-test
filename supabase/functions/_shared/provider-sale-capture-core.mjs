@@ -15,6 +15,7 @@ export const SALE_PROVIDERS = Object.freeze([
 ])
 
 export const SALE_OUTCOMES = Object.freeze(['completed', 'abandoned'])
+export const TESTER_PKB_EMAIL = 'phillipkbeatty@gmail.com'
 
 const normalized = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 
@@ -41,6 +42,11 @@ export function normalizeSaleOutcome(value) {
   if (input === 'completed' || input === 'completedsale') return 'completed'
   if (input === 'abandoned' || input === 'abandonedorder' || input === 'abandonedsale') return 'abandoned'
   return null
+}
+
+export function isTesterPkbIdentity(email, displayName) {
+  return String(email ?? '').trim().toLowerCase() === TESTER_PKB_EMAIL &&
+    String(displayName ?? '').trim().toLowerCase() === 'tester pkb'
 }
 
 export function isUuid(value) {
