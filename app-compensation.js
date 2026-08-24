@@ -3,6 +3,7 @@
   const css=document.createElement('style');css.textContent=`
   .pay-progress-card,.leaders-card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff;margin:12px 0}#field .field-session-top-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}#field .field-session-top-grid>#payProgressCard{margin:0;height:100%;padding:20px}@media(max-width:900px){#field .field-session-top-grid{grid-template-columns:1fr}}.pay-progress-main{font-size:14px;font-weight:700;margin-top:6px}.pay-progress-sub{font-size:12px;color:#6b7280;margin-top:4px}.leaders-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px}.leader-tile{border:1px solid #eef0f2;border-radius:10px;padding:9px}.leader-tile span{display:block;font-size:11px;color:#6b7280}.leader-tile strong{display:block;font-size:13px;margin-top:3px}.leader-tile small{display:block;color:#6b7280;margin-top:2px}@media(max-width:720px){.leaders-grid{grid-template-columns:1fr 1fr}.leader-tile:last-child{grid-column:1/-1}}
   .rep-rankings-card{margin-bottom:18px}.rep-rankings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.rep-rankings-head h2{margin:0}.rep-rankings-head p{margin:5px 0 0;color:#6b7280;font-size:13px}.rep-ranking-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rep-ranking-controls select{border:1px solid #d1d5db;border-radius:8px;background:#fff;padding:9px 11px;color:#111827}.rep-ranking-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0}.rep-ranking-stat{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fafbfc}.rep-ranking-stat span{display:block;color:#6b7280;font-size:12px}.rep-ranking-stat strong{display:block;margin-top:6px;font-size:23px;color:#111827}.rep-ranking-stat:first-child{background:#111827;border-color:#111827}.rep-ranking-stat:first-child span,.rep-ranking-stat:first-child strong{color:#fff}.rep-records-title{margin:2px 0 9px;font-size:14px}.rep-record-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.rep-record-stat{border:1px solid #dbeafe;border-radius:12px;padding:11px;background:#f8fbff}.rep-record-stat span{display:block;color:#4b5563;font-size:11px}.rep-record-stat strong{display:block;margin-top:4px;font-size:21px;color:#1d4ed8}.rep-record-stat small,.rep-ranking-record small{display:block;margin-top:3px;color:#6b7280;font-size:10px;white-space:nowrap}.rep-ranking-record strong{display:block;color:#1d4ed8}.rep-ranking-person{font-size:12px;color:#6b7280;margin:0 0 12px}.rep-ranking-table-wrap,.pay-scale-wrap{overflow-x:auto}.rep-ranking-table,.pay-scale-table{width:100%;border-collapse:collapse;min-width:1120px}.rep-ranking-table th,.rep-ranking-table td,.pay-scale-table th,.pay-scale-table td{text-align:left;padding:11px 10px;border-bottom:1px solid #eef0f2;font-size:13px}.rep-ranking-table th,.pay-scale-table th{color:#6b7280;font-weight:600}.rep-ranking-table tbody tr.current-rep{background:#eff6ff}.rep-ranking-table tbody tr.current-rep td:first-child{font-weight:700;color:#1d4ed8}.rep-ranking-you{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:600}.rep-ranking-empty{padding:15px 0;color:#6b7280;font-size:13px}@media(max-width:900px){.rep-record-grid{grid-template-columns:1fr 1fr}}@media(max-width:720px){.rep-ranking-summary{grid-template-columns:1fr 1fr}.rep-ranking-stat:first-child{grid-column:1/-1}.rep-rankings-head{align-items:stretch}.rep-ranking-controls{width:100%}.rep-ranking-controls select{flex:1}}
+  .ghost-ranking-admin{margin:14px 0 4px;padding:13px;border:1px solid #c4b5fd;border-radius:12px;background:#faf5ff}.ghost-ranking-admin strong{display:block}.ghost-ranking-admin p{margin:4px 0 10px;color:#6b7280;font-size:12px}.ghost-goal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.ghost-goal-grid label{font-size:11px;color:#4b5563}.ghost-goal-grid input{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px;border:1px solid #cbd5e1;border-radius:8px}.ghost-ranking-actions{display:flex;align-items:center;gap:10px;margin-top:10px}.ghost-ranking-actions span{font-size:12px;color:#6b7280}.ghost-ranking-row{background:#faf5ff}.ghost-ranking-badge{display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:10px;font-weight:700}@media(max-width:720px){.ghost-goal-grid{grid-template-columns:1fr 1fr}}
   #compBtn{position:fixed;left:14px;bottom:14px;z-index:2500;display:none;border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer}
   #compPanel{position:fixed;inset:0;z-index:130000;background:rgba(17,24,39,.78);display:none;align-items:center;justify-content:center;padding:16px}#compPanel.show{display:flex}.comp-card{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.comp-section{border-top:1px solid #e5e7eb;margin-top:16px;padding-top:14px}.comp-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f4}.comp-row input[type=number]{width:90px;padding:7px}.comp-muted{font-size:12px;color:#6b7280}.comp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.override-choice{display:inline-flex;gap:4px;padding:3px;border:1px solid #d1d5db;border-radius:10px;background:#f9fafb}.override-choice button{min-width:58px;padding:7px 10px;border:0;border-radius:7px;background:transparent;color:#4b5563;font-weight:800;cursor:pointer}.override-choice button.active.on{background:#dcfce7;color:#166534}.override-choice button.active.off{background:#fee2e2;color:#991b1b}.override-choice button:disabled{cursor:not-allowed;opacity:.7}.sale-approval-list{display:grid;gap:10px;margin-top:10px}.sale-approval-row{padding:12px;border:1px solid #dbeafe;border-radius:10px;background:#f8fbff}.sale-approval-title{font-weight:800}.sale-approval-row textarea{width:100%;box-sizing:border-box;margin-top:8px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;resize:vertical}.sale-approval-buttons{display:flex;gap:8px;margin-top:8px}.sale-approval-buttons button{flex:1;min-height:40px}@media(max-width:560px){.sale-approval-buttons{flex-direction:column}.comp-row{align-items:flex-start;flex-direction:column}.override-choice{width:100%;box-sizing:border-box}.override-choice button{flex:1}}
   `;document.head.appendChild(css);
@@ -41,7 +42,46 @@
 
   function createRecordCell(row,rep,period){
     const record=rep?.personal_records?.[period]||{},cell=document.createElement('td'),count=document.createElement('strong'),when=document.createElement('small');
-    cell.className='rep-ranking-record';count.textContent=String(Number(record.count||0));when.textContent=recordPeriodLabel(period,record.period_start);cell.append(count,when);row.appendChild(cell);return cell;
+    const ghostPeriod=period==='day'?'today':period,state=rep?.ghost_visibility?.[ghostPeriod];
+    cell.className='rep-ranking-record';
+    if(rep?.is_ghost&&state?.visible===false){count.textContent='—';when.textContent='Benchmark retired';}
+    else if(rep?.is_ghost&&state?.revealed===false){count.textContent='Hidden';when.textContent='Goal not reached yet';}
+    else{count.textContent=String(Number(record.count||0));when.textContent=rep?.is_ghost?'Admin benchmark':recordPeriodLabel(period,record.period_start);}
+    cell.append(count,when);row.appendChild(cell);return cell;
+  }
+
+  function ghostPeriodState(rep,period){return rep?.is_ghost?rep?.ghost_visibility?.[period]||null:null;}
+  function ghostVisibleFor(rep,period){const state=ghostPeriodState(rep,period);return !rep?.is_ghost||state?.visible!==false;}
+  function rankingMetric(rep,period){
+    const state=ghostPeriodState(rep,period);
+    if(rep?.is_ghost&&state?.visible===false)return '—';
+    if(rep?.is_ghost&&state?.revealed===false)return 'Hidden';
+    return String(Number(rep?.[period+'_sales']||0));
+  }
+
+  function renderGhostAdminSettings(data){
+    const root=document.getElementById('ghostRankingAdminSettings'),settings=data?.ghost_admin_settings;
+    if(!root)return;
+    root.replaceChildren();
+    root.hidden=!settings?.can_edit;
+    if(!settings?.can_edit)return;
+    root.className='ghost-ranking-admin';
+    const values={day:Number(settings.day_goal||3),week:Number(settings.week_goal||15),month:Number(settings.month_goal||30),year:Number(settings.year_goal||600)};
+    const minimums=settings.minimums||{day:3,week:15,month:30,year:600};
+    root.innerHTML='<strong>👻 Ghost Benchmark Controls</strong><p>Ghost is #1 until a real rep reaches a period goal, #2 after one rep reaches it, and hidden after two reps reach it. Goal values stay hidden from reps until the first rep reaches them.</p><div class="ghost-goal-grid"></div><div class="ghost-ranking-actions"><button type="button" class="primary">Save Ghost Goals</button><span role="status" aria-live="polite"></span></div>';
+    const grid=root.querySelector('.ghost-goal-grid');
+    for(const [period,label] of Object.entries({day:'Per day',week:'Per week',month:'Per month',year:'Per year'})){
+      const field=document.createElement('label'),input=document.createElement('input');field.textContent=label;input.type='number';input.name=period;input.min=String(Number(minimums[period]||1));input.max=period==='year'?'100000':period==='month'?'20000':period==='week'?'5000':'1000';input.value=String(values[period]);field.appendChild(input);grid.appendChild(field);
+    }
+    const button=root.querySelector('button'),status=root.querySelector('[role="status"]');
+    button.onclick=async()=>{
+      const goals={};for(const period of ['day','week','month','year'])goals[period]=Number(root.querySelector(`input[name="${period}"]`)?.value);
+      if(Object.keys(goals).some(period=>!Number.isInteger(goals[period])||goals[period]<Number(minimums[period]))){status.textContent='Use whole numbers at or above 3/day, 15/week, 30/month, and 600/year.';return;}
+      button.disabled=true;status.textContent='Saving…';
+      try{const {data:result,error}=await sb.rpc('admin_set_ghost_ranking_goals',{p_day_goal:goals.day,p_week_goal:goals.week,p_month_goal:goals.month,p_year_goal:goals.year});if(error||!result?.ok)throw error||new Error('ghost_goal_save_failed');status.textContent='Ghost goals saved and audited.';await loadLeaders();}
+      catch(error){console.error('Ghost goal save failed',error);status.textContent='Unable to save Ghost goals. Retry.';}
+      finally{button.disabled=false;}
+    };
   }
 
   function ensureDashboardRankings(){
@@ -52,7 +92,7 @@
     card=document.createElement('div');
     card.className='card rep-rankings-card';
     card.id='dashboardRepRankings';
-    card.innerHTML='<div class="rep-rankings-head"><div><h2>Sales Rankings</h2><p>Every active McCoy user, regardless of role, ranked by provider-verified eligible sales.</p><p id="rankingAuthorityStatus" class="rep-ranking-person">Loading authoritative rankings…</p></div><div class="rep-ranking-controls"><select id="repRankingPeriod" aria-label="Choose ranking period"><option value="today">Today</option><option value="week" selected>This Week</option><option value="month">This Month</option><option value="year">This Year</option></select><button id="repRankingsRefresh" class="assign-btn">Refresh</button></div></div><div class="rep-ranking-summary"><div class="rep-ranking-stat"><span id="repPersonalRankLabel">Your Rank</span><strong id="repPersonalRank">—</strong></div><div class="rep-ranking-stat"><span>Sales Today</span><strong id="repPersonalToday">0</strong></div><div class="rep-ranking-stat"><span>Sales This Week</span><strong id="repPersonalWeek">0</strong></div><div class="rep-ranking-stat"><span>Sales This Month</span><strong id="repPersonalMonth">0</strong></div><div class="rep-ranking-stat"><span>Sales This Year</span><strong id="repPersonalYear">0</strong></div></div><h3 class="rep-records-title">Personal Sales Records</h3><div class="rep-record-grid"><div class="rep-record-stat"><span>Best Day</span><strong id="repRecordDay">0</strong><small id="repRecordDayWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Week</span><strong id="repRecordWeek">0</strong><small id="repRecordWeekWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Month</span><strong id="repRecordMonth">0</strong><small id="repRecordMonthWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Year</span><strong id="repRecordYear">0</strong><small id="repRecordYearWhen">No verified sales yet</small></div></div><p id="repRankingPerson" class="rep-ranking-person"></p><div class="rep-ranking-table-wrap"><table class="rep-ranking-table" aria-label="Individual user sales rankings and personal records"><thead><tr><th scope="col">Rank</th><th scope="col">User</th><th scope="col">Today</th><th scope="col">This Week</th><th scope="col">This Month</th><th scope="col">This Year</th><th scope="col">Best Day</th><th scope="col">Best Week</th><th scope="col">Best Month</th><th scope="col">Best Year</th></tr></thead><tbody id="repRankingRows"><tr><td colspan="10">Loading user rankings…</td></tr></tbody></table></div>';
+    card.innerHTML='<div class="rep-rankings-head"><div><h2>Sales Rankings</h2><p>Every active McCoy user, regardless of role, ranked by provider-verified eligible sales.</p><p id="rankingAuthorityStatus" class="rep-ranking-person">Loading authoritative rankings…</p></div><div class="rep-ranking-controls"><select id="repRankingPeriod" aria-label="Choose ranking period"><option value="today">Today</option><option value="week" selected>This Week</option><option value="month">This Month</option><option value="year">This Year</option></select><button id="repRankingsRefresh" class="assign-btn">Refresh</button></div></div><div id="ghostRankingAdminSettings" hidden></div><div class="rep-ranking-summary"><div class="rep-ranking-stat"><span id="repPersonalRankLabel">Your Rank</span><strong id="repPersonalRank">—</strong></div><div class="rep-ranking-stat"><span>Sales Today</span><strong id="repPersonalToday">0</strong></div><div class="rep-ranking-stat"><span>Sales This Week</span><strong id="repPersonalWeek">0</strong></div><div class="rep-ranking-stat"><span>Sales This Month</span><strong id="repPersonalMonth">0</strong></div><div class="rep-ranking-stat"><span>Sales This Year</span><strong id="repPersonalYear">0</strong></div></div><h3 class="rep-records-title">Personal Sales Records</h3><div class="rep-record-grid"><div class="rep-record-stat"><span>Best Day</span><strong id="repRecordDay">0</strong><small id="repRecordDayWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Week</span><strong id="repRecordWeek">0</strong><small id="repRecordWeekWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Month</span><strong id="repRecordMonth">0</strong><small id="repRecordMonthWhen">No verified sales yet</small></div><div class="rep-record-stat"><span>Best Year</span><strong id="repRecordYear">0</strong><small id="repRecordYearWhen">No verified sales yet</small></div></div><p id="repRankingPerson" class="rep-ranking-person"></p><div class="rep-ranking-table-wrap"><table class="rep-ranking-table" aria-label="Individual user sales rankings and personal records"><thead><tr><th scope="col">Rank</th><th scope="col">User</th><th scope="col">Today</th><th scope="col">This Week</th><th scope="col">This Month</th><th scope="col">This Year</th><th scope="col">Best Day</th><th scope="col">Best Week</th><th scope="col">Best Month</th><th scope="col">Best Year</th></tr></thead><tbody id="repRankingRows"><tr><td colspan="10">Loading user rankings…</td></tr></tbody></table></div>';
     const rankingIntro=card.querySelector('.rep-rankings-head p');
     if(rankingIntro)rankingIntro.textContent='Every active McCoy user, regardless of role, ranked by provider-verified sales. Later cancellations affect accounting only and do not remove ranking credit.';
     dashboard.insertBefore(card,dashboard.firstChild);
@@ -72,7 +112,9 @@
     const card=ensureDashboardRankings();
     if(!card||!data?.ok)return;
     currentRankingData=data;
-    const rankings=Array.isArray(data.rankings)?data.rankings.slice():[];
+    renderGhostAdminSettings(data);
+    const allRankings=Array.isArray(data.rankings)?data.rankings.slice():[];
+    const rankings=allRankings.filter(rep=>ghostVisibleFor(rep,selectedRankingPeriod));
     rankings.sort((left,right)=>(left.ranks?.[selectedRankingPeriod]||Number.MAX_SAFE_INTEGER)-(right.ranks?.[selectedRankingPeriod]||Number.MAX_SAFE_INTEGER));
     const personal=data.current_rep||rankings.find(rep=>rep.is_current_user)||null;
     const highlighted=personal||rankings[0]||null;
@@ -80,17 +122,20 @@
     if(title)title.textContent=personal?'Your Rank':'Top Rep Rank';
     const rank=document.getElementById('repPersonalRank');
     const movement=Number(highlighted?.rank_movement?.[selectedRankingPeriod]||0),movementLabel=movement>0?` ↑${movement}`:movement<0?` ↓${Math.abs(movement)}`:'';
-    if(rank)rank.textContent=highlighted?'#'+highlighted.ranks[selectedRankingPeriod]+movementLabel:'—';
+    const highlightedRank=highlighted?.ranks?.[selectedRankingPeriod];
+    if(rank)rank.textContent=highlighted?(highlightedRank?'#'+highlightedRank+movementLabel:'Hidden'):'—';
     for(const [period,id] of [['today','repPersonalToday'],['week','repPersonalWeek'],['month','repPersonalMonth'],['year','repPersonalYear']]){
       const stat=document.getElementById(id);
-      if(stat)stat.textContent=String(Number(highlighted?.[period+'_sales']||0));
+      if(stat)stat.textContent=highlighted?rankingMetric(highlighted,period):'0';
     }
     for(const [period,countId,whenId] of [['day','repRecordDay','repRecordDayWhen'],['week','repRecordWeek','repRecordWeekWhen'],['month','repRecordMonth','repRecordMonthWhen'],['year','repRecordYear','repRecordYearWhen']]){
       const record=highlighted?.personal_records?.[period]||{},count=document.getElementById(countId),when=document.getElementById(whenId);
-      if(count)count.textContent=String(Number(record.count||0));if(when)when.textContent=recordPeriodLabel(period,record.period_start);
+      const ghostPeriod=period==='day'?'today':period,state=ghostPeriodState(highlighted,ghostPeriod);
+      if(count)count.textContent=highlighted?.is_ghost&&state?.revealed===false?'Hidden':highlighted?.is_ghost&&state?.visible===false?'—':String(Number(record.count||0));
+      if(when)when.textContent=highlighted?.is_ghost?(state?.visible===false?'Benchmark retired':state?.revealed===false?'Goal not reached yet':'Admin benchmark'):recordPeriodLabel(period,record.period_start);
     }
     const person=document.getElementById('repRankingPerson');
-    if(person)person.textContent=highlighted?(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.':'No active representatives are available.';
+    if(person)person.textContent=highlighted?(highlighted.is_ghost?'Ghost benchmark · '+(ghostPeriodState(highlighted,selectedRankingPeriod)?.visible===false?'Two real reps reached the goal, so Ghost is hidden for this period.':'Placement is based on how many real reps reached the Admin goal.'):(personal?'Your sales · ':'Leading rep: '+highlighted.rep_name+' · ')+'Ranked by '+rankingLabels[selectedRankingPeriod]+'. '+Number(highlighted.pending_review_sales||0)+' pending review.'):'No active representatives are available.';
     const authority=document.getElementById('rankingAuthorityStatus');
     if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · ${pending} sale${pending===1?'':'s'} pending review and excluded.`;}
     const body=document.getElementById('repRankingRows');
@@ -103,12 +148,13 @@
     }
     for(const rep of rankings){
       const row=document.createElement('tr');
-      if(rep.is_current_user)row.className='current-rep';
+      if(rep.is_current_user)row.classList.add('current-rep');if(rep.is_ghost)row.classList.add('ghost-ranking-row');
       const change=Number(rep.rank_movement?.[selectedRankingPeriod]||0),changeLabel=change>0?` ↑${change}`:change<0?` ↓${Math.abs(change)}`:'';
       createRankingCell(row,'#'+rep.ranks[selectedRankingPeriod]+changeLabel);
       const name=createRankingCell(row,rep.rep_name||'Rep');
       if(rep.is_current_user){const badge=document.createElement('span');badge.className='rep-ranking-you';badge.textContent='You';name.appendChild(badge);}
-      for(const period of ['today','week','month','year'])createRankingCell(row,Number(rep[period+'_sales']||0));
+      if(rep.is_ghost){const badge=document.createElement('span');badge.className='ghost-ranking-badge';badge.textContent='BENCHMARK';name.appendChild(badge);}
+      for(const period of ['today','week','month','year'])createRankingCell(row,rankingMetric(rep,period));
       for(const period of ['day','week','month','year'])createRecordCell(row,rep,period);
       body.appendChild(row);
     }
