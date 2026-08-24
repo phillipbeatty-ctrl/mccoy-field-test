@@ -116,7 +116,7 @@
     state.leads=state.realLeads;
     const teamCounts=new Map();for(const lead of real)teamCounts.set(lead.team,(teamCounts.get(lead.team)||0)+1);for(const team of state.teams)team.leads=teamCounts.get(team.name)||0;
     renderAll();
-    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent=result.assignmentRequired?(result.scope==='manager_pool'?'No leads assigned by your administrator — contact your administrator':result.scope==='manager_assigned_rep'?'No leads assigned by your manager — contact your manager':'No leads assigned to you — contact your administrator or manager'):'No real leads are available in your assigned area';select.replaceChildren(option);}}
+    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent='No real leads are available';select.replaceChildren(option);}}
     const detail={count:real.length,batchId:result.batchId,total:result.total,partial};
     if(partial){const progress=document.getElementById('geocodeProgress');if(progress)progress.textContent=`Loading leads… ${real.length.toLocaleString()} of ${result.total.toLocaleString()} ready.`;window.dispatchEvent(new CustomEvent('mccoy-real-leads-progress',{detail}));}
     else window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail}));

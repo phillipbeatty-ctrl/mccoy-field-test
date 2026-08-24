@@ -14,7 +14,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const isAdmin=access.role==='admin',isManager=isManagerPermissionRole(access.role)
  const body=await req.json().catch(()=>({})),action=String(body.action||'')
  const managerActions=['list_reps','assign_lead','assign_leads']
- if(action==='list_real_leads'){/* Every active account may work assigned legitimate field leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
+ if(action==='list_real_leads'){/* Every active field account may see and disposition every legitimate real lead. Assignment authority remains separate. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
  let authUsersPromise:Promise<any[]>|null=null
  const getAuthUsers=async()=>{if(!authUsersPromise)authUsersPromise=admin.auth.admin.listUsers({page:1,perPage:1000}).then(({data,error}:any)=>{if(error)throw error;return data?.users||[]});return await authUsersPromise}
  let managerScopePromise:Promise<any>|null=null
@@ -113,26 +113,8 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    const {data:batches,error:batchErr}=await admin.from('spotio_import_batches').select('id,created_at,status,raw_payload').eq('status','normalized').order('created_at',{ascending:false}).limit(100);if(batchErr)throw batchErr;
    const normalized=batches||[],canonicalSpotio=normalized.find((batch:any)=>String(batch?.raw_payload?.source_type||'')==='spotio_json'),csvBatches=normalized.filter((batch:any)=>String(batch?.raw_payload?.source_type||'')==='csv');
    const selectedIds=[canonicalSpotio?.id,...csvBatches.map((batch:any)=>batch.id)].filter(Boolean);
-   let directlyAssigned=0,managerScope:any=null,representativeManager:any=null;
-   if(!isAdmin){
-     if(isManager){
-       managerScope=await getManagerScope();
-       if(!managerScope.adminAssigned)return json({ok:true,batch_id:csvBatches[0]?.id||canonicalSpotio?.id||null,batch_ids:[],total:0,page,limit,leads:[],owners:[],scope:'manager_pool',assignment_required:true,assignment_reason:'administrator_assignment_required',assigned_team:access.team_name||null});
-     }else{
-       representativeManager=await getRepresentativeManager();
-       if(representativeManager?.invalid)return json({ok:true,batch_id:csvBatches[0]?.id||canonicalSpotio?.id||null,batch_ids:[],total:0,page,limit,leads:[],owners:[],scope:'manager_assigned_rep',assignment_required:true,assignment_reason:'manager_assignment_required',assigned_team:access.team_name||null});
-       const {count,error:assignmentError}=await admin.from('leads').select('id',{count:'exact',head:true}).eq('assigned_rep_id',user.id);
-       if(assignmentError)throw assignmentError;
-       directlyAssigned=Number(count||0);
-       if(!directlyAssigned)return json({ok:true,batch_id:csvBatches[0]?.id||canonicalSpotio?.id||null,batch_ids:[],total:0,page,limit,leads:[],owners:[],scope:representativeManager?'manager_assigned_rep':'individual',assignment_required:true,assignment_reason:representativeManager?'manager_lead_assignment_required':'representative_lead_assignment_required',assigned_team:access.team_name||null});
-     }
-   }
    const loadOwnershipDirectory=async()=>{
      let query=admin.from('app_user_access').select('email,display_name,role,team_name,assigned_manager_email,assigned_admin_email').eq('active',true).in('role',['admin','manager','trainer','rep','tester']);
-     if(!isAdmin){
-       const permitted=[user.email,...(isManager?[managerScope.adminEmail,...managerScope.reports.map((report:any)=>report.email)]:[representativeManager?.email,representativeManager?.adminEmail])].filter(Boolean).map((email:any)=>String(email).toLowerCase());
-       query=query.in('email',[...new Set(permitted)]);
-     }
      const {data:accounts,error:accountError}=await query.order('display_name');
      if(accountError)throw accountError;
      const rows=accounts||[],emails=rows.map((account:any)=>String(account.email||'').toLowerCase());
@@ -146,20 +128,15 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
      let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined);
      query=selectedIds.length?query.or(`import_batch_id.in.(${selectedIds.join(',')}),source_system.eq.FIELD_ENTRY`):query.eq('source_system','FIELD_ENTRY');
      query=query.not('source_system','ilike','%demo%');
-     if(!isAdmin){
-       if(isManager)query=query.eq('assigned_manager_id',user.id).eq('assigned_admin_email',managerScope.adminEmail)
-       else if(representativeManager)query=query.eq('assigned_rep_id',user.id).eq('assigned_manager_id',representativeManager.id).eq('assigned_admin_email',representativeManager.adminEmail)
-       else query=query.eq('assigned_rep_id',user.id)
-     }
      return query;
    };
-   const metadata={batch_id:csvBatches[0]?.id||canonicalSpotio?.id||null,batch_ids:selectedIds,page,limit,scope:isAdmin?'all':isManager?'manager_pool':representativeManager?'manager_assigned_rep':'individual',assigned_team:isAdmin?null:access.team_name||null};
+   const metadata={batch_id:csvBatches[0]?.id||canonicalSpotio?.id||null,batch_ids:selectedIds,page,limit,scope:'all_disposition',assigned_team:access.team_name||null,assignment_required:false};
    const ownershipPromise=page===0?loadOwnershipDirectory():Promise.resolve(null);
    const start=page*limit,slices=[];for(let offset=0;offset<limit;offset+=1000)slices.push({start:start+offset,end:start+Math.min(limit,offset+1000)-1});
    const [results,owners]=await Promise.all([Promise.all(slices.map((slice,index)=>makeQuery(index===0&&!knownTotal).order('address1',{ascending:true}).order('id',{ascending:true}).range(slice.start,slice.end))),ownershipPromise]);
    for(const result of results)if(result.error)throw result.error;
    const rows=results.flatMap(result=>result.data||[]),total=knownTotal||Number(results[0]?.count||0);
-   return json({ok:true,...metadata,total,leads:rows,...(owners?{owners}:{}),...(!isAdmin&&!total?{assignment_required:true,assignment_reason:isManager?'administrator_lead_assignment_required':'representative_lead_assignment_required'}:{})});
+   return json({ok:true,...metadata,total,leads:rows,...(owners?{owners}:{})});
  }
 
  if(action==='update_lead'){

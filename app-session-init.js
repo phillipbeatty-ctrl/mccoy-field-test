@@ -21,7 +21,7 @@
       const {error:insertError}=await sb.from('test_sessions').insert({id:newSessionId,tester_name:access.display_name||user.email,tester_user_id:user.id,tester_email:user.email,started_at:new Date(startedAt).toISOString(),user_agent:navigator.userAgent,app_version:CLIENT_VERSION});
       if(insertError)throw new Error(`Field session connection failed: ${insertError.message}`);
       telemetrySessionId=newSessionId;let gps=null;try{gps=await getGPSOnce();state.latestGps=gps;}catch(err){console.warn('Initial GPS unavailable',err);}
-      state.session={startedAt,startGps:gps};state.lastTelemetryBreadcrumbAt=0;state.lastDispositionEndedAt=null;if(gps)state.breadcrumbs.push({...gps,eventType:'session_start'});startGpsWatch();startTimer();
+      state.session={startedAt,startGps:gps};state.lastTelemetryBreadcrumbAt=0;state.lastDispositionEndedAt=null;if(gps){state.breadcrumbs.push({...gps,eventType:'session_start'});publishGpsUpdate(gps,'session_start');}startGpsWatch();startTimer();
       document.getElementById('fieldState').textContent='Knocking — Session Active';startBtn.classList.add('hidden');document.getElementById('stopKnockingBtn').classList.remove('hidden');
       document.getElementById('geoBox').textContent=gps?`Start GPS: ${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)} (±${Math.round(gps.accuracy)}m)`:'Session connected; waiting for a location fix.';updateGpsQualityBox(gps?{...gps,ageMs:0}:null);telemetryStatus('Field session connected.',true);setStartBusy(false);
       await saveTestEvent({eventType:'session_start',eventTime:startedAt,gps,payload:{rawEvent:true,clientVersion:CLIENT_VERSION}});

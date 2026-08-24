@@ -218,10 +218,20 @@ function getGPSOnce(){
     if(!navigator.geolocation) return reject(new Error("Geolocation not supported."));
     navigator.geolocation.getCurrentPosition(
       p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()}),
-      e=>reject(e),
+      e=>{publishGpsError(e,'initial');reject(e);},
       {enableHighAccuracy:true,timeout:10000,maximumAge:0}
     );
   });
+}
+
+function publishGpsUpdate(gps,source='watch'){
+  if(!gps)return;
+  window.dispatchEvent(new CustomEvent('mccoy-gps-update',{detail:{gps:{...gps},source,sessionActive:Boolean(state.session)}}));
+}
+
+function publishGpsError(error,source='watch'){
+  const code=Number(error?.code),reason=code===1?'permission_denied':code===2?'position_unavailable':code===3?'timeout':'unknown';
+  window.dispatchEvent(new CustomEvent('mccoy-gps-error',{detail:{reason,code:Number.isFinite(code)?code:null,message:String(error?.message||''),source,sessionActive:Boolean(state.session)}}));
 }
 
 function startGpsWatch(){
@@ -229,6 +239,7 @@ function startGpsWatch(){
   state.gpsWatchId = navigator.geolocation.watchPosition(
     p=>{
       state.latestGps = {lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};
+      publishGpsUpdate(state.latestGps,'watch');
       if(state.session){
         state.breadcrumbs.push({...state.latestGps, eventType:"breadcrumb"});
         const now=Date.now();
@@ -240,7 +251,7 @@ function startGpsWatch(){
       document.getElementById("geoBox").textContent = `Live GPS: ${state.latestGps.lat.toFixed(6)}, ${state.latestGps.lng.toFixed(6)} (±${Math.round(state.latestGps.accuracy)}m)`;
       updateGpsQualityBox({...state.latestGps,ageMs:0});
     },
-    e=>{ document.getElementById("geoBox").textContent = "GPS permission unavailable. Use localhost/HTTPS and allow location access."; },
+    e=>{publishGpsError(e,'watch');document.getElementById("geoBox").textContent = "GPS permission unavailable. Use localhost/HTTPS and allow location access.";},
     {enableHighAccuracy:true,maximumAge:2000,timeout:15000}
   );
 }
@@ -258,8 +269,8 @@ function snapshotGpsInstant(){
 function requestFreshGpsInBackground(callback){
   if(!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
-    p=>{const fresh={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};state.latestGps=fresh;if(callback) callback(fresh);},
-    ()=>{},
+    p=>{const fresh={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,capturedAt:Date.now()};state.latestGps=fresh;publishGpsUpdate(fresh,'fresh_request');if(callback) callback(fresh);},
+    e=>publishGpsError(e,'fresh_request'),
     {enableHighAccuracy:true,timeout:5000,maximumAge:0}
   );
 }
@@ -279,7 +290,7 @@ document.getElementById("startKnockingBtn").addEventListener("click", async ()=>
   try{gps=await getGPSOnce(); state.latestGps=gps;}catch(e){}
   const startedAt=Date.now();
   state.session={startedAt,startGps:gps};
-  if(gps) state.breadcrumbs.push({...gps,eventType:"session_start"});
+  if(gps){state.breadcrumbs.push({...gps,eventType:"session_start"});publishGpsUpdate(gps,'session_start');}
   startGpsWatch();
   document.getElementById("fieldState").textContent="Knocking — Session Active";
   document.getElementById("startKnockingBtn").classList.add("hidden");

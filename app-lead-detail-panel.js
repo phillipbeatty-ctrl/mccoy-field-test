@@ -3,6 +3,9 @@
   let activeLeadId=null;
   let correcting=false;
   const correctionIds=['editLeadAddress1','editLeadAddress2','editLeadCity','editLeadState','editLeadZip'];
+  const activityTypes=['Visit','Call','Appointment','Text','Qualify','Investigate & Estimate','Make a Proposal','Get Feedback'];
+  const visitResults=['No Answer','Contacted','Follow-Up'];
+  const stages=['Prospecting','Hot Lead','Contacted','Follow Up','Migrator','Existing Customer','SMB','Sale Made','No Sale','Admin Hold'];
 
   function removeLegacyAssign(){
     const old=document.getElementById('mapAssignBtn');
@@ -28,6 +31,39 @@
     return (state.realLeads||[]).find(l=>String(l.id)===raw||String(l.dbId)===raw)||null;
   }
 
+  function optionList(values,placeholder){return `${placeholder?`<option value="">${esc(placeholder)}</option>`:''}${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}`;}
+  function mapDispositionMessage(text,error=false){const el=document.getElementById('mapPinDispositionMsg');if(el){el.textContent=text;el.style.color=error?'#991b1b':'#166534';}}
+  function selectLeadForWorkflow(lead){
+    if(window.MCCOY_LEAD_ADDRESS?.setLead)return window.MCCOY_LEAD_ADDRESS.setLead(lead,'map_pin');
+    const select=document.getElementById('fieldLeadSelect');if(select){select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));}
+    return{kind:'assigned',lead,address:lead.fullAddress||lead.address,valid:true};
+  }
+  function wireDisposition(lead){
+    const start=document.getElementById('mapPinStartBtn'),save=document.getElementById('mapPinSaveBtn'),sale=document.getElementById('mapPinSaleBtn');
+    if(!start||!save||!sale)return;
+    const active=()=>state.activeDoorVisit||null,sameActive=()=>String(active()?.lead?.dbId||'')===String(lead.dbId||'');
+    function sync(){const visit=active();start.disabled=!!visit;save.disabled=!sameActive();start.textContent=sameActive()?'PIN ACTIVITY ACTIVE':visit?'FINISH ACTIVE ACTIVITY FIRST':'START PIN ACTIVITY';}
+    start.addEventListener('click',async()=>{
+      if(!state.session){mapDispositionMessage('Start a field session before recording a map-pin activity.',true);document.getElementById('startKnockingBtn')?.focus();return;}
+      if(active()&&!sameActive()){mapDispositionMessage('Finish or correct the active address before starting this pin.',true);return;}
+      selectLeadForWorkflow(lead);mapDispositionMessage('Checking ownership, GPS, and distance…');
+      const ok=await window.MCCOY_START_DOOR_VISIT?.({automatic:false});
+      mapDispositionMessage(ok?'Pin activity started. Choose the result and save when complete.':'Pin activity was not started. Review the Sales Hub door status.',!ok);sync();
+    });
+    save.addEventListener('click',async()=>{
+      if(!sameActive()){mapDispositionMessage('Start this pin activity before saving its disposition.',true);sync();return;}
+      const activityType=document.getElementById('mapLeadActivityType')?.value,visitResult=document.getElementById('mapLeadVisitResult')?.value,stage=document.getElementById('mapLeadStage')?.value||null;
+      if(!activityType||!visitResult){mapDispositionMessage('Choose both Activity Type and Visit Result.',true);return;}
+      if(stage==='Sale Made'){sale.click();return;}
+      mapDispositionMessage('Saving audited pin disposition…');
+      const ok=await window.MCCOY_COMPLETE_DOOR_VISIT?.('spotio',{automatic:false,activityType,visitResult,stage});
+      if(ok){mapDispositionMessage(`Saved ${stage||visitResult} for ${lead.address}.`);renderDetail(lead);window.MCCOY_RENDER_LEAD_MAP?.(false);window.MCCOY_APPLY_DISPOSITION_COLORS?.();}
+      else mapDispositionMessage('Disposition was not saved. Review the Sales Hub door status and retry.',true);
+    });
+    sale.addEventListener('click',()=>{selectLeadForWorkflow(lead);document.getElementById('processSaleBtn')?.click();});
+    sync();
+  }
+
   function renderDetail(lead){
     const detail=ensureDetailPanel();
     if(!detail||!lead)return;
@@ -48,7 +84,18 @@
         <div><span>Assigned rep</span><strong>${esc(lead.assignedRepName||lead.rep||'Unassigned')}</strong></div>
         <div><span>Team</span><strong>${esc(lead.team||'Unassigned')}</strong></div>
       </div>
+      <div class="map-pin-disposition" aria-label="Map pin disposition">
+        <strong>Disposition</strong>
+        <div class="map-pin-disposition-grid">
+          <label>Activity Type<select id="mapLeadActivityType">${optionList(activityTypes)}</select></label>
+          <label>Visit Result<select id="mapLeadVisitResult">${optionList(visitResults,'Select result')}</select></label>
+          <label>Stage<select id="mapLeadStage">${optionList(stages,'No stage change')}</select></label>
+        </div>
+        <div class="map-pin-disposition-actions"><button id="mapPinStartBtn" type="button" class="assign-btn">START PIN ACTIVITY</button><button id="mapPinSaveBtn" type="button" class="primary">SAVE PIN DISPOSITION</button><button id="mapPinSaleBtn" type="button" class="success">PROCESS SALE</button></div>
+        <div id="mapPinDispositionMsg" class="muted small" role="status" aria-live="polite">Uses the same ownership, session, GPS, distance, and verified-sale rules as Sales Hub.</div>
+      </div>
       <div class="muted small lead-detail-help">Edit the address in Correct Lead and press ENTER to save it and correct the house location automatically.</div>`;
+    wireDisposition(lead);
   }
 
   function activateLead(id){
@@ -131,6 +178,9 @@
   };
 
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(start,300));
+  window.addEventListener('mccoy-map-lead-selected',event=>activateLead(event.detail?.leadId));
+  window.addEventListener('mccoy-door-visit-started',()=>{const lead=leadByAnyId(activeLeadId);if(lead)renderDetail(lead);});
+  window.addEventListener('mccoy-door-visit-completed',()=>{const lead=leadByAnyId(activeLeadId);if(lead){renderDetail(lead);window.MCCOY_RENDER_LEAD_MAP?.(false);}});
   window.addEventListener('load',()=>setTimeout(start,1200));
   setTimeout(start,1800);
 })();
