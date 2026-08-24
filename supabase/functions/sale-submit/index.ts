@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
-import { isUuid, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
+import { isUuid, normalizeSaleOutcome, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
 import { classifySaleEvidence, isAbandonedProviderStatus, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
 import { normalizeVoipHomePhoneAddOn } from '../_shared/sale-products-core.mjs'
 import { saleDistanceAudit } from '../_shared/sale-location-core.mjs'
@@ -25,6 +25,8 @@ Deno.serve(async request => {
     if (!access?.active) return json({ error: 'forbidden' }, 403)
 
     const body = await request.json()
+    const saleOutcome = normalizeSaleOutcome(body.sale_outcome)
+    if (saleOutcome !== 'completed') return json({ error: 'completed_sale_outcome_required' }, 400)
     for (const key of ['customer_first_name', 'customer_last_name', 'service_address', 'isp']) {
       if (!String(body[key] || '').trim()) return json({ error: `${key}_required` }, 400)
     }
@@ -185,6 +187,7 @@ Deno.serve(async request => {
       voip_home_phone_lines: voipLines, att_device_count: mobileDeviceCount, att_device_protection: mobileDeviceProtection,
       att_total_home_care: attTotalHomeCare, notes: body.notes || null, compensation_snapshot: snapshot,
       provider_order_number: orderNumber, provider_account_number: accountNumber, verification_status: verificationStatus,
+      rep_reported_outcome: 'completed', rep_reported_outcome_at: new Date().toISOString(),
       verification_reason: verificationReason, provider_sale_row_id: providerRow?.id || null, competition_eligible: competitionEligible,
       ranking_eligible: competitionEligible, ranking_verified_at: competitionEligible ? new Date().toISOString() : null,
       verified_at: verificationStatus === 'verified_processed' ? new Date().toISOString() : null,
@@ -205,7 +208,8 @@ Deno.serve(async request => {
     if (vivint) products.push(`Vivint${vivintService ? ` — ${vivintService}` : ''}`)
     const message = `🎉 ${access.display_name || user.email} closed ${isp}${products.length ? ` — ${products.join(' + ')}` : ''}!`
     if (providerCapture?.id) {
-      const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', updated_at: new Date().toISOString() }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
+      const completedAt = new Date().toISOString()
+      const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', rep_outcome: 'completed', rep_outcome_at: completedAt, updated_at: completedAt }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
       if (captureUpdateError) console.error('provider capture status update failed', captureUpdateError)
     }
     return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
