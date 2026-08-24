@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { commissionSnapshot, normalizePayLevel } from '../_shared/compensation-calculator.mjs'
-import { isUuid, normalizeSaleOutcome, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
+import { isTesterPkbIdentity, isUuid, normalizeSaleOutcome, normalizeSaleProvider } from '../_shared/provider-sale-capture-core.mjs'
 import { classifySaleEvidence, isAbandonedProviderStatus, normalizeEvidenceToken } from '../_shared/provider-report-core.mjs'
 import { normalizeVoipHomePhoneAddOn } from '../_shared/sale-products-core.mjs'
 import { saleDistanceAudit } from '../_shared/sale-location-core.mjs'
@@ -27,6 +27,30 @@ Deno.serve(async request => {
     const body = await request.json()
     const saleOutcome = normalizeSaleOutcome(body.sale_outcome)
     if (saleOutcome !== 'completed') return json({ error: 'completed_sale_outcome_required' }, 400)
+    const testerSimulationRequested = body.tester_simulation === true
+    const testerSimulation = testerSimulationRequested && isTesterPkbIdentity(repEmail, access.display_name)
+    if (testerSimulationRequested && !testerSimulation) return json({ error: 'tester_simulation_forbidden' }, 403)
+    if (testerSimulation) {
+      const simulationProvider = normalizeSaleProvider(body.isp)
+      if (!simulationProvider) return json({ error: 'invalid_provider' }, 400)
+      const today = new Date().toISOString().slice(0, 10)
+      const simulationId = crypto.randomUUID().toUpperCase()
+      Object.assign(body, {
+        customer_first_name: 'Tester',
+        customer_last_name: 'PKB Simulation',
+        customer_phone: null,
+        customer_email: null,
+        service_address: 'TESTER PKB SIMULATION — NO CUSTOMER',
+        internet_product: simulationProvider === 'AT&T' ? 'Fiber' : 'Internet',
+        internet_speed_mbps: 1000,
+        order_date: today,
+        install_date: today,
+        provider_order_number: `PKB-TEST-${simulationId}`,
+        provider_account_number: null,
+        low_potential_reason: null,
+        notes: 'Authorized Tester PKB simulation; no provider order was placed.'
+      })
+    }
     for (const key of ['customer_first_name', 'customer_last_name', 'service_address', 'isp']) {
       if (!String(body[key] || '').trim()) return json({ error: `${key}_required` }, 400)
     }
@@ -138,16 +162,17 @@ Deno.serve(async request => {
       directv_compensation: rule?.directv_compensation ?? 'not_configured', vivint_compensation: rule?.vivint_compensation ?? 'not_configured',
       weekly_production_pay_increase: rule?.weekly_production_pay_increase || [],
       manager_override: { assigned_manager_name: managerName, assigned_manager_email: managerEmail, global_enabled: globalEnabled, manager_enabled: managerEnabled, rep_enabled: repEnabled, effective_enabled: !!((managerName || managerEmail) && globalEnabled && managerEnabled && repEnabled), amount_per_sale: Number(rule?.manager_override?.amount_per_sale || 25) },
-      source: rule?.source || null
+      source: rule?.source || null,
+      tester_simulation: testerSimulation ? { enabled: true, account: 'Tester PKB', provider_dashboard_bypassed: true, provider_evidence_claimed: false } : { enabled: false }
     }
 
     const orderNumber = String(body.provider_order_number || '').trim() || null
     if (!orderNumber) return json({ error: 'provider_order_number_required' }, 400)
     const accountNumber = String(body.provider_account_number || '').trim() || null
-    let verificationStatus = 'low_potential'
-    let verificationReason = body.low_potential_reason ? String(body.low_potential_reason) : (!orderNumber && !accountNumber ? 'missing_order_or_account_number' : 'not_yet_in_dealer_file')
+    let verificationStatus = testerSimulation ? 'verified_processed' : 'low_potential'
+    let verificationReason = testerSimulation ? 'tester_pkb_simulation_authorized' : (body.low_potential_reason ? String(body.low_potential_reason) : (!orderNumber && !accountNumber ? 'missing_order_or_account_number' : 'not_yet_in_dealer_file'))
     let providerRow: any = null
-    if (orderNumber || accountNumber) {
+    if (!testerSimulation && (orderNumber || accountNumber)) {
       const { data: providerRows, error: providerRowsError } = await admin
         .from('provider_sales_rows')
         .select('id,provider,order_number,account_number,seller_identifier,seller_name,seller_email,provider_status,evidence_scope,source_rep_user_id,created_at')
@@ -171,7 +196,7 @@ Deno.serve(async request => {
       providerRow = evidence.row
     }
 
-    const competitionEligible = verificationStatus === 'verified_processed' && !outsideSystem
+    const competitionEligible = (verificationStatus === 'verified_processed' && !outsideSystem) || testerSimulation
     const saleRow = {
       rep_user_id: user.id, rep_email: user.email, rep_name: access.display_name || user.email, session_id: safeSessionId,
       lead_label: body.lead_label || null, provider_capture_id: providerCapture?.id || null,
@@ -212,7 +237,7 @@ Deno.serve(async request => {
       const { error: captureUpdateError } = await admin.from('provider_sale_captures').update({ status: 'recorded', rep_outcome: 'completed', rep_outcome_at: completedAt, updated_at: completedAt }).eq('id', providerCapture.id).eq('rep_user_id', user.id)
       if (captureUpdateError) console.error('provider capture status update failed', captureUpdateError)
     }
-    return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
+    return json({ ok: true, sale_id: sale.id, provider_capture_id: providerCapture?.id || null, message, compensation_snapshot: snapshot, verification: { status: verificationStatus, reason: verificationReason, competition_eligible: competitionEligible, tester_simulation: testerSimulation, requires_admin_approval: outsideSystem, admin_approval_status: adminApproval.status } })
   } catch (error) {
     console.error('sale-submit', error)
     return json({ error: 'sale_submit_failed', detail: String((error as Error)?.message || error).slice(0, 180) }, 500)
