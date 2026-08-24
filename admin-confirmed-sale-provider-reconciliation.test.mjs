@@ -59,7 +59,7 @@ test('Admin UI previews and confirms ISP substitution before applying it', () =>
   assert.match(adminUi, /admin_verify_confirmed_sale_from_provider/)
   assert.match(adminUi, /window\.confirm/)
   assert.match(adminUi, /provider-origin duplicate will be removed from rankings and accounting/)
-  assert.match(html, /app-admin-sale-credit\.js\?v=2026082420/)
+  assert.match(html, /app-admin-sale-credit\.js\?v=2026082422/)
 })
 
 test('normal two-button outcome remains unchanged for reps', () => {
