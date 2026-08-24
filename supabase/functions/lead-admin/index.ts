@@ -99,7 +99,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    if((latitude!==null&&(!Number.isFinite(latitude)||latitude < -90||latitude > 90))||(longitude!==null&&(!Number.isFinite(longitude)||longitude < -180||longitude > 180)))return json({error:'invalid_coordinates'},400);
    const row:any={address1,address2:address2||null,city:city||null,state:state||null,zip:zip||null,latitude,longitude,current_disposition:'Uncontacted',source_system:'FIELD_ENTRY',source_id:crypto.randomUUID(),source_payload:{entered_by_email:user.email,entered_by_user_id:user.id,entered_by_role:access.role,entered_by_team:access.team_name||null},geocode_status:latitude!==null&&longitude!==null?'field_gps':null};
    if(!isAdmin){const manager=await getRepresentativeManager();if(manager?.invalid)return json({error:'manager_assignment_required'},403);row.assigned_rep_id=user.id;if(manager){row.assigned_manager_id=manager.id;row.assigned_admin_email=manager.adminEmail}}
-   const {data:lead,error}=await admin.from('leads').insert(row).select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at').single();if(error)throw error;
+   const {data:lead,error}=await admin.from('leads').insert(row).select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at').single();if(error)throw error;
    return json({ok:true,lead},201)
  }
  if(action==='list_reps'){
@@ -143,7 +143,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
      return rows.map((account:any)=>({user_id:profileByEmail.get(String(account.email||'').toLowerCase())?.id||null,email:account.email,display_name:account.display_name||account.email,role:account.role,team_name:account.team_name||null,assigned_manager_email:account.assigned_manager_email||null,assigned_admin_email:account.assigned_admin_email||null})).filter((account:any)=>account.user_id);
    };
    const makeQuery=(includeCount=false)=>{
-     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined);
+     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined);
      query=selectedIds.length?query.or(`import_batch_id.in.(${selectedIds.join(',')}),source_system.eq.FIELD_ENTRY`):query.eq('source_system','FIELD_ENTRY');
      query=query.not('source_system','ilike','%demo%');
      if(!isAdmin){

@@ -95,6 +95,12 @@
       assignedManagerId:r.assigned_manager_id||null,
       assignedAdminEmail:r.assigned_admin_email||null,
       disposition:r.current_disposition||'Uncontacted',
+      lastActivityType:r.last_activity_type||null,
+      visitResult:r.visit_result||null,
+      stage:r.stage||'Prospecting',
+      pinColor:r.pin_color||null,
+      pinColorSource:r.pin_color_source||null,
+      pinDisposition:r.pin_color_source==='stage'?(r.stage||r.current_disposition):r.pin_color_source==='visit_result'?(r.visit_result||r.current_disposition):(r.current_disposition||'Prospecting'),
       isDemo:false
     }));
   }
