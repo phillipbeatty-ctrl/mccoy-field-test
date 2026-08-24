@@ -14,7 +14,8 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
  const isAdmin=access.role==='admin',isManager=isManagerPermissionRole(access.role)
  const body=await req.json().catch(()=>({})),action=String(body.action||'')
  const managerActions=['list_reps','assign_lead','assign_leads']
- if(action==='list_real_leads'){/* Every active field account may see and disposition every legitimate real lead. Assignment authority remains separate. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
+ const allFieldActions=['list_real_leads','duplicate_status','delete_lead','remove_duplicate_leads']
+ if(allFieldActions.includes(action)){/* Every active field account may view, disposition, and clean up real leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
  let authUsersPromise:Promise<any[]>|null=null
  const getAuthUsers=async()=>{if(!authUsersPromise)authUsersPromise=admin.auth.admin.listUsers({page:1,perPage:1000}).then(({data,error}:any)=>{if(error)throw error;return data?.users||[]});return await authUsersPromise}
  let managerScopePromise:Promise<any>|null=null
@@ -60,7 +61,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    const unique=[...new Set(ids.map((id:any)=>String(id)))],rows:any[]=[]
    const {data:batches,error:batchError}=await admin.from('spotio_import_batches').select('id,created_at,status,raw_payload').eq('status','normalized').order('created_at',{ascending:false}).limit(100);if(batchError)throw batchError
    const normalized=batches||[],canonical=normalized.find((batch:any)=>String(batch?.raw_payload?.source_type||'')==='spotio_json'),batchIds=new Set([canonical?.id,...normalized.filter((batch:any)=>String(batch?.raw_payload?.source_type||'')==='csv').map((batch:any)=>batch.id)].filter(Boolean).map(String))
-   for(let index=0;index<unique.length;index+=75){const {data,error}=await admin.from('leads').select('id,assigned_rep_id,assigned_manager_id,assigned_admin_email,state,latitude,longitude,source_system,import_batch_id').in('id',unique.slice(index,index+75));if(error)throw error;rows.push(...(data||[]))}
+   for(let index=0;index<unique.length;index+=75){const {data,error}=await admin.from('leads').select('id,assigned_rep_id,assigned_manager_id,assigned_admin_email,state,latitude,longitude,source_system,import_batch_id').in('id',unique.slice(index,index+75)).is('deleted_at',null);if(error)throw error;rows.push(...(data||[]))}
    if(rows.length!==unique.length)return {ok:false,error:'lead_outside_manager_pool'}
    for(const lead of rows){
      const source=String(lead.source_system||'').toUpperCase();if(source.includes('DEMO')||(source!=='FIELD_ENTRY'&&!batchIds.has(String(lead.import_batch_id||''))))return {ok:false,error:'lead_outside_manager_pool'}
@@ -87,6 +88,23 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
      }
    }
    return {patch:{assigned_rep_id:rep.id,assigned_manager_id:null,assigned_admin_email:null},assigned_manager_id:null,assigned_admin_email:null,destination_role:rep.role}
+ }
+ if(action==='duplicate_status'){
+   const {data,error}=await admin.rpc('lead_duplicate_status');if(error)throw error
+   return json(data||{ok:true,duplicate_address_groups:0,extra_leads:0,removable_extra_leads:0,blocked_by_active_visits:0,snapshot_token:'none',samples:[]})
+ }
+ if(action==='delete_lead'){
+   const leadId=String(body.lead_id||'');if(!leadId)return json({error:'lead_id_required'},400)
+   const {data,error}=await admin.rpc('archive_lead',{p_lead_id:leadId,p_actor_user_id:user.id,p_actor_email:user.email.toLowerCase(),p_actor_role:access.role,p_reason:'manual'});if(error)throw error
+   if(!data?.ok)return json(data||{error:'lead_removal_failed'},data?.error==='active_visit_exists'?409:404)
+   return json(data)
+ }
+ if(action==='remove_duplicate_leads'){
+   const snapshotToken=String(body.snapshot_token||''),expectedExtra=Math.floor(Number(body.expected_extra_leads));
+   if(!snapshotToken||!Number.isFinite(expectedExtra)||expectedExtra<0)return json({error:'verified_duplicate_snapshot_required'},400)
+   const {data,error}=await admin.rpc('archive_verified_lead_duplicates',{p_actor_user_id:user.id,p_actor_email:user.email.toLowerCase(),p_actor_role:access.role,p_snapshot_token:snapshotToken,p_expected_extra_leads:expectedExtra});if(error)throw error
+   if(!data?.ok)return json(data||{error:'duplicate_cleanup_failed'},data?.error==='duplicate_set_changed'?409:400)
+   return json(data)
  }
  if(action==='create_field_address'){
    if(!isAdmin)return json({error:'admin_only'},403)
@@ -125,7 +143,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
      return rows.map((account:any)=>({user_id:profileByEmail.get(String(account.email||'').toLowerCase())?.id||null,email:account.email,display_name:account.display_name||account.email,role:account.role,team_name:account.team_name||null,assigned_manager_email:account.assigned_manager_email||null,assigned_admin_email:account.assigned_admin_email||null})).filter((account:any)=>account.user_id);
    };
    const makeQuery=(includeCount=false)=>{
-     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined);
+     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined).is('deleted_at',null);
      query=selectedIds.length?query.or(`import_batch_id.in.(${selectedIds.join(',')}),source_system.eq.FIELD_ENTRY`):query.eq('source_system','FIELD_ENTRY');
      query=query.not('source_system','ilike','%demo%');
      return query;
@@ -143,14 +161,14 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    const leadId=String(body.lead_id||'');if(!leadId)return json({error:'lead_id_required'},400);const patch:any={};
    if(body.latitude!==undefined||body.longitude!==undefined){const lat=Number(body.latitude),lng=Number(body.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<-90||lat>90||lng<-180||lng>180)return json({error:'invalid_coordinates'},400);patch.latitude=lat;patch.longitude=lng;patch.geocode_status='manual';patch.geocode_attempted_at=new Date().toISOString()}
    if(body.address1!==undefined)patch.address1=String(body.address1||'').trim();if(body.address2!==undefined)patch.address2=String(body.address2||'').trim()||null;if(body.city!==undefined)patch.city=String(body.city||'').trim();if(body.state!==undefined)patch.state=String(body.state||'').trim().toUpperCase();if(body.zip!==undefined)patch.zip=String(body.zip||'').trim();if(!Object.keys(patch).length)return json({error:'no_updates'},400);
-   const {data,error}=await admin.from('leads').update(patch).eq('id',leadId).select('id,address1,address2,city,state,zip,latitude,longitude,geocode_status').maybeSingle();if(error)throw error;if(!data)return json({error:'lead_not_found'},404);return json({ok:true,lead:data})
+   const {data,error}=await admin.from('leads').update(patch).eq('id',leadId).is('deleted_at',null).select('id,address1,address2,city,state,zip,latitude,longitude,geocode_status').maybeSingle();if(error)throw error;if(!data)return json({error:'lead_not_found'},404);return json({ok:true,lead:data})
  }
  if(action==='assign_lead'){
    const leadId=String(body.lead_id||''),repEmail=String(body.rep_email||'').trim().toLowerCase();if(!leadId)return json({error:'lead_id_required'},400)
    let rep:any=null;if(repEmail){rep=await resolveRep(repEmail);if(rep?.forbidden)return json({error:'rep_not_managed_by_you'},403);if(!rep)return json({error:'rep_not_found'},404)}
    const allowed=await managerMayAssign([leadId]);if(!allowed.ok)return json({error:allowed.error},403)
    const destination=await getAssignmentPatch(rep);if(destination.error)return json({error:destination.error},403)
-   const {error}=await admin.from('leads').update(destination.patch).eq('id',leadId);if(error)throw error
+   const {error}=await admin.from('leads').update(destination.patch).eq('id',leadId).is('deleted_at',null);if(error)throw error
    return json({ok:true,lead_id:leadId,rep_email:rep?.email||null,assigned_rep_id:destination.patch.assigned_rep_id||null,assigned_manager_id:destination.assigned_manager_id||null,assigned_admin_email:destination.assigned_admin_email||null,destination_role:destination.destination_role})
  }
  if(action==='assign_leads'){
@@ -158,7 +176,7 @@ Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{head
    const repEmail=String(body.rep_email||'').trim().toLowerCase();let rep:any=null;if(repEmail){rep=await resolveRep(repEmail);if(rep?.forbidden)return json({error:'rep_not_managed_by_you'},403);if(!rep)return json({error:'rep_not_found'},404)}
    const allowed=await managerMayAssign(ids);if(!allowed.ok)return json({error:allowed.error},403)
    const destination=await getAssignmentPatch(rep);if(destination.error)return json({error:destination.error},403)
-   let updated=0;const DB_CHUNK=75;for(let i=0;i<ids.length;i+=DB_CHUNK){const chunk=ids.slice(i,i+DB_CHUNK);const {error}=await admin.from('leads').update(destination.patch).in('id',chunk);if(error)return json({error:'bulk_update_failed',detail:error.message||String(error),updated,failed_chunk_start:i,failed_chunk_size:chunk.length},500);updated+=chunk.length}
+   let updated=0;const DB_CHUNK=75;for(let i=0;i<ids.length;i+=DB_CHUNK){const chunk=ids.slice(i,i+DB_CHUNK);const {data,error}=await admin.from('leads').update(destination.patch).in('id',chunk).is('deleted_at',null).select('id');if(error)return json({error:'bulk_update_failed',detail:error.message||String(error),updated,failed_chunk_start:i,failed_chunk_size:chunk.length},500);updated+=(data||[]).length}
    return json({ok:true,updated,rep_email:rep?.email||null,assigned_rep_id:destination.patch.assigned_rep_id||null,assigned_manager_id:destination.assigned_manager_id||null,assigned_admin_email:destination.assigned_admin_email||null,destination_role:destination.destination_role})
  }
  return json({error:'unknown_action'},400)
