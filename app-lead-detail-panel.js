@@ -37,6 +37,9 @@
       <div class="lead-detail-head"><strong>${esc(lead.address||'Lead')}</strong><span class="tag">${esc(lead.disposition||'Uncontacted')}</span></div>
       <div class="lead-detail-address">${esc(address||'No address')}</div>
       <div class="lead-detail-grid">
+        <div><span>Activity Type</span><strong>${esc(lead.lastActivityType||'—')}</strong></div>
+        <div><span>Visit Result</span><strong>${esc(lead.visitResult||'—')}</strong></div>
+        <div><span>Stage</span><strong>${esc(lead.stage||'Prospecting')}</strong></div>
         <div><span>Lead owner</span><strong>${esc(lead.ownerName||'Unassigned')}</strong></div>
         <div><span>Owner role</span><strong>${esc(lead.ownerRole==='admin'?'Administrator':lead.ownerRole==='manager'?'Manager':lead.ownerRole==='trainer'?'Trainer':lead.ownerRole==='rep'||lead.ownerRole==='tester'?'Representative':'Unassigned')}</strong></div>
         <div><span>Owner email</span><strong>${esc(lead.ownerEmail||'—')}</strong></div>
