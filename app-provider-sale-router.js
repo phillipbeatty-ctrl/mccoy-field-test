@@ -1,4 +1,4 @@
-// Select the sale provider and open its seller portal only when SALE is chosen.
+// Select the sale provider and redirect to its seller portal only when SALE is chosen.
 // Provider passwords are never stored or autofilled by McCoy. Portal sessions
 // are reused only when the provider's own browser session or SSO allows it.
 (function(){
@@ -53,7 +53,7 @@
   const choice=document.getElementById('providerRouterChoice');
   for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
-  let pending=null,toastTimer=null;
+  let pending=null,toastTimer=null,routing=false;
   let saleGuard=false;
   let returnNotifiedFor=null;
   function readCapture(){
@@ -106,10 +106,10 @@
     window.MCCOY_PROVIDER_CAPTURE_READY=ready;
     return draft;
   }
-  async function markCaptureReturned(){
+  async function markCaptureReturned(force=false){
     const capture=readCapture();
     if(!capture||capture.status==='recorded'||capture.status==='cancelled')return;
-    if(Date.now()-Date.parse(capture.started_at||capture.created_at||0)<900)return;
+    if(!force&&Date.now()-Date.parse(capture.started_at||capture.created_at||0)<900)return;
     if(returnNotifiedFor===capture.client_request_id)return;
     returnNotifiedFor=capture.client_request_id;
     const returned={...capture,status:'details_required'};writeCapture(returned);
@@ -159,9 +159,9 @@
   }
   function updatePortalStatus(){
     const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider);
-    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} will open in the McCoy sales popup.`);
+    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} will open in this browser tab. Use browser Back to return to McCoy and choose Completed Sale or Abandoned.`);
   }
-  function openSellerAccount(provider){
+  function sellerAccountDestination(provider){
     const info=portalInfo(provider),raw=String(info.url||'').trim();
     if(!raw){notify(`${provider} selected. ${info.label} link is not configured yet.`);return{opened:false,reason:'not_configured'};}
     let url;try{url=new URL(raw);}catch(_){notify(`${info.label} link is invalid and was not opened.`);return{opened:false,reason:'invalid_url'};}
@@ -170,23 +170,29 @@
     // Never publish or reuse one from a copied Sara Plus URL. The stable route
     // creates a fresh session and preserves SubmitOrders.aspx as the return page.
     if(/(^|\.)saraplus\.com$/i.test(url.hostname))url.pathname=url.pathname.replace(/\/\(S\([^/]+\)\)/i,'');
-    // Keep the provider dashboard in a reusable McCoy-managed popup while
-    // leaving authentication entirely on the provider's secure origin.
-    const target=`mccoy_${provider.toLowerCase().replace(/[^a-z0-9]+/g,'_')}_seller`;
-    const width=Math.min(1180,Math.max(720,window.screen?.availWidth||1000));
-    const height=Math.min(900,Math.max(640,window.screen?.availHeight||760));
-    const left=Math.max(0,Math.round(((window.screen?.availWidth||width)-width)/2));
-    const top=Math.max(0,Math.round(((window.screen?.availHeight||height)-height)/2));
-    const features=`popup=yes,resizable=yes,scrollbars=yes,width=${width},height=${height},left=${left},top=${top}`;
-    const sellerWindow=window.open(url.href,target,features);
-    if(!sellerWindow){notify(`Allow pop-ups for McCoy to open ${info.label}.`);return{opened:false,reason:'popup_blocked'};}
-    try{sellerWindow.opener=null;sellerWindow.focus();}catch(_){}
+    return{opened:true,reason:null,url:url.href};
+  }
+  function navigateSellerAccount(provider,destination){
+    if(!destination?.opened)return destination;
+    const info=portalInfo(provider);
     const accountMessage=portalAccountMessage(provider);
     if(info.sessionGroup){
       try{localStorage.setItem(PORTAL_CONTEXT_STORAGE_KEY,JSON.stringify({provider,sessionGroup:info.sessionGroup,openedAt:new Date().toISOString()}));}catch(_){}
     }
-    notify(accountMessage||`${info.label} opened in the McCoy sales popup. Its existing provider login or approved SSO session will be reused.`);
-    return{opened:true,reason:null};
+    notify(accountMessage||`${info.label} is opening in this browser tab. Its existing provider login or approved SSO session will be reused.`);
+    try{window.location.assign(destination.url);return destination;}
+    catch(error){console.error('Provider same-tab navigation failed',error);notify(`${info.label} could not open in this tab. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
+  }
+  function openSellerAccount(provider){
+    const destination=sellerAccountDestination(provider);
+    return navigateSellerAccount(provider,destination);
+  }
+  async function waitForCaptureReady(fallback){
+    if(!window.MCCOY_PROVIDER_CAPTURE_READY)return fallback;
+    return Promise.race([
+      window.MCCOY_PROVIDER_CAPTURE_READY,
+      new Promise(resolve=>setTimeout(()=>resolve(fallback),5000))
+    ]);
   }
   function setProvider(provider){
     const select=document.getElementById('sessionIsp');
@@ -198,23 +204,44 @@
     choice.value=provider;pending={target};
     document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
     document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
-    document.getElementById('providerRouterContinue').textContent='OPEN ACCOUNT & PROCESS SALE';
+    const continueButton=document.getElementById('providerRouterContinue');
+    continueButton.disabled=false;continueButton.textContent='OPEN ACCOUNT IN THIS TAB';
+    choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
     updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
-  function closeRouter(){panel.classList.remove('show');pending=null;}
+  function closeRouter(){if(routing)return;panel.classList.remove('show');pending=null;}
 
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
-  choice.addEventListener('change',updatePortalStatus);
+  choice.addEventListener('change',()=>{if(pending){delete pending.destination;delete pending.capture;}updatePortalStatus();});
   panel.addEventListener('click',event=>{if(event.target===panel)closeRouter();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
-  document.getElementById('providerRouterContinue').addEventListener('click',()=>{
-    if(!pending)return;
+  document.getElementById('providerRouterContinue').addEventListener('click',async()=>{
+    if(!pending||routing)return;
     const provider=choice.value;
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
-    const next=pending;panel.classList.remove('show');pending=null;
+    const next=pending,continueButton=document.getElementById('providerRouterContinue');
+    routing=true;continueButton.disabled=true;continueButton.textContent='SAVING CAPTURE…';
+    choice.disabled=true;document.getElementById('providerRouterCancel').disabled=true;
     window.MCCOY_SALE_CONTEXT='field';
     window.MCCOY_TESTER_PKB_SALE=false;
-    setProvider(provider);const portalResult=openSellerAccount(provider);startProviderCapture(provider,portalResult);
+    setProvider(provider);
+    const destination=next.destination||sellerAccountDestination(provider);
+    const draft=next.capture||startProviderCapture(provider,destination);
+    if(destination.opened){
+      document.getElementById('providerRouterStatus').textContent='Saving this provider attempt before leaving McCoy…';
+      await waitForCaptureReady(draft);
+      panel.classList.remove('show');pending=null;
+      const navigation=navigateSellerAccount(provider,destination);
+      if(!navigation.opened){
+        routing=false;pending={...next,destination,capture:draft};panel.classList.add('show');
+        continueButton.disabled=false;continueButton.textContent='RETRY IN THIS TAB';
+        choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
+        document.getElementById('providerRouterStatus').textContent='The provider page did not open. Your McCoy capture is saved; retry without creating a duplicate.';
+      }
+      return;
+    }
+    routing=false;panel.classList.remove('show');pending=null;
+    choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
     saleGuard=true;next.target.click();
   });
 
@@ -236,5 +263,9 @@
   const restored=readCapture();if(restored)writeCapture(restored);
   window.addEventListener('focus',()=>setTimeout(markCaptureReturned,120));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(markCaptureReturned,120);});
-  setTimeout(()=>{const capture=readCapture();if(capture)window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture}}));},700);
+  setTimeout(()=>{
+    const capture=readCapture();if(!capture)return;
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture}}));
+    if(capture.status==='dashboard_opened')markCaptureReturned(true);
+  },700);
 })();
