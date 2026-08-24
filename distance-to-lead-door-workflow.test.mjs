@@ -44,11 +44,11 @@ test('Stage wins only when supplied in the same save',()=>{
   assert.equal(JSON.stringify(core.pinState({previousColor:'#123456',previousSource:'legacy'})),JSON.stringify({label:null,color:'#123456',source:'legacy'}))
 })
 
-test('provider or manual address is required when outside the lead radius',()=>{
+test('sale service-address selection is independent of lead radius',()=>{
   assert.equal(JSON.stringify(core.saleAddress({withinRange:true,leadAddress:'1 Main St',manualAddress:'',providerAddress:''})),JSON.stringify({address:'1 Main St',source:'lead'}))
   assert.equal(JSON.stringify(core.saleAddress({withinRange:false,leadAddress:'1 Main St',manualAddress:'2 Oak St',providerAddress:''})),JSON.stringify({address:'2 Oak St',source:'manual'}))
   assert.equal(JSON.stringify(core.saleAddress({withinRange:false,leadAddress:'1 Main St',manualAddress:'',providerAddress:'3 Pine St'})),JSON.stringify({address:'3 Pine St',source:'provider'}))
-  assert.equal(core.saleAddress({withinRange:false,leadAddress:'1 Main St',manualAddress:'',providerAddress:''}).source,'required')
+  assert.equal(JSON.stringify(core.saleAddress({withinRange:false,leadAddress:'1 Main St',manualAddress:'',providerAddress:''})),JSON.stringify({address:'1 Main St',source:'lead'}))
 })
 
 test('server records distance for coaching without using it as disposition authorization',()=>{

@@ -32,7 +32,6 @@
     if(ctx.kind==='assigned')select.value=String(ctx.lead.id);
     else select.value='';
     select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;
-    const outside=document.getElementById('outsideSaleAddress');if(outside&&ctx.kind==='typed')outside.value=ctx.address;
     dispatch(ctx,source);return ctx;
   }
   function syncFromSelect(source='select'){
