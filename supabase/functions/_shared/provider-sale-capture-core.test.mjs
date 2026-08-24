@@ -42,10 +42,11 @@ test('requires an explicit completed or abandoned outcome', () => {
   assert.equal(normalizeSaleOutcome(''), null)
 })
 
-test('limits the provider-dashboard simulation to the exact Tester PKB account', () => {
-  assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Tester PKB'), true)
-  assert.equal(isTesterPkbIdentity('PHILLIPKBEATTY@GMAIL.COM', ' tester pkb '), true)
-  assert.equal(isTesterPkbIdentity('phillip.beatty@gmail.com', 'Tester PKB'), false)
+test('limits the provider-dashboard simulation to the exact Ghost account', () => {
+  assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Ghost'), true)
+  assert.equal(isTesterPkbIdentity('PHILLIPKBEATTY@GMAIL.COM', ' ghost '), true)
+  assert.equal(isTesterPkbIdentity('phillip.beatty@gmail.com', 'Ghost'), false)
+  assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Tester PKB'), false)
   assert.equal(isTesterPkbIdentity('phillipkbeatty@gmail.com', 'Phillip Beatty'), false)
 })
 
