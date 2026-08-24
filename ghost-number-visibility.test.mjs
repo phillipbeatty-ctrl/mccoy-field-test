@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises'
 
 const migration=await readFile(new URL('./supabase/migrations/20260824050000_ghost_automatic_overtake_visibility.sql',import.meta.url),'utf8')
 const rankingsUi=await readFile(new URL('./app-compensation.js',import.meta.url),'utf8')
+const adminRecords=await readFile(new URL('./supabase/migrations/20260824060000_restore_admin_ghost_record_controls.sql',import.meta.url),'utf8')
 const coach=await readFile(new URL('./supabase/functions/rep-coach-summary/index.ts',import.meta.url),'utf8')
 
 test('Admin and the exact Ghost identity always see Ghost totals',()=>{
@@ -19,12 +20,13 @@ test('ordinary users see each Ghost total only while that period is overtaken',(
   assert.doesNotMatch(migration,/jsonb_set\(v_item,'\{ranks/)
 })
 
-test('Ghost is always listed and has no manual Overtake switch',()=>{
+test('Ghost is always listed and Admin can set every period record without disabling Overtake',()=>{
   assert.match(migration,/'visible',true,'overtaken'/)
   assert.match(migration,/'overtake_control','always_active'/)
-  assert.match(migration,/revoke execute on function public\.admin_set_ghost_ranking_goals/)
-  assert.match(rankingsUi,/Ghost Overtake Control · Always Active/)
-  assert.match(rankingsUi,/There is no Admin switch/)
+  assert.match(adminRecords,/grant execute on function public\.admin_set_ghost_ranking_goals/)
+  assert.match(adminRecords,/'rank_source','admin_ghost_limits'/)
+  assert.match(rankingsUi,/Ghost Ranking Records · Admin Controlled/)
+  assert.match(rankingsUi,/Save Ghost Records/)
   assert.match(rankingsUi,/function ghostVisibleFor\(\)\{return true;\}/)
 })
 
