@@ -46,7 +46,7 @@ export function normalizeSaleOutcome(value) {
 
 export function isTesterPkbIdentity(email, displayName) {
   return String(email ?? '').trim().toLowerCase() === TESTER_PKB_EMAIL &&
-    String(displayName ?? '').trim().toLowerCase() === 'tester pkb'
+    String(displayName ?? '').trim().toLowerCase() === 'ghost'
 }
 
 export function isUuid(value) {
