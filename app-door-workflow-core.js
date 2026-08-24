@@ -46,7 +46,7 @@
   }
 
   function verifiedLead(lead){
-    const statuses=new Set(['verified','exact','matched','google_mymaps','field_gps','rooftop','parcel','address','manual','field_verified','spotio_verified']);
+    const statuses=new Set(['manual','field_verified']);
     const status=String(lead?.geocodeStatus||lead?.geocode_status||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
     return lead?.isDemo!==true&&lead?.dbId&&finiteCoordinate(lead?.lat??lead?.latitude,-90,90)!==null&&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null&&statuses.has(status);
   }

@@ -57,26 +57,30 @@
     const stateCode=document.getElementById('fieldNewState').value.trim().toUpperCase();
     const zip=document.getElementById('fieldNewZip').value.trim();
     if(address1.length<4){message('Enter a valid street address.');return;}
-    if(stateCode&&stateCode.length!==2){message('Use the two-letter state abbreviation.');return;}
-    if(zip&&!/^\d{5}(?:-\d{4})?$/.test(zip)){message('Enter a valid ZIP code.');return;}
+    if(!city||!stateCode||!zip){message('Street, city, state, and ZIP are required for verified placement.');return;}
+    if(stateCode.length!==2){message('Use the two-letter state abbreviation.');return;}
+    if(!/^\d{5}(?:-\d{4})?$/.test(zip)){message('Enter a valid ZIP code.');return;}
     const btn=document.getElementById('addFieldAddressBtn');
-    btn.disabled=true;message('Adding address and locating the current door...',true);
+    btn.disabled=true;message('Adding address and checking its pin with Google…',true);
     try{
-      let gps=state.latestGps||null;
-      if(!gps&&typeof getGPSOnce==='function'){try{gps=await getGPSOnce();state.latestGps=gps;}catch(_){}}
-      const body={action:'create_field_address',address1,address2,city,state:stateCode,zip,latitude:gps?.lat??null,longitude:gps?.lng??null};
+      const body={action:'create_field_address',address1,address2,city,state:stateCode,zip};
       const {data,error}=await sb.functions.invoke('lead-admin',{body});
       if(error||!data?.ok||!data.lead)throw error||new Error(data?.error||'address_creation_failed');
-      const row=data.lead;
+      let row=data.lead,verificationError=null;
+      try{
+        const {data:verified,error:verifyError}=await sb.functions.invoke('lead-geocode',{body:{action:'correct_address_location',lead_id:row.id,address1,address2,city,state:stateCode,zip}});
+        if(verifyError||!verified?.ok)throw verifyError||new Error(verified?.error||'google_verification_failed');
+        row=verified.lead||row;
+      }catch(error){verificationError=error;console.warn('New address is safely unmapped pending Google verification',error);}
       const address=[row.address1,row.address2].filter(Boolean).join(' ');
-      const lead={id:Date.now(),dbId:row.id,sourceId:row.source_id,sourceSystem:row.source_system||'FIELD_ENTRY',importBatchId:row.import_batch_id||null,address1:row.address1||'',address2:row.address2||'',address,city:row.city||'',stateCode:row.state||'',zip:row.zip||'',fullAddress:[address,row.city,row.state,row.zip].filter(Boolean).join(', '),lat:row.latitude==null?undefined:Number(row.latitude),lng:row.longitude==null?undefined:Number(row.longitude),geocodeStatus:row.geocode_status||null,assignedRepId:row.assigned_rep_id||null,team:teamForState(row.state||''),rep:null,disposition:row.current_disposition||'Uncontacted',isDemo:false};
+      const lead={id:Date.now(),dbId:row.id,sourceId:row.source_id,sourceSystem:row.source_system||'FIELD_ENTRY',importBatchId:row.import_batch_id||null,address1:row.address1||'',address2:row.address2||'',address,city:row.city||'',stateCode:row.state||'',zip:row.zip||'',fullAddress:[address,row.city,row.state,row.zip].filter(Boolean).join(', '),lat:row.latitude==null?undefined:Number(row.latitude),lng:row.longitude==null?undefined:Number(row.longitude),geocodeStatus:row.geocode_status||null,geocodeProvider:row.geocode_provider||null,geocodePrecision:row.geocode_precision||null,geocodeVerificationStatus:row.geocode_verification_status||null,geocodeCandidateLat:row.geocode_candidate_latitude==null?undefined:Number(row.geocode_candidate_latitude),geocodeCandidateLng:row.geocode_candidate_longitude==null?undefined:Number(row.geocode_candidate_longitude),assignedRepId:row.assigned_rep_id||null,team:teamForState(row.state||''),rep:null,disposition:row.current_disposition||'Uncontacted',isDemo:false};
       state.realLeads=state.realLeads||[];state.realLeads.unshift(lead);state.leadMode='real';state.leads=state.realLeads;
       if(typeof window.renderLeads==='function')window.renderLeads();
       if(typeof window.renderFieldLeadSelect==='function')window.renderFieldLeadSelect();
       select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));
       window.MCCOY_RENDER_LEAD_MAP?.(false);
       updateClosestDoorAddress();
-      message(gps?'Address added to the real-lead map and selected for this door.':'Address added and selected. Enable location to place it on the map.',true);
+      message(verificationError?'Address added but left off the map because Google could not verify a rooftop location. Use Correct Lead to review it.':'Address added and its pin was verified with Google.',!verificationError);
       for(const id of ['fieldNewAddress','fieldNewAddress2','fieldNewCity','fieldNewState','fieldNewZip'])document.getElementById(id).value='';
       panel.open=false;
     }catch(error){console.error('Field address creation failed',error);message(error.message||'Unable to add this address.');}

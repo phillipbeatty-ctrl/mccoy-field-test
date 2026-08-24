@@ -61,5 +61,5 @@ test('known Battle Ground duplicate is cleaned without hard-coded generated IDs'
   assert.doesNotMatch(requestedCleanup,/25019c59|83d4f28a/);
   assert.doesNotMatch(migration,/requested_address_cleanup/);
   assert.match(html,/app-lead-pool\.js\?v=2026082415/);
-  assert.match(html,/app-lead-detail-panel\.js\?v=2026082415/);
+  assert.match(html,/app-lead-detail-panel\.js\?v=2026082423/);
 });

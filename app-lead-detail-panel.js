@@ -150,7 +150,13 @@
       if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'address_location_correction_failed');
       const r=data.lead||{};
       lead.address1=r.address1||payload.address1;lead.address2=r.address2||payload.address2;lead.address=[lead.address1,lead.address2].filter(Boolean).join(' ');lead.city=r.city||payload.city;lead.stateCode=r.state||payload.state;lead.zip=r.zip||payload.zip;lead.fullAddress=[[lead.address1,lead.address2].filter(Boolean).join(' '),lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ');
-      if(data.matched&&Number.isFinite(Number(r.latitude))&&Number.isFinite(Number(r.longitude))){lead.lat=Number(r.latitude);lead.lng=Number(r.longitude);correctionMsg('Address saved and house moved to the corrected address location.');window.MCCOY_RENDER_LEAD_MAP?.(false);setTimeout(()=>window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id),80);}else{correctionMsg('Address saved, but the geocoder could not confidently place it. Drag the correction house manually if needed.');}
+      lead.geocodeStatus=r.geocode_status||null;lead.geocodeProvider=r.geocode_provider||null;lead.geocodePrecision=r.geocode_precision||null;lead.geocodeVerificationStatus=r.geocode_verification_status||data.decision||null;lead.geocodeComparisonDistanceMeters=r.geocode_comparison_distance_meters==null?null:Number(r.geocode_comparison_distance_meters);
+      lead.geocodeCandidateLat=r.geocode_candidate_latitude==null?undefined:Number(r.geocode_candidate_latitude);lead.geocodeCandidateLng=r.geocode_candidate_longitude==null?undefined:Number(r.geocode_candidate_longitude);
+      if(Number.isFinite(Number(r.latitude))&&Number.isFinite(Number(r.longitude))){lead.lat=Number(r.latitude);lead.lng=Number(r.longitude);}else{lead.lat=undefined;lead.lng=undefined;}
+      if(data.decision==='google_rooftop_applied')correctionMsg('Address saved and the pin moved to a matching Google rooftop result.');
+      else if(String(data.decision||'').includes('preserved'))correctionMsg('Address saved. The trusted manual/imported pin was preserved and the Google comparison was recorded.');
+      else correctionMsg('Address saved, but Google did not return a matching rooftop result. The lead is safely left off the map until Admin places the pin manually.');
+      window.MCCOY_RENDER_LEAD_MAP?.(false);if(Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)))setTimeout(()=>window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id),80);
       renderDetail(lead);enhanceList();if(typeof window.renderLeads==='function')window.renderLeads();
     }catch(e){console.error('Address/location correction failed',e);correctionMsg(`Unable to correct address location${e?.message?': '+e.message:''}.`);}finally{correcting=false;correctionIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});}
   }

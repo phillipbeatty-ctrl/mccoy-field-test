@@ -8,7 +8,7 @@
   const MAX_CONFIDENT_DISTANCE_METERS=7/3.28084;
   const MAX_FIX_AGE_MS=5000;
   const REQUIRED_CONSECUTIVE_FIXES=2;
-  const verifiedStatuses=new Set(['verified','exact','matched','google_mymaps','field_gps','rooftop','parcel','address','manual','field_verified','spotio_verified']);
+  const verifiedStatuses=new Set(['manual','field_verified']);
   const autoArrivedLeadIds=new Set();
   let observedSessionStart=null,lastFixAt=0,candidateId=null,candidateHits=0;
 

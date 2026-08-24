@@ -13,6 +13,8 @@
     .lead-house-icon.selected .lead-house{border-width:3px;box-shadow:0 0 0 4px rgba(17,24,39,.24)}
     .lead-house-icon.correction .lead-house{width:24px;height:24px;margin:4px auto 0;border-width:3px;box-shadow:0 0 0 5px rgba(17,24,39,.22)}
     .lead-house-icon.correction .lead-house:after{width:8px;height:8px}
+    .lead-house-icon.pin-location-verified .lead-house{box-shadow:0 0 0 3px rgba(22,163,74,.45)}
+    .lead-house-icon.pin-location-review .lead-house{border-style:dashed;opacity:.78}
     .mccoy-lead-cluster{background:transparent!important;border:0!important}
     .mccoy-lead-cluster>div{width:38px;height:38px;border-radius:50%;background:#fbbf24;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:800 13px/1 Arial,sans-serif;color:#111827;box-sizing:border-box}
     .mccoy-lead-cluster.cluster-medium>div{width:44px;height:44px;font-size:14px}
@@ -29,7 +31,7 @@
   const controls=document.createElement('div');
   controls.id='leadGeoControls';
   controls.style.cssText='margin:10px 0;padding:10px;border:1px solid #e5e7eb;border-radius:10px';
-  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">GEOCODE REAL LEADS</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="lassoSelectBtn" class="assign-btn">LASSO SELECT</button><button id="clearMapSelectionBtn" class="assign-btn">CLEAR SELECTION</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT CURRENT VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking geocode status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No leads selected.</div>`;
+  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">VERIFY NEXT 25 WITH GOOGLE</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="lassoSelectBtn" class="assign-btn">LASSO SELECT</button><button id="clearMapSelectionBtn" class="assign-btn">CLEAR SELECTION</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT CURRENT VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking Google verification status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No leads selected.</div>`;
   leftCard?.insertBefore(controls,canvas);
 
   const oldSingleAssign=document.getElementById('mapAssignBtn');
@@ -65,9 +67,14 @@
   let selectedIds=new Set(),firstFit=true,lassoMode=false,lassoDrawing=false,lassoPoints=[],lassoPreview=null,lassoPolygon=null,lastLassoPoint=null,lassoStartPoint=null;
   let correctionLead=null,correctionMarker=null;
 
-  function leadPinIcon(selected=false,correction=false){
-    const key=`${selected?'selected':'normal'}:${correction?'correction':'pin'}`;if(pinIconCache.has(key))return pinIconCache.get(key);
-    const cls=`lead-house-icon lead-spotio-pin-icon${selected?' selected':''}${correction?' correction':''}`;
+  function pinLocationQuality(lead){
+    const status=String(lead?.geocodeStatus||'').toLowerCase(),verification=String(lead?.geocodeVerificationStatus||'').toLowerCase();
+    if(status==='google_rooftop'||['manual','field_verified'].includes(status)||verification==='google_verified_preserved')return'verified';
+    return'review';
+  }
+  function leadPinIcon(lead,selected=false,correction=false){
+    const quality=pinLocationQuality(lead),key=`${quality}:${selected?'selected':'normal'}:${correction?'correction':'pin'}`;if(pinIconCache.has(key))return pinIconCache.get(key);
+    const cls=`lead-house-icon lead-spotio-pin-icon pin-location-${quality}${selected?' selected':''}${correction?' correction':''}`;
     const icon=L.divIcon({className:cls,html:'<div class="lead-house lead-spotio-pin" aria-hidden="true"></div>',iconSize:correction?[36,38]:[26,29],iconAnchor:correction?[18,33]:[13,25],tooltipAnchor:[0,correction?-30:-23]});pinIconCache.set(key,icon);return icon;
   }
   function currentRealFiltered(){
@@ -79,17 +86,17 @@
   function restoreGrabCursor(){
     lassoMode=false;lassoDrawing=false;window.MCCOY_LASSO_ACTIVE=false;const btn=document.getElementById('lassoSelectBtn');if(btn){btn.textContent='LASSO SELECT';btn.className='assign-btn';}canvas.style.cursor='grab';canvas.style.touchAction='';map.dragging.enable();map.touchZoom?.enable();map.doubleClickZoom.enable();map.boxZoom.enable();
   }
-  function setMarkerSelectedStyle(id){const marker=markerByLead.get(id);if(!marker)return;const selected=selectedIds.has(id);if(marker._mccoySelected===selected)return;marker._mccoySelected=selected;marker.setIcon(leadPinIcon(selected));}
+  function setMarkerSelectedStyle(id){const marker=markerByLead.get(id);if(!marker)return;const selected=selectedIds.has(id);if(marker._mccoySelected===selected)return;marker._mccoySelected=selected;marker.setIcon(leadPinIcon(marker._mccoyLead,selected));}
   function toggleLeadSelection(l){if(selectedIds.has(l.dbId))selectedIds.delete(l.dbId);else selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus(selectedIds.has(l.dbId)?'Lead added to selection':'Lead removed from selection');}
 
   function renderPins(fit=false){
     const source=state.realLeads||[],filterKey=`${document.getElementById('teamFilter')?.value||''}|${document.getElementById('leadOwnerFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`;
-    if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(selected));}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
+    if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(lead,selected));}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
     leadLayer.clearLayers();markerByLead.clear();
     const leads=currentRealFiltered(),bounds=[],markers=[];
     for(const lead of leads){
-      const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
-      marker.bindTooltip(`${lead.address}${lead.ownerName&&lead.ownerRole!=='unassigned'?' · Owner: '+lead.ownerName:''}`);
+      const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(lead,selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
+      marker.bindTooltip(`${lead.address}${lead.ownerName&&lead.ownerRole!=='unassigned'?' · Owner: '+lead.ownerName:''} · ${pinLocationQuality(lead)==='verified'?'Location verified':'Location needs review'}`);
       marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id}}));});
       markerByLead.set(lead.dbId,marker);markers.push(marker);bounds.push([Number(lead.lat),Number(lead.lng)]);
     }
@@ -109,24 +116,26 @@
   function fillCorrectionForm(l){document.getElementById('editLeadAddress1').value=l.address1||l.address||'';document.getElementById('editLeadAddress2').value=l.address2||'';document.getElementById('editLeadCity').value=l.city||'';document.getElementById('editLeadState').value=l.stateCode||'';document.getElementById('editLeadZip').value=l.zip||'';}
   function selectCorrectionLead(l){
     if(window.MCCOY_ACCESS?.access?.role!=='admin')return;
-    correctionLead=l;const p=document.getElementById('leadCorrectionPanel');if(p)p.style.display='block';fillCorrectionForm(l);correctionMsg('Lead selected. Drag the larger pin only if its map location needs correction.');
+    const hasPin=Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng)),hasCandidate=Number.isFinite(Number(l.geocodeCandidateLat))&&Number.isFinite(Number(l.geocodeCandidateLng));
+    correctionLead=l;const p=document.getElementById('leadCorrectionPanel');if(p)p.style.display='block';fillCorrectionForm(l);correctionMsg(hasPin?'Lead selected. Drag the larger pin only if its map location needs correction.':hasCandidate?'Google returned a non-rooftop review point. It is not a Lead Pool pin. Drag this correction marker to the actual door to verify it manually.':'Lead selected. Save a complete address for Google verification; the lead stays off the map until a rooftop result or manual door placement is available.');
     if(correctionMarker)map.removeLayer(correctionMarker);
-    correctionMarker=L.marker([Number(l.lat),Number(l.lng)],{draggable:true,autoPan:true,title:'Drag to correct lead location',icon:leadPinIcon(false,true)}).addTo(map);
-    correctionMarker.bindTooltip('DRAG TO CORRECT LOCATION',{direction:'top'}).openTooltip();
+    if(!hasPin&&!hasCandidate){correctionMarker=null;return;}
+    const initial=[Number(hasPin?l.lat:l.geocodeCandidateLat),Number(hasPin?l.lng:l.geocodeCandidateLng)];
+    correctionMarker=L.marker(initial,{draggable:true,autoPan:true,title:'Drag to correct lead location',icon:leadPinIcon(l,false,true)}).addTo(map);
+    correctionMarker.bindTooltip(hasPin?'DRAG TO CORRECT LOCATION':'REVIEW POINT — DRAG TO ACTUAL DOOR',{direction:'top'}).openTooltip();
     correctionMarker.on('dragstart',()=>correctionMsg('Move the pin to the correct property, then release to save.'));
     correctionMarker.on('dragend',async()=>{
       const pos=correctionMarker.getLatLng();correctionMsg('Saving corrected location…');
-      try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'update_lead',lead_id:l.dbId,latitude:pos.lat,longitude:pos.lng}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'location_save_failed');l.lat=data.lead.latitude;l.lng=data.lead.longitude;markerByLead.get(l.dbId)?.setLatLng([l.lat,l.lng]);correctionMsg('Corrected map location saved.');}
-      catch(e){console.error(e);correctionMsg('Unable to save corrected location.');correctionMarker.setLatLng([Number(l.lat),Number(l.lng)]);}finally{restoreGrabCursor();}
+      try{const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'update_lead',lead_id:l.dbId,latitude:pos.lat,longitude:pos.lng}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'location_save_failed');l.lat=data.lead.latitude;l.lng=data.lead.longitude;l.geocodeStatus=data.lead.geocode_status;l.geocodeProvider=data.lead.geocode_provider;l.geocodePrecision=data.lead.geocode_precision;l.geocodeVerificationStatus=data.lead.geocode_verification_status;const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));correctionMsg('Manual door location saved and marked verified for coaching.');}
+      catch(e){console.error(e);correctionMsg('Unable to save corrected location.');correctionMarker.setLatLng(initial);}finally{restoreGrabCursor();}
     });
   }
   window.MCCOY_SELECT_MAP_LEAD=id=>{const l=(state.realLeads||[]).find(x=>x.id===id||x.dbId===id);if(l){if(!selectedIds.has(l.dbId))selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus('Lead selected');selectCorrectionLead(l);}};
 
   async function saveAddress(){
-    if(!correctionLead)return;const btn=document.getElementById('saveLeadAddressBtn');btn.disabled=true;correctionMsg('Saving address…');
-    const patch={action:'update_lead',lead_id:correctionLead.dbId,address1:document.getElementById('editLeadAddress1').value,address2:document.getElementById('editLeadAddress2').value,city:document.getElementById('editLeadCity').value,state:document.getElementById('editLeadState').value,zip:document.getElementById('editLeadZip').value};
-    try{const {data,error}=await sb.functions.invoke('lead-admin',{body:patch});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'address_save_failed');const r=data.lead;correctionLead.address1=r.address1||'';correctionLead.address2=r.address2||'';correctionLead.address=[r.address1,r.address2].filter(Boolean).join(' ');correctionLead.city=r.city||'';correctionLead.stateCode=r.state||'';correctionLead.zip=r.zip||'';correctionLead.fullAddress=[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', ');markerByLead.get(correctionLead.dbId)?.setTooltipContent(correctionLead.address);correctionMsg('Lead address saved.');if(typeof window.renderLeads==='function')window.renderLeads();}
-    catch(e){console.error(e);correctionMsg('Unable to save lead address.');}finally{btn.disabled=false;restoreGrabCursor();}
+    if(!correctionLead)return;
+    if(typeof window.MCCOY_CORRECT_ADDRESS_LOCATION==='function')return window.MCCOY_CORRECT_ADDRESS_LOCATION();
+    correctionMsg('Address verification is still loading. Please try again.');
   }
 
   function clearLassoShape(){if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}if(lassoPolygon){map.removeLayer(lassoPolygon);lassoPolygon=null;}lassoPoints=[];lastLassoPoint=null;lassoStartPoint=null;}
@@ -144,8 +153,8 @@
   canvas.addEventListener('touchend',event=>{if(!lassoMode||!lassoDrawing)return;event.preventDefault();const adapted=touchAsLeafletEvent(event,true);if(adapted)finishLasso(adapted);},{passive:false});
   canvas.addEventListener('touchcancel',event=>{if(!lassoMode)return;event.preventDefault();lassoDrawing=false;if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}lassoPoints=[];lastLassoPoint=null;lassoStartPoint=null;updateSelectionStatus('Lasso is still active — drag your finger around the leads');},{passive:false});
 
-  async function geocodeStatus(){if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'status'}});if(error)throw error;document.getElementById('geocodeProgress').textContent=`Mapped ${Number(data.geocoded||0).toLocaleString()} of ${Number(data.total||0).toLocaleString()} · ${Number(data.unmatched||0).toLocaleString()} unmatched · ${Number(data.remaining||0).toLocaleString()} not processed.`;return data;}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent='Unable to read geocode status.';return null;}}
-  async function geocodeAll(){const btn=document.getElementById('geocodeRealLeadsBtn');if(window.MCCOY_ACCESS?.access?.role!=='admin')return;btn.disabled=true;btn.textContent='GEOCODING…';try{let loops=0;while(loops++<20){const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'geocode_next',limit:750}});if(error||!data?.ok)throw error||new Error(data?.error||'geocode_failed');document.getElementById('geocodeProgress').textContent=`Processed ${Number(data.attempted||0).toLocaleString()} / ${Number(data.total||0).toLocaleString()} · mapped ${Number(data.geocoded||0).toLocaleString()} · unmatched ${Number(data.unmatched||0).toLocaleString()} · remaining ${Number(data.remaining||0).toLocaleString()}.`;if(data.complete||!data.processed)break;}await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(true),250);}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent='Geocoding stopped because of an error. You can safely press GEOCODE REAL LEADS again to resume.';}btn.disabled=false;btn.textContent='GEOCODE REAL LEADS';await geocodeStatus();restoreGrabCursor();}
+  async function geocodeStatus(){if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'status'}});if(error)throw error;const btn=document.getElementById('geocodeRealLeadsBtn');btn.dataset.googleConfigured=data.google_configured?'1':'0';btn.disabled=!data.google_configured;document.getElementById('geocodeProgress').textContent=data.google_configured?`${Number(data.google_verified||0).toLocaleString()} Google rooftop verified · ${Number(data.preserved||0).toLocaleString()} trusted pins compared · ${Number(data.review||0).toLocaleString()} need review · ${Number(data.pending||0).toLocaleString()} pending · ${Number(data.unmapped||0).toLocaleString()} safely unmapped.`:'Google verification is unavailable until Admin configures the server-only Maps API key.';return data;}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent='Unable to read Google verification status.';return null;}}
+  async function geocodeAll(){const btn=document.getElementById('geocodeRealLeadsBtn');if(window.MCCOY_ACCESS?.access?.role!=='admin')return;if(!window.confirm('Verify up to 25 Lead Pool addresses with Google? Google Maps Platform usage charges may apply.'))return;btn.disabled=true;btn.textContent='VERIFYING 25…';try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'verify_next',limit:25}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'google_verification_failed');document.getElementById('geocodeProgress').textContent=`Compared ${Number(data.processed||0).toLocaleString()} · applied ${Number(data.applied||0).toLocaleString()} rooftop pins · preserved ${Number(data.preserved||0).toLocaleString()} trusted pins · ${Number(data.review||0).toLocaleString()} need review · ${Number(data.pending||0).toLocaleString()} pending.`;await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(true),250);}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent=e?.message?.includes('google_maps_key_not_configured')?'Google verification is unavailable until Admin configures the server-only Maps API key.':'Google verification stopped safely; no approximate result was applied.';}btn.textContent='VERIFY NEXT 25 WITH GOOGLE';await geocodeStatus();restoreGrabCursor();}
   async function assignSelectedLeads(){const msg=document.getElementById('mapAssignMsg');if(!['admin','manager','trainer'].includes(window.MCCOY_ACCESS?.access?.role)){msg.textContent='Only Managers, Trainers, and Administrators can assign real leads.';restoreGrabCursor();return;}if(!selectedIds.size){msg.textContent='Select one or more leads first.';restoreGrabCursor();return;}const repEmail=document.getElementById('mapRepSelect').value,ids=[...selectedIds];msg.textContent=`Assigning ${ids.length.toLocaleString()} selected lead${ids.length===1?'':'s'}…`;try{for(let i=0;i<ids.length;i+=500){const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_leads',lead_ids:ids.slice(i,i+500),rep_email:repEmail}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'bulk_assign_failed');}msg.textContent=`${ids.length.toLocaleString()} selected lead${ids.length===1?'':'s'} assigned successfully.`;selectedIds.clear();clearLassoShape();if(correctionMarker){map.removeLayer(correctionMarker);correctionMarker=null;}await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(false),250);}catch(e){console.error(e);msg.textContent=`Assignment failed${e?.message?': '+e.message:''}.`;}finally{restoreGrabCursor();}}
 
   document.getElementById('geocodeRealLeadsBtn').onclick=geocodeAll;
