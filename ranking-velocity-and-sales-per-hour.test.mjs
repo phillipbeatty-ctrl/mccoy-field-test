@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const migration = readFileSync(
-  new URL('./supabase/migrations/20260823092500_rank_every_real_user_sales_per_hour.sql', import.meta.url),
+  new URL('./supabase/migrations/20260824010000_provisional_sales_per_hour_and_stale_sessions.sql', import.meta.url),
   'utf8'
 )
 const ui = readFileSync(new URL('./app-compensation.js', import.meta.url), 'utf8')
@@ -27,6 +27,28 @@ test('weekly sales per hour uses verified sales and bounded tracked session time
   assert.match(migration, /else 0::numeric/)
   assert.match(ui, /Sales\/Hr \(Week\)/)
   assert.match(ui, /SPH Rank/)
+})
+
+test('sales per hour stays provisional until one tracked field hour', () => {
+  assert.match(migration, /'qualified',r\.week_tracked_hours >= 1/)
+  assert.match(migration, /'provisional',r\.week_tracked_hours < 1/)
+  assert.match(migration, /'minimum_tracked_hours',1/)
+  assert.match(migration, /where week_tracked_hours >= 1 and week_sales > 0/)
+  assert.match(ui, /Provisional until.*tracked field hour/)
+  assert.match(ui, /Sales\/Hr is provisional below 1 tracked field hour/)
+})
+
+test('stale sessions close every fifteen minutes with an audit trail', () => {
+  assert.match(migration, /create extension if not exists pg_cron/)
+  assert.match(migration, /private\.close_stale_field_sessions\(\)/)
+  assert.match(migration, /now\(\) - interval '30 minutes'/)
+  assert.match(migration, /coalesce\(events\.last_event_at, ts\.started_at \+ interval '30 minutes'\)/)
+  assert.match(migration, /ts\.started_at \+ interval '16 hours'/)
+  assert.match(migration, /field_session_auto_closures/)
+  assert.match(migration, /'close-stale-field-sessions'/)
+  assert.match(migration, /'\*\/15 \* \* \* \*'/)
+  assert.match(migration, /revoke all on function private\.close_stale_field_sessions\(\) from public, anon, authenticated/)
+  assert.doesNotMatch(migration, /grant all privileges on all tables in schema cron/)
 })
 
 test('Ghost is excluded from sales per hour', () => {
