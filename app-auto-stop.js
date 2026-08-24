@@ -6,6 +6,7 @@
   let controlBusy=false;
 
   function clearLocalSession(reasonLabel){
+    const endedSessionId=telemetrySessionId;
     clearInterval(controlTimer);controlTimer=null;
     clearInterval(timerHandle);
     if(typeof doorTimerHandle!=='undefined') clearInterval(doorTimerHandle);
@@ -14,6 +15,7 @@
     state.session=null;
     state.lastDispositionEndedAt=null;
     telemetrySessionId=null;
+    window.dispatchEvent(new CustomEvent('mccoy-field-session-ended',{detail:{sessionId:endedSessionId,reason:reasonLabel||'session_stopped'}}));
     const start=document.getElementById('startKnockingBtn'),stop=document.getElementById('stopKnockingBtn');
     start?.classList.remove('hidden');stop?.classList.add('hidden');
     if(start){start.disabled=false;start.textContent='START KNOCKING';}
