@@ -20,7 +20,7 @@ test('pilot UI exposes every requested comparison field and downloadable CSV',()
   assert.match(source,/Raw JSON comparison/)
 })
 
-test('pilot UI never mutates a lead or calls a lead-writing API',()=>{
+test('pilot UI never directly mutates a lead or calls a lead-writing API',()=>{
   assert.doesNotMatch(source,/lead-admin|lead-geocode|\.from\(['"]leads['"]\)|\.update\s*\(|\.insert\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/)
 })
 
@@ -32,8 +32,19 @@ test('guarded repair requires the exact pilot snapshot and a second destructive-
   assert.match(source,/APPLY SAFEST 100-LEAD REPAIR/)
 })
 
-test('production HTML loads the cache-busted pilot UI after the map controls',()=>{
-  assert.match(html,/app-lead-map\.js[^>]*><\/script><script src="app-address-validation-pilot\.js\?v=2026082502"/)
+test('Admin review queue is server-mediated and exposes explicit one-lead decisions',()=>{
+  assert.match(source,/address-validation-admin-review/)
+  assert.match(source,/body:\{action:'list'\}/)
+  assert.match(source,/body:\{action:'decide',lead_id:leadId,decision\}/)
+  assert.match(source,/REVIEW QUARANTINED PINS/)
+  assert.match(source,/KEEP ORIGINAL/)
+  assert.match(source,/APPLY GOOGLE PIN/)
+  assert.match(source,/explicit Admin override of the automatic quarantine/)
+  assert.match(source,/await window\.loadMcCoyLeads\?\.\(\)/)
+})
+
+test('production HTML loads the cache-busted pilot and review UI after the map controls',()=>{
+  assert.match(html,/app-lead-map\.js[^>]*><\/script><script src="app-address-validation-pilot\.js\?v=2026082503"/)
 })
 
 test('standalone pilot page is Admin-gated and preserves the exact read-only contract',()=>{
