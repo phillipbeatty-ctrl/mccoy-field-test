@@ -5,6 +5,7 @@ export const GOOGLE_PROVIDER = 'google_maps_geocoding'
 
 export const TRUSTED_LOCATION_STATUSES = new Set([
   'google_rooftop',
+  'google_address_validation',
   'google_mymaps',
   'manual',
   'field_verified',
@@ -186,6 +187,8 @@ export function databasePatchForAssessment(lead, assessment, verifiedAt = new Da
 }
 
 export function isGoogleVerifiedLead(lead) {
-  return normalizedStatus(lead?.geocode_status || lead?.geocodeStatus) === GOOGLE_PRECISE_STATUS
-    && normalizedStatus(lead?.geocode_verification_status || lead?.geocodeVerificationStatus) === 'google_rooftop_applied'
+  const status = normalizedStatus(lead?.geocode_status || lead?.geocodeStatus)
+  const verification = normalizedStatus(lead?.geocode_verification_status || lead?.geocodeVerificationStatus)
+  return (status === GOOGLE_PRECISE_STATUS && verification === 'google_rooftop_applied')
+    || (status === 'google_address_validation' && verification === 'google_address_validation_applied')
 }
