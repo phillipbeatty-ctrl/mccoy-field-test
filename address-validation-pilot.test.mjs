@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   addressValidationRequest,
   comparisonRow,
+  cohortSnapshotPayload,
   countSuspiciousCoordinateStacks,
   fieldPlacementForLead,
   selectSuspiciousCohort
@@ -63,10 +64,41 @@ test('builds structured Address Validation input and complete comparison rows wi
   const request=addressValidationRequest(lead)
   assert.deepEqual(request.address.regionCode,'US')
   assert.deepEqual(request.address.addressLines,['413 SW 6th Circle'])
-  const row=comparisonRow(lead,{result:{address:{formattedAddress:'413 SW 6th Cir, Battle Ground, WA 98604-0000, USA'},geocode:{placeId:'place-1',location:{latitude:45.781,longitude:-122.541}},verdict:{addressComplete:true,possibleNextAction:'ACCEPT',validationGranularity:'PREMISE',geocodeGranularity:'PREMISE'},uspsData:{dpvConfirmation:'Y'}}})
+  const row=comparisonRow(lead,{result:{address:{formattedAddress:'413 SW 6th Cir, Battle Ground, WA 98604-0000, USA',postalAddress:{regionCode:'US',administrativeArea:'WA',postalCode:'98604-0000',addressLines:['413 SW 6th Cir']},addressComponents:[{componentType:'street_number',componentName:{text:'413'},confirmationLevel:'CONFIRMED'}],missingComponentTypes:[],unresolvedTokens:[]},geocode:{placeId:'place-1',location:{latitude:45.7801,longitude:-122.5401}},verdict:{addressComplete:true,possibleNextAction:'ACCEPT',validationGranularity:'PREMISE',geocodeGranularity:'PREMISE'},uspsData:{dpvConfirmation:'Y'}}})
   assert.equal(row.place_id,'place-1')
   assert.equal(row.address_complete,true)
+  assert.equal(row.address_identity_match,true)
+  assert.equal(row.automatic_repair_eligible,true)
+  assert.equal(row.repair_decision,'apply_google_address_validation')
   assert.ok(row.old_to_google_meters>0)
+})
+
+test('quarantines movements over 100 meters even when Google returns strict ACCEPT signals',()=>{
+  const lead={id:'lead-2',address1:'10 Main St',city:'Test',state:'WA',zip:'98604',latitude:45,longitude:-122}
+  const response={result:{address:{formattedAddress:'10 Main St, Test, WA 98604, USA',postalAddress:{regionCode:'US',administrativeArea:'WA',postalCode:'98604',addressLines:['10 Main St']},addressComponents:[{componentType:'street_number',componentName:{text:'10'},confirmationLevel:'CONFIRMED'}],missingComponentTypes:[],unresolvedTokens:[]},geocode:{placeId:'place-2',location:{latitude:45.01,longitude:-122.01}},verdict:{addressComplete:true,possibleNextAction:'ACCEPT',validationGranularity:'PREMISE',geocodeGranularity:'PREMISE'},uspsData:{dpvConfirmation:'Y'}}}
+  const row=comparisonRow(lead,response)
+  assert.ok(row.old_to_google_meters>100)
+  assert.equal(row.automatic_repair_eligible,false)
+  assert.equal(row.repair_decision,'admin_review_large_movement')
+})
+
+test('never auto-moves field-confirmed pins and rejects changed address identity',()=>{
+  const lead={id:'lead-3',address1:'10 Main St',city:'Test',state:'WA',zip:'98604',latitude:45,longitude:-122}
+  const response={result:{address:{formattedAddress:'11 Main St, Test, WA 98604, USA',postalAddress:{regionCode:'US',administrativeArea:'WA',postalCode:'98604',addressLines:['11 Main St']},addressComponents:[{componentType:'street_number',componentName:{text:'11'},confirmationLevel:'CONFIRMED'}],missingComponentTypes:[],unresolvedTokens:[]},geocode:{placeId:'place-3',location:{latitude:45.0001,longitude:-122.0001}},verdict:{addressComplete:true,possibleNextAction:'ACCEPT',validationGranularity:'PREMISE',geocodeGranularity:'PREMISE'},uspsData:{dpvConfirmation:'Y'}}}
+  const mismatch=comparisonRow(lead,response)
+  assert.equal(mismatch.address_identity_match,false)
+  assert.equal(mismatch.repair_decision,'admin_review_address_identity')
+  const protectedRow=comparisonRow(lead,{result:{...response.result,address:{...response.result.address,postalAddress:{...response.result.address.postalAddress,addressLines:['10 Main St']}}}},{latitude:45,longitude:-122,source:'verified_arrival_gps'})
+  assert.equal(protectedRow.repair_decision,'protected_field_confirmed')
+})
+
+test('pilot snapshot changes when any address, coordinate, or verification state changes',()=>{
+  const lead={id:'lead-4',address1:'10 Main St',city:'Test',state:'WA',zip:'98604',latitude:45,longitude:-122,geocode_status:'matched',geocode_verification_status:'pending_google'}
+  const first=cohortSnapshotPayload([lead])
+  assert.equal(first,cohortSnapshotPayload([{...lead}]))
+  assert.notEqual(first,cohortSnapshotPayload([{...lead,longitude:-122.1}]))
+  assert.notEqual(first,cohortSnapshotPayload([{...lead,address1:'11 Main St'}]))
+  assert.notEqual(first,cohortSnapshotPayload([{...lead,geocode_verification_status:'manual_door_verified'}]))
 })
 
 test('deployed pilot source contains no lead mutation operations', async() => {
@@ -74,4 +106,13 @@ test('deployed pilot source contains no lead mutation operations', async() => {
   assert.doesNotMatch(source,/\.insert\s*\(|\.update\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/)
   assert.match(source,/read_only:true/)
   assert.match(source,/run_read_only_pilot/)
+})
+
+test('repair function revalidates the exact snapshot before its only database mutation call',async()=>{
+  const source=await import('node:fs/promises').then(fs=>fs.readFile(new URL('./supabase/functions/address-validation-repair/index.ts',import.meta.url),'utf8'))
+  assert.match(source,/stale_pilot_snapshot/)
+  assert.match(source,/apply_address_validation_pilot_repair/)
+  assert.match(source,/Google failed \$\{errors\.length\} of 100 comparisons\. No lead data was changed\./)
+  assert.ok(source.indexOf('validateAddress(googleKey, lead)')<source.indexOf("admin.rpc('apply_address_validation_pilot_repair'"))
+  assert.doesNotMatch(source,/\.from\(['"]leads['"]\)\.update|\.from\(['"]leads['"]\)\.insert|\.from\(['"]leads['"]\)\.delete/)
 })
