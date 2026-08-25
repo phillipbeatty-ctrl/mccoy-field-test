@@ -7,13 +7,11 @@ async function patchAndroid(){
     const permissions=[
       '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
       '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
-      '<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />',
       '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
-      '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />'
+      '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />',
+      '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
     ];
-    for(const permission of permissions){
-      if(!source.includes(permission))source=source.replace('<application',`${permission}\n    <application`);
-    }
+    for(const permission of permissions){if(!source.includes(permission))source=source.replace('<application',`${permission}\n    <application`);}
     await writeFile(path,source);
   }catch(error){console.warn('Android project not present yet:',error.message);}
 }
@@ -29,4 +27,4 @@ async function patchIos(){
 }
 
 await Promise.all([patchAndroid(),patchIos()]);
-console.log('Native location permissions configured where platform projects exist.');
+console.log('Field Coach native location permissions configured.');
