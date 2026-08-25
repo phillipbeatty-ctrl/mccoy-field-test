@@ -59,35 +59,59 @@ export function selectSuspiciousCohort(leads, limit = 100) {
     groups.get(key).push(lead)
   }
 
-  const candidates = []
+  const primaryCandidates = []
+  const fallbackCandidates = []
   for (const [key, rows] of groups) {
     const distinctBaseAddresses = new Set(rows.map(baseAddressKey).filter(Boolean))
     if (distinctBaseAddresses.size < 2) continue
-    const eligible = rows.filter(lead =>
-      normalizedStatus(lead?.geocode_status) === 'matched'
-      && ['pending_google', 'trusted_pending_google_comparison'].includes(
-        normalizedStatus(lead?.geocode_verification_status || 'pending_google')
-      )
-    )
+    const eligible = rows.filter(lead => {
+      const verification = normalizedStatus(lead?.geocode_verification_status || 'pending_google')
+      const status = normalizedStatus(lead?.geocode_status)
+      return ['pending_google', 'trusted_pending_google_comparison'].includes(verification)
+        && ['matched', 'google_mymaps'].includes(status)
+    })
     if (!eligible.length) continue
     eligible.sort((left, right) =>
-      fullAddress(left).localeCompare(fullAddress(right)) || String(left.id).localeCompare(String(right.id))
+      (normalizedStatus(left?.geocode_status) === 'matched' ? 0 : 1)
+      - (normalizedStatus(right?.geocode_status) === 'matched' ? 0 : 1)
+      || fullAddress(left).localeCompare(fullAddress(right))
+      || String(left.id).localeCompare(String(right.id))
     )
-    candidates.push({
+    const tier = normalizedStatus(eligible[0]?.geocode_status) === 'matched'
+      ? 'census_matched_pending_google'
+      : 'google_mymaps_pending_google'
+    const candidate = {
       ...eligible[0],
+      pilot_cohort_tier: tier,
       suspicious_coordinate_stack_size: rows.length,
       suspicious_distinct_base_addresses: distinctBaseAddresses.size,
       suspicious_coordinate_key: key,
       sample_hash: stableHash(key)
-    })
+    }
+    if (tier === 'census_matched_pending_google') primaryCandidates.push(candidate)
+    else fallbackCandidates.push(candidate)
   }
 
-  candidates.sort((left, right) =>
+  const stableSort = candidates => candidates.sort((left, right) =>
     left.sample_hash - right.sample_hash
     || String(left.suspicious_coordinate_key).localeCompare(String(right.suspicious_coordinate_key))
     || String(left.id).localeCompare(String(right.id))
   )
-  return candidates.slice(0, Math.max(0, Math.floor(Number(limit) || 0)))
+  stableSort(primaryCandidates)
+  stableSort(fallbackCandidates)
+  return [...primaryCandidates, ...fallbackCandidates]
+    .slice(0, Math.max(0, Math.floor(Number(limit) || 0)))
+}
+
+export function countSuspiciousCoordinateStacks(leads) {
+  const groups = new Map()
+  for (const lead of Array.isArray(leads) ? leads : []) {
+    const key = coordinateKey(lead)
+    if (!key) continue
+    if (!groups.has(key)) groups.set(key, new Set())
+    groups.get(key).add(baseAddressKey(lead))
+  }
+  return [...groups.values()].filter(addresses => addresses.size >= 2).length
 }
 
 export function fieldPlacementForLead(lead, visits = []) {
@@ -154,6 +178,7 @@ export function comparisonRow(lead, response, fieldPlacement = null, error = nul
   return {
     lead_id: lead.id,
     source_id: lead.source_id || null,
+    pilot_cohort_tier: lead.pilot_cohort_tier || null,
     original_address: fullAddress(lead),
     standardized_address: result?.address?.formattedAddress || null,
     place_id: result?.geocode?.placeId || null,
