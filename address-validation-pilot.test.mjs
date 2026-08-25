@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   addressValidationRequest,
   comparisonRow,
+  countSuspiciousCoordinateStacks,
   fieldPlacementForLead,
   selectSuspiciousCohort
 } from './supabase/functions/_shared/address-validation-pilot-core.mjs'
@@ -27,6 +28,26 @@ test('does not flag separate units at the same base street address as a suspicio
     {id:'2',address1:'10 MAIN ST',address2:'APT 2',city:'TEST',state:'OR',zip:'97000',latitude:45,longitude:-122,geocode_status:'matched',geocode_verification_status:'pending_google'}
   ]
   assert.deepEqual(selectSuspiciousCohort(leads, 100), [])
+  assert.equal(countSuspiciousCoordinateStacks(leads),0)
+})
+
+test('fills a 100-stack pilot with pending Google My Maps leads without admitting applied or mismatch rows', () => {
+  const leads=[]
+  const addStack=(index,status,verification='pending_google')=>{
+    const latitude=44+index/1000,longitude=-121-index/1000
+    leads.push({id:`${index}-a`,address1:`${index} OAK ST`,city:'TEST',state:'OR',zip:'97000',latitude,longitude,geocode_status:status,geocode_verification_status:verification})
+    leads.push({id:`${index}-b`,address1:`${index+500} OAK ST`,city:'TEST',state:'OR',zip:'97000',latitude,longitude,geocode_status:status,geocode_verification_status:verification})
+  }
+  for(let index=0;index<83;index++)addStack(index,'matched')
+  for(let index=83;index<131;index++)addStack(index,'google_mymaps')
+  addStack(131,'google_rooftop','google_rooftop_applied')
+  addStack(132,'matched','google_address_mismatch')
+  const cohort=selectSuspiciousCohort(leads,100)
+  assert.equal(countSuspiciousCoordinateStacks(leads),133)
+  assert.equal(cohort.length,100)
+  assert.equal(cohort.filter(row=>row.pilot_cohort_tier==='census_matched_pending_google').length,83)
+  assert.equal(cohort.filter(row=>row.pilot_cohort_tier==='google_mymaps_pending_google').length,17)
+  assert.ok(cohort.every(row=>['pending_google','trusted_pending_google_comparison'].includes(row.geocode_verification_status)))
 })
 
 test('requires verified field GPS with reported accuracy of 35 meters or better', () => {
