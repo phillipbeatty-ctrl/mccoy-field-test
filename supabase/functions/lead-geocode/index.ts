@@ -60,9 +60,9 @@ Deno.serve(async(req:Request)=>{
       const [total,mapped,googleVerified,preserved,review,pending]=await Promise.all([
         count(q=>q),
         count(q=>q.not('latitude','is',null).not('longitude','is',null)),
-        count(q=>q.eq('geocode_verification_status','google_rooftop_applied')),
+        count(q=>q.in('geocode_verification_status',['google_rooftop_applied','google_address_validation_applied'])),
         count(q=>q.in('geocode_verification_status',['google_verified_preserved','google_conflict_preserved','google_low_precision_preserved'])),
-        count(q=>q.in('geocode_verification_status',['google_low_precision','google_address_mismatch','google_no_match','google_invalid_location','google_api_error'])),
+        count(q=>q.in('geocode_verification_status',['google_low_precision','google_address_mismatch','google_no_match','google_invalid_location','google_api_error','address_validation_admin_review'])),
         count(q=>q.or('geocode_verification_status.is.null,geocode_verification_status.in.(pending_google,trusted_pending_google_comparison,google_in_progress)'))
       ])
       return {

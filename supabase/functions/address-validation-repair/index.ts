@@ -5,7 +5,6 @@ import {
   addressValidationRequest,
   comparisonRow,
   cohortSnapshotPayload,
-  countSuspiciousCoordinateStacks,
   fieldPlacementForLead,
   selectSuspiciousCohort
 } from '../_shared/address-validation-pilot-core.mjs'
@@ -14,6 +13,11 @@ const json = (body:any, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: {...corsHeaders, 'Content-Type':'application/json', 'Cache-Control':'no-store'}
 })
+
+async function sha256(value:string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
 
 async function fetchAll(queryFactory:any, pageSize = 1000) {
   const rows:any[] = []
@@ -24,11 +28,6 @@ async function fetchAll(queryFactory:any, pageSize = 1000) {
     if ((data || []).length < pageSize) return rows
   }
   throw new Error('read_pagination_guard')
-}
-
-async function sha256(value:string) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
-  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 async function validateAddress(googleKey:string, lead:any) {
@@ -72,9 +71,10 @@ Deno.serve(async(req:Request) => {
     if (!googleKey) return json({error:'google_maps_key_not_configured'}, 503)
 
     const body = await req.json().catch(() => ({}))
-    if (String(body.action || '') !== 'run_read_only_pilot') return json({error:'unknown_action'}, 400)
-    const requestedLimit = Math.floor(Number(body.limit || 100))
-    if (requestedLimit !== 100) return json({error:'pilot_requires_exactly_100_leads'}, 400)
+    if (String(body.action || '') !== 'apply_safest_pilot_repair') return json({error:'unknown_action'}, 400)
+    if (Math.floor(Number(body.limit || 100)) !== 100) return json({error:'repair_requires_exactly_100_leads'}, 400)
+    const suppliedSnapshotToken = String(body.pilot_snapshot_token || '')
+    if (!/^[a-f0-9]{64}$/.test(suppliedSnapshotToken)) return json({error:'pilot_snapshot_token_required'}, 400)
 
     const {data:batches, error:batchError} = await admin.from('spotio_import_batches')
       .select('id,created_at,status,raw_payload').eq('status','normalized')
@@ -94,19 +94,13 @@ Deno.serve(async(req:Request) => {
       return query.order('id',{ascending:true})
     }
     const visibleLeads = await fetchAll(queryFactory)
-    const eligiblePendingCohort = selectSuspiciousCohort(visibleLeads, 50000)
-    const cohort = eligiblePendingCohort.slice(0, requestedLimit)
-    if (cohort.length !== requestedLimit) return json({
-      error:'insufficient_suspicious_visible_leads', requested:requestedLimit,
-      available:cohort.length,
-      suspicious_coordinate_stacks:countSuspiciousCoordinateStacks(visibleLeads)
+    const cohort = selectSuspiciousCohort(visibleLeads, 100)
+    if (cohort.length !== 100) return json({error:'insufficient_suspicious_visible_leads',available:cohort.length}, 409)
+    const currentSnapshotToken = await sha256(cohortSnapshotPayload(cohort))
+    if (currentSnapshotToken !== suppliedSnapshotToken) return json({
+      error:'stale_pilot_snapshot',
+      detail:'The Lead Pool changed after the read-only pilot. Run the pilot again before applying any repair.'
     }, 409)
-    const pilotSnapshotToken = await sha256(cohortSnapshotPayload(cohort))
-    const cohortTierCounts = cohort.reduce((counts:any,lead:any) => {
-      const tier = String(lead.pilot_cohort_tier || 'unknown')
-      counts[tier] = (counts[tier] || 0) + 1
-      return counts
-    }, {})
 
     const cohortIds = cohort.map((lead:any) => lead.id)
     const {data:visits, error:visitError} = await admin.from('door_visits').select(
@@ -119,6 +113,7 @@ Deno.serve(async(req:Request) => {
       visitsByLead.get(visit.lead_id).push(visit)
     }
 
+    // All external calls finish before the database repair transaction starts.
     const rows:any[] = []
     for (let start = 0; start < cohort.length; start += 5) {
       const batch = cohort.slice(start, start + 5)
@@ -133,52 +128,45 @@ Deno.serve(async(req:Request) => {
       }))
       rows.push(...batchRows)
     }
+    const errors = rows.filter(row => row.api_status !== 'validated')
+    if (errors.length) return json({
+      error:'google_validation_incomplete',
+      detail:`Google failed ${errors.length} of 100 comparisons. No lead data was changed.`,
+      errors:errors.reduce((counts:any,row:any) => {
+        const key = String(row.api_error || 'unknown').split(':')[0]
+        counts[key] = (counts[key] || 0) + 1
+        return counts
+      }, {})
+    }, 502)
 
-    const validated = rows.filter(row => row.api_status === 'validated')
-    const distances = validated.map(row => Number(row.old_to_google_meters)).filter(Number.isFinite).sort((a,b) => a-b)
+    const {data:result, error:repairError} = await admin.rpc('apply_address_validation_pilot_repair', {
+      p_actor_user_id:user.id,
+      p_snapshot_token:currentSnapshotToken,
+      p_rows:rows
+    })
+    if (repairError) throw repairError
+    const distances = rows.map(row => Number(row.old_to_google_meters)).filter(Number.isFinite).sort((a,b) => a-b)
     const percentile = (fraction:number) => distances.length ? distances[Math.min(distances.length - 1, Math.floor((distances.length - 1) * fraction))] : null
-    const errors = rows.reduce((counts:any,row:any) => {
-      if (row.api_status !== 'error') return counts
-      const key = String(row.api_error || 'unknown').split(':')[0]
-      counts[key] = (counts[key] || 0) + 1
-      return counts
-    }, {})
-    const fieldConfirmed = rows.filter(row => row.field_confirmed_latitude !== null && row.field_confirmed_longitude !== null)
-    const repairDecisions = rows.reduce((counts:any,row:any) => {
-      const key = String(row.repair_decision || 'unknown')
-      counts[key] = (counts[key] || 0) + 1
-      return counts
-    }, {})
     return json({
       ok:true,
-      read_only:true,
-      generated_at:new Date().toISOString(),
-      pilot_snapshot_token:pilotSnapshotToken,
-      cohort_rule:`All ${Number(cohortTierCounts.census_matched_pending_google || 0)} eligible Census-matched pending-Google stacks, plus a stable-hash fill of ${Number(cohortTierCounts.google_mymaps_pending_google || 0)} Google My Maps pending-Google stacks; one lead from each distinct visible exact-coordinate stack containing at least two different base street addresses.`,
-      source_pool:{
-        visible_leads:visibleLeads.length,
-        suspicious_coordinate_stacks:countSuspiciousCoordinateStacks(visibleLeads),
-        eligible_pending_stacks:eligiblePendingCohort.length
-      },
+      read_only:false,
+      pilot_snapshot_token:currentSnapshotToken,
+      result,
       summary:{
-        requested:requestedLimit,returned:rows.length,validated:validated.length,errors,
-        cohort_tiers:cohortTierCounts,
-        automatic_repair_eligible:validated.filter(row => row.automatic_repair_eligible === true).length,
+        requested:100,returned:rows.length,validated:rows.length,errors:{},
+        automatic_repair_eligible:rows.filter(row => row.automatic_repair_eligible === true).length,
         admin_review:rows.filter(row => String(row.repair_decision || '').startsWith('admin_review_')).length,
         protected:rows.filter(row => String(row.repair_decision || '').startsWith('protected_')).length,
-        repair_decisions:repairDecisions,
-        field_confirmed:fieldConfirmed.length,field_evidence_missing:rows.length-fieldConfirmed.length,
+        field_confirmed:rows.filter(row => row.field_confirmed_latitude !== null && row.field_confirmed_longitude !== null).length,
         old_to_google_meters:{median:percentile(0.5),p90:percentile(0.9),max:distances.at(-1) ?? null},
-        moved_over_25m:validated.filter(row => Number(row.old_to_google_meters)>25).length,
-        moved_over_50m:validated.filter(row => Number(row.old_to_google_meters)>50).length,
-        moved_over_100m:validated.filter(row => Number(row.old_to_google_meters)>100).length,
-        complete_addresses:validated.filter(row => row.address_complete === true).length,
-        place_ids:validated.filter(row => Boolean(row.place_id)).length
+        moved_over_25m:rows.filter(row => Number(row.old_to_google_meters)>25).length,
+        moved_over_50m:rows.filter(row => Number(row.old_to_google_meters)>50).length,
+        moved_over_100m:rows.filter(row => Number(row.old_to_google_meters)>100).length
       },
       rows
     })
   } catch(error) {
-    console.error('address-validation-pilot failed', String(error?.message || error))
-    return json({error:'address_validation_pilot_failed',detail:String(error?.message || error)},500)
+    console.error('address-validation-repair failed', String(error?.message || error))
+    return json({error:'address_validation_repair_failed',detail:String(error?.message || error)},500)
   }
 })

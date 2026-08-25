@@ -5,14 +5,15 @@
   const coordinate=value=>number(value)==null?'—':Number(value).toFixed(7);
   const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const csvCell=value=>`"${String(value??'').replace(/"/g,'""')}"`;
-  let latestRows=[];
+  let latestRows=[],latestSnapshotToken='';
 
   const columns=[
     ['original_address','Original address'],['standardized_address','Standardized address'],['place_id','Place ID'],
     ['old_latitude','Old latitude'],['old_longitude','Old longitude'],['google_latitude','Google latitude'],['google_longitude','Google longitude'],
     ['field_confirmed_latitude','Field latitude'],['field_confirmed_longitude','Field longitude'],['field_confirmation_source','Field source'],
     ['old_to_google_meters','Old → Google'],['google_to_field_meters','Google → field'],['possible_next_action','Google action'],
-    ['validation_granularity','Validation granularity'],['geocode_granularity','Geocode granularity'],['address_complete','Complete'],
+    ['validation_granularity','Validation granularity'],['geocode_granularity','Geocode granularity'],['usps_dpv_confirmation','USPS DPV'],['address_complete','Complete'],
+    ['address_identity_match','Identity match'],['repair_decision','Repair decision'],['repair_reason','Repair reason'],
     ['api_status','API status'],['api_error','API error'],['lead_id','Lead ID']
   ];
 
@@ -24,6 +25,7 @@
 
   function render(data){
     latestRows=Array.isArray(data?.rows)?data.rows:[];
+    latestSnapshotToken=String(data?.pilot_snapshot_token||'');
     const summary=data?.summary||{},distance=summary.old_to_google_meters||{};
     byId('addressValidationPilotSummary').innerHTML=`
       <strong>${Number(summary.validated||0).toLocaleString()} of ${Number(summary.returned||0).toLocaleString()} validated</strong>
@@ -31,19 +33,24 @@
       · ${Number(summary.moved_over_50m||0).toLocaleString()} moved over 50 m
       · ${Number(summary.moved_over_100m||0).toLocaleString()} moved over 100 m
       · median ${meters(distance.median)} · p90 ${meters(distance.p90)} · max ${meters(distance.max)}
-      · ${Number(summary.field_confirmed||0).toLocaleString()} field-confirmed.`;
+      · ${Number(summary.field_confirmed||0).toLocaleString()} field-confirmed
+      · <strong>${Number(summary.automatic_repair_eligible||0).toLocaleString()} strict automatic</strong>
+      · ${Number(summary.admin_review||0).toLocaleString()} Admin review
+      · ${Number(summary.protected||0).toLocaleString()} protected.`;
     const body=byId('addressValidationPilotTableBody');
     body.innerHTML=latestRows.map(row=>`<tr>${columns.map(([key])=>{
       let value=row[key];
       if(key.endsWith('_latitude')||key.endsWith('_longitude'))value=coordinate(value);
       if(key.endsWith('_meters'))value=meters(value);
-      if(key==='address_complete')value=value===true?'Yes':value===false?'No':'—';
+      if(key==='address_complete'||key==='address_identity_match')value=value===true?'Yes':value===false?'No':'—';
       return `<td>${escapeHtml(value==null||value===''?'—':value)}</td>`;
     }).join('')}</tr>`).join('');
     const raw=byId('addressValidationPilotJson');
     raw.textContent=JSON.stringify(data,null,2);
     byId('addressValidationPilotResults').style.display='block';
     byId('downloadAddressValidationPilotBtn').disabled=!latestRows.length;
+    const applyButton=byId('applyAddressValidationRepairBtn');
+    if(applyButton)applyButton.disabled=!(latestSnapshotToken&&Number(summary.validated||0)===100&&!Object.keys(summary.errors||{}).length&&data?.read_only===true);
   }
 
   async function run(){
@@ -51,6 +58,8 @@
     if(!confirm('Run a read-only Google Address Validation pilot on 100 visible suspicious lead addresses? Residential addresses will be sent to Google. No lead fields will be changed. Google usage charges may apply.'))return;
     const button=byId('runAddressValidationPilotBtn');
     button.disabled=true;button.textContent='RUNNING 100-LEAD PILOT…';
+    latestSnapshotToken='';
+    const applyButton=byId('applyAddressValidationRepairBtn');if(applyButton)applyButton.disabled=true;
     byId('addressValidationPilotResults').style.display='none';
     setMessage('Selecting 100 distinct suspicious coordinate stacks and validating their addresses…');
     try{
@@ -66,6 +75,31 @@
       setMessage(`Pilot stopped safely: ${detail}`,'error');
     }finally{
       button.disabled=false;button.textContent='RUN 100-LEAD READ-ONLY PILOT';
+    }
+  }
+
+  async function applyRepair(){
+    if(window.MCCOY_ACCESS?.access?.role!=='admin'||!latestSnapshotToken)return;
+    if(!confirm('Apply the guarded repair to this exact 100-lead pilot? Google will revalidate all 100 addresses. Only strict ACCEPT results at premise/subpremise quality, USPS DPV Y, matching address identity, and 100 meters or less will move. Original coordinates will be audited. All other pins will be preserved for Admin review. Google usage charges may apply.'))return;
+    const button=byId('applyAddressValidationRepairBtn');
+    button.disabled=true;button.textContent='REVALIDATING AND APPLYING…';
+    setMessage('Revalidating the exact pilot snapshot before any lead is changed…');
+    try{
+      const {data,error}=await sb.functions.invoke('address-validation-repair',{body:{action:'apply_safest_pilot_repair',limit:100,pilot_snapshot_token:latestSnapshotToken}});
+      if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'repair_failed');
+      render(data);
+      const result=data.result||{};
+      latestSnapshotToken='';button.disabled=true;
+      setMessage(`Guarded repair complete: ${Number(result.applied||0).toLocaleString()} pins moved · ${Number(result.admin_review||0).toLocaleString()} preserved for Admin review · ${Number(result.protected||0).toLocaleString()} field/manual protected · ${Number(result.stale||0).toLocaleString()} stale skipped.`,'ok');
+      await window.loadMcCoyLeads?.();
+    }catch(error){
+      console.error('Address Validation repair failed',error);
+      let detail=error?.message||String(error);
+      try{const payload=await error?.context?.json?.();detail=payload?.detail||payload?.error||detail;}catch{}
+      setMessage(`Repair stopped safely: ${detail}`,'error');
+      button.disabled=!latestSnapshotToken;
+    }finally{
+      button.textContent='APPLY SAFEST 100-LEAD REPAIR';
     }
   }
 
@@ -88,6 +122,7 @@
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <button id="runAddressValidationPilotBtn" class="assign-btn">RUN 100-LEAD READ-ONLY PILOT</button>
         <button id="downloadAddressValidationPilotBtn" class="assign-btn" disabled>DOWNLOAD CSV</button>
+        <button id="applyAddressValidationRepairBtn" class="primary" disabled>APPLY SAFEST 100-LEAD REPAIR</button>
         <span id="addressValidationPilotMessage" class="muted small">Compares legacy pins with Google Address Validation without changing the Lead Pool.</span>
       </div>
       <div id="addressValidationPilotResults" style="display:none;margin-top:10px">
@@ -103,6 +138,7 @@
     controls.appendChild(panel);
     byId('runAddressValidationPilotBtn').onclick=run;
     byId('downloadAddressValidationPilotBtn').onclick=download;
+    byId('applyAddressValidationRepairBtn').onclick=applyRepair;
     return true;
   }
 

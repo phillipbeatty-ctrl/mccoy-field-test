@@ -81,6 +81,15 @@ test('known centroid pins are quarantined when Google cannot verify them',()=>{
   assert.equal(patch.geocode_status,'google_no_match')
 })
 
+test('strict Address Validation repairs are treated as verified by every map and status consumer',()=>{
+  assert.equal(isGoogleVerifiedLead({geocode_status:'google_address_validation',geocode_verification_status:'google_address_validation_applied'}),true)
+  const map=fs.readFileSync(new URL('./app-lead-map.js',import.meta.url),'utf8')
+  const edge=fs.readFileSync(new URL('./supabase/functions/lead-geocode/index.ts',import.meta.url),'utf8')
+  assert.match(map,/google_address_validation_applied/)
+  assert.match(edge,/google_address_validation_applied/)
+  assert.match(edge,/address_validation_admin_review/)
+})
+
 test('browser workflow uses bounded Google verification and never restores centroid fallback',()=>{
   const map=fs.readFileSync(new URL('./app-lead-map.js',import.meta.url),'utf8')
   const resume=fs.readFileSync(new URL('./app-lead-geocode-resume.js',import.meta.url),'utf8')

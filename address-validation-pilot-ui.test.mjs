@@ -24,8 +24,16 @@ test('pilot UI never mutates a lead or calls a lead-writing API',()=>{
   assert.doesNotMatch(source,/lead-admin|lead-geocode|\.from\(['"]leads['"]\)|\.update\s*\(|\.insert\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/)
 })
 
+test('guarded repair requires the exact pilot snapshot and a second destructive-action confirmation',()=>{
+  assert.match(source,/address-validation-repair/)
+  assert.match(source,/action:'apply_safest_pilot_repair',limit:100,pilot_snapshot_token:latestSnapshotToken/)
+  assert.match(source,/Only strict ACCEPT results at premise\/subpremise quality/)
+  assert.match(source,/Original coordinates will be audited/)
+  assert.match(source,/APPLY SAFEST 100-LEAD REPAIR/)
+})
+
 test('production HTML loads the cache-busted pilot UI after the map controls',()=>{
-  assert.match(html,/app-lead-map\.js[^>]*><\/script><script src="app-address-validation-pilot\.js\?v=2026082501"/)
+  assert.match(html,/app-lead-map\.js[^>]*><\/script><script src="app-address-validation-pilot\.js\?v=2026082502"/)
 })
 
 test('standalone pilot page is Admin-gated and preserves the exact read-only contract',()=>{
@@ -33,5 +41,7 @@ test('standalone pilot page is Admin-gated and preserves the exact read-only con
   assert.match(standaloneSource,/access\.role!=='admin'/)
   assert.match(standaloneSource,/address-validation-pilot/)
   assert.match(standaloneSource,/action:'run_read_only_pilot',limit:100/)
+  assert.match(standaloneSource,/address-validation-repair/)
+  assert.match(standaloneSource,/pilot_snapshot_token:latestSnapshotToken/)
   assert.doesNotMatch(standaloneSource,/lead-admin|lead-geocode|\.from\(['"]leads['"]\)|\.update\s*\(|\.insert\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/)
 })
