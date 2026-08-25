@@ -2,6 +2,7 @@
   "name": "mccoy-field-test",
   "private": true,
   "type": "module",
+  "author": "McCoy",
   "scripts": {
     "mobile:prepare": "node scripts/prepare-mobile-web.mjs",
     "mobile:add:android": "npm run mobile:prepare && npx cap add android && node scripts/configure-native-location.mjs && npx cap sync android",
@@ -19,6 +20,7 @@
     "twilio": "^5.10.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.5.0"
+    "@capacitor/cli": "8.5.0",
+    "esbuild": "0.25.10"
   }
 }
