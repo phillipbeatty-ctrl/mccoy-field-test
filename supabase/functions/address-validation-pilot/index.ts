@@ -4,6 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import {
   addressValidationRequest,
   comparisonRow,
+  countSuspiciousCoordinateStacks,
   fieldPlacementForLead,
   selectSuspiciousCohort
 } from '../_shared/address-validation-pilot-core.mjs'
@@ -87,10 +88,18 @@ Deno.serve(async(req:Request) => {
       return query.order('id',{ascending:true})
     }
     const visibleLeads = await fetchAll(queryFactory)
-    const cohort = selectSuspiciousCohort(visibleLeads, requestedLimit)
+    const eligiblePendingCohort = selectSuspiciousCohort(visibleLeads, 50000)
+    const cohort = eligiblePendingCohort.slice(0, requestedLimit)
     if (cohort.length !== requestedLimit) return json({
-      error:'insufficient_suspicious_visible_leads', requested:requestedLimit, available:cohort.length
+      error:'insufficient_suspicious_visible_leads', requested:requestedLimit,
+      available:cohort.length,
+      suspicious_coordinate_stacks:countSuspiciousCoordinateStacks(visibleLeads)
     }, 409)
+    const cohortTierCounts = cohort.reduce((counts:any,lead:any) => {
+      const tier = String(lead.pilot_cohort_tier || 'unknown')
+      counts[tier] = (counts[tier] || 0) + 1
+      return counts
+    }, {})
 
     const cohortIds = cohort.map((lead:any) => lead.id)
     const {data:visits, error:visitError} = await admin.from('door_visits').select(
@@ -132,10 +141,15 @@ Deno.serve(async(req:Request) => {
       ok:true,
       read_only:true,
       generated_at:new Date().toISOString(),
-      cohort_rule:'One lead from each of 100 distinct visible exact-coordinate stacks containing at least two different base street addresses; stable hash sample; legacy Census matched; pending Google review.',
-      source_pool:{visible_leads:visibleLeads.length,suspicious_coordinate_stacks:selectSuspiciousCohort(visibleLeads,50000).length},
+      cohort_rule:`All ${Number(cohortTierCounts.census_matched_pending_google || 0)} eligible Census-matched pending-Google stacks, plus a stable-hash fill of ${Number(cohortTierCounts.google_mymaps_pending_google || 0)} Google My Maps pending-Google stacks; one lead from each distinct visible exact-coordinate stack containing at least two different base street addresses.`,
+      source_pool:{
+        visible_leads:visibleLeads.length,
+        suspicious_coordinate_stacks:countSuspiciousCoordinateStacks(visibleLeads),
+        eligible_pending_stacks:eligiblePendingCohort.length
+      },
       summary:{
         requested:requestedLimit,returned:rows.length,validated:validated.length,errors,
+        cohort_tiers:cohortTierCounts,
         field_confirmed:fieldConfirmed.length,field_evidence_missing:rows.length-fieldConfirmed.length,
         old_to_google_meters:{median:percentile(0.5),p90:percentile(0.9),max:distances.at(-1) ?? null},
         moved_over_25m:validated.filter(row => Number(row.old_to_google_meters)>25).length,
