@@ -4,6 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import {
   addressValidationRequest,
   comparisonRow,
+  cohortSnapshotPayload,
   countSuspiciousCoordinateStacks,
   fieldPlacementForLead,
   selectSuspiciousCohort
@@ -23,6 +24,11 @@ async function fetchAll(queryFactory:any, pageSize = 1000) {
     if ((data || []).length < pageSize) return rows
   }
   throw new Error('read_pagination_guard')
+}
+
+async function sha256(value:string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 async function validateAddress(googleKey:string, lead:any) {
@@ -95,6 +101,7 @@ Deno.serve(async(req:Request) => {
       available:cohort.length,
       suspicious_coordinate_stacks:countSuspiciousCoordinateStacks(visibleLeads)
     }, 409)
+    const pilotSnapshotToken = await sha256(cohortSnapshotPayload(cohort))
     const cohortTierCounts = cohort.reduce((counts:any,lead:any) => {
       const tier = String(lead.pilot_cohort_tier || 'unknown')
       counts[tier] = (counts[tier] || 0) + 1
@@ -137,10 +144,16 @@ Deno.serve(async(req:Request) => {
       return counts
     }, {})
     const fieldConfirmed = rows.filter(row => row.field_confirmed_latitude !== null && row.field_confirmed_longitude !== null)
+    const repairDecisions = rows.reduce((counts:any,row:any) => {
+      const key = String(row.repair_decision || 'unknown')
+      counts[key] = (counts[key] || 0) + 1
+      return counts
+    }, {})
     return json({
       ok:true,
       read_only:true,
       generated_at:new Date().toISOString(),
+      pilot_snapshot_token:pilotSnapshotToken,
       cohort_rule:`All ${Number(cohortTierCounts.census_matched_pending_google || 0)} eligible Census-matched pending-Google stacks, plus a stable-hash fill of ${Number(cohortTierCounts.google_mymaps_pending_google || 0)} Google My Maps pending-Google stacks; one lead from each distinct visible exact-coordinate stack containing at least two different base street addresses.`,
       source_pool:{
         visible_leads:visibleLeads.length,
@@ -150,6 +163,10 @@ Deno.serve(async(req:Request) => {
       summary:{
         requested:requestedLimit,returned:rows.length,validated:validated.length,errors,
         cohort_tiers:cohortTierCounts,
+        automatic_repair_eligible:validated.filter(row => row.automatic_repair_eligible === true).length,
+        admin_review:rows.filter(row => String(row.repair_decision || '').startsWith('admin_review_')).length,
+        protected:rows.filter(row => String(row.repair_decision || '').startsWith('protected_')).length,
+        repair_decisions:repairDecisions,
         field_confirmed:fieldConfirmed.length,field_evidence_missing:rows.length-fieldConfirmed.length,
         old_to_google_meters:{median:percentile(0.5),p90:percentile(0.9),max:distances.at(-1) ?? null},
         moved_over_25m:validated.filter(row => Number(row.old_to_google_meters)>25).length,
