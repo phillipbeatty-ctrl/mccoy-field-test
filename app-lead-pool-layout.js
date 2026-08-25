@@ -82,6 +82,17 @@
     });
   }
 
+  function prepareWorkspace(panel){
+    const shell=document.querySelector('#leads>.card');
+    if(shell){
+      const mapVisible=Boolean(panel)&&panel.style.display!=='none'&&!panel.hidden;
+      shell.classList.toggle('lead-pool-map-workspace',mapVisible);
+    }
+    const modeBar=document.getElementById('leadModeBar');
+    const demoButton=document.getElementById('addDemoLeadsBtn');
+    if(modeBar&&demoButton&&demoButton.parentElement!==modeBar)modeBar.insertBefore(demoButton,modeBar.firstElementChild);
+  }
+
   function applyLayout(){
     ensureStyles();
     const role=currentRole();
@@ -90,6 +101,7 @@
     const mapCard=map?.closest('.card');
     const sideCard=document.getElementById('mapLeadList')?.closest('.card')||document.getElementById('bulkAssignMapBtn')?.closest('.card');
     const toggle=ensureManagerToggle();
+    prepareWorkspace(panel);
     if(!role){
       document.body.classList.remove('lead-pool-manager-position','lead-pool-knock-position','lead-pool-rep-layout');
       panel?.classList.remove('lead-map-expanded');
@@ -149,7 +161,7 @@
   window.addEventListener('mccoy-access-ready',applyLayout);
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(applyLayout,0));
   document.addEventListener('click',event=>{
-    if(event.target?.closest?.('[data-view="leads"],#leadMapView'))setTimeout(applyLayout,0);
+    if(event.target?.closest?.('[data-view="leads"],#leadMapView,#leadListView'))setTimeout(applyLayout,0);
   });
   setTimeout(applyLayout,1000);
 })();

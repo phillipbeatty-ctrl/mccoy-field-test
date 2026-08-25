@@ -54,6 +54,67 @@ body:has(#leads.view.active) .topbar h1{margin-bottom:0}
 body:has(#leads.view.active) .topbar .muted{line-height:1.0}
 body:has(#leads.view.active) .main{height:100vh;min-height:100vh;overflow:hidden}
 body:has(#leads.view.active) #leads.view.active{height:calc(100vh - 54px);overflow:hidden}
+body:has(#leads.view.active) #modeBadge{display:none}
+
+/* Desktop Lead Pool: keep the map and assignment/disposition work visible together. */
+@media(min-width:901px){
+  #leads>.card.lead-pool-map-workspace{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) clamp(330px,30vw,440px);
+    grid-template-rows:auto auto auto auto minmax(0,1fr);
+    column-gap:7px;
+    row-gap:3px;
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+  #leads>.lead-pool-map-workspace>.card-head{grid-column:1;grid-row:1;justify-content:flex-start;min-width:0}
+  #leads>.lead-pool-map-workspace>#leadModeBar{grid-column:1;grid-row:2;min-width:0}
+  #leads>.lead-pool-map-workspace>#leadCleanupStatus{grid-column:1;grid-row:3;min-width:0;margin:0!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #leads>.lead-pool-map-workspace>.toolbar{grid-column:1;grid-row:4;min-width:0}
+  #leads>.lead-pool-map-workspace>#leadPager,
+  #leads>.lead-pool-map-workspace>#leadsTable{display:none!important}
+  #leads>.lead-pool-map-workspace>#leadMapPanel,
+  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2{display:contents!important}
+  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2>.card:first-child{
+    grid-column:1;
+    grid-row:5;
+    width:100%!important;
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2>.card:last-child{
+    grid-column:2;
+    grid-row:1/6;
+    width:100%!important;
+    min-width:0!important;
+    max-width:none!important;
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+  #leads>.lead-pool-map-workspace #leadMapCanvas,
+  #leads>.lead-pool-map-workspace #leadMapFrame{height:100%!important;min-height:0!important;max-height:none!important}
+  #leads>.lead-pool-map-workspace #mapLeadList{
+    flex:0 1 18vh!important;
+    min-height:92px!important;
+    max-height:170px!important;
+  }
+  #leads>.lead-pool-map-workspace #mapLeadDetail{
+    flex:1 1 auto;
+    min-height:180px;
+    max-height:none;
+    overflow:auto;
+  }
+  #leads>.lead-pool-map-workspace #leadCorrectionPanel{
+    max-height:22vh;
+    overflow:auto;
+  }
+  #leads>.lead-pool-map-workspace .toolbar #teamFilter{flex:0 1 140px;max-width:140px}
+  #leads>.lead-pool-map-workspace .toolbar #leadOwnerFilter{flex:0 1 155px;max-width:155px}
+  #leads>.lead-pool-map-workspace .toolbar #leadSearch{flex:0 1 210px;width:min(210px,100%);max-width:210px;min-width:95px}
+}
 
 .spotio-disposition-panel{margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;display:grid;gap:14px}
 .spotio-disposition-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
