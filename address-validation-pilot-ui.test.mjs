@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises'
 
 const source=await readFile(new URL('./app-address-validation-pilot.js',import.meta.url),'utf8')
 const html=await readFile(new URL('./index.html',import.meta.url),'utf8')
+const standaloneHtml=await readFile(new URL('./address-validation-pilot.html',import.meta.url),'utf8')
+const standaloneSource=await readFile(new URL('./address-validation-pilot-standalone.js',import.meta.url),'utf8')
 
 test('Admin pilot invokes exactly 100 read-only Address Validation comparisons',()=>{
   assert.match(source,/address-validation-pilot/)
@@ -24,4 +26,12 @@ test('pilot UI never mutates a lead or calls a lead-writing API',()=>{
 
 test('production HTML loads the cache-busted pilot UI after the map controls',()=>{
   assert.match(html,/app-lead-map\.js[^>]*><\/script><script src="app-address-validation-pilot\.js\?v=2026082501"/)
+})
+
+test('standalone pilot page is Admin-gated and preserves the exact read-only contract',()=>{
+  assert.match(standaloneHtml,/100-lead Address Validation pilot/)
+  assert.match(standaloneSource,/access\.role!=='admin'/)
+  assert.match(standaloneSource,/address-validation-pilot/)
+  assert.match(standaloneSource,/action:'run_read_only_pilot',limit:100/)
+  assert.doesNotMatch(standaloneSource,/lead-admin|lead-geocode|\.from\(['"]leads['"]\)|\.update\s*\(|\.insert\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/)
 })
