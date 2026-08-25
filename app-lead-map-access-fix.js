@@ -33,18 +33,16 @@
     if(!access){
       btn.style.display='inline-block';
       btn.disabled=true;
-      if(!window.MCCOY_RESUME_GEOCODING) btn.textContent='GEOCODE REAL LEADS';
-      if(progress&&!window.MCCOY_RESUME_GEOCODING)progress.textContent='Waiting for account permissions…';
+      btn.textContent='VERIFY NEXT 25 WITH GOOGLE';
+      if(progress)progress.textContent='Waiting for account permissions…';
       if(checks<MAX_CHECKS)setTimeout(syncGeocodeControl,500);
       return;
     }
     if(access.active&&access.role==='admin'){
       btn.style.display='inline-block';
-      btn.disabled=false;
-      if(!window.MCCOY_RESUME_GEOCODING){
-        btn.textContent='GEOCODE REAL LEADS';
-        if(progress&&/managed by Admin|Waiting for account permissions/i.test(progress.textContent||''))progress.textContent='Admin geocoding controls ready.';
-      }
+      btn.disabled=btn.dataset.googleConfigured==='0';
+      btn.textContent='VERIFY NEXT 25 WITH GOOGLE';
+      if(progress&&/managed by Admin|Waiting for account permissions/i.test(progress.textContent||''))progress.textContent='Admin Google verification controls ready.';
       return;
     }
     btn.style.display='none';

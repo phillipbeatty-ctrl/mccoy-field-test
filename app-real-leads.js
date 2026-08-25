@@ -2,8 +2,6 @@
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   let loadPromise=null;
   let startupComplete=false,startupTimer=null;
-  let fallbackRunning=false;
-  const fallbackAttemptedBatches=new Set();
   let ownersById=new Map(),ownersByEmail=new Map();
 
   async function waitForActiveAccess(timeoutMs=15000){
@@ -91,6 +89,12 @@
       fullAddress:[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', '),
       lat:validCoordinate(r.latitude),lng:validCoordinate(r.longitude),
       geocodeStatus:r.geocode_status||null,
+      geocodeProvider:r.geocode_provider||null,
+      geocodePrecision:r.geocode_precision||null,
+      geocodeVerificationStatus:r.geocode_verification_status||null,
+      geocodeComparisonDistanceMeters:r.geocode_comparison_distance_meters==null?null:Number(r.geocode_comparison_distance_meters),
+      geocodeCandidateLat:r.geocode_candidate_latitude==null?undefined:Number(r.geocode_candidate_latitude),
+      geocodeCandidateLng:r.geocode_candidate_longitude==null?undefined:Number(r.geocode_candidate_longitude),
       assignedRepId:r.assigned_rep_id||null,
       assignedManagerId:r.assigned_manager_id||null,
       assignedAdminEmail:r.assigned_admin_email||null,
@@ -124,31 +128,6 @@
     return real;
   }
 
-  async function resolveMissingCoordinates(batchId,missingCount){
-    if(!batchId||!missingCount||fallbackRunning||fallbackAttemptedBatches.has(batchId))return;
-    fallbackRunning=true;fallbackAttemptedBatches.add(batchId);
-    try{
-      let remaining=Number(missingCount||0),totalResolved=0,round=0;
-      const maxRounds=Math.min(20,Math.max(1,Math.ceil(remaining/500)+2));
-      while(remaining>0&&round<maxRounds){
-        round++;
-        const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'resolve_missing_locations',limit:Math.min(500,remaining)}});
-        if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'missing_location_resolution_failed');
-        const resolved=Number(data.resolved||0);
-        totalResolved+=resolved;
-        console.log(`McCoy location fallback round ${round}: ${resolved} resolved (${data.exact||0} exact, ${data.approx_zip||0} ZIP, ${data.approx_city||0} city); ${data.still_unmatched||0} still unmatched in this round.`);
-        if(resolved<=0)break;
-        remaining=Math.max(0,remaining-resolved);
-        await sleep(150);
-      }
-      if(totalResolved>0){
-        const refreshed=await loadRealLeadRowsFromServer();
-        applyLoadedResult(refreshed);
-      }
-    }catch(e){console.warn('Automatic missing-coordinate fallback paused',e);}
-    finally{fallbackRunning=false;}
-  }
-
   async function performLoad(){
     const {data:{user}}=await sb.auth.getUser();
     if(!user)throw new Error('No authenticated user');
@@ -161,8 +140,7 @@
     const real=applyLoadedResult(result);startupComplete=true;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
     window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000};
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
-    if(missing&&access.role==='admin')setTimeout(()=>resolveMissingCoordinates(result.batchId,missing),500);
-    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting location fallback.`);
+    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting verified placement.`);
     return real;
   }
 
@@ -186,12 +164,7 @@
   }
 
   window.loadMcCoyLeads=loadMcCoyLeads;
-  window.MCCOY_RESOLVE_MISSING_LEAD_LOCATIONS=()=>{
-    const batchId=state.realLeads?.find(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng)))?.importBatchId||state.realLeads?.[0]?.importBatchId;
-    const missing=(state.realLeads||[]).filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
-    fallbackAttemptedBatches.delete(batchId);
-    return resolveMissingCoordinates(batchId,missing);
-  };
+  window.MCCOY_RESOLVE_MISSING_LEAD_LOCATIONS=()=>Promise.resolve({ok:false,reason:'admin_google_verification_required'});
   function scheduleInitialLoad(delay=0){if(startupComplete||loadPromise)return;clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(!startupComplete&&!loadPromise)loadMcCoyLeads();},delay);}
   sb.auth.onAuthStateChange((_event,session)=>{if(session)scheduleInitialLoad(60);});
   window.addEventListener('mccoy-access-ready',()=>scheduleInitialLoad(0));

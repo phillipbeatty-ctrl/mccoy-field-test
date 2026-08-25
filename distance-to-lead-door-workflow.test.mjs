@@ -16,11 +16,19 @@ const migration=fs.readFileSync(new URL('./supabase/migrations/20260824152622_co
 test('quarter-mile boundary and closest verified lead are deterministic',()=>{
   assert.equal(core.QUARTER_MILE_METERS,402.336)
   const now=Date.now(),gps={lat:45,lng:-122,accuracy:8,capturedAt:now}
-  const near={dbId:'a',lat:45.0001,lng:-122,geocodeStatus:'exact'}
-  const far={dbId:'b',lat:45.001,lng:-122,geocodeStatus:'exact'}
+  const near={dbId:'a',lat:45.0001,lng:-122,geocodeStatus:'manual'}
+  const far={dbId:'b',lat:45.001,lng:-122,geocodeStatus:'field_verified'}
   const approximate={dbId:'c',lat:45,lng:-122,geocodeStatus:'approx_zip'}
   assert.equal(core.nearestLead([far,approximate,near],gps).lead.dbId,'a')
   assert.equal(core.distanceState(near,gps).withinRange,true)
+})
+
+test('address geocoding is not mistaken for a verified physical door',()=>{
+  for(const status of ['matched','google_mymaps','google_rooftop','field_gps','approx_zip']){
+    assert.equal(core.verifiedLead({dbId:'lead',lat:45,lng:-122,geocodeStatus:status}),false)
+  }
+  assert.equal(core.verifiedLead({dbId:'lead',lat:45,lng:-122,geocodeStatus:'manual'}),true)
+  assert.equal(core.verifiedLead({dbId:'lead',lat:45,lng:-122,geocodeStatus:'field_verified'}),true)
 })
 
 test('automatic disposition is conservative until a full minute',()=>{

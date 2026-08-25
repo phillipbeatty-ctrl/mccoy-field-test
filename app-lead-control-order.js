@@ -9,10 +9,7 @@
     const visible=document.getElementById('selectVisiblePinsBtn');
     const refresh=document.getElementById('refreshLeadPoolBtn');
 
-    if(geo && !geo.disabled && (geo.textContent==='GEOCODE REAL LEADS' || geo.textContent==='GEOCODING COMPLETE')){
-      const progress=(document.getElementById('geocodeProgress')?.textContent||'').toLowerCase();
-      if(progress.includes('remaining 0') || progress.includes('not processed. 0') || progress.includes('100%') || progress.includes('complete')) geo.textContent='GEOCODING COMPLETE';
-    }
+    if(geo&&geo.textContent==='GEOCODING COMPLETE')geo.textContent='VERIFY NEXT 25 WITH GOOGLE';
     if(lasso && lasso.textContent.trim()==='DRAW LASSO…'){
       lasso.textContent='🪢';
       lasso.title='Draw lasso around leads';
