@@ -31,8 +31,12 @@ jobs:
             test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
           done
       - run: npm install
-      - run: node --test mobile/native-location.test.mjs
+      - run: node --test mobile/native-location.test.mjs mobile/ipados-layout.test.mjs
       - run: npm run mobile:add:ios
+      - name: Verify universal iPhone and iPad target
+        run: |
+          grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj
+          grep -q 'UISupportedInterfaceOrientations~ipad' ios/App/App/Info.plist
       - name: Install Apple Distribution certificate and provisioning profile
         run: |
           set -euo pipefail
@@ -104,6 +108,18 @@ jobs:
           IPA=$(find "$RUNNER_TEMP/field-coach-export" -name '*.ipa' -print -quit)
           test -n "$IPA"
           xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Record physical Apple acceptance gate
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Field Coach physical release gate
+          TestFlight upload does **not** authorize production promotion by itself.
+
+          The same signed build must pass the background-GPS acceptance procedure on:
+          - a physical iPhone, and
+          - a physical iPad.
+
+          Both devices must verify START KNOCKING, background app switching, screen-lock movement, uninterrupted native_background_location history, and termination after STOP SESSION. iPad must additionally pass portrait/landscape plus narrow Split View or Stage Manager layout checks.
+          EOF
       - uses: actions/upload-artifact@v4
         with:
           name: field-coach-ios-testflight-ipa
