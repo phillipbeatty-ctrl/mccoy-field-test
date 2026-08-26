@@ -14,6 +14,6 @@ for(const directory of ['assets','icons']){try{await cp(join(root,directory),joi
 await build({entryPoints:[join(root,'mobile','native-entry.mjs')],outfile:join(out,'app-native-location.js'),bundle:true,format:'iife',platform:'browser',target:['es2020']});
 const indexPath=join(out,'index.html');
 let html=await readFile(indexPath,'utf8');
-html=html.replace('</body>','  <script src="app-native-location.js"></script>\n</body>');
+html=html.replace('</body>','  <script src="app-ipad-layout.js"></script>\n  <script src="app-native-location.js"></script>\n</body>');
 await writeFile(indexPath,html);
-console.log('Prepared Field Coach mobile/www with native location bridge.');
+console.log('Prepared Field Coach mobile/www with iPad responsive layout and native location bridge.');
