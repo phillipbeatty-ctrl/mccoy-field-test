@@ -8,6 +8,7 @@ on:
     paths:
       - 'mobile/**'
       - 'scripts/**'
+      - 'app-ipad-layout.js'
       - 'capacitor.config.ts'
       - 'package.json'
       - '.github/workflows/mobile-ios-dev.yml'
@@ -15,25 +16,66 @@ on:
 jobs:
   build-ios-simulator:
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [iphone, ipad]
+    env:
+      DEVICE_FAMILY: ${{ matrix.family }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm install
-      - run: node --test mobile/native-location.test.mjs
+      - run: node --test mobile/native-location.test.mjs mobile/ipados-layout.test.mjs
       - run: npm run mobile:add:ios
-      - name: Verify Field Coach branding and location background mode
+      - name: Verify universal target, branding, and location background mode
         run: |
           grep -q '<string>location</string>' ios/App/App/Info.plist
-          grep -q 'Field Coach' ios/App/App/Info.plist || true
-      - name: Compile unsigned iOS simulator build
+          grep -q 'UISupportedInterfaceOrientations~ipad' ios/App/App/Info.plist
+          grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj
+      - name: Select simulator for matrix family
+        run: |
+          set -euo pipefail
+          UDID=$(python3 - <<'PY'
+          import json, os, subprocess
+          family=os.environ['DEVICE_FAMILY']
+          needle='iPad' if family=='ipad' else 'iPhone'
+          data=json.loads(subprocess.check_output(['xcrun','simctl','list','devices','available','-j']))
+          candidates=[]
+          for runtime, devices in data.get('devices',{}).items():
+              for device in devices:
+                  if needle in device.get('name','') and device.get('isAvailable',True):
+                      candidates.append((runtime,device['name'],device['udid']))
+          if not candidates:
+              raise SystemExit(f'No available {needle} simulator')
+          candidates.sort(reverse=True)
+          print(candidates[0][2])
+          PY
+          )
+          echo "SIMULATOR_UDID=$UDID" >> "$GITHUB_ENV"
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+      - name: Compile unsigned ${{ matrix.family }} simulator build
         run: |
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData-$DEVICE_FAMILY" \
             CODE_SIGNING_ALLOWED=NO \
             build
+      - name: Install and launch on ${{ matrix.family }} simulator
+        run: |
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/DerivedData-$DEVICE_FAMILY/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP"
+          xcrun simctl install "$SIMULATOR_UDID" "$APP"
+          xcrun simctl launch "$SIMULATOR_UDID" com.mccoy.fieldcoach.dev
+          sleep 3
+          xcrun simctl terminate "$SIMULATOR_UDID" com.mccoy.fieldcoach.dev || true
