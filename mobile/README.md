@@ -25,6 +25,10 @@ This is a development-only Capacitor shell for the existing McCoy web applicatio
 - The Field Session and Live Session Stats cards use the wider tablet area while preserving the same START/STOP session controls.
 - iPad touch controls use a minimum 48 px target size and the map is invalidated after tablet/window-layout changes.
 
+## Apple simulator matrix
+
+The `Field Coach iOS Dev` GitHub Action runs separate **iPhone** and **iPad** simulator jobs. Each job generates the universal Capacitor project, verifies target family `1,2`, boots the appropriate simulator family, compiles the unsigned app for that simulator, installs it, launches `com.mccoy.fieldcoach.dev`, and terminates it after the launch smoke test.
+
 ## Android device test
 
 The GitHub Action `Field Coach Android Dev` builds a debug APK artifact named `field-coach-android-dev-apk`.
