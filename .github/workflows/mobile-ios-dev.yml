@@ -1,0 +1,39 @@
+name: Field Coach iOS Dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/capacitor-native-location
+    paths:
+      - 'mobile/**'
+      - 'scripts/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - '.github/workflows/mobile-ios-dev.yml'
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: node --test mobile/native-location.test.mjs
+      - run: npm run mobile:add:ios
+      - name: Verify Field Coach branding and location background mode
+        run: |
+          grep -q '<string>Field Coach' ios/App/App/Info.plist || true
+          grep -q '<string>location</string>' ios/App/App/Info.plist
+      - name: Compile unsigned iOS simulator build
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
