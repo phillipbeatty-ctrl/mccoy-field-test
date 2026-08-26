@@ -17,14 +17,20 @@ async function patchAndroid(){
 }
 
 async function patchIos(){
-  const path='ios/App/App/Info.plist';
+  const plistPath='ios/App/App/Info.plist';
+  const projectPath='ios/App/App.xcodeproj/project.pbxproj';
   try{
-    let source=await readFile(path,'utf8');
-    const insert=`\n\t<key>NSLocationWhenInUseUsageDescription</key>\n\t<string>Field Coach uses your location during an active field session to measure routes, arrival distance, and field activity.</string>\n\t<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>\n\t<string>Field Coach uses background location only while a field session is active so work activity can continue when you use another app or lock the device.</string>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t</array>\n`;
+    let source=await readFile(plistPath,'utf8');
+    const insert=`\n\t<key>NSLocationWhenInUseUsageDescription</key>\n\t<string>Field Coach uses your location during an active field session to measure routes, arrival distance, and field activity.</string>\n\t<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>\n\t<string>Field Coach uses background location only while a field session is active so work activity can continue when you use another app or lock the device.</string>\n\t<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>location</string>\n\t</array>\n\t<key>UISupportedInterfaceOrientations~ipad</key>\n\t<array>\n\t\t<string>UIInterfaceOrientationPortrait</string>\n\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>\n\t\t<string>UIInterfaceOrientationLandscapeLeft</string>\n\t\t<string>UIInterfaceOrientationLandscapeRight</string>\n\t</array>\n`;
     if(!source.includes('NSLocationAlwaysAndWhenInUseUsageDescription'))source=source.replace('</dict>',`${insert}</dict>`);
-    await writeFile(path,source);
+    else if(!source.includes('UISupportedInterfaceOrientations~ipad'))source=source.replace('</dict>',`\n\t<key>UISupportedInterfaceOrientations~ipad</key>\n\t<array>\n\t\t<string>UIInterfaceOrientationPortrait</string>\n\t\t<string>UIInterfaceOrientationPortraitUpsideDown</string>\n\t\t<string>UIInterfaceOrientationLandscapeLeft</string>\n\t\t<string>UIInterfaceOrientationLandscapeRight</string>\n\t</array>\n</dict>`);
+    await writeFile(plistPath,source);
+
+    let project=await readFile(projectPath,'utf8');
+    project=project.replace(/TARGETED_DEVICE_FAMILY = [^;]+;/g,'TARGETED_DEVICE_FAMILY = "1,2";');
+    await writeFile(projectPath,project);
   }catch(error){console.warn('iOS project not present yet:',error.message);}
 }
 
 await Promise.all([patchAndroid(),patchIos()]);
-console.log('Field Coach native location permissions configured.');
+console.log('Field Coach native location permissions and universal iPhone+iPad support configured.');
