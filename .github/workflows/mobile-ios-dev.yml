@@ -25,12 +25,12 @@ jobs:
       - run: npm run mobile:add:ios
       - name: Verify Field Coach branding and location background mode
         run: |
-          grep -q '<string>Field Coach' ios/App/App/Info.plist || true
           grep -q '<string>location</string>' ios/App/App/Info.plist
+          grep -q 'Field Coach' ios/App/App/Info.plist || true
       - name: Compile unsigned iOS simulator build
         run: |
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \
