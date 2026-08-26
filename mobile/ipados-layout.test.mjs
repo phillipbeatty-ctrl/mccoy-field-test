@@ -7,12 +7,14 @@ const prepare=await readFile(new URL('../scripts/prepare-mobile-web.mjs',import.
 const nativeConfig=await readFile(new URL('../scripts/configure-native-location.mjs',import.meta.url),'utf8');
 const workflow=await readFile(new URL('../.github/workflows/mobile-ios-dev.yml',import.meta.url),'utf8');
 
-test('mobile bundle injects iPad-only responsive layout support',()=>{
+test('mobile bundle injects iPad-only responsive layout support and narrow fallback',()=>{
   assert.match(prepare,/app-ipad-layout\.js/);
   assert.match(ipadLayout,/field-coach-ipad-wide/);
   assert.match(ipadLayout,/#leadMapPanel\.lead-map-expanded/);
   assert.match(ipadLayout,/#mapLeadDetail/);
   assert.match(ipadLayout,/removeAttribute\('inert'\)/);
+  assert.match(ipadLayout,/WIDE_IPAD_MIN=900/);
+  assert.match(ipadLayout,/side\.setAttribute\('inert',''\)/);
 });
 
 test('generated iOS target is explicitly universal iPhone and iPad',()=>{
