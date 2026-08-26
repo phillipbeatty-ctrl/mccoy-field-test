@@ -2,7 +2,7 @@
   "name": "mccoy-field-test",
   "private": true,
   "type": "module",
-  "author": "McCoy",
+  "author": "McCoy Platform LLC",
   "scripts": {
     "mobile:prepare": "node scripts/prepare-mobile-web.mjs",
     "mobile:add:android": "npm run mobile:prepare && npx cap add android && node scripts/configure-native-location.mjs && npx cap sync android",
