@@ -2,11 +2,6 @@ name: Field Coach iOS TestFlight
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - codex/capacitor-native-location
-    paths:
-      - '.github/workflows/mobile-ios-testflight.yml'
 
 permissions:
   contents: read
