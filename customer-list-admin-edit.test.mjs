@@ -7,6 +7,10 @@ const migration = readFileSync(
   new URL('./supabase/migrations/20260827173000_admin_customer_list_sale_edit.sql', import.meta.url),
   'utf8'
 )
+const typeFixMigration = readFileSync(
+  new URL('./supabase/migrations/20260827175500_fix_admin_sale_edit_chargeback_type.sql', import.meta.url),
+  'utf8'
+)
 
 test('approved Customer List sales are editable without losing approval', () => {
   assert.match(ui, /admin_edit_customer_list_sale/)
@@ -38,4 +42,13 @@ test('Customer List patch avoids the runaway observer pattern', () => {
   assert.doesNotMatch(ui, /new\s+MutationObserver|MutationObserver\s*\(/)
   assert.match(ui, /bounded timers and event delegation/)
   assert.match(ui, /scheduleRowPatch/)
+})
+
+test('Admin sale edit keeps commission_chargeback_applied numeric', () => {
+  assert.match(typeFixMigration, /commission_chargeback_applied\s*=\s*case[\s\S]*::numeric/)
+  assert.doesNotMatch(
+    typeFixMigration,
+    /commission_chargeback_applied\s*=\s*case[\s\S]*::boolean[\s\S]*else\s+s\.commission_chargeback_applied/
+  )
+  assert.match(typeFixMigration, /match sales_records/)
 })
