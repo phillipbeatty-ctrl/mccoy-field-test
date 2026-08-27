@@ -1,12 +1,24 @@
-// Admin Customer List controls: edit approved sales in place and return them to SALE REVIEW without a page-wide observer.
+// Admin Customer List controls: edit approved sales in place, return them to SALE REVIEW,
+// and keep the Admin Review provider selector aligned with the Sales Hub provider list.
+// Deliberately uses bounded timers and event delegation; no page-wide MutationObserver.
 (function(){
+  if(window.MCCOY_CUSTOMER_LIST_ADMIN_CONTROLS)return;
+  window.MCCOY_CUSTOMER_LIST_ADMIN_CONTROLS=true;
+
   const speedOptions=[[200,'200 Mbps'],[300,'300 Mbps'],[500,'500 Mbps'],[600,'600 Mbps'],[940,'940 Mbps'],[1000,'1 GIG'],[2000,'2 GIG'],[3000,'3 GIG'],[5000,'5 GIG'],[8000,'8 GIG'],[10000,'10 GIG']];
-  const state={records:[],users:[],loading:false,activeSale:null};
+  const fallbackProviders=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
+  const state={records:[],users:[],loading:false,activeSale:null,reviewProviders:new Map()};
   const byId=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const normalized=value=>String(value||'').trim().toLowerCase();
   const isAdmin=()=>window.MCCOY_ACCESS?.access?.role==='admin';
   const dateValue=value=>String(value||'').slice(0,10);
+
+  function providerValues(){
+    const salesHub=document.getElementById('sessionIsp');
+    const values=salesHub?[...salesHub.options].map(option=>String(option.value||option.textContent||'').trim()).filter(Boolean):fallbackProviders;
+    return [...new Set(values.length?values:fallbackProviders)];
+  }
 
   const css=document.createElement('style');
   css.textContent=`
@@ -114,7 +126,17 @@
     });
   }
 
+  function scheduleRowPatch(){
+    [0,80,220,500,900,1500].forEach(delay=>setTimeout(patchRows,delay));
+  }
+
   function option(value,label,current){return `<option value="${esc(value)}" ${String(value)===String(current??'')?'selected':''}>${esc(label)}</option>`;}
+  function providerOptions(current){
+    const providers=providerValues();
+    const selected=String(current||'');
+    const legacy=selected&&!providers.includes(selected)?`<option value="${esc(selected)}" selected>${esc(selected)} · current</option>`:'';
+    return `<option value="">Choose provider…</option>${legacy}${providers.map(provider=>option(provider,provider,selected)).join('')}`;
+  }
 
   async function openEditor(saleId){
     const panel=ensureEditor(),body=byId('customerEditBody');
@@ -134,7 +156,7 @@
           <label class="customer-edit-wide">Service address<input data-customer-edit="service_address" value="${esc(sale.service_address)}"></label>
           <label>Provider order number<input data-customer-edit="provider_order_number" value="${esc(sale.provider_order_number)}"></label>
           <label>Provider account number<input data-customer-edit="provider_account_number" value="${esc(sale.provider_account_number)}"></label>
-          <label>ISP<input data-customer-edit="isp" value="${esc(sale.isp)}"></label>
+          <label>ISP<select data-customer-edit="isp">${providerOptions(sale.isp)}</select></label>
           <label>Order date<input data-customer-edit="order_date" type="date" value="${esc(dateValue(sale.order_date))}"></label>
           <label>Install date<input data-customer-edit="install_date" type="date" value="${esc(dateValue(sale.install_date))}"></label>
           <label>Internet speed<select data-customer-edit="internet_speed_mbps"><option value="">Choose speed…</option>${speedOptions.map(([value,label])=>option(value,label,Number(sale.internet_speed_mbps)||'')).join('')}</select></label>
@@ -175,7 +197,7 @@
       if(message){message.textContent='Saved. This sale remains in Customer List.';message.style.color='#166534';}
       setCustomerMessage('Customer sale corrected. It remains approved in Customer List.');
       document.getElementById('customerRefresh')?.click();
-      setTimeout(()=>{closeEditor();fetchCustomerRecords();},300);
+      setTimeout(()=>{closeEditor();fetchCustomerRecords().then(scheduleRowPatch);},300);
     }catch(error){
       console.error('Customer List Admin edit failed',error);
       if(message){message.textContent=error?.message||'Unable to save corrections.';message.style.color='#991b1b';}
@@ -204,11 +226,52 @@
       setCustomerMessage('Sale moved immediately from Customer List to Admin SALE REVIEW. Its original processed timestamp and customer information were preserved.');
       window.dispatchEvent(new CustomEvent('mccoy-sale-review-changed',{detail:{saleId}}));
       setTimeout(()=>document.getElementById('customerRefresh')?.click(),100);
-      setTimeout(fetchCustomerRecords,350);
+      setTimeout(()=>fetchCustomerRecords().then(scheduleRowPatch),350);
     }catch(error){
       console.error('Return to SALE REVIEW failed',error);
       setCustomerMessage(error?.message||'Unable to move this sale to SALE REVIEW.',true);
       delete button.dataset.moving;button.disabled=false;button.textContent='NOT A SALE';
+    }
+  }
+
+  function patchReviewProviderInputs(){
+    const providers=providerValues();
+    document.querySelectorAll('#saleFeed input[data-field="isp"]').forEach(input=>{
+      const saleId=input.dataset.sale||'';
+      const current=state.reviewProviders.has(saleId)?state.reviewProviders.get(saleId):String(input.value||'');
+      const select=document.createElement('select');
+      select.dataset.sale=saleId;
+      select.dataset.field='isp';
+      select.dataset.adminReviewProvider='1';
+      select.appendChild(new Option('Choose provider…',''));
+      if(current&&!providers.includes(current))select.appendChild(new Option(`${current} · current`,current));
+      for(const provider of providers)select.appendChild(new Option(provider,provider));
+      select.value=current;
+      input.replaceWith(select);
+    });
+  }
+
+  function scheduleReviewProviderPatch(){
+    [0,60,180,420,800,1300].forEach(delay=>setTimeout(patchReviewProviderInputs,delay));
+  }
+
+  async function saveReviewProvider(select){
+    if(select.dataset.saving==='1')return;
+    const saleId=select.dataset.sale,value=select.value;
+    if(!saleId)return;
+    const message=byId(`saveState-${saleId}`);
+    select.dataset.saving='1';select.disabled=true;
+    if(message){message.textContent='Saving provider…';message.style.color='#64748b';}
+    try{
+      const {error}=await sb.rpc('admin_edit_any_sale',{p_sale_id:saleId,p_changes:{isp:value}});
+      if(error)throw error;
+      state.reviewProviders.set(saleId,value);
+      if(message){message.textContent='Provider saved.';message.style.color='#166534';}
+    }catch(error){
+      console.error('Admin Review provider save failed',error);
+      if(message){message.textContent=error?.message||'Provider save failed.';message.style.color='#991b1b';}
+    }finally{
+      delete select.dataset.saving;select.disabled=false;
     }
   }
 
@@ -230,12 +293,31 @@
       else fetchCustomerRecords().then(()=>{patchRows();const retryId=edit.dataset.saleId||edit.closest('tr')?.dataset.saleId;if(retryId)openEditor(retryId);else setCustomerMessage('Unable to identify this sale. Refresh Customer List and retry.',true);});
       return;
     }
-    if(event.target?.closest?.('#customerListPageButton,#customerRefresh'))setTimeout(()=>fetchCustomerRecords(),350);
+    if(event.target?.closest?.('#customerListPageButton,#customerRefresh')){
+      scheduleRowPatch();
+      setTimeout(()=>fetchCustomerRecords().then(scheduleRowPatch),350);
+    }
+    if(event.target?.closest?.('#saleReviewBtn,#saleReviewRefresh'))scheduleReviewProviderPatch();
   });
 
-  document.addEventListener('input',event=>{if(event.target?.id==='customerSearch')setTimeout(patchRows,0);});
-  window.addEventListener('mccoy-access-ready',()=>setTimeout(fetchCustomerRecords,250));
-  window.addEventListener('mccoy-customer-list-changed',()=>{document.getElementById('customerRefresh')?.click();setTimeout(fetchCustomerRecords,300);});
-  window.addEventListener('mccoy-sale-review-changed',()=>setTimeout(()=>document.getElementById('saleReviewRefresh')?.click(),100));
-  setTimeout(()=>{if(isAdmin())fetchCustomerRecords();},700);
+  document.addEventListener('change',event=>{
+    const provider=event.target?.closest?.('#saleFeed select[data-admin-review-provider="1"]');
+    if(provider)saveReviewProvider(provider);
+  });
+
+  document.addEventListener('input',event=>{
+    if(event.target?.id==='customerSearch')scheduleRowPatch();
+    if(event.target?.id==='saleReviewSearch')scheduleReviewProviderPatch();
+  });
+
+  window.addEventListener('mccoy-access-ready',()=>setTimeout(()=>fetchCustomerRecords().then(scheduleRowPatch),250));
+  window.addEventListener('mccoy-customer-list-changed',()=>{
+    document.getElementById('customerRefresh')?.click();
+    setTimeout(()=>fetchCustomerRecords().then(scheduleRowPatch),300);
+  });
+  window.addEventListener('mccoy-sale-review-changed',()=>{
+    setTimeout(()=>document.getElementById('saleReviewRefresh')?.click(),100);
+    scheduleReviewProviderPatch();
+  });
+  setTimeout(()=>{if(isAdmin())fetchCustomerRecords().then(scheduleRowPatch);scheduleReviewProviderPatch();},700);
 })();
