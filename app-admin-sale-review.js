@@ -14,7 +14,7 @@
     .sale-review-shell{max-width:1500px;margin:0 auto;padding:18px}.sale-feed{display:grid;gap:12px}.sale-row{background:#fff;border:1px solid #dbe4f0;border-radius:14px;padding:14px}
     .sale-row-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.sale-seq{font-weight:900}.sale-meta{font-size:12px;color:#64748b;margin-top:3px}
     .sale-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.sale-grid label{display:grid;gap:4px;font-size:11px;font-weight:800}.sale-grid input,.sale-grid select,.sale-grid textarea{padding:9px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font:inherit;min-width:0}.sale-wide{grid-column:1/-1}
-    .sale-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px}.sale-save-state{font-size:12px;color:#64748b}.sale-approve{background:#15803d!important;color:#fff!important;border:1px solid #15803d!important;border-radius:9px;padding:11px 18px;font-weight:900;min-width:130px}.sale-approved{color:#166534;font-weight:900}
+    .sale-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px}.sale-save-state{font-size:12px;color:#64748b}.sale-approve{background:#15803d!important;color:#fff!important;border:1px solid #15803d!important;border-radius:5px;padding:6px 10px;font-size:12px;line-height:1;font-weight:900;min-width:auto;height:30px;cursor:pointer}.sale-approved{color:#166534;font-weight:900}
     @media(max-width:980px){.sale-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.sale-grid{grid-template-columns:1fr}}
   `;document.head.appendChild(css);
 
