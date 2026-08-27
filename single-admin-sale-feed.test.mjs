@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const review=fs.readFileSync('app-admin-sale-review.js','utf8');
+const legacy=fs.readFileSync('app-admin-sale-credit.js','utf8');
+assert.match(review,/admin_all_sales_feed/);
+assert.match(review,/admin_edit_any_sale/);
+assert.match(review,/admin_assign_any_sale_user/);
+assert.match(review,/admin_approve_sale/);
+assert.match(review,/APPROVE/);
+assert.doesNotMatch(review,/APPLY CREDIT|APPLY REVIEW|Needs Review|Approved<\/option>/i);
+assert.match(review,/order by it was processed|chronological order/i);
+assert.match(legacy,/Legacy Sale Credit UI retired/);
+console.log('single Admin sale feed contract passed');
