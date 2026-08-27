@@ -3,7 +3,7 @@
     dashboard:'Social and Competition Tracking',
     sales:'Sales Hub',
     field:'Sales, door knocking, pay progress, and field coaching',
-    'customer-list':'Complete customer sales and Admin review controls',
+    'customer-list':'Approved customer sales and Admin review controls',
     teams:'McCoy Team-members',
     leads:'Lead dispositioning & Tracking',
     settings:''
@@ -94,8 +94,15 @@
     });
   }
 
+  function loadSaleLifecycle(){
+    for(const src of ['app-sale-lifecycle.js?v=2026082601','app-sales-to-complete.js?v=2026082601']){
+      if(document.querySelector(`script[src^="${src.split('?')[0]}"]`))continue;
+      const script=document.createElement('script');script.src=src;script.defer=true;document.body.appendChild(script);
+    }
+  }
+
   function init(){
-    ensureSidebarImportStyles();reorderNav();bindHeaders();ensureHeaderLayout();activate('dashboard');setTimeout(moveImportButtonToSidebar,250);setTimeout(moveImportButtonToSidebar,900);
+    ensureSidebarImportStyles();reorderNav();bindHeaders();ensureHeaderLayout();activate('dashboard');loadSaleLifecycle();setTimeout(moveImportButtonToSidebar,250);setTimeout(moveImportButtonToSidebar,900);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
