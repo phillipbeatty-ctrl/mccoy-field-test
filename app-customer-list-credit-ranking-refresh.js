@@ -13,6 +13,8 @@
     const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
     if(match){
       const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+      const currentYear=new Date().getFullYear();
+      if(year<2000||year>currentYear+1)return text;
       const localDate=new Date(year,month-1,day,12,0,0,0);
       if(localDate.getFullYear()===year&&localDate.getMonth()===month-1&&localDate.getDate()===day)return localDate.toLocaleDateString();
       return text;
