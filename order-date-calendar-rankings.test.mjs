@@ -11,6 +11,7 @@ const migration=readFileSync(
 test('Customer List treats YYYY-MM-DD as a local calendar date',()=>{
   assert.match(ui,/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\$/)
   assert.match(ui,/new Date\(year,month-1,day,12,0,0,0\)/)
+  assert.match(ui,/year<2000\|\|year>currentYear\+1/)
   assert.match(ui,/Ordered \$\{formatCalendarDate\(record\.order_date\)\}/)
   assert.match(ui,/Install \$\{formatCalendarDate\(record\.install_date\)\}/)
   assert.doesNotMatch(ui,/new Date\(record\.order_date\)/)
