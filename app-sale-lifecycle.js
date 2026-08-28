@@ -1,10 +1,32 @@
-// One field lifecycle: SAVE DISPOSITION owns the visit; Sale Made then opens Provider Outcome.
+// One field lifecycle: SAVE DISPOSITION owns the visit; SALE opens the provider dashboard flow.
 (function(){
+  if(window.MCCOY_SALE_LIFECYCLE)return;
+  window.MCCOY_SALE_LIFECYCLE=true;
+
   const byId=id=>document.getElementById(id);
 
-  function removeDuplicateProcessSale(){
-    const button=byId('processSaleBtn');
-    if(button)button.remove();
+  function ensureSaleButton(){
+    let button=byId('processSaleBtn');
+    const actions=document.querySelector('.spotio-disposition-actions');
+    if(!button&&actions){
+      button=document.createElement('button');
+      button.id='processSaleBtn';
+      actions.appendChild(button);
+    }
+    if(!button)return null;
+    button.type='button';
+    button.hidden=false;
+    button.removeAttribute('hidden');
+    button.dataset.disp='Sale';
+    button.classList.add('success');
+    button.textContent='SALE';
+    button.title='Start a new ISP dashboard sale and secure its provider capture.';
+    button.setAttribute('aria-label','Start ISP dashboard sale');
+    return button;
+  }
+
+  function scheduleSaleButton(){
+    [0,80,220,500,900,1500].forEach(delay=>setTimeout(ensureSaleButton,delay));
   }
 
   function selectedPinDisposition(){
@@ -16,11 +38,13 @@
     };
   }
 
-  function openProviderOutcome(){
-    // Reuse the existing provider-outcome controller without exposing another visible PROCESS SALE button.
-    const trigger=document.createElement('button');
-    trigger.type='button';trigger.dataset.disp='Sale';trigger.hidden=true;
-    document.body.appendChild(trigger);trigger.click();trigger.remove();
+  function openProviderDashboardSale(){
+    const button=ensureSaleButton();
+    if(!button){
+      alert('The SALE control is not ready. Refresh Field Coach and retry.');
+      return;
+    }
+    button.click();
   }
 
   async function saveDisposition(){
@@ -30,19 +54,18 @@
     const saved=await window.MCCOY_COMPLETE_DOOR_VISIT?.('spotio',{automatic:false,...selection});
     if(saved&&selection.stage==='Sale Made'){
       window.dispatchEvent(new CustomEvent('mccoy-sale-made-disposition-saved',{detail:{selection}}));
-      openProviderOutcome();
+      openProviderDashboardSale();
     }
   }
 
   document.addEventListener('click',event=>{
     const button=event.target?.closest?.('#savePinDispositionBtn');
     if(!button)return;
-    event.preventDefault();event.stopImmediatePropagation();
+    event.preventDefault();
+    event.stopImmediatePropagation();
     saveDisposition();
   },true);
 
-  removeDuplicateProcessSale();
-  const observer=new MutationObserver(removeDuplicateProcessSale);
-  observer.observe(document.documentElement,{childList:true,subtree:true});
-  setTimeout(()=>observer.disconnect(),15000);
+  window.addEventListener('mccoy-access-ready',scheduleSaleButton);
+  scheduleSaleButton();
 })();
