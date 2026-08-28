@@ -24,7 +24,10 @@
     const gps=state.latestGps||null,nearest=core.nearestLead(state.leads||[],gps);
     const typed=!state.activeDoorVisit&&addressContext().kind==='typed'?addressContext():null;
     if(!manualLeadLocked&&!typed&&!state.activeDoorVisit){
-      if(nearest&&nearest.distance<=core.QUARTER_MILE_METERS){if(String(select.value)!==String(nearest.lead.id))chooseLead(nearest.lead,true);}
+      // The address box should always show the nearest usable McCoy lead when
+      // location is available. Quarter-mile remains a coaching/arrival signal,
+      // not a prerequisite for populating the address.
+      if(nearest){if(String(select.value)!==String(nearest.lead.id))chooseLead(nearest.lead,true);}
       else if(select.value){autoChanging=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;}
     }
     if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,nearest,typed:true,address:typed.address,selectionSource:'typed_address'};
@@ -49,7 +52,7 @@
       if(button)button.disabled=false;
     }
     state.activeDoorVisit=null;clearInterval(doorTimerHandle);const timer=byId('doorElapsed');if(timer)timer.textContent='00:00';select.disabled=false;manualLeadLocked=true;resetArrival();resetDeparture();
-    const visitStatus=byId('doorVisitStatus');if(visitStatus)visitStatus.textContent='Previous selection cancelled. Choose an assigned lead or type the correct address.';window.MCCOY_LEAD_ADDRESS?.focus?.();render();
+    const visitStatus=byId('doorVisitStatus');if(visitStatus)visitStatus.textContent='Previous selection cancelled. Choose a McCoy lead or type the correct address.';window.MCCOY_LEAD_ADDRESS?.focus?.();render();
     window.dispatchEvent(new CustomEvent('mccoy-door-visit-corrected'));
   }
 
@@ -62,7 +65,7 @@
     return{ok:!!address,address,source:context.kind==='typed'?'typed_address':contextAddress?'lead':providerAddress?'provider':'lead',withinRange:current.withinRange,lead:context.kind==='typed'?null:lead,distanceMeters:current.distance,selectionSource:context.kind==='typed'?'typed_address':null};
   }
 
-  function useClosest(){manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest&&nearest.distance<=core.QUARTER_MILE_METERS)chooseLead(nearest.lead,true);return render();}
+  function useClosest(){manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest)chooseLead(nearest.lead,true);return render();}
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
@@ -88,7 +91,9 @@
     const current=render(),gps=state.latestGps||null;
     if(!state.session||!telemetrySessionId||!core.isFreshGps(gps)){resetArrival();resetDeparture();return;}
     if(!state.activeDoorVisit){
-      if(!current.withinRange||!current.lead){resetArrival();return;}
+      // Automatic arrival remains restricted to field/manual-verified pins even
+      // though the address box can populate from every usable mapped lead.
+      if(!current.withinRange||!current.lead||!core.verifiedLead(current.lead)){resetArrival();return;}
       const candidate=String(current.lead.dbId||current.lead.id);if(arrivalCandidate===candidate)arrivalHits++;else{arrivalCandidate=candidate;arrivalHits=1;}
       if(core.shouldAutoArrive({distance:current.distance,accuracy:Number(gps.accuracy),candidateHits:arrivalHits})){resetArrival();window.MCCOY_START_DOOR_VISIT?.({automatic:!manualLeadLocked});}
       return;
