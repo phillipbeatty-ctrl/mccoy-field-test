@@ -1,6 +1,6 @@
-// Select the sale provider and redirect to its seller portal only when SALE is chosen.
-// Provider passwords are never stored or autofilled by McCoy. Portal sessions
-// are reused only when the provider's own browser session or SSO allows it.
+// Select the sale provider and open its seller portal only when SALE is chosen.
+// McCoy stays open behind the provider tab so closing the provider X/tab returns
+// the user directly to the active sale outcome. Provider passwords are never stored.
 (function(){
   if(window.MCCOY_PROVIDER_SALE_ROUTER)return;
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
@@ -8,6 +8,7 @@
   const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const PORTAL_CONTEXT_STORAGE_KEY='mccoy_last_provider_portal_context_v1';
+  const MAX_AUTO_RECOVERY_AGE_MS=30*60*1000;
   const defaults={
     Brightspeed:{label:'BASS',url:''},
     Quantum:{label:'ASAP',url:''},
@@ -54,8 +55,7 @@
   for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
   let pending=null,toastTimer=null,routing=false,serverRecoveryStarted=false;
-  let saleGuard=false;
-  let returnNotifiedFor=null;
+  let saleGuard=false,returnNotifiedFor=null,providerWindow=null,providerWindowTimer=null;
   function readCapture(){
     try{const value=JSON.parse(localStorage.getItem(CAPTURE_STORAGE_KEY)||'null');return value&&value.client_request_id&&value.provider?value:null;}catch(_){return null;}
   }
@@ -89,12 +89,13 @@
     if(serverRecoveryStarted||readCapture()||!window.MCCOY_ACCESS?.access?.active)return;
     serverRecoveryStarted=true;
     try{
-      const data=await captureCall('list',{open_only:true}),captures=Array.isArray(data?.captures)?data.captures:[];
-      const capture=captures.find(item=>item?.status==='dashboard_opened'||item?.status==='details_required');
+      const data=await captureCall('list',{open_only:true,mine_only:true}),captures=Array.isArray(data?.captures)?data.captures:[];
+      const cutoff=Date.now()-MAX_AUTO_RECOVERY_AGE_MS;
+      const capture=captures.find(item=>['dashboard_opened','details_required'].includes(item?.status)&&Date.parse(item?.created_at||item?.updated_at||0)>=cutoff);
       if(!capture)return;
       const restored={...capture,client_request_id:capture.client_request_id||capture.id,started_at:capture.created_at||capture.updated_at||new Date().toISOString(),recovered_from_server:true};
       writeCapture(restored);returnNotifiedFor=null;
-      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture:restored}}));
+      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture:restored,validated:true}}));
       await markCaptureReturned(true);
     }catch(error){serverRecoveryStarted=false;console.error('Provider sale capture recovery failed',error);}
   }
@@ -111,7 +112,7 @@
       const active=readCapture();
       if(active?.client_request_id!==draft.client_request_id)return data.capture;
       const saved={...active,...data.capture};writeCapture(saved);
-      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:saved}}));
+      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:saved,validated:true}}));
       return saved;
     }).catch(error=>{
       console.error('Provider sale capture start failed',error);
@@ -137,14 +138,41 @@
       const active=readCapture();if(active?.client_request_id===capture.client_request_id)writeCapture({...active,...data.capture});
     }catch(error){console.error('Provider sale return marker failed',error);}
   }
+  function stopProviderWindowTracking({close=false}={}){
+    if(providerWindowTimer){clearInterval(providerWindowTimer);providerWindowTimer=null;}
+    const current=providerWindow;providerWindow=null;
+    if(close&&current&&!current.closed){try{current.close();}catch(_){} }
+  }
+  function reserveProviderWindow(){
+    const target=`mccoy_provider_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    try{
+      const child=window.open('about:blank',target);
+      if(!child)return null;
+      try{
+        child.document.open();
+        child.document.write('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opening provider dashboard</title><body style="font:16px system-ui;padding:28px">Saving the McCoy sale attempt and opening the provider dashboard…</body>');
+        child.document.close();
+      }catch(_){}
+      return child;
+    }catch(error){console.warn('Provider window reservation failed',error);return null;}
+  }
+  function trackProviderWindow(child){
+    stopProviderWindowTracking();providerWindow=child;
+    providerWindowTimer=setInterval(()=>{
+      if(providerWindow&&!providerWindow.closed)return;
+      stopProviderWindowTracking();
+      try{window.focus();}catch(_){}
+      setTimeout(()=>markCaptureReturned(true),80);
+    },400);
+  }
   window.MCCOY_CLEAR_PROVIDER_CAPTURE=captureId=>{
     const active=readCapture();
-    if(!active||!captureId||active.id===captureId||active.client_request_id===captureId){writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;}
+    if(!active||!captureId||active.id===captureId||active.client_request_id===captureId){writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;stopProviderWindowTracking({close:true});}
   };
   window.MCCOY_CANCEL_PROVIDER_CAPTURE=async()=>{
     const capture=readCapture();if(!capture)return;
     try{const ready=window.MCCOY_PROVIDER_CAPTURE_READY?await window.MCCOY_PROVIDER_CAPTURE_READY:capture;if(ready?.id)await captureCall('cancel',{capture_id:ready.id});}catch(error){console.error('Provider sale capture cancellation failed',error);}
-    writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;
+    writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;stopProviderWindowTracking({close:true});
   };
   function currentProvider(){
     const selected=document.getElementById('sessionIsp')?.value;
@@ -175,7 +203,7 @@
   }
   function updatePortalStatus(){
     const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider);
-    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} will open in this browser tab. Use browser Back to return to McCoy and choose Completed Sale or Abandoned.`);
+    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Close that tab or tap its X to return directly to McCoy.`);
   }
   function sellerAccountDestination(provider){
     const info=portalInfo(provider),raw=String(info.url||'').trim();
@@ -188,20 +216,30 @@
     if(/(^|\.)saraplus\.com$/i.test(url.hostname))url.pathname=url.pathname.replace(/\/\(S\([^/]+\)\)/i,'');
     return{opened:true,reason:null,url:url.href};
   }
-  function navigateSellerAccount(provider,destination){
+  function navigateSellerAccount(provider,destination,reservedWindow=null){
     if(!destination?.opened)return destination;
     const info=portalInfo(provider);
     const accountMessage=portalAccountMessage(provider);
     if(info.sessionGroup){
       try{localStorage.setItem(PORTAL_CONTEXT_STORAGE_KEY,JSON.stringify({provider,sessionGroup:info.sessionGroup,openedAt:new Date().toISOString()}));}catch(_){}
     }
-    notify(accountMessage||`${info.label} is opening in this browser tab. Its existing provider login or approved SSO session will be reused.`);
-    try{window.location.assign(destination.url);return destination;}
-    catch(error){console.error('Provider same-tab navigation failed',error);notify(`${info.label} could not open in this tab. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
+    notify(accountMessage||`${info.label} is opening in a separate provider tab. Close it or tap X to return to McCoy.`);
+    if(reservedWindow&&!reservedWindow.closed){
+      try{
+        try{reservedWindow.opener=null;}catch(_){}
+        reservedWindow.location.replace(destination.url);
+        reservedWindow.focus();
+        trackProviderWindow(reservedWindow);
+        return{...destination,mode:'separate_tab'};
+      }catch(error){console.warn('Provider separate-tab navigation failed; using same-tab fallback',error);try{reservedWindow.close();}catch(_){} }
+    }
+    try{window.location.assign(destination.url);return{...destination,mode:'same_tab_fallback'};}
+    catch(error){console.error('Provider navigation failed',error);notify(`${info.label} could not open. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
   }
   function openSellerAccount(provider){
     const destination=sellerAccountDestination(provider);
-    return navigateSellerAccount(provider,destination);
+    const reserved=destination.opened?reserveProviderWindow():null;
+    return navigateSellerAccount(provider,destination,reserved);
   }
   async function waitForCaptureReady(fallback){
     if(!window.MCCOY_PROVIDER_CAPTURE_READY)return fallback;
@@ -221,7 +259,7 @@
     document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
     document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
     const continueButton=document.getElementById('providerRouterContinue');
-    continueButton.disabled=false;continueButton.textContent='OPEN ACCOUNT IN THIS TAB';
+    continueButton.disabled=false;continueButton.textContent='OPEN PROVIDER DASHBOARD';
     choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
     updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
@@ -242,15 +280,18 @@
     window.MCCOY_TESTER_PKB_SALE=false;
     setProvider(provider);
     const destination=next.destination||sellerAccountDestination(provider);
+    // Open a blank provider tab during the original user tap. Browsers can block
+    // a new tab opened only after the asynchronous capture save completes.
+    const reservedWindow=destination.opened?reserveProviderWindow():null;
     const draft=next.capture||startProviderCapture(provider,destination);
     if(destination.opened){
-      document.getElementById('providerRouterStatus').textContent='Saving this provider attempt before leaving McCoy…';
+      document.getElementById('providerRouterStatus').textContent=reservedWindow?'Saving this provider attempt before loading the provider tab…':'The browser blocked a separate tab. McCoy will use a same-tab fallback after saving the capture.';
       await waitForCaptureReady(draft);
       panel.classList.remove('show');pending=null;
-      const navigation=navigateSellerAccount(provider,destination);
+      const navigation=navigateSellerAccount(provider,destination,reservedWindow);
       if(!navigation.opened){
         routing=false;pending={...next,destination,capture:draft};panel.classList.add('show');
-        continueButton.disabled=false;continueButton.textContent='RETRY IN THIS TAB';
+        continueButton.disabled=false;continueButton.textContent='RETRY PROVIDER DASHBOARD';
         choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
         document.getElementById('providerRouterStatus').textContent='The provider page did not open. Your McCoy capture is saved; retry without creating a duplicate.';
       }
