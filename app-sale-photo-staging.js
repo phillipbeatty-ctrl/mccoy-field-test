@@ -1,6 +1,6 @@
 // Mobile order-photo staging beside SAVE and SALE.
-// Photos are bound to the signed-in user's active provider capture, then moved
-// onto the completed sale. Abandoned attempts delete their staged photos.
+// Photos are bound only to a provider capture started and validated during the
+// current Sales Hub attempt, then moved onto the completed sale.
 (function(){
   if(window.MCCOY_SALE_PHOTO_STAGING)return;
   window.MCCOY_SALE_PHOTO_STAGING=true;
@@ -9,7 +9,7 @@
   const PENDING_FINALIZE_KEY='mccoy_pending_sale_photo_finalize_v1';
   const MAX_UPLOAD_BYTES=10*1024*1024;
   const MAX_DIMENSION=2000;
-  const state={capture:null,rows:[],busy:false,pendingFinalize:null,lastMessage:'Press SALE first, then use PHOTO after the ISP dashboard opens.'};
+  const state={capture:null,captureStartedHere:false,captureValidated:false,rows:[],busy:false,pendingFinalize:null,lastMessage:'Press SALE first, then use PHOTO after the provider attempt is secured.'};
   const byId=id=>document.getElementById(id);
 
   function ensureControls(){
@@ -32,7 +32,7 @@
     let button=byId('stageSalePhotoBtn');
     if(!button){
       button=document.createElement('button');button.id='stageSalePhotoBtn';button.type='button';button.textContent='PHOTO';
-      button.className='sale-photo-stage-button';button.title='Take or choose an order photo for the active provider sale';
+      button.className='sale-photo-stage-button';button.title='Take or choose an order photo for the current provider sale';
       button.setAttribute('aria-label','Take or choose an order photo');
       actions.appendChild(button);
       button.addEventListener('click',openPhotoPicker);
@@ -74,6 +74,15 @@
     return String(error?.message||fallback||'Photo action failed.').replaceAll('_',' ');
   }
 
+  function sameCapture(left,right){
+    if(!left||!right)return false;
+    return !!((left.id&&right.id&&left.id===right.id)||(left.client_request_id&&right.client_request_id&&left.client_request_id===right.client_request_id));
+  }
+
+  function resetCapture(message='Press SALE first, then use PHOTO after the provider attempt is secured.'){
+    state.capture=null;state.captureStartedHere=false;state.captureValidated=false;state.rows=[];state.lastMessage=message;renderStatus();
+  }
+
   async function invoke(action,payload={}){
     if(!window.sb?.functions?.invoke)throw new Error('McCoy connection is not ready.');
     const {data,error}=await sb.functions.invoke('provider-sale-photo-stage',{body:{action,...payload}});
@@ -85,30 +94,26 @@
     return data;
   }
 
-  function localCapture(){
-    if(state.capture?.id)return state.capture;
-    if(window.MCCOY_ACTIVE_PROVIDER_CAPTURE?.id)return window.MCCOY_ACTIVE_PROVIDER_CAPTURE;
-    try{
-      const stored=JSON.parse(localStorage.getItem('mccoy_active_provider_sale_capture_v1')||'null');
-      return stored?.id?stored:null;
-    }catch(_){return null;}
-  }
-
-  async function validatedCapture(){
-    if(typeof window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE!=='function')return null;
+  async function validatedCurrentCapture(){
+    if(!state.captureStartedHere||!state.capture?.id||typeof window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE!=='function')return null;
+    const expected=state.capture;
     const capture=await window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE();
-    if(capture?.id)state.capture=capture;
-    return capture?.id?capture:null;
+    if(!sameCapture(capture,expected)){
+      resetCapture('That provider attempt is no longer open. Press SALE to start a fresh attempt.');
+      return null;
+    }
+    state.capture={...expected,...capture};state.captureValidated=true;
+    return state.capture;
   }
 
   async function refreshForCapture(capture,quiet=false){
-    if(!capture?.id){state.capture=null;state.rows=[];if(!quiet)state.lastMessage='Press SALE first, then use PHOTO after the ISP dashboard opens.';renderStatus();return;}
+    if(!capture?.id){resetCapture(quiet?state.lastMessage:'Press SALE first, then use PHOTO after the provider attempt is secured.');return;}
     try{
       const data=await invoke('list',{capture_id:capture.id});
-      state.capture=capture;state.rows=Array.isArray(data.rows)?data.rows:[];
+      state.capture={...state.capture,...capture};state.rows=Array.isArray(data.rows)?data.rows:[];
       state.lastMessage=state.rows.length
         ? `${state.rows.length} photo${state.rows.length===1?'':'s'} staged. ${state.rows.length<3?'Add another or ':''}press COMPLETE SALE to attach.`
-        : 'No order photo staged. PHOTO opens the camera or photo library.';
+        : 'Provider attempt secured. PHOTO opens the camera or photo library.';
     }catch(error){
       if(!quiet)state.lastMessage=errorMessage(error,'Unable to load staged photos.');
     }
@@ -118,9 +123,13 @@
   function openPhotoPicker(event){
     event?.preventDefault();
     if(state.busy)return;
-    const capture=localCapture();
-    if(!capture?.id){
-      state.lastMessage='Press SALE first. PHOTO is available after McCoy secures the provider attempt.';
+    if(!state.captureStartedHere||!state.capture?.id){
+      state.lastMessage='Press SALE first. PHOTO cannot open until this Sales Hub attempt has a provider capture.';
+      renderStatus();
+      return;
+    }
+    if(!state.captureValidated){
+      state.lastMessage='McCoy is still securing this provider attempt. Wait for the provider dashboard, then press PHOTO again.';
       renderStatus();
       return;
     }
@@ -133,12 +142,6 @@
     input.click();
     state.lastMessage='Choose a screenshot, Photo Library image, or take a new photo.';
     renderStatus();
-
-    // Validation remains authoritative before upload in handleFileSelection.
-    validatedCapture().then(validated=>{
-      if(validated)refreshForCapture(validated,true);
-      else{state.lastMessage='That provider attempt is no longer open. Press SALE to start a fresh attempt.';renderStatus();}
-    }).catch(error=>{state.lastMessage=errorMessage(error,'McCoy could not validate this provider attempt.');renderStatus();});
   }
 
   function loadImage(file){
@@ -173,11 +176,11 @@
 
   async function handleFileSelection(event){
     const selected=event.target?.files?.[0];if(!selected||state.busy)return;
-    setBusy(true,'PREPARING…');state.lastMessage='Preparing the image for secure upload…';renderStatus();
+    setBusy(true,'PREPARING…');state.lastMessage='Validating this provider attempt and preparing the image…';renderStatus();
     let created=null;
     try{
-      const capture=await validatedCapture();
-      if(!capture)throw new Error('The provider attempt is no longer open. Press SALE and try again.');
+      const capture=await validatedCurrentCapture();
+      if(!capture)throw new Error('The current provider attempt is no longer open. Press SALE and try again.');
       const file=await normalizeImage(selected);
       if(file.size>MAX_UPLOAD_BYTES)throw new Error('Photo must be 10 MB or less after compression.');
       setBusy(true,'UPLOADING…');state.lastMessage='Creating a private signed upload…';renderStatus();
@@ -219,7 +222,7 @@
     setBusy(true,'ATTACHING…');state.lastMessage=retry?'Retrying photo attachment…':'Sale saved. Attaching staged photo evidence…';renderStatus();
     try{
       const data=await invoke('finalize',{capture_id:captureId,sale_id:saleId});
-      localStorage.removeItem(PENDING_FINALIZE_KEY);state.pendingFinalize=null;state.rows=[];state.capture=null;
+      localStorage.removeItem(PENDING_FINALIZE_KEY);state.pendingFinalize=null;state.rows=[];state.capture=null;state.captureStartedHere=false;state.captureValidated=false;
       const count=Array.isArray(data.sale_photo_ids)?data.sale_photo_ids.length:0;
       state.lastMessage=count?`${count} photo${count===1?'':'s'} attached to the sale. Extracting visible order details…`:'Sale completed with no staged photo.';
       renderStatus();
@@ -236,15 +239,33 @@
   }
 
   function captureFromEvent(event){return event?.detail?.capture||null;}
-  for(const eventName of ['mccoy-provider-sale-capture-ready','mccoy-provider-sale-returned','mccoy-provider-sale-capture-restored']){
-    window.addEventListener(eventName,event=>{const capture=captureFromEvent(event);if(capture?.id)refreshForCapture(capture,true);});
+  function startCurrentAttempt(capture){
+    state.capture=capture||null;state.captureStartedHere=!!capture;state.captureValidated=false;state.rows=[];
+    state.lastMessage='Provider attempt started. McCoy is securing it before PHOTO becomes available.';renderStatus();
   }
-  window.addEventListener('mccoy-provider-sale-capture-started',event=>{state.capture=captureFromEvent(event);state.rows=[];state.lastMessage='Provider attempt started. Return from the ISP dashboard, then use PHOTO.';renderStatus();});
-  window.addEventListener('mccoy-provider-sale-capture-invalidated',()=>{state.capture=null;state.rows=[];state.lastMessage='The prior provider attempt is no longer usable. Press SALE to start a fresh attempt.';renderStatus();});
-  window.addEventListener('mccoy-provider-sale-abandoned',event=>discardCapture(String(event.detail?.providerCaptureId||'')));
+  function acceptValidatedCapture(capture){
+    if(!capture?.id||!state.captureStartedHere||!sameCapture(capture,state.capture))return;
+    state.capture={...state.capture,...capture};state.captureValidated=true;
+    refreshForCapture(state.capture,true);
+  }
+
+  window.addEventListener('mccoy-provider-sale-capture-started',event=>startCurrentAttempt(captureFromEvent(event)));
+  window.addEventListener('mccoy-provider-sale-capture-ready',event=>acceptValidatedCapture(captureFromEvent(event)));
+  window.addEventListener('mccoy-provider-sale-returned',event=>acceptValidatedCapture(captureFromEvent(event)));
+  // A server-restored capture from an earlier page/session never unlocks PHOTO.
+  // The user must press SALE in the current Sales Hub attempt.
+  window.addEventListener('mccoy-provider-sale-capture-restored',event=>{
+    const capture=captureFromEvent(event);
+    if(state.captureStartedHere&&sameCapture(capture,state.capture)&&event.detail?.validated===true)acceptValidatedCapture(capture);
+  });
+  window.addEventListener('mccoy-provider-sale-capture-invalidated',()=>resetCapture('The prior provider attempt is no longer usable. Press SALE to start a fresh attempt.'));
+  window.addEventListener('mccoy-provider-sale-abandoned',event=>{
+    const captureId=String(event.detail?.providerCaptureId||'');
+    discardCapture(captureId).finally(()=>resetCapture('Provider attempt abandoned. Its staged photos were deleted. Press SALE to start another.'));
+  });
   window.addEventListener('mccoy-sale-saved',event=>finalizePhotos(event.detail||{}));
   window.addEventListener('mccoy-sales-hub-layout-ready',ensureControls);
-  window.addEventListener('mccoy-access-ready',()=>{ensureControls();retryPendingFinalize();validatedCapture().then(capture=>capture&&refreshForCapture(capture,true)).catch(()=>{});});
+  window.addEventListener('mccoy-access-ready',()=>{ensureControls();retryPendingFinalize();});
 
   function schedule(){[0,80,220,500,900,1500,2500].forEach(delay=>setTimeout(ensureControls,delay));}
   document.addEventListener('click',event=>{if(event.target?.closest?.('.nav-btn[data-view="field"]'))schedule();},true);
