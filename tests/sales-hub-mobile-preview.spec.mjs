@@ -3,6 +3,8 @@ import {test,expect} from '@playwright/test'
 async function waitForLayout(page){
   await page.goto('/tests/sales-hub-mobile-preview.html')
   await expect(page.locator('#salesHubTopGrid')).toBeVisible()
+  await expect(page.locator('#sphWorkdayControl')).toBeVisible()
+  await expect(page.locator('#sphHomeAddressDisplay')).toContainText('100 Test Home Avenue')
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO')
 }
 
@@ -14,23 +16,30 @@ async function startValidatedCapture(page){
   })
 }
 
-test('approved layout and action row fit the target device',async({page},testInfo)=>{
+test('approved layout, compact Workday row, and action controls fit the target device',async({page},testInfo)=>{
   await waitForLayout(page)
   const project=testInfo.project.name
   const field=await page.locator('.sales-hub-field-session').boundingBox()
   const door=await page.locator('.sales-hub-door-workflow').boundingBox()
   const middle=await page.locator('#salesHubMiddleStack').boundingBox()
+  const workday=await page.locator('.sales-hub-workday').boundingBox()
   const live=await page.locator('.sales-hub-live-stats').boundingBox()
   const pay=await page.locator('#payProgressCard').boundingBox()
-  expect(field&&door&&middle&&live&&pay).toBeTruthy()
+  expect(field&&door&&middle&&workday&&live&&pay).toBeTruthy()
 
   if(project.includes('landscape')){
     expect(field.x).toBeLessThan(middle.x)
     expect(middle.x).toBeLessThan(door.x)
     expect(live.y).toBeLessThan(pay.y)
     expect(Math.abs(live.width-pay.width)).toBeLessThanOrEqual(2)
+    expect(workday.y).toBeGreaterThanOrEqual(Math.max(field.y+field.height,middle.y+middle.height)-2)
+    expect(Math.abs(workday.x-field.x)).toBeLessThanOrEqual(2)
+    expect(Math.abs((workday.x+workday.width)-(middle.x+middle.width))).toBeLessThanOrEqual(3)
+    expect(door.y).toBeLessThanOrEqual(field.y+2)
+    expect(door.y+door.height).toBeGreaterThanOrEqual(workday.y+workday.height-2)
   }else{
-    expect(field.y).toBeLessThan(door.y)
+    expect(field.y).toBeLessThan(workday.y)
+    expect(workday.y).toBeLessThan(door.y)
     expect(door.y).toBeLessThan(middle.y)
     expect(live.y).toBeLessThan(pay.y)
   }
@@ -40,6 +49,20 @@ test('approved layout and action row fit the target device',async({page},testInf
   const widths=await page.locator('.spotio-disposition-actions button').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width))
   expect(Math.max(...widths)-Math.min(...widths)).toBeLessThanOrEqual(2)
   await page.screenshot({path:`test-results/${project}-sales-hub.png`,fullPage:true})
+})
+
+test('Sales per Hour Workday shows only Home address until EDIT is pressed',async({page})=>{
+  await waitForLayout(page)
+  await expect(page.locator('#sphWorkdayControl')).toContainText('Sales / Hour Workday')
+  await expect(page.locator('#sphWorkdayControl')).toContainText('100 Test Home Avenue, Portland, OR 97201')
+  await expect(page.locator('#sphWorkdayControl input')).toHaveCount(0)
+  await expect(page.locator('#sphEditHome')).toHaveText('EDIT')
+  await expect(page.locator('#sphHomeEditor')).not.toHaveClass(/show/)
+  await page.locator('#sphEditHome').click()
+  await expect(page.locator('#sphHomeEditor')).toHaveClass(/show/)
+  await expect(page.locator('#sphHomeLabel')).toHaveValue('100 Test Home Avenue, Portland, OR 97201')
+  await page.locator('#sphCancelHome').click()
+  await expect(page.locator('#sphHomeEditor')).not.toHaveClass(/show/)
 })
 
 test('PHOTO blocks before SALE even when an older local capture exists, then stages after current validation',async({page})=>{
