@@ -33,6 +33,16 @@ test('PHOTO is beside SAVE and SALE and remains mobile-picker compatible',()=>{
   assert.match(staging,/three_photo_limit_reached|3-photo maximum/)
 })
 
+test('PHOTO cannot be unlocked by a stale local or restored capture',()=>{
+  assert.match(staging,/captureStartedHere:false/)
+  assert.match(staging,/if\(!state\.captureStartedHere\|\|!state\.capture\?\.id\)/)
+  assert.match(staging,/A server-restored capture from an earlier page\/session never unlocks PHOTO/)
+  assert.match(staging,/mccoy-provider-sale-capture-started/)
+  assert.match(staging,/mccoy-provider-sale-capture-ready/)
+  assert.doesNotMatch(staging,/function localCapture\(/)
+  assert.doesNotMatch(staging,/localStorage\.getItem\('mccoy_active_provider_sale_capture_v1'\)/)
+})
+
 test('staged photos attach only after a matching completed sale',()=>{
   assert.match(staging,/provider-sale-photo-stage/)
   assert.match(staging,/mccoy-sale-saved/)
