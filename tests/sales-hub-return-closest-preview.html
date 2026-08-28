@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sales Hub return and closest-lead preview</title>
+<style>
+body{font:14px system-ui;margin:0;padding:16px;background:#f4f6f8}.nav-btn{padding:8px}.view{display:block}.card{background:white;border:1px solid #ddd;border-radius:12px;padding:14px;max-width:680px}.geo-box{padding:8px;margin:8px 0;border:1px solid #ddd;border-radius:8px}label{display:grid;gap:5px}input{padding:10px;border:1px solid #bbb;border-radius:8px}.sale-modal{display:none;margin-top:10px}.sale-modal.show{display:block}.sale-form{padding:10px;border:1px solid #ddd;border-radius:8px}.spotio-disposition-actions{display:flex;gap:8px;margin-top:10px}
+</style>
+</head>
+<body>
+<button class="nav-btn active" data-view="field">Sales Hub</button>
+<section id="field" class="view active">
+  <div class="card">
+    <label>Lead or Service Address<input id="leadOrServiceAddress" autocomplete="street-address"></label>
+    <div id="closestDoorAddress" class="geo-box">Waiting for location.</div>
+    <div class="spotio-disposition-actions"><button id="processSaleBtn" data-disp="Sale">SALE</button></div>
+    <div id="saleModal" class="sale-modal"><div class="sale-form"><strong>Provider Outcome</strong><button id="completeSaleBtn">COMPLETE SALE</button></div></div>
+  </div>
+</section>
+<script>
+window.MCCOY_ACCESS={access:{active:true,role:'rep'},user:{email:'webkit@example.com'}};
+window.MCCOY_LAST_GPS={latitude:45.5,longitude:-122.6};
+window.__nearest={id:'lead-a',address:'100 Closest Avenue',latitude:45.5,longitude:-122.6,distance_meters:12};
+window.__calls=[];
+window.__capture={id:'11111111-1111-4111-8111-111111111111',client_request_id:'22222222-2222-4222-8222-222222222222',provider:'Quantum',status:'dashboard_opened'};
+window.MCCOY_ACTIVE_PROVIDER_CAPTURE=window.__capture;
+localStorage.setItem('mccoy_active_provider_sale_capture_v1',JSON.stringify(window.__capture));
+window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE=async()=>window.__capture;
+window.sb={
+  rpc:async(name,args)=>{
+    window.__calls.push({kind:'rpc',name,args});
+    if(name==='get_closest_mccoy_lead')return{data:window.__nearest,error:null};
+    return{data:null,error:null};
+  },
+  functions:{invoke:async(name,{body}={})=>{
+    window.__calls.push({kind:'function',name,body});
+    if(name==='provider-sale-capture'&&body.action==='mark_returned'){
+      window.__capture={...window.__capture,status:'details_required'};
+      return{data:{ok:true,capture:window.__capture},error:null};
+    }
+    return{data:{ok:true},error:null};
+  }}
+};
+window.__providerReturned=false;
+window.addEventListener('mccoy-provider-sale-returned',()=>{window.__providerReturned=true;});
+</script>
+<script src="../app-closest-lead-autofill.js"></script>
+<script src="../app-provider-return-focus-v2.js"></script>
+</body>
+</html>
