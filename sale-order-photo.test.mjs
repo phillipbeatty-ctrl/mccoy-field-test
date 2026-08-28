@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const rep=fs.readFileSync(new URL('./app-sales-to-complete.js',import.meta.url),'utf8');
 const admin=fs.readFileSync(new URL('./app-sale-order-photo-admin.js',import.meta.url),'utf8');
+const reviewEvents=fs.readFileSync(new URL('./app-sale-review-events.js',import.meta.url),'utf8');
 const fn=fs.readFileSync(new URL('./supabase/functions/sale-order-photo/index.ts',import.meta.url),'utf8');
 const migration=fs.readFileSync(new URL('./supabase/migrations/20260827052500_sale_order_photo_extraction_pipeline.sql',import.meta.url),'utf8');
 
@@ -32,6 +33,8 @@ test('rep-confirmed photo remains visible to Admin SALE REVIEW',()=>{
   assert.match(admin,/Rep confirmed/);
   assert.match(admin,/green APPROVED button/);
   assert.match(admin,/evidence only/);
+  assert.match(reviewEvents,/mccoy-sale-review-rendered/);
+  assert.doesNotMatch(admin,/MutationObserver/);
 });
 
 test('photo extraction can fail without blocking manual customer entry',()=>{
