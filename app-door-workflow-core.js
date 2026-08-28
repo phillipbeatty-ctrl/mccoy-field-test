@@ -45,17 +45,33 @@
       &&capturedAt>0&&now-capturedAt>=-5000&&now-capturedAt<=maxAgeMs;
   }
 
+  function normalizedStatus(lead){
+    return String(lead?.geocodeStatus||lead?.geocode_status||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
+  }
+
   function verifiedLead(lead){
     const statuses=new Set(['manual','field_verified']);
-    const status=String(lead?.geocodeStatus||lead?.geocode_status||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
+    const status=normalizedStatus(lead);
     return lead?.isDemo!==true&&lead?.dbId&&finiteCoordinate(lead?.lat??lead?.latitude,-90,90)!==null&&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null&&statuses.has(status);
+  }
+
+  // Nearest-address population uses every real McCoy lead that has a usable map
+  // coordinate. Explicitly low-precision or mismatch candidates remain excluded.
+  // Physical auto-arrival continues to use verifiedLead() below.
+  function nearestCandidateLead(lead){
+    const excluded=new Set(['approx_zip','google_low_precision','google_address_mismatch','pending_google','unmapped','failed']);
+    const status=normalizedStatus(lead);
+    return lead?.isDemo!==true&&lead?.dbId
+      &&finiteCoordinate(lead?.lat??lead?.latitude,-90,90)!==null
+      &&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null
+      &&!excluded.has(status);
   }
 
   function nearestLead(leads,gps){
     if(!isFreshGps(gps))return null;
     let nearest=null,second=null;
     for(const lead of leads||[]){
-      if(!verifiedLead(lead))continue;
+      if(!nearestCandidateLead(lead))continue;
       const distance=metersBetween(gps,lead);
       if(distance===null)continue;
       const candidate={lead,distance};
@@ -110,5 +126,5 @@
     return{address:'',source:'required'};
   }
 
-  return{QUARTER_MILE_METERS,ACTIVITY_TYPES,VISIT_RESULTS,STAGES,metersBetween,isFreshGps,verifiedLead,nearestLead,distanceState,autoDispositionForDwell,activityType,visitResult,stage,pinState,shouldAutoArrive,shouldAutoDepart,saleAddress};
+  return{QUARTER_MILE_METERS,ACTIVITY_TYPES,VISIT_RESULTS,STAGES,metersBetween,isFreshGps,verifiedLead,nearestCandidateLead,nearestLead,distanceState,autoDispositionForDwell,activityType,visitResult,stage,pinState,shouldAutoArrive,shouldAutoDepart,saleAddress};
 });
