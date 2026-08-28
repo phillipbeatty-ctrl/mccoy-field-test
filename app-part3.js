@@ -1,3 +1,34 @@
+// Prevent desktop Chrome from leaving McCoy authentication waiting forever on a stale Web Lock.
+// The normal cross-tab lock is still used first; only an acquisition that exceeds the
+// bounded wait falls back to the requested auth operation. This runs before app-auth.js.
+(()=>{
+  if(window.MCCOY_AUTH_LOCK_GUARD||typeof sb==='undefined'||!sb?.auth)return;
+  window.MCCOY_AUTH_LOCK_GUARD=true;
+  const MAX_LOCK_WAIT_MS=4500;
+  sb.auth.lock=async(name,acquireTimeout,fn)=>{
+    if(typeof fn!=='function')throw new TypeError('McCoy auth lock callback is required.');
+    if(!navigator?.locks?.request)return fn();
+    const requested=Number(acquireTimeout);
+    const waitMs=Number.isFinite(requested)&&requested>0?Math.min(requested,MAX_LOCK_WAIT_MS):MAX_LOCK_WAIT_MS;
+    const controller=new AbortController();
+    let acquired=false;
+    const timer=setTimeout(()=>{if(!acquired)controller.abort('mccoy_auth_lock_timeout');},waitMs);
+    try{
+      return await navigator.locks.request(name,{mode:'exclusive',signal:controller.signal},async()=>{
+        acquired=true;
+        clearTimeout(timer);
+        return fn();
+      });
+    }catch(error){
+      if(!controller.signal.aborted)throw error;
+      console.warn('McCoy auth lock wait expired; continuing this authentication attempt without the stale browser lock.');
+      return fn();
+    }finally{
+      clearTimeout(timer);
+    }
+  };
+})();
+
 // V9 thin Admin/Manager analytics viewer.
 // No scoring, learning, proximity, compensation, or coaching formulas are shipped to the browser.
 (function(){
