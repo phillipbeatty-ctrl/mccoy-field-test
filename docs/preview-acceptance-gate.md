@@ -1,0 +1,1 @@
+Do not merge PR #60 until a physical iPhone or iPad confirms: (1) PHOTO chooser and staging, (2) provider dashboard X returns to Provider Outcome, and (3) an empty Lead or Service Address auto-fills from the nearest organization lead without overwriting manual text.
