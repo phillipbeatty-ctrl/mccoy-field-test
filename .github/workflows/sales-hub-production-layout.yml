@@ -1,0 +1,30 @@
+name: Production Sales Hub layout
+
+on:
+  push:
+    branches:
+      - fix/production-sales-hub-wide-door-20260828
+  pull_request:
+    paths:
+      - app-sales-hub-production-layout.js
+      - app-sph-presence.js
+      - app-page-layout.js
+      - sales-hub-production-layout.test.mjs
+      - .github/workflows/sales-hub-production-layout.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-sales-hub-production-layout.js
+      - run: node --check app-sph-presence.js
+      - run: node --check app-page-layout.js
+      - run: node --test sales-hub-production-layout.test.mjs
