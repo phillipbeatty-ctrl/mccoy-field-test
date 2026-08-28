@@ -56,6 +56,22 @@ Deno.serve(async request => {
       if (existingError) throw existingError
       if (existing) return json({ ok: true, capture: existing, duplicate: true })
 
+      // SALE begins one authoritative provider attempt. Older unfinished attempts
+      // for this user are superseded so they cannot unlock PHOTO or COMPLETE SALE.
+      const supersededAt = new Date().toISOString()
+      const { error: supersedeError } = await admin
+        .from('provider_sale_captures')
+        .update({
+          status: 'cancelled',
+          rep_outcome: 'abandoned',
+          rep_outcome_at: supersededAt,
+          updated_at: supersededAt
+        })
+        .eq('rep_user_id', user.id)
+        .in('status', ['dashboard_opened', 'details_required'])
+        .neq('client_request_id', clientRequestId)
+      if (supersedeError) throw supersedeError
+
       const portalOpened = body.portal_opened === true
       const saleContext = body.sale_context === 'out_of_area_phone' ? 'out_of_area_phone' : 'field'
       let sessionId: string | null = null
