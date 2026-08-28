@@ -4,12 +4,17 @@ on:
   push:
     branches:
       - fix/production-sales-hub-wide-door-20260828
+      - fix/production-sales-hub-photo-closest-20260828
   pull_request:
     paths:
       - app-sales-hub-production-layout.js
       - app-sph-presence.js
       - app-page-layout.js
+      - app-sale-photo-staging.js
+      - app-closest-lead-autofill-v2.js
+      - vercel.json
       - sales-hub-production-layout.test.mjs
+      - sales-hub-production-photo-closest.test.mjs
       - .github/workflows/sales-hub-production-layout.yml
   workflow_dispatch:
 
@@ -27,4 +32,6 @@ jobs:
       - run: node --check app-sales-hub-production-layout.js
       - run: node --check app-sph-presence.js
       - run: node --check app-page-layout.js
-      - run: node --test sales-hub-production-layout.test.mjs
+      - run: node --check app-sale-photo-staging.js
+      - run: node --check app-closest-lead-autofill-v2.js
+      - run: node --test sales-hub-production-layout.test.mjs sales-hub-production-photo-closest.test.mjs
