@@ -5,6 +5,7 @@ async function waitForLayout(page){
   await expect(page.locator('#salesHubTopGrid')).toBeVisible()
   await expect(page.locator('#sphWorkdayControl')).toBeVisible()
   await expect(page.locator('#sphHomeAddressDisplay')).toContainText('100 Test Home Avenue')
+  await expect(page.locator('#coachMetrics')).toBeVisible()
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO')
 }
 
@@ -16,30 +17,41 @@ async function startValidatedCapture(page){
   })
 }
 
-test('approved layout, compact Workday row, and action controls fit the target device',async({page},testInfo)=>{
+test('approved layout nests Workday under Background Mode and puts Field Coach in the prior Workday row',async({page},testInfo)=>{
   await waitForLayout(page)
   const project=testInfo.project.name
   const field=await page.locator('.sales-hub-field-session').boundingBox()
   const door=await page.locator('.sales-hub-door-workflow').boundingBox()
   const middle=await page.locator('#salesHubMiddleStack').boundingBox()
   const workday=await page.locator('.sales-hub-workday').boundingBox()
+  const coach=await page.locator('.sales-hub-field-coach').boundingBox()
+  const background=await page.locator('#backgroundModePanel').boundingBox()
   const live=await page.locator('.sales-hub-live-stats').boundingBox()
   const pay=await page.locator('#payProgressCard').boundingBox()
-  expect(field&&door&&middle&&workday&&live&&pay).toBeTruthy()
+  expect(field&&door&&middle&&workday&&coach&&background&&live&&pay).toBeTruthy()
+
+  const nested=await page.locator('#sphWorkdayControl').evaluate(node=>({
+    parentClass:node.parentElement?.className||'',
+    previousId:node.previousElementSibling?.id||''
+  }))
+  expect(nested.parentClass).toContain('field-controls')
+  expect(nested.previousId).toBe('backgroundModePanel')
+  expect(workday.y).toBeGreaterThanOrEqual(background.y+background.height-2)
+  expect(workday.y+workday.height).toBeLessThanOrEqual(field.y+field.height+2)
 
   if(project.includes('landscape')){
     expect(field.x).toBeLessThan(middle.x)
     expect(middle.x).toBeLessThan(door.x)
     expect(live.y).toBeLessThan(pay.y)
     expect(Math.abs(live.width-pay.width)).toBeLessThanOrEqual(2)
-    expect(workday.y).toBeGreaterThanOrEqual(Math.max(field.y+field.height,middle.y+middle.height)-2)
-    expect(Math.abs(workday.x-field.x)).toBeLessThanOrEqual(2)
-    expect(Math.abs((workday.x+workday.width)-(middle.x+middle.width))).toBeLessThanOrEqual(3)
+    expect(coach.y).toBeGreaterThanOrEqual(Math.max(field.y+field.height,middle.y+middle.height)-2)
+    expect(Math.abs(coach.x-field.x)).toBeLessThanOrEqual(2)
+    expect(Math.abs((coach.x+coach.width)-(middle.x+middle.width))).toBeLessThanOrEqual(3)
     expect(door.y).toBeLessThanOrEqual(field.y+2)
-    expect(door.y+door.height).toBeGreaterThanOrEqual(workday.y+workday.height-2)
+    expect(door.y+door.height).toBeGreaterThanOrEqual(coach.y+coach.height-2)
   }else{
-    expect(field.y).toBeLessThan(workday.y)
-    expect(workday.y).toBeLessThan(door.y)
+    expect(field.y).toBeLessThan(coach.y)
+    expect(coach.y).toBeLessThan(door.y)
     expect(door.y).toBeLessThan(middle.y)
     expect(live.y).toBeLessThan(pay.y)
   }
