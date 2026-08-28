@@ -1,0 +1,1 @@
+PR #60 remains preview-only until the physical-device acceptance checklist passes.
