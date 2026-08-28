@@ -1,0 +1,23 @@
+name: Provider return and closest lead fix
+
+on:
+  push:
+    branches:
+      - fix/provider-return-closest-lead-customer-list-20260828
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-provider-sale-router.js
+      - run: node --check app-door-workflow-core.js
+      - run: node --check app-distance-to-lead.js
+      - run: node --test provider-return-closest-lead-customer-list.test.mjs distance-to-lead-door-workflow.test.mjs
