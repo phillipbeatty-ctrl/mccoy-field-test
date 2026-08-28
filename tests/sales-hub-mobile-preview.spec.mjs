@@ -40,10 +40,12 @@ test('PHOTO blocks before SALE and stages a mobile-selected screenshot after cap
   await expect(page.locator('#salePhotoStageStatus')).toContainText('Press SALE first')
 
   await page.evaluate(()=>{window.__captureEnabled=true;window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture}}))})
+  const chooserPromise=page.waitForEvent('filechooser')
   await page.locator('#stageSalePhotoBtn').click()
+  const chooser=await chooserPromise
   const input=page.locator('#salePhotoStageInput')
   await expect(input).toHaveAttribute('accept','image/*')
-  await input.setInputFiles({name:'quantum-order.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')})
+  await chooser.setFiles({name:'quantum-order.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')})
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO (1)')
   await expect(page.locator('#salePhotoStageStatus')).toContainText('staged')
   const actions=await page.evaluate(()=>window.__calls.filter(call=>call.name==='provider-sale-photo-stage').map(call=>call.body.action))
