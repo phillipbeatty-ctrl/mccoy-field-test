@@ -12,15 +12,15 @@
 <body>
 <section id="field" class="view active">
   <div class="grid-2 field-session-top-grid">
-    <div class="card" data-harness-card="field-session"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="primary big hidden">STOP SESSION</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box">Field Analysis: Active</div><div id="telemetryStatus" class="geo-box">Session data not started.</div></div></div>
+    <div class="card" data-harness-card="field-session"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="primary big hidden">STOP SESSION</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box">Field Analysis: Active</div><div id="telemetryStatus" class="geo-box">Session data not started.</div><div id="backgroundModePanel" class="geo-box" style="display:grid;gap:7px;margin-top:8px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button id="backgroundModeToggle" type="button" class="primary" aria-pressed="true">BACKGROUND MODE: ON</button><strong>Keep field session active while using other apps</strong></div><div id="backgroundModeStatus" class="muted small">Background Mode ON — session continuity enabled.</div><div class="muted small">Browser and operating-system background limits still apply.</div></div></div></div>
     <div id="payProgressCard" class="pay-progress-card"><div class="card-head"><h2>Weekly Pay Progress</h2></div><div class="pay-progress-main">7 sales · $1,050</div><div class="pay-progress-sub">8 more to next increase</div></div>
     <div class="card" data-harness-card="live-stats"><div class="card-head"><h2>Live Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">02:14:32</strong></div><div><span>Doors</span><strong>64</strong></div><div><span>Contacts</span><strong>16</strong></div><div><span>Sales</span><strong>3</strong></div></div></div>
   </div>
 
   <div class="card" data-harness-card="door-workflow">
-    <div class="card-head"><div><h2>Door Workflow</h2><p class="muted">Use the closest assigned lead or type any service address.</p></div></div>
+    <div class="card-head"><div><h2>Door Workflow</h2><p class="muted">Use the closest McCoy lead or type any service address.</p></div></div>
     <div class="sales-card"><strong>Selling for</strong><select id="sessionIsp"><option>Quantum</option><option>Brightspeed</option><option>AT&amp;T</option></select></div>
-    <div id="closestDoorAddress" class="geo-box">Closest assigned door · 123 Test Street</div>
+    <div id="closestDoorAddress" class="geo-box">Closest McCoy lead · 123 Test Street</div>
     <select id="fieldLeadSelect"><option>123 Test Street</option></select>
     <div class="calibration-panel"><strong>Local Address Reference</strong><button class="assign-btn">SET REFERENCE</button></div>
     <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVED AT DOOR</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
@@ -43,7 +43,11 @@ try{
     clear:()=>__memoryStorage.clear()
   },configurable:true});
 }
+var mccoyConsentAccepted=true;
+window.state={latestGps:{lat:45.61,lng:-122.53,accuracy:8,capturedAt:Date.now()},session:null};
+window.getGPSOnce=async()=>window.state.latestGps;
 window.MCCOY_ACCESS={access:{active:true,role:'rep'},user:{email:'mobile.test@example.com'}};
+window.__homeLabel='100 Test Home Avenue, Portland, OR 97201';
 window.__captureEnabled=false;
 window.__calls=[];
 window.__stagedRows=[];
@@ -51,6 +55,13 @@ window.__capture={id:'11111111-1111-4111-8111-111111111111',client_request_id:'2
 window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE=async()=>window.__captureEnabled?window.__capture:null;
 Object.defineProperty(window,'MCCOY_ACTIVE_PROVIDER_CAPTURE',{get(){return window.__captureEnabled?window.__capture:null},configurable:true});
 window.sb={
+  rpc:async(name,payload={})=>{
+    window.__calls.push({name,body:payload});
+    if(name==='get_sph_status')return{data:{ok:true,home_configured:true,home_label:window.__homeLabel,today:{status_label:'In assigned area · Sales/Hour timer active'}},error:null};
+    if(name==='record_sph_presence')return{data:{ok:true,inside_area:true,area_basis:'assigned_area'},error:null};
+    if(name==='set_sph_home_location'){window.__homeLabel=payload.p_home_label;return{data:{ok:true,home_configured:true,home_label:window.__homeLabel},error:null};}
+    return{data:{ok:true},error:null};
+  },
   functions:{invoke:async(name,{body}={})=>{
     window.__calls.push({name,body});
     if(name==='provider-sale-photo-stage'){
@@ -70,6 +81,7 @@ window.sb={
   storage:{from:()=>({uploadToSignedUrl:async()=>({data:{path:'stage/photo.jpg'},error:null})})}
 };
 </script>
+<script src="../app-sph-presence.js"></script>
 <script src="../app-sales-hub-layout.js"></script>
 <script src="../app-sale-photo-staging.js"></script>
 </body>
