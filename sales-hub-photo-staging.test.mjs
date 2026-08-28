@@ -82,7 +82,7 @@ test('staging is private, temporary, and isolated from rankings',()=>{
   assert.doesNotMatch(staging,/ranking_eligible|competition_eligible|commission_/)
 })
 
-test('new modules are preview-loaded without a DOM observer and CSP supports private image evidence',()=>{
+test('new modules are preview-loaded without a DOM observer and security headers support provider/photo flows',()=>{
   assert.match(pageLayout,/app-sales-hub-layout\.js\?v=2026082802/)
   assert.match(pageLayout,/app-sale-photo-staging\.js\?v=2026082802/)
   assert.doesNotMatch(layout,/new\s+MutationObserver|MutationObserver\s*\(/)
@@ -90,4 +90,5 @@ test('new modules are preview-loaded without a DOM observer and CSP supports pri
   assert.doesNotMatch(presence,/new\s+MutationObserver|MutationObserver\s*\(/)
   assert.match(vercel,/img-src[^\n]*athxxrfqxwlfnuvbqadp\.supabase\.co/)
   assert.match(vercel,/camera=\(self\)/)
+  assert.match(vercel,/Cross-Origin-Opener-Policy[^\n]*same-origin-allow-popups/)
 })
