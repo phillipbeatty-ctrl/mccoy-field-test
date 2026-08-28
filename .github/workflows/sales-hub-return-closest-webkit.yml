@@ -1,0 +1,31 @@
+name: Sales Hub return and closest lead WebKit
+
+on:
+  push:
+    branches:
+      - preview/sales-hub-photo-staging-20260828
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save @playwright/test@1.55.0
+      - run: npx playwright install webkit
+      - run: npx playwright test --config=playwright.sales-hub-return-closest-v2.config.mjs
+      - name: Upload WebKit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sales-hub-return-closest-webkit
+          path: |
+            test-results-return-closest
+            playwright-return-closest-report
+          retention-days: 14
