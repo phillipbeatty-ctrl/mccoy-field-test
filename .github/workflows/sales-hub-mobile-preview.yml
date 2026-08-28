@@ -8,6 +8,8 @@ on:
     paths:
       - 'app-sales-hub-layout.js'
       - 'app-sale-photo-staging.js'
+      - 'app-sph-presence.js'
+      - 'app-provider-sale-router.js'
       - 'app-page-layout.js'
       - 'supabase/functions/provider-sale-photo-stage/**'
       - 'supabase/migrations/20260828043000_provider_sale_photo_staging.sql'
@@ -25,7 +27,9 @@ jobs:
           node-version: '22'
       - run: node --check app-sales-hub-layout.js
       - run: node --check app-sale-photo-staging.js
-      - run: node --test sales-hub-photo-staging.test.mjs
+      - run: node --check app-sph-presence.js
+      - run: node --check app-provider-sale-router.js
+      - run: node --test sales-hub-photo-staging.test.mjs app-provider-portals.test.mjs provider-return-closest-lead-customer-list.test.mjs
 
   webkit-mobile:
     runs-on: macos-15
