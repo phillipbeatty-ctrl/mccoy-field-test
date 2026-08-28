@@ -1,4 +1,6 @@
-// Approved compact Sales Hub layout: Field Session | (Live Stats over Pay) | Door Workflow.
+// Approved compact Sales Hub layout:
+// Field Session | (Live Stats over Pay) | Door Workflow, with the compact
+// Sales / Hour Workday spanning beneath the first two columns.
 // Uses bounded retries and explicit events only; no DOM observer.
 (function(){
   if(window.MCCOY_SALES_HUB_COMPACT_LAYOUT)return;
@@ -9,10 +11,20 @@
   style.id='salesHubCompactLayoutStyles';
   style.textContent=`
     #field.view.active{padding:14px 16px 24px}
-    #salesHubTopGrid{display:grid;min-width:0;grid-template-columns:minmax(250px,.94fr) minmax(230px,.78fr) minmax(390px,1.28fr);gap:8px;align-items:stretch;margin:0 0 8px}
+    #salesHubTopGrid{
+      display:grid;min-width:0;
+      grid-template-columns:minmax(250px,.94fr) minmax(230px,.78fr) minmax(390px,1.28fr);
+      grid-template-areas:"field middle door" "workday workday door";
+      gap:8px;align-items:stretch;margin:0 0 8px
+    }
     #salesHubTopGrid>.card,#salesHubMiddleStack>.card{min-width:0;overflow:hidden;border-radius:12px;padding:14px}
-    #salesHubMiddleStack{display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:8px;min-width:0}
-    #salesHubTopGrid .sales-hub-field-session,#salesHubTopGrid .sales-hub-door-workflow{min-height:330px;height:100%}
+    #salesHubTopGrid .sales-hub-field-session{grid-area:field;min-height:330px;height:100%}
+    #salesHubMiddleStack{grid-area:middle;display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:8px;min-width:0}
+    #salesHubTopGrid .sales-hub-door-workflow{grid-area:door;min-height:404px;height:100%;padding:13px}
+    #salesHubTopGrid .sales-hub-workday{grid-area:workday;min-height:58px;height:auto;margin:0!important;padding:9px 12px!important;align-self:stretch}
+    #salesHubTopGrid .sales-hub-workday .sph-workday-summary{min-height:38px}
+    #salesHubTopGrid .sales-hub-workday #sphHomeAddressDisplay{font-size:13px}
+    #salesHubTopGrid .sales-hub-workday #sphEditHome{min-height:32px;padding:6px 10px}
     #salesHubMiddleStack .sales-hub-live-stats,#salesHubMiddleStack #payProgressCard{min-height:161px;height:100%;margin:0!important;padding:14px!important}
     #salesHubTopGrid .card-head{margin-bottom:10px}
     #salesHubTopGrid .card-head h2{font-size:15px}
@@ -21,6 +33,11 @@
     #salesHubTopGrid .sales-hub-field-session .field-state{font-size:18px;margin-bottom:1px}
     #salesHubTopGrid .sales-hub-field-session .big{padding:9px 11px;min-height:34px}
     #salesHubTopGrid .sales-hub-field-session .geo-box,#salesHubTopGrid .sales-hub-field-session .gps-quality{padding:8px 9px;border-radius:8px;font-size:10px}
+    #salesHubTopGrid .sales-hub-field-session #backgroundModePanel{gap:5px!important;margin-top:0!important;padding:8px!important}
+    #salesHubTopGrid .sales-hub-field-session #backgroundModePanel>div:first-child{gap:6px!important}
+    #salesHubTopGrid .sales-hub-field-session #backgroundModePanel strong{font-size:9px}
+    #salesHubTopGrid .sales-hub-field-session #backgroundModePanel .muted{font-size:8px;line-height:1.25}
+    #salesHubTopGrid .sales-hub-field-session #backgroundModeToggle{padding:7px 9px;font-size:9px}
     #salesHubTopGrid .sales-hub-live-stats .mini-stats{gap:7px}
     #salesHubTopGrid .sales-hub-live-stats .mini-stats>div{padding:8px;border-radius:8px}
     #salesHubTopGrid .sales-hub-live-stats .mini-stats span{font-size:9px}
@@ -28,7 +45,6 @@
     #salesHubMiddleStack #payProgressCard .pay-progress-main{font-size:16px;margin:7px 0 3px}
     #salesHubMiddleStack #payProgressCard .pay-progress-sub{font-size:10px;margin-top:4px}
     #salesHubMiddleStack #payProgressCard .card-head{margin-bottom:7px}
-    #salesHubTopGrid .sales-hub-door-workflow{padding:13px}
     #salesHubTopGrid .sales-hub-provider-bar{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;margin:0 0 7px;padding:7px 8px;border-radius:8px;font-size:10px}
     #salesHubTopGrid .sales-hub-provider-bar strong{font-size:10px;white-space:nowrap}
     #salesHubTopGrid .sales-hub-provider-bar select{margin:0!important;min-width:0;padding:7px 8px!important;font-size:10px}
@@ -73,19 +89,21 @@
     }
     @media(max-width:900px){
       #field.view.active{padding:8px}
-      #salesHubTopGrid{grid-template-columns:1fr;gap:7px}
-      #salesHubTopGrid .sales-hub-field-session{order:1;min-height:auto}
-      #salesHubTopGrid .sales-hub-door-workflow{order:2;min-height:auto}
-      #salesHubMiddleStack{order:3;grid-template-columns:1fr;grid-template-rows:auto;gap:7px}
+      #salesHubTopGrid{grid-template-columns:1fr;grid-template-areas:"field" "workday" "door" "middle";gap:7px}
+      #salesHubTopGrid .sales-hub-field-session{min-height:auto}
+      #salesHubTopGrid .sales-hub-workday{min-height:56px}
+      #salesHubTopGrid .sales-hub-door-workflow{min-height:auto}
+      #salesHubMiddleStack{grid-template-columns:1fr;grid-template-rows:auto;gap:7px}
       #salesHubMiddleStack .sales-hub-live-stats,#salesHubMiddleStack #payProgressCard{min-height:auto}
       #salesHubTopGrid .sales-hub-live-stats .mini-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
       #salesHubTopGrid .sales-hub-live-stats .mini-stats>div{text-align:center;padding:7px 4px}
       #salesHubTopGrid .sales-hub-field-session .field-controls{grid-template-columns:1fr 1fr}
-      #salesHubTopGrid .sales-hub-field-session .field-state,#salesHubTopGrid .sales-hub-field-session #startKnockingBtn,#salesHubTopGrid .sales-hub-field-session #stopKnockingBtn,#salesHubTopGrid .sales-hub-field-session #geoBox{grid-column:1/-1}
+      #salesHubTopGrid .sales-hub-field-session .field-state,#salesHubTopGrid .sales-hub-field-session #startKnockingBtn,#salesHubTopGrid .sales-hub-field-session #stopKnockingBtn,#salesHubTopGrid .sales-hub-field-session #geoBox,#salesHubTopGrid .sales-hub-field-session #backgroundModePanel{grid-column:1/-1}
       #salesHubTopGrid .sales-hub-door-workflow .card-head p{display:none}
       #salesHubTopGrid .sales-hub-door-workflow #salePhotoStageStatus{justify-content:flex-start;text-align:left}
     }
     @media(max-width:560px){
+      #salesHubTopGrid .sales-hub-workday{padding:8px 10px!important}
       #salesHubTopGrid .sales-hub-door-workflow .spotio-disposition-grid{grid-template-columns:1fr}
       #salesHubTopGrid .sales-hub-door-workflow .spotio-disposition-actions button{font-size:10px;padding:8px 4px}
       #salesHubDoorPrimary #arriveDoorBtn{flex-basis:84px;width:84px}
@@ -149,6 +167,7 @@
     const liveStats=byId('elapsed')?.closest('.card')||cardWithTitle(field,'Live Session Stats');
     const pay=byId('payProgressCard');
     const door=byId('fieldLeadSelect')?.closest('.card');
+    const workday=byId('sphWorkdayControl');
     if(!fieldSession||!liveStats||!door)return false;
 
     let top=byId('salesHubTopGrid');
@@ -165,23 +184,26 @@
     fieldSession.classList.add('sales-hub-field-session');
     liveStats.classList.add('sales-hub-live-stats');
     if(pay)pay.classList.add('sales-hub-pay-progress');
+    if(workday)workday.classList.add('sales-hub-workday');
     compactDoorWorkflow(door);
 
     if(fieldSession.parentElement!==top)top.appendChild(fieldSession);
     if(middle.parentElement!==top)top.appendChild(middle);
     if(door.parentElement!==top)top.appendChild(door);
+    if(workday&&workday.parentElement!==top)top.appendChild(workday);
     if(liveStats.parentElement!==middle)middle.appendChild(liveStats);
     if(pay&&pay.parentElement!==middle)middle.appendChild(pay);
-    top.replaceChildren(fieldSession,middle,door);
+    top.replaceChildren(fieldSession,middle,door,...(workday?[workday]:[]));
     if(pay)middle.replaceChildren(liveStats,pay);else middle.replaceChildren(liveStats);
 
-    window.dispatchEvent(new CustomEvent('mccoy-sales-hub-layout-ready'));
-    return !!pay;
+    window.dispatchEvent(new CustomEvent('mccoy-sales-hub-layout-ready',{detail:{workdayReady:!!workday}}));
+    return !!pay&&!!workday;
   }
 
   function schedule(){[0,80,220,500,900,1500,2500].forEach(delay=>setTimeout(mount,delay));}
   document.addEventListener('click',event=>{if(event.target?.closest?.('.nav-btn[data-view="field"]'))schedule();},true);
   window.addEventListener('mccoy-access-ready',schedule);
   window.addEventListener('mccoy-sale-saved',schedule);
+  window.addEventListener('mccoy-sph-workday-ready',schedule);
   schedule();
 })();
