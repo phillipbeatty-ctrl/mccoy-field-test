@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test'
 
 async function waitForLayout(page){
   await page.goto('/tests/sales-hub-mobile-preview.html')
+  await page.addScriptTag({url:'/app-sales-hub-fieldcoach-workday-layout.js'})
   await expect(page.locator('#salesHubTopGrid')).toBeVisible()
   await expect(page.locator('#sphWorkdayControl')).toBeVisible()
   await expect(page.locator('#sphHomeAddressDisplay')).toContainText('100 Test Home Avenue')
