@@ -1,0 +1,21 @@
+name: Provider popup return policy
+
+on:
+  push:
+    branches:
+      - fix/provider-popup-coop-20260828
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-provider-sale-router.js
+      - run: node --test provider-popup-coop.test.mjs app-provider-portals.test.mjs provider-return-closest-lead-customer-list.test.mjs
