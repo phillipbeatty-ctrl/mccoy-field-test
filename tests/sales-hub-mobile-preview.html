@@ -32,12 +32,17 @@
 </section>
 <script>
 const __memoryStorage=new Map();
-Object.defineProperty(window,'localStorage',{value:{
-  getItem:key=>__memoryStorage.has(String(key))?__memoryStorage.get(String(key)):null,
-  setItem:(key,value)=>__memoryStorage.set(String(key),String(value)),
-  removeItem:key=>__memoryStorage.delete(String(key)),
-  clear:()=>__memoryStorage.clear()
-},configurable:true});
+try{
+  localStorage.setItem('__mccoy_preview_probe','1');
+  localStorage.removeItem('__mccoy_preview_probe');
+}catch(_){
+  Object.defineProperty(window,'localStorage',{value:{
+    getItem:key=>__memoryStorage.has(String(key))?__memoryStorage.get(String(key)):null,
+    setItem:(key,value)=>__memoryStorage.set(String(key),String(value)),
+    removeItem:key=>__memoryStorage.delete(String(key)),
+    clear:()=>__memoryStorage.clear()
+  },configurable:true});
+}
 window.MCCOY_ACCESS={access:{active:true,role:'rep'},user:{email:'mobile.test@example.com'}};
 window.__captureEnabled=false;
 window.__calls=[];
