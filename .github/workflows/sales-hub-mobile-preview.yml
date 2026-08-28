@@ -1,0 +1,48 @@
+name: Sales Hub iPhone and iPad preview
+
+on:
+  push:
+    branches:
+      - preview/sales-hub-photo-staging-20260828
+  pull_request:
+    paths:
+      - 'app-sales-hub-layout.js'
+      - 'app-sale-photo-staging.js'
+      - 'app-page-layout.js'
+      - 'supabase/functions/provider-sale-photo-stage/**'
+      - 'supabase/migrations/20260828043000_provider_sale_photo_staging.sql'
+      - 'tests/sales-hub-mobile-preview*'
+      - 'playwright.sales-hub.config.mjs'
+      - 'sales-hub-photo-staging.test.mjs'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check app-sales-hub-layout.js
+      - run: node --check app-sale-photo-staging.js
+      - run: node --test sales-hub-photo-staging.test.mjs
+
+  webkit-mobile:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save @playwright/test@1.55.0
+      - run: npx playwright install webkit
+      - run: npx playwright test --config=playwright.sales-hub.config.mjs
+      - name: Upload iPhone and iPad screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sales-hub-iphone-ipad-preview
+          path: |
+            test-results
+            playwright-report
+          retention-days: 14
