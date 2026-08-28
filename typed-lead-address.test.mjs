@@ -19,7 +19,7 @@ const leads=[
   {id:2,dbId:'b',address:'55 Oak Ave',city:'Raleigh',stateCode:'NC',zip:'27601',fullAddress:'55 Oak Ave, Raleigh, NC 27601'}
 ];
 
-test('assigned addresses resolve to scoped leads while unmatched addresses remain ad-hoc',()=>{
+test('McCoy lead addresses resolve to pool leads while unmatched addresses remain ad-hoc',()=>{
   const assigned=core.context({value:'123 Main St, Portland, OR 97201',leads});
   assert.equal(assigned.kind,'assigned');assert.equal(assigned.lead.dbId,'a');
   const typed=core.context({value:' 900 Outside Area Road, Boise, ID 83702 ',leads});
@@ -59,8 +59,14 @@ test('Sales Hub routes typed addresses through the dedicated RPC and preserves s
   assert.match(client,/p_service_address:addressContext\.address/);
   assert.match(distance,/selectionSource:'typed_address'/);
   assert.match(providerRouter,/selection_source:typedAddress\?'typed_address':null/);
-  assert.match(typedUi,/not added to your assigned lead list/);
+  assert.match(typedUi,/not added to the McCoy lead pool/);
   assert.match(autoArrival,/MCCOY_LEAD_ADDRESS\?\.current\?\.\(\)\.kind==='typed'/);
+});
+
+test('nearest address UI is event-driven and avoids continuous DOM observation',()=>{
+  assert.match(typedUi,/closest mapped McCoy lead/i);
+  assert.doesNotMatch(typedUi,/MutationObserver/);
+  assert.match(typedUi,/mccoy-real-leads-loaded/);
 });
 
 test('typed-address scripts load before the shared distance and sales workflows',()=>{
