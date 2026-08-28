@@ -1,0 +1,1 @@
+Preview branch only. Production Vercel remains unchanged. Draft PR must stay unmerged until physical iPhone or iPad validation covers PHOTO staging, provider-dashboard X return, and closest-lead auto-fill.
