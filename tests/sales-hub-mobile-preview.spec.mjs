@@ -6,6 +6,14 @@ async function waitForLayout(page){
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO')
 }
 
+async function startValidatedCapture(page){
+  await page.evaluate(()=>{
+    window.__captureEnabled=true
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-started',{detail:{capture:window.__capture}}))
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture,validated:true}}))
+  })
+}
+
 test('approved layout and action row fit the target device',async({page},testInfo)=>{
   await waitForLayout(page)
   const project=testInfo.project.name
@@ -34,12 +42,22 @@ test('approved layout and action row fit the target device',async({page},testInf
   await page.screenshot({path:`test-results/${project}-sales-hub.png`,fullPage:true})
 })
 
-test('PHOTO blocks before SALE and stages a mobile-selected screenshot after capture validation',async({page})=>{
+test('PHOTO blocks before SALE even when an older local capture exists, then stages after current validation',async({page})=>{
   await waitForLayout(page)
+  await page.evaluate(()=>localStorage.setItem('mccoy_active_provider_sale_capture_v1',JSON.stringify({
+    id:'77777777-7777-4777-8777-777777777777',
+    client_request_id:'88888888-8888-4888-8888-888888888888',
+    provider:'Quantum',
+    status:'details_required'
+  })))
+  let chooserOpened=false
+  page.once('filechooser',()=>{chooserOpened=true})
   await page.locator('#stageSalePhotoBtn').click()
+  await page.waitForTimeout(350)
+  expect(chooserOpened).toBe(false)
   await expect(page.locator('#salePhotoStageStatus')).toContainText('Press SALE first')
 
-  await page.evaluate(()=>{window.__captureEnabled=true;window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture}}))})
+  await startValidatedCapture(page)
   const chooserPromise=page.waitForEvent('filechooser')
   await page.locator('#stageSalePhotoBtn').click()
   const chooser=await chooserPromise
@@ -56,10 +74,9 @@ test('PHOTO blocks before SALE and stages a mobile-selected screenshot after cap
 test('completed sale finalizes staged photo and abandoned sale discards it',async({page})=>{
   await waitForLayout(page)
   await page.evaluate(()=>{
-    window.__captureEnabled=true
     window.__stagedRows=[{id:'33333333-3333-4333-8333-333333333333',status:'staged',provider_capture_id:window.__capture.id}]
-    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture}}))
   })
+  await startValidatedCapture(page)
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO (1)')
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('mccoy-sale-saved',{detail:{saleId:'55555555-5555-4555-8555-555555555555',providerCaptureId:window.__capture.id}})))
   await expect(page.locator('#salePhotoStageStatus')).toContainText('attached')
@@ -69,7 +86,10 @@ test('completed sale finalizes staged photo and abandoned sale discards it',asyn
 
   await page.evaluate(()=>{
     window.__stagedRows=[{id:'66666666-6666-4666-8666-666666666666',status:'staged',provider_capture_id:window.__capture.id}]
-    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture}}))
+    window.__captureEnabled=false
+    window.__captureEnabled=true
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-started',{detail:{capture:window.__capture}}))
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:window.__capture,validated:true}}))
   })
   await expect(page.locator('#stageSalePhotoBtn')).toHaveText('PHOTO (1)')
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('mccoy-provider-sale-abandoned',{detail:{providerCaptureId:window.__capture.id}})))
