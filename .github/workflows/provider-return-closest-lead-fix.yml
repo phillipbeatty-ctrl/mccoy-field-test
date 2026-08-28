@@ -20,4 +20,5 @@ jobs:
       - run: node --check app-provider-sale-router.js
       - run: node --check app-door-workflow-core.js
       - run: node --check app-distance-to-lead.js
-      - run: node --test provider-return-closest-lead-customer-list.test.mjs distance-to-lead-door-workflow.test.mjs
+      - run: node --check app-typed-lead-address.js
+      - run: node --test provider-return-closest-lead-customer-list.test.mjs distance-to-lead-door-workflow.test.mjs app-provider-portals.test.mjs typed-lead-address.test.mjs
