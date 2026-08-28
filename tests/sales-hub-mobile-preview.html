@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sales Hub preview harness</title>
+<style>
+:root{--line:#e5e7eb;--blue:#1455d9;--green:#138a4b;--bg:#f4f6f8;--muted:#6b7280}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17202a}.view{padding:18px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px}.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.card-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:14px}.card-head h2{margin:0;font-size:17px}.muted{color:var(--muted)}.small{font-size:12px}.field-controls{display:grid;gap:10px}.field-state{font-size:20px;font-weight:900}.primary,.assign-btn,.success{border:0;border-radius:9px;padding:10px 13px;font-weight:800}.primary{background:var(--blue);color:#fff}.assign-btn{background:#eaf0ff;color:var(--blue)}.success{background:#e7f8ee;color:#116b3c}.big{width:100%;padding:13px}.hidden{display:none}.geo-box,.gps-quality{padding:10px;border:1px solid var(--line);border-radius:9px;background:#f7f8fa}.mini-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mini-stats>div{padding:10px;border:1px solid var(--line);border-radius:10px}.mini-stats span{display:block;color:var(--muted);font-size:11px}.mini-stats strong{font-size:20px}.sales-card{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}.sales-card select,select,input{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;background:#fff}.calibration-panel,.door-visit-panel,.spotio-disposition-panel{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px}.door-timer{display:flex;justify-content:space-between;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px}.spotio-disposition-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.spotio-disposition-grid label{display:grid;gap:4px}.spotio-disposition-actions{display:flex;gap:8px;margin-top:10px}.pin-disposition-preview,.pin-disposition-current{margin-top:8px;padding:7px;border:1px solid var(--line);border-radius:8px}.activity-log,.efficiency-summary{margin-top:10px}.pay-progress-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.pay-progress-main{font-size:16px;font-weight:800;margin-top:8px}.pay-progress-sub{font-size:12px;color:var(--muted);margin-top:4px}.sale-modal{display:none}.sale-modal.show{display:block}.sale-form{padding:10px;border:1px solid var(--line);border-radius:10px}.sale-outcome-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+<section id="field" class="view active">
+  <div class="grid-2 field-session-top-grid">
+    <div class="card" data-harness-card="field-session"><div class="card-head"><h2>Field Session</h2></div><div class="field-controls"><div class="field-state" id="fieldState">Not knocking</div><button id="startKnockingBtn" class="primary big">START KNOCKING</button><button id="stopKnockingBtn" class="primary big hidden">STOP SESSION</button><div id="geoBox" class="geo-box">GPS not captured yet.</div><div id="gpsQualityBox" class="gps-quality">GPS: Unverified</div><div id="doorPresenceBox" class="geo-box">Field Analysis: Active</div><div id="telemetryStatus" class="geo-box">Session data not started.</div></div></div>
+    <div id="payProgressCard" class="pay-progress-card"><div class="card-head"><h2>Weekly Pay Progress</h2></div><div class="pay-progress-main">7 sales · $1,050</div><div class="pay-progress-sub">8 more to next increase</div></div>
+    <div class="card" data-harness-card="live-stats"><div class="card-head"><h2>Live Session Stats</h2></div><div class="mini-stats"><div><span>Elapsed</span><strong id="elapsed">02:14:32</strong></div><div><span>Doors</span><strong>64</strong></div><div><span>Contacts</span><strong>16</strong></div><div><span>Sales</span><strong>3</strong></div></div></div>
+  </div>
+
+  <div class="card" data-harness-card="door-workflow">
+    <div class="card-head"><div><h2>Door Workflow</h2><p class="muted">Use the closest assigned lead or type any service address.</p></div></div>
+    <div class="sales-card"><strong>Selling for</strong><select id="sessionIsp"><option>Quantum</option><option>Brightspeed</option><option>AT&amp;T</option></select></div>
+    <div id="closestDoorAddress" class="geo-box">Closest assigned door · 123 Test Street</div>
+    <select id="fieldLeadSelect"><option>123 Test Street</option></select>
+    <div class="calibration-panel"><strong>Local Address Reference</strong><button class="assign-btn">SET REFERENCE</button></div>
+    <div class="door-visit-panel"><button id="arriveDoorBtn" class="primary big">ARRIVED AT DOOR</button><div id="doorVisitStatus" class="geo-box">No active door visit.</div><div class="door-timer"><span>Time at this door</span><strong id="doorElapsed">00:00</strong></div></div>
+    <div class="spotio-disposition-panel"><div class="spotio-disposition-head"><div><strong>Pin Disposition</strong><div class="muted small">Visit Result changes the pin.</div></div><div id="currentPinDisposition" class="pin-disposition-current">Current pin: Prospecting</div></div><div class="spotio-disposition-grid"><label>Activity Type<select id="leadActivityType"><option>Visit</option></select></label><label>Visit Result<select id="leadVisitResult"><option>Contacted</option></select></label><label>Stage<select id="leadStage"><option>Sale Made</option></select></label></div><div class="pin-disposition-preview">Sale Made</div><div class="spotio-disposition-actions"><button id="savePinDispositionBtn" class="primary">SAVE DISPOSITION</button><button id="processSaleBtn" class="success" data-disp="Sale">SALE</button></div></div>
+    <div id="activityLog" class="activity-log">Visit history</div><div id="efficiencySummary" class="efficiency-summary">Efficiency details</div>
+    <div id="saleModal" class="sale-modal"><div class="sale-form"><h2>Provider Outcome</h2><div id="providerCaptureBanner"></div><div class="sale-outcome-actions"><button id="completeSaleBtn">COMPLETE SALE</button><button id="abandonedSaleBtn">ABANDONED</button></div><div id="saleMsg"></div></div></div>
+  </div>
+  <div id="coachMetrics" class="card">Field Coach</div>
+</section>
+<script>
+const __memoryStorage=new Map();
+Object.defineProperty(window,'localStorage',{value:{
+  getItem:key=>__memoryStorage.has(String(key))?__memoryStorage.get(String(key)):null,
+  setItem:(key,value)=>__memoryStorage.set(String(key),String(value)),
+  removeItem:key=>__memoryStorage.delete(String(key)),
+  clear:()=>__memoryStorage.clear()
+},configurable:true});
+window.MCCOY_ACCESS={access:{active:true,role:'rep'},user:{email:'mobile.test@example.com'}};
+window.__captureEnabled=false;
+window.__calls=[];
+window.__stagedRows=[];
+window.__capture={id:'11111111-1111-4111-8111-111111111111',client_request_id:'22222222-2222-4222-8222-222222222222',provider:'Quantum',status:'details_required'};
+window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE=async()=>window.__captureEnabled?window.__capture:null;
+Object.defineProperty(window,'MCCOY_ACTIVE_PROVIDER_CAPTURE',{get(){return window.__captureEnabled?window.__capture:null},configurable:true});
+window.sb={
+  functions:{invoke:async(name,{body}={})=>{
+    window.__calls.push({name,body});
+    if(name==='provider-sale-photo-stage'){
+      if(body.action==='list')return{data:{ok:true,rows:window.__stagedRows,maximum_photos:3},error:null};
+      if(body.action==='create_upload')return{data:{ok:true,photo_id:'33333333-3333-4333-8333-333333333333',path:'stage/photo.jpg',token:'signed-token'},error:null};
+      if(body.action==='commit_upload'){
+        window.__stagedRows=[{id:body.photo_id,status:'staged',provider_capture_id:window.__capture.id}];
+        return{data:{ok:true,row:window.__stagedRows[0]},error:null};
+      }
+      if(body.action==='abort_upload')return{data:{ok:true,deleted:true},error:null};
+      if(body.action==='discard'){window.__stagedRows=[];return{data:{ok:true,deleted:1},error:null};}
+      if(body.action==='finalize'){window.__stagedRows=[];return{data:{ok:true,sale_photo_ids:['44444444-4444-4444-8444-444444444444']},error:null};}
+    }
+    if(name==='sale-order-photo'&&body.action==='process')return{data:{ok:true,extracted_fields:{}},error:null};
+    return{data:{ok:true},error:null};
+  }},
+  storage:{from:()=>({uploadToSignedUrl:async()=>({data:{path:'stage/photo.jpg'},error:null})})}
+};
+</script>
+<script src="../app-sales-hub-layout.js"></script>
+<script src="../app-sale-photo-staging.js"></script>
+</body>
+</html>
