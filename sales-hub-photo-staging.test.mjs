@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 
 const layout=readFileSync(new URL('./app-sales-hub-layout.js',import.meta.url),'utf8')
+const finalPlacement=readFileSync(new URL('./app-sales-hub-fieldcoach-workday-layout.js',import.meta.url),'utf8')
 const staging=readFileSync(new URL('./app-sale-photo-staging.js',import.meta.url),'utf8')
 const presence=readFileSync(new URL('./app-sph-presence.js',import.meta.url),'utf8')
 const migration=readFileSync(new URL('./supabase/migrations/20260828043000_provider_sale_photo_staging.sql',import.meta.url),'utf8')
@@ -15,12 +16,17 @@ test('approved Sales Hub layout is compact and responsive',()=>{
   assert.match(layout,/grid-template-areas:"field middle door" "workday workday door"/)
   assert.match(layout,/#salesHubMiddleStack/)
   assert.match(layout,/middle\.replaceChildren\(liveStats,pay\)/)
-  assert.match(layout,/top\.replaceChildren\(fieldSession,middle,door,\.\.\.\(workday\?\[workday\]:\[\]\)\)/)
   assert.match(layout,/gap:8px/)
   assert.match(layout,/save\.textContent='SAVE'/)
   assert.match(layout,/@media\(max-width:900px\)/)
-  assert.match(layout,/grid-template-areas:"field" "workday" "door" "middle"/)
   assert.match(layout,/mccoy-sph-workday-ready/)
+
+  assert.match(finalPlacement,/grid-template-areas:"field middle door" "coach coach door"/)
+  assert.match(finalPlacement,/background\.insertAdjacentElement\('afterend',workday\)/)
+  assert.match(finalPlacement,/top\.replaceChildren\(fieldSession,middle,door,coach\)/)
+  assert.match(finalPlacement,/grid-template-areas:"field" "coach" "door" "middle"/)
+  assert.match(finalPlacement,/sales-hub-field-coach/)
+  assert.match(finalPlacement,/mccoy-sales-hub-layout-ready/)
 })
 
 test('Sales per Hour Workday is an address-only summary until EDIT is opened',()=>{
@@ -84,8 +90,10 @@ test('staging is private, temporary, and isolated from rankings',()=>{
 
 test('new modules are preview-loaded without a DOM observer and security headers support provider/photo flows',()=>{
   assert.match(pageLayout,/app-sales-hub-layout\.js\?v=2026082802/)
+  assert.match(pageLayout,/app-sales-hub-fieldcoach-workday-layout\.js\?v=2026082801/)
   assert.match(pageLayout,/app-sale-photo-staging\.js\?v=2026082802/)
   assert.doesNotMatch(layout,/new\s+MutationObserver|MutationObserver\s*\(/)
+  assert.doesNotMatch(finalPlacement,/new\s+MutationObserver|MutationObserver\s*\(/)
   assert.doesNotMatch(staging,/new\s+MutationObserver|MutationObserver\s*\(/)
   assert.doesNotMatch(presence,/new\s+MutationObserver|MutationObserver\s*\(/)
   assert.match(vercel,/img-src[^\n]*athxxrfqxwlfnuvbqadp\.supabase\.co/)
