@@ -157,18 +157,19 @@ Deno.serve(async request => {
 
     if (action === 'list') {
       const isAdmin = access.role === 'admin'
+      const mineOnly = body.mine_only === true || body.open_only === true
       let query = admin
         .from('provider_sale_captures')
         .select('id,client_request_id,created_at,updated_at,rep_user_id,rep_email,rep_name,provider,sale_context,session_id,lead_label,service_address,seller_portal_label,portal_opened,portal_open_reason,status,rep_outcome,rep_outcome_at,return_count,last_returned_at,sales_records!sales_records_provider_capture_id_fkey(id,verification_status,verification_reason,competition_eligible,ranking_eligible,sale_status)')
         .order('created_at', { ascending: false })
-        .limit(isAdmin ? 500 : 100)
-      if (!isAdmin) query = query.eq('rep_user_id', user.id)
+        .limit(isAdmin && !mineOnly ? 500 : 100)
+      if (!isAdmin || mineOnly) query = query.eq('rep_user_id', user.id)
       if (body.open_only === true) query = query.in('status', ['dashboard_opened', 'details_required'])
       const { data: captures, error: listError } = await query
       if (listError) throw listError
       const counts: Record<string, number> = {}
       for (const capture of captures || []) counts[capture.status] = (counts[capture.status] || 0) + 1
-      return json({ ok: true, counts, captures: captures || [] })
+      return json({ ok: true, scope: mineOnly ? 'current_user' : (isAdmin ? 'organization_admin' : 'current_user'), counts, captures: captures || [] })
     }
 
     return json({ error: 'unknown_action' }, 400)
