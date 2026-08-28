@@ -1,0 +1,22 @@
+name: Sales Hub provider return and closest lead preview
+
+on:
+  push:
+    branches:
+      - preview/sales-hub-photo-staging-20260828
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-provider-return-focus.js
+      - run: node --check app-closest-lead-autofill.js
+      - run: node --test sales-hub-return-closest-lead.test.mjs
