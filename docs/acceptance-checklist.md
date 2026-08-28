@@ -1,0 +1,6 @@
+- Open preview in physical Safari.
+- Verify PHOTO staging.
+- Close provider dashboard with X and verify Provider Outcome regains focus.
+- Leave Lead or Service Address empty and verify nearest organization lead fills it.
+- Type a manual address and verify it is never overwritten.
+- Confirm Customer List NOT A SALE moves the record to SALE REVIEW without an audit constraint error.
