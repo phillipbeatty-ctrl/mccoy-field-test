@@ -1,0 +1,22 @@
+name: Guarded provider dashboard return preview
+
+on:
+  push:
+    branches:
+      - preview/sales-hub-photo-staging-20260828
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-provider-return-focus-v2.js
+      - run: node --check app-provider-return-focus-v3-loader.js
+      - run: node --test provider-return-v2.test.mjs
