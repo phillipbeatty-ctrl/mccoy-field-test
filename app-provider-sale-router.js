@@ -1,6 +1,5 @@
 // Select the sale provider and open its seller portal only when SALE is chosen.
-// McCoy stays open behind the provider tab so closing the provider X/tab returns
-// the user directly to the active sale outcome. Provider passwords are never stored.
+// Explicit Lead Pool / phone-sale context is captured without replacing the Sales Hub door activity.
 (function(){
   if(window.MCCOY_PROVIDER_SALE_ROUTER)return;
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
@@ -28,7 +27,7 @@
   const portals=Object.fromEntries(PROVIDERS.map(provider=>{
     const value=configured[provider];
     const override=typeof value==='string'?{url:value}:value||{};
-    return [provider,{...defaults[provider],...override}];
+    return[provider,{...defaults[provider],...override}];
   }));
 
   const style=document.createElement('style');
@@ -66,22 +65,56 @@
   function newCaptureRequestId(){
     if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
     const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
-    return [...bytes].map((value,index)=>([4,6,8,10].includes(index)?'-':'')+value.toString(16).padStart(2,'0')).join('');
+    return[...bytes].map((value,index)=>([4,6,8,10].includes(index)?'-':'')+value.toString(16).padStart(2,'0')).join('');
+  }
+  function validPoint(value){
+    const latitude=Number(value?.latitude??value?.lat),longitude=Number(value?.longitude??value?.lng);
+    return Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180?{latitude,longitude}:null;
+  }
+  function currentSessionId(){
+    try{if(typeof telemetrySessionId!=='undefined'&&telemetrySessionId)return telemetrySessionId;}catch(_){}
+    return null;
   }
   function saleSourceContext(){
+    const explicit=window.MCCOY_PENDING_SALE_CONTEXT||null;
+    if(explicit?.service_address){
+      const preserve=explicit.preserve_active_visit!==false;
+      return{
+        sale_context:explicit.sale_context==='field'?'field':'out_of_area_phone',
+        session_id:explicit.session_id||currentSessionId(),
+        lead_id:explicit.lead_id||null,
+        lead_label:explicit.lead_label||explicit.service_address,
+        service_address:explicit.service_address,
+        selection_source:explicit.selection_source||explicit.source||'lead_pool_phone',
+        source:explicit.source||'lead_pool_phone',
+        source_door_visit_id:preserve?null:(explicit.source_door_visit_id||null),
+        preserve_active_visit:preserve,
+        customer_map_location:validPoint(explicit.customer_map_location)
+      };
+    }
     const currentState=typeof state!=='undefined'?state:null;
     const selectedLeadId=Number(document.getElementById('fieldLeadSelect')?.value);
     const distanceContext=window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()||null;
     const addressContext=window.MCCOY_LEAD_ADDRESS?.current?.()||null;
-    const lead=distanceContext?.lead||currentState?.activeDoorVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
-    let sessionId=null;
-    try{if(typeof telemetrySessionId!=='undefined'&&telemetrySessionId)sessionId=telemetrySessionId;}catch(_){}
+    const activeVisit=currentState?.activeDoorVisit||null;
+    const lead=distanceContext?.lead||activeVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
     const typedAddress=addressContext?.kind==='typed'?addressContext.address:null;
-    return{session_id:sessionId,lead_label:typedAddress||(lead?.address||lead?.fullAddress||null),service_address:typedAddress||(distanceContext?.address||(lead?.address||lead?.fullAddress||null)),selection_source:typedAddress?'typed_address':null};
+    return{
+      sale_context:'field',
+      session_id:currentSessionId(),
+      lead_id:lead?.dbId||null,
+      lead_label:typedAddress||(lead?.address||lead?.fullAddress||null),
+      service_address:typedAddress||(distanceContext?.address||(lead?.fullAddress||lead?.address||null)),
+      selection_source:typedAddress?'typed_address':'sales_hub',
+      source:'sales_hub',
+      source_door_visit_id:activeVisit?.serverVisitId||null,
+      preserve_active_visit:false,
+      customer_map_location:validPoint(lead)
+    };
   }
   async function captureCall(action,payload={}){
     if(typeof sb==='undefined')throw new Error('McCoy connection is not ready.');
-    const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
+    const{data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
     if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_sale_capture_failed');
     return data;
   }
@@ -101,11 +134,15 @@
   }
   function startProviderCapture(provider,portalResult){
     const source=saleSourceContext(),info=portalInfo(provider),draft={
-      client_request_id:newCaptureRequestId(),provider,sale_context:'field',
+      client_request_id:newCaptureRequestId(),provider,sale_context:source.sale_context||'field',
       service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
+      lead_id:source.lead_id||null,source_door_visit_id:source.source_door_visit_id||null,
+      preserve_active_visit:source.preserve_active_visit===true,customer_map_location:source.customer_map_location||null,
+      source:source.source||source.selection_source||'sales_hub',selection_source:source.selection_source||null,
       seller_portal_label:info.label,portal_opened:!!portalResult?.opened,portal_open_reason:portalResult?.reason||null,
       started_at:new Date().toISOString(),status:portalResult?.opened?'dashboard_opened':'details_required'
     };
+    window.MCCOY_PENDING_SALE_CONTEXT=null;
     writeCapture(draft);returnNotifiedFor=null;
     window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-started',{detail:{capture:draft}}));
     const ready=captureCall('start',draft).then(data=>{
@@ -194,32 +231,29 @@
   }
   function portalAccountMessage(provider){
     const info=portalInfo(provider),account=String(info.accountContext||'').trim();
-    if(!account)return '';
+    if(!account)return'';
     const previous=readPortalContext();
     if(info.sessionGroup&&previous?.sessionGroup===info.sessionGroup&&previous.provider!==provider){
-      return `Sara Plus may still be signed into the ${previous.provider} account. Sign out there and use your assigned ${account} account before placing this order. McCoy will record this capture only as ${provider}.`;
+      return`Sara Plus may still be signed into the ${previous.provider} account. Sign out there and use your assigned ${account} account before placing this order. McCoy will record this capture only as ${provider}.`;
     }
-    return `Sara Plus account required: ${account}. Confirm Sara Plus is signed into your assigned ${account} account. McCoy will record this capture only as ${provider}.`;
+    return`Sara Plus account required: ${account}. Confirm Sara Plus is signed into your assigned ${account} account. McCoy will record this capture only as ${provider}.`;
   }
   function updatePortalStatus(){
-    const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider);
-    document.getElementById('providerRouterStatus').textContent=message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Close that tab or tap its X to return directly to McCoy.`);
+    const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider),explicit=window.MCCOY_PENDING_SALE_CONTEXT;
+    const contextMessage=explicit?.preserve_active_visit!==false?' This sale is isolated from the current physical-door activity.':'';
+    document.getElementById('providerRouterStatus').textContent=(message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Close that tab or tap its X to return directly to McCoy.`))+contextMessage;
   }
   function sellerAccountDestination(provider){
     const info=portalInfo(provider),raw=String(info.url||'').trim();
     if(!raw){notify(`${provider} selected. ${info.label} link is not configured yet.`);return{opened:false,reason:'not_configured'};}
     let url;try{url=new URL(raw);}catch(_){notify(`${info.label} link is invalid and was not opened.`);return{opened:false,reason:'invalid_url'};}
     if(url.protocol!=='https:'){notify(`${info.label} must use a secure HTTPS address.`);return{opened:false,reason:'insecure_url'};}
-    // ASP.NET cookieless-session segments are temporary authentication tokens.
-    // Never publish or reuse one from a copied Sara Plus URL. The stable route
-    // creates a fresh session and preserves SubmitOrders.aspx as the return page.
     if(/(^|\.)saraplus\.com$/i.test(url.hostname))url.pathname=url.pathname.replace(/\/\(S\([^/]+\)\)/i,'');
     return{opened:true,reason:null,url:url.href};
   }
   function navigateSellerAccount(provider,destination,reservedWindow=null){
     if(!destination?.opened)return destination;
-    const info=portalInfo(provider);
-    const accountMessage=portalAccountMessage(provider);
+    const info=portalInfo(provider),accountMessage=portalAccountMessage(provider);
     if(info.sessionGroup){
       try{localStorage.setItem(PORTAL_CONTEXT_STORAGE_KEY,JSON.stringify({provider,sessionGroup:info.sessionGroup,openedAt:new Date().toISOString()}));}catch(_){}
     }
@@ -227,9 +261,7 @@
     if(reservedWindow&&!reservedWindow.closed){
       try{
         try{reservedWindow.opener=null;}catch(_){}
-        reservedWindow.location.replace(destination.url);
-        reservedWindow.focus();
-        trackProviderWindow(reservedWindow);
+        reservedWindow.location.replace(destination.url);reservedWindow.focus();trackProviderWindow(reservedWindow);
         return{...destination,mode:'separate_tab'};
       }catch(error){console.warn('Provider separate-tab navigation failed; using same-tab fallback',error);try{reservedWindow.close();}catch(_){} }
     }
@@ -237,16 +269,12 @@
     catch(error){console.error('Provider navigation failed',error);notify(`${info.label} could not open. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
   }
   function openSellerAccount(provider){
-    const destination=sellerAccountDestination(provider);
-    const reserved=destination.opened?reserveProviderWindow():null;
+    const destination=sellerAccountDestination(provider),reserved=destination.opened?reserveProviderWindow():null;
     return navigateSellerAccount(provider,destination,reserved);
   }
   async function waitForCaptureReady(fallback){
     if(!window.MCCOY_PROVIDER_CAPTURE_READY)return fallback;
-    return Promise.race([
-      window.MCCOY_PROVIDER_CAPTURE_READY,
-      new Promise(resolve=>setTimeout(()=>resolve(fallback),5000))
-    ]);
+    return Promise.race([window.MCCOY_PROVIDER_CAPTURE_READY,new Promise(resolve=>setTimeout(()=>resolve(fallback),5000))]);
   }
   function setProvider(provider){
     const select=document.getElementById('sessionIsp');
@@ -254,10 +282,10 @@
     if(select&&select.value!==provider){select.value=provider;select.dispatchEvent(new Event('change',{bubbles:true}));}
   }
   function showRouter(target){
-    const provider=currentProvider();
+    const provider=currentProvider(),explicit=window.MCCOY_PENDING_SALE_CONTEXT;
     choice.value=provider;pending={target};
-    document.getElementById('providerRouterTitle').textContent='Choose provider for this sale';
-    document.getElementById('providerRouterDescription').textContent='Select the Internet provider whose seller account will process this sale.';
+    document.getElementById('providerRouterTitle').textContent=explicit?.sale_context==='out_of_area_phone'?'Choose provider for this phone sale':'Choose provider for this sale';
+    document.getElementById('providerRouterDescription').textContent=explicit?.service_address?`Process the sale for ${explicit.service_address}. The current door activity will remain active.`:'Select the Internet provider whose seller account will process this sale.';
     const continueButton=document.getElementById('providerRouterContinue');
     continueButton.disabled=false;continueButton.textContent='OPEN PROVIDER DASHBOARD';
     choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
@@ -276,18 +304,14 @@
     const next=pending,continueButton=document.getElementById('providerRouterContinue');
     routing=true;continueButton.disabled=true;continueButton.textContent='SAVING CAPTURE…';
     choice.disabled=true;document.getElementById('providerRouterCancel').disabled=true;
-    window.MCCOY_SALE_CONTEXT='field';
-    window.MCCOY_TESTER_PKB_SALE=false;
-    setProvider(provider);
+    window.MCCOY_SALE_CONTEXT=window.MCCOY_PENDING_SALE_CONTEXT?.sale_context||'field';
+    window.MCCOY_TESTER_PKB_SALE=false;setProvider(provider);
     const destination=next.destination||sellerAccountDestination(provider);
-    // Open a blank provider tab during the original user tap. Browsers can block
-    // a new tab opened only after the asynchronous capture save completes.
     const reservedWindow=destination.opened?reserveProviderWindow():null;
     const draft=next.capture||startProviderCapture(provider,destination);
     if(destination.opened){
       document.getElementById('providerRouterStatus').textContent=reservedWindow?'Saving this provider attempt before loading the provider tab…':'The browser blocked a separate tab. McCoy will use a same-tab fallback after saving the capture.';
-      await waitForCaptureReady(draft);
-      panel.classList.remove('show');pending=null;
+      await waitForCaptureReady(draft);panel.classList.remove('show');pending=null;
       const navigation=navigateSellerAccount(provider,destination,reservedWindow);
       if(!navigation.opened){
         routing=false;pending={...next,destination,capture:draft};panel.classList.add('show');
@@ -297,8 +321,7 @@
       }
       return;
     }
-    routing=false;panel.classList.remove('show');pending=null;
-    choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
+    routing=false;panel.classList.remove('show');pending=null;choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
     saleGuard=true;next.target.click();
   });
 
@@ -308,7 +331,7 @@
       if(saleGuard){saleGuard=false;return;}
       if(isTesterPkb()){
         event.preventDefault();event.stopImmediatePropagation();
-        const provider=currentProvider();window.MCCOY_SALE_CONTEXT='field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
+        const provider=currentProvider();window.MCCOY_SALE_CONTEXT=window.MCCOY_PENDING_SALE_CONTEXT?.sale_context||'field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
         startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'});
         saleGuard=true;saleButton.click();return;
       }
@@ -316,6 +339,13 @@
     }
   },true);
 
+  window.MCCOY_START_EXPLICIT_SALE=context=>{
+    if(!context?.service_address)throw new Error('service_address_required');
+    window.MCCOY_PENDING_SALE_CONTEXT={...context,preserve_active_visit:context.preserve_active_visit!==false};
+    const button=document.getElementById('processSaleBtn')||document.querySelector('[data-disp="Sale"]');
+    if(!button)throw new Error('sale_button_not_ready');
+    button.click();
+  };
   window.MCCOY_OPEN_PROVIDER_PORTAL=openSellerAccount;
   const restored=readCapture();if(restored)writeCapture(restored);
   window.addEventListener('mccoy-access-ready',recoverServerCapture);
