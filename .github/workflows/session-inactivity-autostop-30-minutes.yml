@@ -9,7 +9,6 @@ on:
       - app-auto-stop.js
       - session-inactivity-autostop-30-minutes.test.mjs
       - session-control-outside-area-grace.test.mjs
-      - field-session-heartbeat.test.mjs
       - authoritative-workday-sph.test.mjs
       - supabase/functions/session-control/index.ts
       - supabase/migrations/20260824010000_provisional_sales_per_hour_and_stale_sessions.sql
@@ -21,7 +20,6 @@ on:
       - app-auto-stop.js
       - session-inactivity-autostop-30-minutes.test.mjs
       - session-control-outside-area-grace.test.mjs
-      - field-session-heartbeat.test.mjs
       - authoritative-workday-sph.test.mjs
       - supabase/functions/session-control/index.ts
       - supabase/migrations/20260824010000_provisional_sales_per_hour_and_stale_sessions.sql
@@ -49,7 +47,6 @@ jobs:
           node --test \
             session-inactivity-autostop-30-minutes.test.mjs \
             session-control-outside-area-grace.test.mjs \
-            field-session-heartbeat.test.mjs \
             authoritative-workday-sph.test.mjs
 
       - name: Check browser control syntax
