@@ -45,7 +45,7 @@ Deno.serve(async request => {
       .from('users')
       .select('id,email,role,active,organization_id,auth_user_id')
       .eq('organization_id', organizationId)
-      .eq('auth_user_id', user.id)
+      .ilike('email', email)
       .eq('active', true)
       .maybeSingle()
     if (profileError) throw profileError
@@ -426,6 +426,7 @@ Deno.serve(async request => {
         geocode_status: 'pending_google',
         geocode_provider: 'field_entry',
         geocode_verification_status: 'pending_google',
+        current_disposition: 'Uncontacted',
       }).select('*').single()
       if (error) throw error
       return json({ ok: true, lead: data }, 201)

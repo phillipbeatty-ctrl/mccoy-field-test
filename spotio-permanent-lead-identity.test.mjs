@@ -42,7 +42,7 @@ const normalizeUnit = value => normalizePart(value)
 const canonicalIdentity = (organizationId, lead) => {
   const providerId = normalizePart(lead.provider_lead_id).replace(/ /g, '')
   if (providerId) return `${organizationId}|provider:${providerId}`
-  const provider = normalizePart(lead.provider)
+  const provider = normalizePart(lead.provider || 'SPOTIO')
   const street = normalizeStreet(lead.address1)
   const unit = normalizeUnit(lead.address2)
   const zip = String(lead.zip || '').replace(/\D/g, '').slice(0, 5)
@@ -260,6 +260,17 @@ test('fallback identity includes organization, provider, normalized street, unit
   assert.equal(first, same)
   assert.notEqual(first, otherProvider)
   assert.notEqual(first, otherOrganization)
+})
+
+
+test('missing provider metadata uses the durable SPOTIO provider namespace', () => {
+  const implicit = canonicalIdentity('org-1', {
+    address1: '77 Default Road', address2: '', zip: '97206',
+  })
+  const explicit = canonicalIdentity('org-1', {
+    provider: 'SPOTIO', address1: '77 Default Rd', address2: '', zip: '97206-0001',
+  })
+  assert.equal(implicit, explicit)
 })
 
 test('migration encodes required durable classifications and no omission archive', () => {

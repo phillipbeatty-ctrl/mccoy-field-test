@@ -89,7 +89,7 @@ function normalizedRecord(payload: any, mode: string) {
     || clean(phones[0]?.phone || phones[0]?.value || phones[0] || '')
   return {
     provider_lead_id: providerId(payload, mode === 'api_responses') || null,
-    provider: providerName(payload) || null,
+    provider: providerName(payload) || 'SPOTIO',
     source_stage_id: pick(payload, ['source_stage_id', 'stageId', 'stage_id']) || null,
     address1,
     address2: address2 || null,

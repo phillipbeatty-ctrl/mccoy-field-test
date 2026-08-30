@@ -10,7 +10,7 @@ A newer provider upload must update the permanent Lead Pool, not replace it.
 1. `organization_id + provider_lead_id`, when a stable provider lead ID is present.
 2. Otherwise: `organization_id + normalized provider + normalized street + normalized unit + ZIP-5`.
 
-City and state remain required import fields and remain part of the normalized display/geocoding address, but they are intentionally excluded from the fallback identity. This prevents city spelling or municipality-boundary corrections from creating a new live lead.
+City and state remain required import fields and remain part of the normalized display/geocoding address, but they are intentionally excluded from the fallback identity. This prevents city spelling or municipality-boundary corrections from creating a new live lead. When a capture supplies no narrower provider value, the importer uses the durable `SPOTIO` provider namespace rather than an empty identity component.
 
 ## Per-upload classifications
 
