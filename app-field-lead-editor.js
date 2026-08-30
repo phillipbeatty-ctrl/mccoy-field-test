@@ -1,0 +1,212 @@
+// Shared lead customer information and user-created field addresses.
+(()=>{
+  if(window.MCCOY_FIELD_LEAD_EDITOR)return;
+  window.MCCOY_FIELD_LEAD_EDITOR=true;
+
+  const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[char]));
+  const byId=id=>document.getElementById(id);
+  let activeLeadId=null;
+  let detailRequest=0;
+  let savingContact=false;
+  let creatingLead=false;
+
+  function fieldRole(){
+    const access=window.MCCOY_ACCESS?.access;
+    return Boolean(access?.active&&['admin','manager','trainer','rep','tester'].includes(String(access.role||'')));
+  }
+  function leadByAnyId(id){
+    const raw=String(id??'');
+    return (window.state?.realLeads||[]).find(lead=>String(lead.id)===raw||String(lead.dbId)===raw)||null;
+  }
+  async function call(action,body={}){
+    const {data,error}=await sb.functions.invoke('lead-field-actions',{body:{action,...body}});
+    if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'lead_field_action_failed');
+    return data;
+  }
+  function inputValue(id){return String(byId(id)?.value||'').trim();}
+  function setContactMessage(text,error=false){
+    const message=byId('leadContactEditorMsg');
+    if(message){message.textContent=text;message.style.color=error?'#991b1b':'#166534';}
+  }
+  function setCreateMessage(text,error=false){
+    const message=byId('fieldLeadCreateMsg');
+    if(message){message.textContent=text;message.style.color=error?'#991b1b':'#166534';}
+  }
+
+  function ensureContactShell(){
+    if(!fieldRole())return null;
+    const detail=byId('mapLeadDetail');
+    if(!detail)return null;
+    let panel=byId('leadContactEditor');
+    if(panel&&panel.closest('#mapLeadDetail')===detail)return panel;
+    panel=document.createElement('section');
+    panel.id='leadContactEditor';
+    panel.style.cssText='margin:12px 0;padding:11px;border:1px solid #dbe4f0;border-radius:10px;background:#f8fafc';
+    panel.innerHTML='<strong>Customer information</strong><div class="muted small" style="margin-top:4px">All active McCoy field users may add or update this shared lead information. Every save is audited.</div><div id="leadContactEditorBody" class="muted small" style="margin-top:8px">Select a lead to load customer information.</div>';
+    const disposition=detail.querySelector('.map-pin-disposition');
+    if(disposition)detail.insertBefore(panel,disposition);else detail.appendChild(panel);
+    return panel;
+  }
+
+  function renderContactForm(lead,data){
+    const panel=ensureContactShell();
+    const body=panel?.querySelector('#leadContactEditorBody');
+    if(!body||!lead)return;
+    const customer=data?.lead?.customer_name??lead.customerName??'';
+    const phone=data?.lead?.phone??lead.phone??'';
+    const notes=data?.lead?.notes??lead.notes??'';
+    body.className='';
+    body.innerHTML=`
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.65fr);gap:8px;margin-top:8px">
+        <label class="small">Customer name<input id="leadCustomerNameInput" maxlength="160" value="${esc(customer)}" style="width:100%;padding:8px;margin-top:3px"></label>
+        <label class="small">Customer phone number<input id="leadCustomerPhoneInput" maxlength="40" inputmode="tel" value="${esc(phone)}" style="width:100%;padding:8px;margin-top:3px"></label>
+      </div>
+      <label class="small" style="display:block;margin-top:8px">Notes<textarea id="leadNotesInput" maxlength="5000" rows="4" style="width:100%;padding:8px;margin-top:3px;resize:vertical">${esc(notes)}</textarea></label>
+      <button id="saveLeadContactBtn" type="button" class="primary" style="margin-top:8px">SAVE CUSTOMER INFO</button>
+      <div id="leadContactEditorMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">Customer name, number, and notes are shared with the whole organization.</div>`;
+    byId('saveLeadContactBtn')?.addEventListener('click',()=>saveContact(lead));
+  }
+
+  async function loadContact(lead){
+    if(!lead||!fieldRole())return;
+    activeLeadId=lead.dbId||lead.id;
+    const request=++detailRequest;
+    const panel=ensureContactShell();
+    const body=panel?.querySelector('#leadContactEditorBody');
+    if(body){body.className='muted small';body.textContent='Loading customer information…';}
+    try{
+      const data=await call('get_lead',{lead_id:activeLeadId});
+      if(request!==detailRequest||String(activeLeadId)!==String(lead.dbId||lead.id))return;
+      lead.customerName=data.lead?.customer_name||'';
+      lead.phone=data.lead?.phone||'';
+      lead.notes=data.lead?.notes||'';
+      renderContactForm(lead,data);
+    }catch(error){
+      if(request!==detailRequest)return;
+      if(body){body.className='muted small';body.textContent='Customer information could not be loaded.';}
+      console.error('Lead contact load failed',error);
+    }
+  }
+
+  async function saveContact(lead){
+    if(savingContact||!lead)return;
+    const button=byId('saveLeadContactBtn');
+    savingContact=true;if(button){button.disabled=true;button.textContent='SAVING…';}
+    setContactMessage('Saving customer information…');
+    try{
+      const data=await call('update_contact',{
+        lead_id:lead.dbId||lead.id,
+        customer_name:inputValue('leadCustomerNameInput'),
+        phone:inputValue('leadCustomerPhoneInput'),
+        notes:inputValue('leadNotesInput')
+      });
+      lead.customerName=data.lead?.customer_name||'';
+      lead.phone=data.lead?.phone||'';
+      lead.notes=data.lead?.notes||'';
+      setContactMessage('Customer name, number, and notes saved.');
+      window.dispatchEvent(new CustomEvent('mccoy-lead-contact-updated',{detail:{leadId:lead.dbId||lead.id}}));
+    }catch(error){
+      console.error('Lead contact save failed',error);
+      setContactMessage(String(error?.message||'Customer information could not be saved.').replace(/_/g,' '),true);
+    }finally{savingContact=false;if(button){button.disabled=false;button.textContent='SAVE CUSTOMER INFO';}}
+  }
+
+  function ensureCreatePanel(){
+    if(!fieldRole())return null;
+    const controls=byId('leadGeoControls');
+    if(!controls||byId('fieldLeadCreatePanel'))return byId('fieldLeadCreatePanel');
+    const panel=document.createElement('section');
+    panel.id='fieldLeadCreatePanel';
+    panel.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid #dbe4f0';
+    panel.innerHTML=`
+      <button id="toggleFieldLeadCreateBtn" type="button" class="assign-btn">ADD ADDRESS NOT LISTED</button>
+      <div id="fieldLeadCreateForm" hidden style="margin-top:9px;padding:10px;border:1px solid #dbe4f0;border-radius:10px;background:#f8fafc">
+        <strong>Add a lead to the Lead Pool</strong>
+        <div class="muted small" style="margin:3px 0 8px">Available to every active field user. McCoy checks for an existing address first and audits who added or enriched the lead.</div>
+        <label class="small">Street address<input id="newLeadAddress1" maxlength="180" autocomplete="street-address" style="width:100%;padding:8px;margin-top:3px"></label>
+        <label class="small" style="display:block;margin-top:7px">Unit / apartment / suite<input id="newLeadAddress2" maxlength="80" style="width:100%;padding:8px;margin-top:3px"></label>
+        <div style="display:grid;grid-template-columns:minmax(120px,1fr) 64px 92px;gap:7px;margin-top:7px">
+          <label class="small">City<input id="newLeadCity" maxlength="100" style="width:100%;padding:8px;margin-top:3px"></label>
+          <label class="small">State<input id="newLeadState" maxlength="2" autocapitalize="characters" style="width:100%;padding:8px;margin-top:3px;text-transform:uppercase"></label>
+          <label class="small">ZIP<input id="newLeadZip" maxlength="10" inputmode="numeric" style="width:100%;padding:8px;margin-top:3px"></label>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.65fr);gap:7px;margin-top:7px">
+          <label class="small">Customer name<input id="newLeadCustomerName" maxlength="160" style="width:100%;padding:8px;margin-top:3px"></label>
+          <label class="small">Customer phone number<input id="newLeadPhone" maxlength="40" inputmode="tel" style="width:100%;padding:8px;margin-top:3px"></label>
+        </div>
+        <label class="small" style="display:block;margin-top:7px">Notes<textarea id="newLeadNotes" maxlength="5000" rows="3" style="width:100%;padding:8px;margin-top:3px;resize:vertical"></textarea></label>
+        <button id="createFieldLeadBtn" type="button" class="primary" style="margin-top:8px">ADD TO LEAD POOL</button>
+        <div id="fieldLeadCreateMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">A matching existing address will be enriched instead of duplicated.</div>
+      </div>`;
+    controls.appendChild(panel);
+    byId('toggleFieldLeadCreateBtn')?.addEventListener('click',()=>{
+      const form=byId('fieldLeadCreateForm');if(!form)return;
+      form.hidden=!form.hidden;
+      byId('toggleFieldLeadCreateBtn').textContent=form.hidden?'ADD ADDRESS NOT LISTED':'CLOSE ADD ADDRESS';
+      if(!form.hidden)byId('newLeadAddress1')?.focus();
+    });
+    byId('createFieldLeadBtn')?.addEventListener('click',createLead);
+    return panel;
+  }
+
+  async function createLead(){
+    if(creatingLead)return;
+    const address1=inputValue('newLeadAddress1'),city=inputValue('newLeadCity'),stateCode=inputValue('newLeadState').toUpperCase(),zip=inputValue('newLeadZip');
+    if(!address1||!city||!stateCode||!zip){setCreateMessage('Street, city, state, and ZIP are required.',true);return;}
+    const button=byId('createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
+    setCreateMessage('Checking the Lead Pool and locating the address…');
+    try{
+      const data=await call('create_lead',{
+        address1,address2:inputValue('newLeadAddress2'),city,state:stateCode,zip,
+        customer_name:inputValue('newLeadCustomerName'),phone:inputValue('newLeadPhone'),notes:inputValue('newLeadNotes')
+      });
+      setCreateMessage(data.created?'Address added to the Lead Pool.':'An existing lead matched this address and its customer information was updated.');
+      const leadId=data.lead?.id;
+      await window.loadMcCoyLeads?.();
+      if(leadId){
+        const lead=leadByAnyId(leadId);
+        if(lead){
+          window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id,source:'field_created_address'}}));
+          window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id);
+        }
+      }
+      for(const id of ['newLeadAddress1','newLeadAddress2','newLeadCity','newLeadState','newLeadZip','newLeadCustomerName','newLeadPhone','newLeadNotes'])if(byId(id))byId(id).value='';
+    }catch(error){
+      console.error('Field lead creation failed',error);
+      setCreateMessage(String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+    }finally{creatingLead=false;if(button){button.disabled=false;button.textContent='ADD TO LEAD POOL';}}
+  }
+
+  function selectedLeadFromEvent(event){
+    const id=event?.detail?.leadId;
+    if(!id||String(id).startsWith('__mccoy_'))return null;
+    return leadByAnyId(id);
+  }
+  function refreshSelected(){
+    const lead=leadByAnyId(activeLeadId);
+    if(lead)setTimeout(()=>loadContact(lead),0);
+  }
+
+  window.addEventListener('mccoy-map-lead-selected',event=>{
+    const lead=selectedLeadFromEvent(event);if(!lead)return;
+    activeLeadId=lead.dbId||lead.id;
+    setTimeout(()=>loadContact(lead),20);
+  });
+  window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{ensureCreatePanel();refreshSelected();},150));
+  document.addEventListener('click',event=>{
+    const pick=event.target.closest?.('.map-pick');
+    if(pick?.dataset?.id){const lead=leadByAnyId(pick.dataset.id);if(lead){activeLeadId=lead.dbId||lead.id;setTimeout(()=>loadContact(lead),80);}}
+  },true);
+  const observer=new MutationObserver(()=>{
+    ensureCreatePanel();
+    if(activeLeadId&&!byId('leadContactEditor'))refreshSelected();
+  });
+  const start=()=>{
+    ensureCreatePanel();
+    const mapPanel=byId('leadMapPanel');if(mapPanel)observer.observe(mapPanel,{childList:true,subtree:true});
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+  [0,250,800,1600,3000].forEach(delay=>setTimeout(()=>{ensureCreatePanel();refreshSelected();},delay));
+})();
