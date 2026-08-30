@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/issue-81-controlled-supabase-acceptance.yml
       - spotio-permanent-lead-identity.test.mjs
+      - spotio-generated-column-compatibility.test.mjs
       - spotio-import.js
       - supabase/functions/lead-admin/index.ts
       - supabase/functions/spotio-import/index.ts
@@ -105,7 +106,9 @@ jobs:
       - name: Run source-level acceptance coverage
         run: |
           set -euo pipefail
-          node --test spotio-permanent-lead-identity.test.mjs \
+          node --test \
+            spotio-permanent-lead-identity.test.mjs \
+            spotio-generated-column-compatibility.test.mjs \
             2>&1 | tee "$RUNNER_TEMP/issue81-results/09-node-acceptance.log"
           node --check spotio-import.js \
             2>&1 | tee "$RUNNER_TEMP/issue81-results/10-import-ui-syntax.log"
