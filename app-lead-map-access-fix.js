@@ -23,6 +23,16 @@
     }else element.style.setProperty('display','none','important');
   }
 
+  function preserveConditionalAdminPanel(element,admin){
+    if(!element)return;
+    if(!admin){forceVisible(element,false);return;}
+    element.hidden=false;
+    element.removeAttribute('inert');
+    element.setAttribute('aria-hidden','false');
+    element.style.removeProperty('display');
+    element.style.display='none';
+  }
+
   function ensureStyles(){
     if(document.getElementById('leadPoolStrictRoleVisibility'))return;
     const style=document.createElement('style');
@@ -63,11 +73,13 @@
     forceVisible(document.getElementById('lassoSelectBtn'),assigner,'inline-block');
     forceVisible(document.getElementById('selectVisiblePinsBtn'),assigner,'inline-block');
     forceVisible(document.getElementById('checkDuplicateLeadsBtn'),admin,'inline-block');
-    forceVisible(document.getElementById('leadCorrectionPanel'),admin,'block');
+    preserveConditionalAdminPanel(document.getElementById('leadCorrectionPanel'),admin);
 
     const listBar=document.getElementById('leadListAssignmentBar');
-    const listVisible=assigner&&window.state?.leadView==='list'&&window.state?.leadMode==='real';
-    forceVisible(listBar,listVisible,'flex');
+    const table=document.getElementById('leadsTable');
+    const realMode=document.getElementById('realLeadMode');
+    const listVisible=assigner&&table?.style.display!=='none'&&realMode?.classList.contains('primary');
+    forceVisible(listBar,Boolean(listVisible),'flex');
 
     const sideCard=document.getElementById('mapLeadList')?.closest('.card')||select?.closest('.card');
     const heading=sideCard?.querySelector('h3');
