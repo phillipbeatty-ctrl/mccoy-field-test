@@ -1,1 +1,66 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>McCoy Lead Import</title><link rel="stylesheet" href="styles.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><main class="main" style="max-width:760px;margin:0 auto;padding:24px"><header class="topbar" style="position:static;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h1>McCoy Lead Import</h1><div class="muted">Admin-only lead ingestion</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">← BACK TO MCCOY PLATFORM</a><a href="/#dashboard" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">DASHBOARD</a></div></header><section class="card"><h2>1. Sign in as McCoy Admin</h2><input id="email" type="email" placeholder="Admin email" style="width:100%;padding:12px;margin:6px 0"><input id="password" type="password" placeholder="McCoy password" style="width:100%;padding:12px;margin:6px 0"><button id="signIn" class="primary">SIGN IN</button><div id="authMsg" class="muted" style="margin-top:8px"></div></section><section class="card" style="margin-top:16px"><h2>2. Choose import type</h2><select id="importType" style="width:100%;padding:12px;margin:6px 0"><option value="spotio_json">SPOTIO Capture JSON</option><option value="csv">CSV Lead File</option></select><div id="spotioHelp"><p>For SPOTIO, use the McCoy SPOTIO Capture browser extension while signed into SPOTIO. When the extension reports the full lead set captured, click <strong>DOWNLOAD CAPTURE</strong>, then upload that JSON file here.</p><p class="muted small">Current verified SPOTIO list count: 5,248 records. The importer uploads large captures in chunks and normalizes them into the McCoy Lead Pool.</p></div><div id="csvHelp" style="display:none"><p>Upload a normal CSV containing lead records. McCoy preserves the original column names and rows for the normalization/mapping pass.</p><p class="muted small">Common fields such as address, city, state, ZIP, latitude, longitude, owner/rep, stage/status and external IDs can be mapped after upload.</p></div></section><section class="card" style="margin-top:16px"><h2>3. Upload to McCoy Lead Pool</h2><input id="file" type="file" accept="application/json,.json,text/csv,.csv"><button id="upload" class="primary" style="margin-left:8px">UPLOAD LEADS</button><div id="uploadMsg" class="muted" style="margin-top:8px"></div><p class="muted small">Uploads are stored in an Admin-only import batch and are not exposed to reps. Large files are uploaded in chunks automatically.</p><div style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-wrap:wrap"><a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">RETURN TO APP</a><a href="/#dashboard" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">RETURN TO DASHBOARD</a></div></section></main><script src="spotio-import.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>McCoy Lead Import</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main class="main" style="max-width:820px;margin:0 auto;padding:24px">
+  <header class="topbar" style="position:static;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+    <div><h1>McCoy Lead Import</h1><div class="muted">Admin-only additive lead ingestion</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">← BACK TO MCCOY PLATFORM</a>
+      <a href="/#dashboard" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">DASHBOARD</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>1. Sign in as McCoy Admin</h2>
+    <input id="email" type="email" placeholder="Admin email" style="width:100%;padding:12px;margin:6px 0">
+    <input id="password" type="password" placeholder="McCoy password" style="width:100%;padding:12px;margin:6px 0">
+    <button id="signIn" class="primary">SIGN IN</button>
+    <div id="authMsg" class="muted" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>2. Choose import type</h2>
+    <select id="importType" style="width:100%;padding:12px;margin:6px 0">
+      <option value="spotio_json">SPOTIO Capture JSON</option>
+      <option value="csv">CSV Lead File</option>
+    </select>
+    <div id="spotioHelp">
+      <p>Upload one complete SPOTIO capture or multiple capture parts. The importer reads SPOTIO's real address column, merges repeat observations into the same durable lead, and retains separate apartments, suites, lots, and other units.</p>
+      <p class="muted small">Partial captures are additive. A lead omitted from a later file remains in the live Lead Pool unless an authorized Admin explicitly archives it.</p>
+    </div>
+    <div id="csvHelp" style="display:none">
+      <p>Upload one or more CSV lead files. McCoy keeps original columns as provenance and applies the same durable-identity and unit-preservation rules.</p>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>3. Permanent duplicate and unit controls</h2>
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <label style="display:flex;gap:10px;align-items:flex-start"><input id="policyEnrich" type="checkbox" checked disabled style="margin-top:3px"><span><strong>Enrich an existing durable lead</strong><br><span class="muted small">When the same provider lead appears again, apply newer nonblank provider information and a newer SPOTIO stage without erasing assignments, verified coordinates, or newer McCoy field activity.</span></span></label>
+      <label style="display:flex;gap:10px;align-items:flex-start"><input id="policyDistinct" type="checkbox" checked disabled style="margin-top:3px"><span><strong>Keep different stable provider IDs separate</strong><br><span class="muted small">Sharing a street address does not by itself make two provider records duplicates.</span></span></label>
+      <label style="display:flex;gap:10px;align-items:flex-start"><input id="policyUnits" type="checkbox" checked disabled style="margin-top:3px"><span><strong>Keep apartments, suites, buildings, lots, and units separate</strong><br><span class="muted small">Address 2 remains part of durable identity. Unit numbers are never discarded or invented.</span></span></label>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>4. Upload to McCoy Lead Pool</h2>
+    <input id="file" type="file" multiple accept="application/json,.json,text/csv,.csv">
+    <button id="upload" class="primary" style="margin-left:8px">UPLOAD AND ENRICH LEADS</button>
+    <div id="uploadMsg" class="muted" role="status" aria-live="polite" style="margin-top:12px;line-height:1.5"></div>
+    <p class="muted small">Large files are uploaded in resumable chunks. Capture-level plausibility checks stop malformed column mappings before they can change live leads.</p>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-wrap:wrap">
+      <a href="/?leadRefresh=1#leads" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">OPEN REFRESHED LEAD POOL</a>
+      <a href="/#dashboard" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">RETURN TO DASHBOARD</a>
+    </div>
+  </section>
+</main>
+<script src="spotio-import.js"></script>
+</body>
+</html>
