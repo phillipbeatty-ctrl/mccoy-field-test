@@ -8,7 +8,7 @@
   let selectedLeadId=null;
   let manualSelectedLeadId=null;
   let saveBusy=false;
-  let pendingSaveRequestId=null;
+  let pendingSave=null;
   let visitTimerStartedAt=null;
   let visitTimerStoppedAt=null;
   let visitTimerHandle=null;
@@ -138,11 +138,20 @@
     if(!current){setMessage('This pin is no longer available. Refreshing the Lead Pool…',true);await window.loadMcCoyLeads?.();return;}
     const activityType=byId('mapLeadActivityType')?.value,visitResult=byId('mapLeadVisitResult')?.value,stage=byId('mapLeadStage')?.value||null;
     if(!activityType||!visitResult){setMessage('Choose both Activity Type and Visit Result.',true);return;}
-    if(stage==='Sale Made'){startExplicitSale(explicitSaleContext({lead:current,source:'lead_pool_sale_made'}));return;}
+    if(stage==='Sale Made'){pendingSave=null;startExplicitSale(explicitSaleContext({lead:current,source:'lead_pool_sale_made'}));return;}
 
-    const requestId=pendingSaveRequestId||uuid();pendingSaveRequestId=requestId;
+    const signature=[String(current.dbId),activityType,visitResult,stage||'',visitTimerStartedAt||0,visitTimerStoppedAt||0].join('|');
+    if(!pendingSave||pendingSave.signature!==signature){
+      pendingSave={
+        signature,
+        requestId:uuid(),
+        occurredAt:visitTimerStartedAt||Date.now(),
+        dwellSeconds:activityType==='Visit'?Math.floor(timerElapsedMs()/1000):0
+      };
+    }
+    const{requestId,occurredAt,dwellSeconds}=pendingSave;
     const save=byId('mapPinSaveBtn');saveBusy=true;if(save){save.disabled=true;save.textContent='SAVING…';}
-    const occurredAt=visitTimerStartedAt||Date.now(),dwellSeconds=activityType==='Visit'?Math.floor(timerElapsedMs()/1000):0,gps=currentGps();
+    const gps=currentGps();
     setMessage('Saving independent Lead Pool activity…');
     try{
       const{data,error}=await sb.rpc('record_lead_pool_pin_disposition',{
@@ -151,7 +160,7 @@
         p_occurred_at:new Date(occurredAt).toISOString(),p_dwell_seconds:dwellSeconds,...gpsRpc(gps)
       });
       if(error||!data?.ok)throw error||new Error(data?.error||'lead_pool_disposition_failed');
-      updateLocalLead(current,data);pendingSaveRequestId=null;resetVisitTimer();
+      updateLocalLead(current,data);pendingSave=null;resetVisitTimer();
       setMessage(`${data.duplicate?'Already saved':'Saved'} ${data.effective_disposition||visitResult} for ${current.address}. The Sales Hub activity was left unchanged.`);
       window.MCCOY_RENDER_LEAD_MAP?.(false);window.MCCOY_APPLY_DISPOSITION_COLORS?.();
       window.dispatchEvent(new CustomEvent('mccoy-lead-pool-disposition-saved',{detail:{leadId:current.dbId,visitId:data.visit_id,occurredAt:data.occurred_at,dwellSeconds:data.dwell_seconds,duplicate:Boolean(data.duplicate)}}));
@@ -159,7 +168,7 @@
     }catch(error){
       const detail=String(error?.message||error||'').replace(/_/g,' ');
       console.error('Lead Pool independent disposition failed',error);
-      if(/lead not available/i.test(detail)){selectedLeadId=null;manualSelectedLeadId=null;setMessage('This pin was deleted while it was open. The Lead Pool is refreshing.',true);setTimeout(()=>window.loadMcCoyLeads?.(),0);}
+      if(/lead not available/i.test(detail)){selectedLeadId=null;manualSelectedLeadId=null;pendingSave=null;setMessage('This pin was deleted while it was open. The Lead Pool is refreshing.',true);setTimeout(()=>window.loadMcCoyLeads?.(),0);}
       else setMessage(detail||'Disposition could not be saved. Retry uses the same request ID so it cannot create a duplicate.',true);
     }finally{saveBusy=false;if(save){save.disabled=false;save.textContent='SAVE PIN DISPOSITION';}}
   }
@@ -178,6 +187,11 @@
       try{gps=await Promise.race([getGPSOnce(),new Promise(resolve=>setTimeout(()=>resolve(gps),4000))])||gps;if(gps)state.latestGps=gps;}catch(_){}
     }
     const point=validPoint(gps),leadPoint=validPoint(current),core=window.MCCOY_DOOR_WORKFLOW_CORE;
+    if(!core?.isFreshGps?.(gps)){
+      window.requestFreshGpsInBackground?.();
+      setMessage('A fresh GPS fix is required to start a physical knock from the map. You can still save a disposition or process a phone sale.',true);
+      return;
+    }
     const distance=point&&leadPoint?core?.metersBetween?.({lat:point.latitude,lng:point.longitude},{lat:leadPoint.latitude,lng:leadPoint.longitude}):null;
     if(!Number.isFinite(distance)){setMessage('A current GPS fix and mapped lead location are required to start a physical knock from the map. You can still save a disposition or process a phone sale.',true);return;}
     if(distance>QUARTER_MILE_METERS){setMessage(`This lead is ${Math.round(distance).toLocaleString()} m away. Map knocking requires being within one-quarter mile; remote disposition and phone-sale controls remain available.`,true);return;}
@@ -189,7 +203,7 @@
   async function deleteLead(lead){
     const button=byId('mapDeleteLeadBtn');if(button)button.disabled=true;
     const removed=await window.MCCOY_DELETE_LEAD?.(lead);
-    if(removed){selectedLeadId=null;manualSelectedLeadId=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
+    if(removed){selectedLeadId=null;manualSelectedLeadId=null;pendingSave=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
     else if(button)button.disabled=false;
   }
   function configureDetail(lead){
@@ -243,10 +257,18 @@
   }
   function scheduleAutoSelect(delay=150){clearTimeout(autoSelectTimer);autoSelectTimer=setTimeout(autoSelectNearest,delay);}
 
+  function ensurePhoneSearchStyles(){
+    if(byId('leadPoolPhoneSaleStyles'))return;
+    const style=document.createElement('style');style.id='leadPoolPhoneSaleStyles';style.textContent=`
+      #leadPoolPhoneSaleRow{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px}
+      @media(max-width:760px){#leadPoolPhoneSaleRow{grid-template-columns:1fr}#leadPoolPhoneSaleRow button{width:100%}}
+    `;document.head.appendChild(style);
+  }
   function ensurePhoneSearch(){
     const controls=byId('leadGeoControls');if(!controls||byId('leadPoolPhoneSaleSearch'))return false;
+    ensurePhoneSearchStyles();
     const panel=document.createElement('div');panel.id='leadPoolPhoneSaleSearch';panel.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid #dbe4f0';
-    panel.innerHTML='<strong>Phone sale address</strong><div class="muted small" style="margin:3px 0 7px">Enter the caller’s service address. McCoy will center the map, select a matching lead when available, and preserve the current physical-door activity.</div><div style="display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px"><input id="leadPoolPhoneAddress" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="min-width:0;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER ADDRESS / LEAD</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS PHONE SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">The nearest lead remains auto-selected until a different pin or address is chosen.</div>';
+    panel.innerHTML='<strong>Phone sale address</strong><div class="muted small" style="margin:3px 0 7px">Enter the caller’s service address. McCoy will center the map, select a matching lead when available, and preserve the current physical-door activity.</div><div id="leadPoolPhoneSaleRow"><input id="leadPoolPhoneAddress" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="min-width:0;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER ADDRESS / LEAD</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS PHONE SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">The nearest lead remains auto-selected until a different pin or address is chosen.</div>';
     controls.appendChild(panel);
     byId('leadPoolCenterAddressBtn').addEventListener('click',searchPhoneAddress);
     byId('leadPoolPhoneSaleBtn').addEventListener('click',()=>{if(phoneContext)startExplicitSale(phoneContext);});
@@ -313,7 +335,7 @@
   window.addEventListener('mccoy-real-leads-loaded',()=>{
     ensurePhoneSearch();refreshPhoneOptions();
     if(selectedLeadId&&!leadByAnyId(selectedLeadId)){
-      selectedLeadId=null;manualSelectedLeadId=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. The nearest available pin will be selected.</div>';
+      selectedLeadId=null;manualSelectedLeadId=null;pendingSave=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. The nearest available pin will be selected.</div>';
     }else if(selectedLeadId)configureSelectedDetail();
     scheduleAutoSelect(150);
   });
@@ -322,7 +344,7 @@
   window.addEventListener('mccoy-door-visit-completed',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   document.addEventListener('click',event=>{
     const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;setTimeout(configureSelectedDetail,60);}
-    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
+    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;pendingSave=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
     if(event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView'))setTimeout(()=>{ensurePhoneSearch();scheduleAutoSelect(180);},60);
   },true);
   window.addEventListener('beforeunload',()=>{stopTimerLoop();clearTimeout(autoSelectTimer);});
