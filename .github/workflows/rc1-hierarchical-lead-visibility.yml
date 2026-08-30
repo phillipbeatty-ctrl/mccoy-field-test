@@ -1,0 +1,25 @@
+name: RC1 hierarchical Lead Pool visibility
+
+on:
+  push:
+    branches:
+      - fix/rc1-hierarchical-lead-visibility
+  pull_request:
+    paths:
+      - app-lead-map-access-fix.js
+      - app-real-leads.js
+      - supabase/functions/lead-admin/index.ts
+      - supabase/functions/lead-map-address-search/index.ts
+      - supabase/migrations/20260830043000_hierarchical_lead_visibility.sql
+      - rc1-hierarchical-lead-visibility.test.mjs
+      - .github/workflows/rc1-hierarchical-lead-visibility.yml
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node rc1-hierarchical-lead-visibility.test.mjs
