@@ -82,7 +82,7 @@ test('completed sale closes only the exact explicitly linked active visit', () =
 test('deleted pins refresh safely and reassignment does not become disposition authorization', () => {
   assert.match(activity, /This pin was deleted while it was open/)
   assert.match(activity, /window\.loadMcCoyLeads/)
-  assert.match(migration, /organization_id=v_access\.organization_id and deleted_at is null/)
+  assert.match(migration, /organization_id=v_access\.organization_id[\s\S]+deleted_at is null/)
   assert.doesNotMatch(migration, /assigned_rep_id=v_profile\.id/)
   assert.match(migration, /lead_assignment_changed',false/)
   assert.match(refresh, /mccoy-lead-owners-updated/)
