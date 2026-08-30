@@ -48,8 +48,24 @@
       body.lead-pool-rep-layout #leadListAssignmentBar,
       body.lead-pool-rep-layout #checkDuplicateLeadsBtn,
       body.lead-pool-rep-layout #leadCorrectionPanel{display:none!important}
+      body.blind-tester #checkDuplicateLeadsBtn,
+      body.blind-tester #leadCorrectionPanel,
+      body.blind-tester #leadsTable .delete-one,
+      body.blind-tester #leadsTable th:last-child,
+      body.blind-tester #leadsTable td:last-child{display:none!important}
     `;
     document.head.appendChild(style);
+  }
+
+  function relabelRenderedLeadControls(role){
+    const assigner=canAssign(role);
+    document.querySelectorAll('#leadsTable .map-one').forEach(button=>{button.textContent=assigner?'View / Assign':'View';});
+    const count=document.getElementById('leadPoolCount');
+    if(count&&!String(count.textContent||'').startsWith('DEMO')){
+      const remainder=String(count.textContent||'').split('·').slice(1).join('·').trim();
+      const label=role==='admin'?'ALL ORGANIZATION LEADS':isManagerRole(role)?'MY MANAGER POOL':'MY ASSIGNED LEADS';
+      if(remainder)count.textContent=`${label} · ${remainder}`;
+    }
   }
 
   function syncRoleControls(){
@@ -88,11 +104,24 @@
     const assignmentMessage=document.getElementById('mapAssignMsg');
     if(assignmentMessage&&!assigner){assignmentMessage.textContent='';forceVisible(assignmentMessage,false);}
     else forceVisible(assignmentMessage,true,'block');
+    relabelRenderedLeadControls(role);
     return true;
+  }
+
+  function wrapRenderLeads(){
+    if(window.MCCOY_ROLE_GUARD_RENDER_WRAPPED||typeof window.renderLeads!=='function')return;
+    const original=window.renderLeads;
+    window.renderLeads=function(...args){
+      const result=original.apply(this,args);
+      queueMicrotask(syncRoleControls);
+      return result;
+    };
+    window.MCCOY_ROLE_GUARD_RENDER_WRAPPED=true;
   }
 
   function syncGeocodeControl(){
     checks++;
+    wrapRenderLeads();
     const roleReady=syncRoleControls();
     const btn=document.getElementById('geocodeRealLeadsBtn');
     const progress=document.getElementById('geocodeProgress');
