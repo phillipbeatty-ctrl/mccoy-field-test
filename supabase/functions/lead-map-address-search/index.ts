@@ -40,6 +40,30 @@ function streetNumber(value: unknown) {
   return clean(value).match(/^\s*(\d+[a-z]?)/i)?.[1]?.toLowerCase() || ''
 }
 
+function routeKey(value: unknown) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/^\s*\d+[a-z]?\s*/i, '')
+    .replace(/\bstreet\b/g, 'st')
+    .replace(/\bavenue\b/g, 'ave')
+    .replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\broad\b/g, 'rd')
+    .replace(/\bdrive\b/g, 'dr')
+    .replace(/\blane\b/g, 'ln')
+    .replace(/\bcourt\b/g, 'ct')
+    .replace(/\bplace\b/g, 'pl')
+    .replace(/\bterrace\b/g, 'ter')
+    .replace(/\bcircle\b/g, 'cir')
+    .replace(/\bhighway\b/g, 'hwy')
+    .replace(/\bparkway\b/g, 'pkwy')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function component(result: any, type: string) {
+  const item = (result?.address_components || []).find((candidate: any) => candidate?.types?.includes(type))
+  return clean(item?.long_name || item?.short_name)
+}
+
 function leadPayload(lead: any) {
   return {
     id: lead.id,
@@ -164,18 +188,22 @@ Deno.serve(async request => {
         .limit(100)
       if (nearbyError) throw nearbyError
 
-      const requestedNumber = streetNumber(address)
+      const requestedNumber = component(result, 'street_number') || streetNumber(address)
+      const requestedRoute = routeKey(component(result, 'route') || String(address).split(',')[0])
       const candidates = (nearby || [])
         .map(lead => ({ lead, distance: metersBetween(center, lead) }))
         .filter(item => item.distance != null)
         .sort((left, right) => Number(left.distance) - Number(right.distance))
       const best = candidates.find(item =>
         Number(item.distance) <= 60
-        && (!requestedNumber || streetNumber(item.lead.address1) === requestedNumber)
+        && Boolean(requestedNumber)
+        && Boolean(requestedRoute)
+        && streetNumber(item.lead.address1) === requestedNumber.toLowerCase()
+        && routeKey(item.lead.address1) === requestedRoute
       )
       if (best) {
         matchedLead = best.lead
-        matchSource = 'google_nearby_same_address_number'
+        matchSource = 'google_nearby_same_street_address'
       }
     }
 
