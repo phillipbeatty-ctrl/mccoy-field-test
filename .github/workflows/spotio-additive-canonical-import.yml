@@ -1,0 +1,35 @@
+name: SPOTIO additive canonical import
+
+on:
+  push:
+    branches:
+      - fix/rc1-spotio-additive-canonical-import
+  pull_request:
+    paths:
+      - 'supabase/functions/spotio-import/**'
+      - 'supabase/functions/lead-admin/**'
+      - 'supabase/migrations/20260830050000_spotio_canonical_import_foundation.sql'
+      - 'supabase/migrations/20260830051000_spotio_canonical_backfill.sql'
+      - 'supabase/migrations/20260830052000_spotio_additive_import_upsert.sql'
+      - 'spotio-additive-canonical-import.test.mjs'
+      - '.github/workflows/spotio-additive-canonical-import.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check SPOTIO additive canonical contracts
+        run: node spotio-additive-canonical-import.test.mjs
+      - name: Check Edge Function syntax
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/spotio-import/index.ts supabase/functions/lead-admin/index.ts

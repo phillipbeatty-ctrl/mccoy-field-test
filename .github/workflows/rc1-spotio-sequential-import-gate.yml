@@ -1,0 +1,22 @@
+name: RC1 SPOTIO sequential import gate
+
+on:
+  pull_request:
+    branches:
+      - release/v1.0.0-rc1
+    paths:
+      - 'supabase/functions/spotio-import/**'
+      - 'supabase/functions/lead-admin/**'
+      - 'supabase/migrations/**spotio**'
+      - 'rc1-spotio-additive-canonical-import.test.mjs'
+  workflow_dispatch:
+
+jobs:
+  static-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node rc1-spotio-additive-canonical-import.test.mjs
