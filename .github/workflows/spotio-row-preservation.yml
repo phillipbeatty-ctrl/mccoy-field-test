@@ -1,0 +1,35 @@
+name: SPOTIO Row Preservation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'spotio-import.html'
+      - 'spotio-import.js'
+      - 'spotio-row-preservation.test.mjs'
+      - 'supabase/functions/spotio-import/**'
+      - 'supabase/migrations/*spotio_row*'
+  push:
+    branches: [main]
+    paths:
+      - 'spotio-import.html'
+      - 'spotio-import.js'
+      - 'spotio-row-preservation.test.mjs'
+      - 'supabase/functions/spotio-import/**'
+      - 'supabase/migrations/*spotio_row*'
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify browser and Edge JavaScript syntax
+        run: |
+          node --check spotio-import.js
+          cp supabase/functions/spotio-import/index.ts /tmp/spotio-import.mjs
+          node --check /tmp/spotio-import.mjs
+      - name: Verify permanent row-preservation contracts
+        run: node --test spotio-row-preservation.test.mjs
