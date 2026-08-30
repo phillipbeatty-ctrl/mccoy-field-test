@@ -1,0 +1,56 @@
+name: Session inactivity auto-stop 30 minutes
+
+on:
+  push:
+    branches:
+      - fix/session-inactivity-autostop-30-minutes
+    paths:
+      - .github/workflows/session-inactivity-autostop-30-minutes.yml
+      - app-auto-stop.js
+      - session-inactivity-autostop-30-minutes.test.mjs
+      - session-control-outside-area-grace.test.mjs
+      - field-session-heartbeat.test.mjs
+      - authoritative-workday-sph.test.mjs
+      - supabase/functions/session-control/index.ts
+      - supabase/migrations/20260824010000_provisional_sales_per_hour_and_stale_sessions.sql
+      - supabase/migrations/20260830180000_session_inactivity_autostop_30_minutes.sql
+  pull_request:
+    branches:
+      - release/v1.0.0-rc1
+    paths:
+      - app-auto-stop.js
+      - session-inactivity-autostop-30-minutes.test.mjs
+      - session-control-outside-area-grace.test.mjs
+      - field-session-heartbeat.test.mjs
+      - authoritative-workday-sph.test.mjs
+      - supabase/functions/session-control/index.ts
+      - supabase/migrations/20260824010000_provisional_sales_per_hour_and_stale_sessions.sql
+      - supabase/migrations/20260830180000_session_inactivity_autostop_30_minutes.sql
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session-inactivity-autostop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Run session-control regression tests
+        run: |
+          set -euo pipefail
+          node --test \
+            session-inactivity-autostop-30-minutes.test.mjs \
+            session-control-outside-area-grace.test.mjs \
+            field-session-heartbeat.test.mjs \
+            authoritative-workday-sph.test.mjs
+
+      - name: Check browser control syntax
+        run: node --check app-auto-stop.js
