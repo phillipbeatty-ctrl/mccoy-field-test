@@ -1,0 +1,44 @@
+name: Lead Pool independent disposition and phone sales
+
+on:
+  push:
+    branches:
+      - feature/lead-pool-independent-disposition-phone-sales-20260829
+  pull_request:
+    paths:
+      - app-lead-pool-independent-activity.js
+      - app-lead-pool-independent-refresh.js
+      - app-sale-visit-isolation.js
+      - app-provider-sale-router.js
+      - app-page-layout.js
+      - supabase/functions/lead-map-address-search/index.ts
+      - supabase/functions/provider-sale-capture/index.ts
+      - supabase/functions/sale-submit/index.ts
+      - supabase/migrations/20260829223000_lead_pool_independent_dispositions_phone_sales.sql
+      - lead-pool-independent-disposition-phone-sales.test.mjs
+      - .github/workflows/lead-pool-independent-disposition-phone-sales.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: node --check app-lead-pool-independent-activity.js
+      - run: node --check app-lead-pool-independent-refresh.js
+      - run: node --check app-sale-visit-isolation.js
+      - run: node --check app-provider-sale-router.js
+      - run: node --check app-page-layout.js
+      - run: deno check supabase/functions/lead-map-address-search/index.ts
+      - run: deno check supabase/functions/provider-sale-capture/index.ts
+      - run: deno check supabase/functions/sale-submit/index.ts
+      - run: node --test lead-pool-independent-disposition-phone-sales.test.mjs
