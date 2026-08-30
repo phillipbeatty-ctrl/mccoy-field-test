@@ -39,9 +39,6 @@ begin
   if upper(coalesce(new.source_system, '')) = 'SPOTIO' then
     new.provider_lead_id := nullif(btrim(new.provider_lead_id), '');
     new.provider := coalesce(nullif(btrim(new.provider), ''), 'SPOTIO');
-    new.normalized_address_key := private.mccoy_normalized_lead_address(
-      new.address1, new.address2, new.city, new.state, new.zip
-    );
     new.fallback_identity_key := private.mccoy_spotio_fallback_identity_v1(
       new.provider, new.address1, new.address2, new.zip
     );
@@ -93,7 +90,6 @@ $$;
 update public.leads
 set
   provider = coalesce(nullif(btrim(provider), ''), 'SPOTIO'),
-  normalized_address_key = private.mccoy_normalized_lead_address(address1, address2, city, state, zip),
   fallback_identity_key = private.mccoy_spotio_fallback_identity_v1(
     coalesce(nullif(btrim(provider), ''), 'SPOTIO'), address1, address2, zip
   ),
