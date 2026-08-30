@@ -1,0 +1,28 @@
+name: Desktop Chrome auth recovery
+
+on:
+  push:
+    branches:
+      - fix/pc-auth-lock-recovery-20260828
+  pull_request:
+    paths:
+      - 'app-part3.js'
+      - 'app-auth-production-redirect.js'
+      - 'pc-auth-recovery.test.mjs'
+      - '.github/workflows/pc-auth-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-part3.js
+      - run: node --check app-auth-production-redirect.js
+      - run: node --test pc-auth-recovery.test.mjs
