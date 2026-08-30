@@ -10,6 +10,9 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 
 const clean = (value: unknown) => String(value || '').trim().replace(/\s+/g, ' ')
 const compact = (value: unknown) => clean(value).toLowerCase().replace(/[^a-z0-9]/g, '')
+const normalizeEmail = (value: unknown) => clean(value).toLowerCase()
+const isManagerRole = (role: unknown) => role === 'manager' || role === 'trainer'
+const isRepresentativeRole = (role: unknown) => role === 'rep' || role === 'tester'
 const fullAddress = (lead: any) => [
   [lead?.address1, lead?.address2].filter(Boolean).join(' '),
   lead?.city,
@@ -74,96 +77,168 @@ Deno.serve(async request => {
     const { data: { user }, error: userError } = await admin.auth.getUser(jwt)
     if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)
 
+    const email = normalizeEmail(user.email)
     const { data: access, error: accessError } = await admin
       .from('app_user_access')
-      .select('active,role,organization_id')
-      .eq('email', user.email.toLowerCase())
+      .select('active,role,organization_id,assigned_manager_email,assigned_admin_email')
+      .eq('email', email)
       .maybeSingle()
     if (accessError) throw accessError
     if (!access?.active || !access.organization_id) return json({ error: 'active_access_required' }, 403)
-    if (!['admin', 'manager', 'trainer', 'rep', 'tester'].includes(String(access.role || ''))) {
-      return json({ error: 'field_role_required' }, 403)
+    const role = String(access.role || '').toLowerCase()
+    if (!['admin', 'manager', 'trainer', 'rep', 'tester'].includes(role)) return json({ error: 'field_role_required' }, 403)
+
+    const { data: profile, error: profileError } = await admin
+      .from('users')
+      .select('id,email,active,organization_id')
+      .eq('organization_id', access.organization_id)
+      .eq('auth_user_id', user.id)
+      .eq('active', true)
+      .maybeSingle()
+    if (profileError) throw profileError
+    if (!profile?.id) return json({ error: 'active_user_profile_required' }, 403)
+
+    let scope: any = { kind: 'organization_all' }
+    if (isManagerRole(role)) {
+      const adminEmail = normalizeEmail(access.assigned_manager_email)
+      const validFields = adminEmail && adminEmail === normalizeEmail(access.assigned_admin_email)
+      const { data: owner, error: ownerError } = validFields
+        ? await admin
+          .from('app_user_access')
+          .select('email,active,role,organization_id')
+          .eq('organization_id', access.organization_id)
+          .eq('email', adminEmail)
+          .eq('active', true)
+          .eq('role', 'admin')
+          .maybeSingle()
+        : { data: null, error: null }
+      if (ownerError) throw ownerError
+      scope = owner ? { kind: 'manager_pool', manager_id: profile.id, admin_email: adminEmail } : { kind: 'none' }
+    } else if (isRepresentativeRole(role)) {
+      const managerEmail = normalizeEmail(access.assigned_manager_email)
+      const { data: managerAccess, error: managerError } = managerEmail
+        ? await admin
+          .from('app_user_access')
+          .select('email,active,role,assigned_manager_email,assigned_admin_email,organization_id')
+          .eq('organization_id', access.organization_id)
+          .eq('email', managerEmail)
+          .eq('active', true)
+          .maybeSingle()
+        : { data: null, error: null }
+      if (managerError) throw managerError
+      const adminEmail = normalizeEmail(managerAccess?.assigned_manager_email)
+      const managerFieldsValid = isManagerRole(managerAccess?.role)
+        && adminEmail
+        && adminEmail === normalizeEmail(managerAccess?.assigned_admin_email)
+      const [{ data: managerProfile, error: managerProfileError }, { data: owner, error: ownerError }] = managerFieldsValid
+        ? await Promise.all([
+          admin
+            .from('users')
+            .select('id,email,active,organization_id')
+            .eq('organization_id', access.organization_id)
+            .ilike('email', managerEmail)
+            .eq('active', true)
+            .maybeSingle(),
+          admin
+            .from('app_user_access')
+            .select('email,active,role,organization_id')
+            .eq('organization_id', access.organization_id)
+            .eq('email', adminEmail)
+            .eq('active', true)
+            .eq('role', 'admin')
+            .maybeSingle(),
+        ])
+        : [{ data: null, error: null }, { data: null, error: null }]
+      if (managerProfileError) throw managerProfileError
+      if (ownerError) throw ownerError
+      scope = managerProfile?.id && owner
+        ? { kind: 'rep_assigned', rep_id: profile.id, manager_id: managerProfile.id, admin_email: adminEmail }
+        : { kind: 'none' }
+    }
+
+    const applyScope = (query: any) => {
+      query = query.eq('organization_id', access.organization_id).is('deleted_at', null)
+      if (scope.kind === 'manager_pool') {
+        return query.eq('assigned_manager_id', scope.manager_id).ilike('assigned_admin_email', scope.admin_email)
+      }
+      if (scope.kind === 'rep_assigned') {
+        return query
+          .eq('assigned_rep_id', scope.rep_id)
+          .eq('assigned_manager_id', scope.manager_id)
+          .ilike('assigned_admin_email', scope.admin_email)
+      }
+      if (scope.kind === 'none') return query.eq('id', '00000000-0000-0000-0000-000000000000')
+      return query
     }
 
     const body = await request.json().catch(() => ({}))
     const address = clean(body?.address)
     if (address.length < 5 || address.length > 240) return json({ error: 'valid_address_required' }, 400)
 
-    const { data: exactLeadId, error: exactError } = await admin.rpc('match_lead_by_service_address', {
-      p_organization_id: access.organization_id,
-      p_service_address: address,
-    })
-    if (exactError) throw exactError
-
-    if (exactLeadId) {
-      const { data: lead, error: leadError } = await admin
-        .from('leads')
-        .select('id,address1,address2,city,state,zip,latitude,longitude,current_disposition,stage,assigned_rep_id,assigned_manager_id')
-        .eq('id', exactLeadId)
-        .eq('organization_id', access.organization_id)
-        .is('deleted_at', null)
-        .maybeSingle()
-      if (leadError) throw leadError
-      if (lead) {
-        const center = point(lead)
-        return json({
-          ok: true,
-          matched: true,
-          match_source: 'exact_organization_address',
-          requested_address: address,
-          service_address: fullAddress(lead),
-          center,
-          lead: leadPayload(lead),
-        })
+    const selectColumns = 'id,address1,address2,city,state,zip,latitude,longitude,current_disposition,stage,assigned_rep_id,assigned_manager_id,assigned_admin_email,organization_id'
+    if (scope.kind !== 'none') {
+      const { data: exactLeadId, error: exactError } = await admin.rpc('match_lead_by_service_address', {
+        p_organization_id: access.organization_id,
+        p_service_address: address,
+      })
+      if (exactError) throw exactError
+      if (exactLeadId) {
+        const { data: lead, error: leadError } = await applyScope(
+          admin.from('leads').select(selectColumns).eq('id', exactLeadId),
+        ).maybeSingle()
+        if (leadError) throw leadError
+        if (lead) {
+          return json({
+            ok: true,
+            matched: true,
+            match_source: 'exact_authorized_address',
+            requested_address: address,
+            service_address: fullAddress(lead),
+            center: point(lead),
+            lead: leadPayload(lead),
+            scope: scope.kind,
+          })
+        }
       }
     }
 
     const googleKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || ''
     if (!googleKey) return json({ error: 'google_maps_key_not_configured' }, 503)
-
     const response = await maps.geocode({
       params: { address, region: 'us', key: googleKey },
       timeout: 10_000,
     })
     const result = response.data?.results?.[0]
-    const location = result?.geometry?.location
-    const center = point(location)
+    const center = point(result?.geometry?.location)
     if (!result || !center) return json({ error: 'address_not_found' }, 404)
 
     let matchedLead: any = null
     let matchSource = 'google_geocode'
-
-    if (result.place_id) {
-      const { data: placeLead, error: placeError } = await admin
-        .from('leads')
-        .select('id,address1,address2,city,state,zip,latitude,longitude,current_disposition,stage,assigned_rep_id,assigned_manager_id')
-        .eq('organization_id', access.organization_id)
-        .eq('geocode_place_id', result.place_id)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle()
+    if (scope.kind !== 'none' && result.place_id) {
+      const { data: placeLead, error: placeError } = await applyScope(
+        admin.from('leads').select(selectColumns).eq('geocode_place_id', result.place_id).limit(1),
+      ).maybeSingle()
       if (placeError) throw placeError
       if (placeLead) {
         matchedLead = placeLead
-        matchSource = 'google_place_id'
+        matchSource = 'google_place_id_authorized'
       }
     }
 
-    if (!matchedLead) {
+    if (!matchedLead && scope.kind !== 'none') {
       const latPad = 0.0015
       const lngPad = 0.0025
-      const { data: nearby, error: nearbyError } = await admin
-        .from('leads')
-        .select('id,address1,address2,city,state,zip,latitude,longitude,current_disposition,stage,assigned_rep_id,assigned_manager_id')
-        .eq('organization_id', access.organization_id)
-        .is('deleted_at', null)
-        .gte('latitude', center.latitude - latPad)
-        .lte('latitude', center.latitude + latPad)
-        .gte('longitude', center.longitude - lngPad)
-        .lte('longitude', center.longitude + lngPad)
-        .limit(100)
+      const { data: nearby, error: nearbyError } = await applyScope(
+        admin
+          .from('leads')
+          .select(selectColumns)
+          .gte('latitude', center.latitude - latPad)
+          .lte('latitude', center.latitude + latPad)
+          .gte('longitude', center.longitude - lngPad)
+          .lte('longitude', center.longitude + lngPad)
+          .limit(100),
+      )
       if (nearbyError) throw nearbyError
-
       const requestedNumber = streetNumber(address)
       const candidates = (nearby || [])
         .map(lead => ({ lead, distance: metersBetween(center, lead) }))
@@ -175,7 +250,7 @@ Deno.serve(async request => {
       )
       if (best) {
         matchedLead = best.lead
-        matchSource = 'google_nearby_same_address_number'
+        matchSource = 'google_nearby_authorized_address_number'
       }
     }
 
@@ -191,6 +266,7 @@ Deno.serve(async request => {
       google_place_id: result.place_id || null,
       lead: matchedLead ? leadPayload(matchedLead) : null,
       normalized_query: compact(address),
+      scope: scope.kind,
     })
   } catch (error) {
     console.error('lead-map-address-search', error)
