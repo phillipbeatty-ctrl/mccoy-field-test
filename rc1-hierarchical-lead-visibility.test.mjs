@@ -31,10 +31,22 @@ assert.match(realLeads, /state\.realLeads=\[\]/)
 assert.match(realLeads, /No leads are assigned to this account/)
 assert.match(realLeads, /role-scoped Lead Pool loaded through lead-admin/)
 
-for (const id of ['mapAssignLabel','mapRepSelect','bulkAssignMapBtn','lassoSelectBtn','selectVisiblePinsBtn']) {
-  assert.match(accessFix, new RegExp(`#${id}`))
+for (const id of [
+  'mapAssignLabel',
+  'mapRepSelect',
+  'bulkAssignMapBtn',
+  'lassoSelectBtn',
+  'selectVisiblePinsBtn',
+  'clearMapSelectionBtn',
+  'mapSelectionStatus',
+]) {
+  assert.match(accessFix, new RegExp(`#${id}|getElementById\\('${id}'\\)`))
 }
 assert.match(accessFix, /body\.lead-pool-rep-layout/)
+assert.match(accessFix, /mapView\.textContent=assigner\?'MAP \/ ASSIGN':'MAP'/)
+assert.match(accessFix, /Open lead map and assignment tools':'Open lead map'/)
+assert.match(accessFix, /view its service address and disposition/)
+assert.match(accessFix, /heading\.textContent=assigner\?'Map Assignment':'Lead Details'/)
 assert.match(accessFix, /checkDuplicateLeadsBtn/)
 assert.doesNotMatch(accessFix, /MutationObserver/)
 
