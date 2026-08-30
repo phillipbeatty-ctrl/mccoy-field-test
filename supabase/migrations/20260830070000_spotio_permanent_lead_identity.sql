@@ -66,17 +66,10 @@ create table if not exists public.spotio_import_results (
 
 alter table public.spotio_import_results
   drop constraint if exists spotio_import_results_action_check;
-
 alter table public.spotio_import_results
   add constraint spotio_import_results_action_check check (
     action in (
-      'created',
-      'updated',
-      'unchanged',
-      'collision',
-      'quarantined',
-      'missing_retained',
-      'archived'
+      'created','updated','unchanged','collision','quarantined','missing_retained','archived'
     )
   );
 
@@ -84,7 +77,6 @@ alter table public.leads
   add column if not exists provider_lead_id text,
   add column if not exists canonical_identity_key text,
   add column if not exists fallback_identity_key text,
-  add column if not exists normalized_address_key text,
   add column if not exists import_batch_id uuid references public.spotio_import_batches(id) on delete set null,
   add column if not exists source_stage_id text,
   add column if not exists source_payload jsonb,
@@ -189,8 +181,26 @@ begin
       exit;
     end if;
   end loop;
-
   return concat_ws('|', v_street, v_unit, v_city, v_state, v_zip);
+end;
+$$;
+
+-- Production already has normalized_address_key as a stored generated column.
+-- Fresh schemas receive the same generated definition. It is never assigned directly.
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'leads'
+      and column_name = 'normalized_address_key'
+  ) then
+    alter table public.leads
+      add column normalized_address_key text generated always as (
+        private.mccoy_normalized_lead_address(address1,address2,city,state,zip)
+      ) stored;
+  end if;
 end;
 $$;
 
@@ -206,16 +216,13 @@ language sql
 immutable
 set search_path = pg_catalog
 as $$
-  select
-    btrim(coalesce(p_address1, '')) <> ''
+  select btrim(coalesce(p_address1, '')) <> ''
     and btrim(coalesce(p_city, '')) <> ''
     and upper(regexp_replace(coalesce(p_state, ''), '[^a-zA-Z]', '', 'g')) ~ '^[A-Z]{2}$'
     and left(regexp_replace(coalesce(p_zip, ''), '[^0-9]', '', 'g'), 5) ~ '^\d{5}$'
     and lower(btrim(coalesce(p_address1, ''))) not in (
-      'prospecting / keep knocking', 'prospecting keep knocking',
-      'hot lead', 'contacted', 'smb', 'follow-up', 'follow up',
-      'no sale made', 'migrator', 'existing customer', 'sale made',
-      'admin hold', 'no sale'
+      'prospecting / keep knocking','prospecting keep knocking','hot lead','contacted','smb',
+      'follow-up','follow up','no sale made','migrator','existing customer','sale made','admin hold','no sale'
     );
 $$;
 
@@ -263,11 +270,10 @@ begin
   if v_provider_id <> '' then
     return 'provider:' || v_provider_id;
   end if;
-  return private.mccoy_spotio_fallback_identity_v1(p_provider, p_address1, p_address2, p_zip);
+  return private.mccoy_spotio_fallback_identity_v1(p_provider,p_address1,p_address2,p_zip);
 end;
 $$;
 
--- Compatibility wrapper for code deployed before provider became part of fallback identity.
 create or replace function private.mccoy_spotio_canonical_identity(
   p_provider_lead_id text,
   p_address1 text,
@@ -282,7 +288,7 @@ immutable
 set search_path = pg_catalog, private
 as $$
   select private.mccoy_spotio_canonical_identity_v2(
-    p_provider_lead_id, null, p_address1, p_address2, p_city, p_state, p_zip
+    p_provider_lead_id,null,p_address1,p_address2,p_city,p_state,p_zip
   );
 $$;
 
@@ -296,19 +302,15 @@ begin
   if upper(coalesce(new.source_system, '')) = 'SPOTIO' then
     new.provider_lead_id := nullif(btrim(new.provider_lead_id), '');
     new.provider := nullif(btrim(new.provider), '');
-    new.normalized_address_key := private.mccoy_normalized_lead_address(
-      new.address1, new.address2, new.city, new.state, new.zip
-    );
     new.fallback_identity_key := private.mccoy_spotio_fallback_identity_v1(
-      new.provider, new.address1, new.address2, new.zip
+      new.provider,new.address1,new.address2,new.zip
     );
     new.canonical_identity_key := private.mccoy_spotio_canonical_identity_v2(
-      new.provider_lead_id, new.provider,
-      new.address1, new.address2, new.city, new.state, new.zip
+      new.provider_lead_id,new.provider,new.address1,new.address2,new.city,new.state,new.zip
     );
-    new.source_first_seen_at := coalesce(new.source_first_seen_at, new.created_at, clock_timestamp());
-    new.source_last_seen_at := coalesce(new.source_last_seen_at, clock_timestamp());
-    new.source_seen_count := greatest(coalesce(new.source_seen_count, 1), 1);
+    new.source_first_seen_at := coalesce(new.source_first_seen_at,new.created_at,clock_timestamp());
+    new.source_last_seen_at := coalesce(new.source_last_seen_at,clock_timestamp());
+    new.source_seen_count := greatest(coalesce(new.source_seen_count,1),1);
   end if;
   return new;
 end;
@@ -317,12 +319,12 @@ $$;
 drop trigger if exists set_lead_import_identity_fields on public.leads;
 create trigger set_lead_import_identity_fields
 before insert or update of
-  address1, address2, city, state, zip, source_system,
-  provider, provider_lead_id, source_first_seen_at, source_last_seen_at, source_seen_count
+  address1,address2,city,state,zip,source_system,provider,provider_lead_id,
+  source_first_seen_at,source_last_seen_at,source_seen_count
 on public.leads
 for each row execute function private.set_lead_import_identity_fields();
 
--- Refuse to rewrite identity keys if the new permanent rule reveals unresolved collisions.
+-- Refuse to rewrite identity keys if the permanent rule reveals unresolved collisions.
 do $$
 declare
   v_collision_groups integer;
@@ -330,43 +332,40 @@ declare
 begin
   select count(*) into v_collision_groups
   from (
-    select organization_id, proposed_identity
+    select organization_id,proposed_identity
     from (
-      select
-        organization_id,
+      select organization_id,
         private.mccoy_spotio_canonical_identity_v2(
-          provider_lead_id, provider, address1, address2, city, state, zip
+          provider_lead_id,provider,address1,address2,city,state,zip
         ) as proposed_identity
       from public.leads
       where deleted_at is null
         and upper(coalesce(source_system, '')) = 'SPOTIO'
     ) proposed
     where proposed_identity is not null
-    group by organization_id, proposed_identity
+    group by organization_id,proposed_identity
     having count(*) > 1
   ) collisions;
 
   select count(*) into v_fallback_collision_groups
   from (
-    select organization_id, proposed_fallback
+    select organization_id,proposed_fallback
     from (
-      select
-        organization_id,
-        private.mccoy_spotio_fallback_identity_v1(provider, address1, address2, zip) as proposed_fallback
+      select organization_id,
+        private.mccoy_spotio_fallback_identity_v1(provider,address1,address2,zip) as proposed_fallback
       from public.leads
       where deleted_at is null
         and upper(coalesce(source_system, '')) = 'SPOTIO'
     ) proposed
     where proposed_fallback is not null
-    group by organization_id, proposed_fallback
+    group by organization_id,proposed_fallback
     having count(*) > 1
   ) collisions;
 
   if v_collision_groups > 0 or v_fallback_collision_groups > 0 then
     raise exception
       'spotio_identity_migration_blocked: % canonical and % fallback collision group(s) require review',
-      v_collision_groups,
-      v_fallback_collision_groups;
+      v_collision_groups,v_fallback_collision_groups;
   end if;
 end;
 $$;
@@ -377,37 +376,32 @@ drop index if exists public.leads_active_spotio_provider_uidx;
 drop index if exists public.leads_active_spotio_canonical_uidx;
 
 update public.leads
-set
-  normalized_address_key = private.mccoy_normalized_lead_address(address1, address2, city, state, zip),
-  fallback_identity_key = private.mccoy_spotio_fallback_identity_v1(provider, address1, address2, zip),
-  canonical_identity_key = private.mccoy_spotio_canonical_identity_v2(
-    provider_lead_id, provider, address1, address2, city, state, zip
-  ),
-  source_first_seen_at = coalesce(source_first_seen_at, created_at, clock_timestamp()),
-  source_last_seen_at = coalesce(source_last_seen_at, created_at, clock_timestamp()),
-  source_seen_count = greatest(coalesce(source_seen_count, 1), 1)
+set fallback_identity_key = private.mccoy_spotio_fallback_identity_v1(provider,address1,address2,zip),
+    canonical_identity_key = private.mccoy_spotio_canonical_identity_v2(
+      provider_lead_id,provider,address1,address2,city,state,zip
+    ),
+    source_first_seen_at = coalesce(source_first_seen_at,created_at,clock_timestamp()),
+    source_last_seen_at = coalesce(source_last_seen_at,created_at,clock_timestamp()),
+    source_seen_count = greatest(coalesce(source_seen_count,1),1)
 where upper(coalesce(source_system, '')) = 'SPOTIO';
 
 create unique index leads_active_spotio_provider_uidx
-  on public.leads (organization_id, lower(provider_lead_id))
+  on public.leads (organization_id,lower(provider_lead_id))
   where deleted_at is null
     and upper(coalesce(source_system, '')) = 'SPOTIO'
     and nullif(btrim(provider_lead_id), '') is not null;
-
 create unique index leads_active_spotio_canonical_uidx
-  on public.leads (organization_id, canonical_identity_key)
+  on public.leads (organization_id,canonical_identity_key)
   where deleted_at is null
     and upper(coalesce(source_system, '')) = 'SPOTIO'
     and canonical_identity_key is not null;
-
 create index if not exists leads_spotio_fallback_lookup_idx
-  on public.leads (organization_id, fallback_identity_key, id)
+  on public.leads (organization_id,fallback_identity_key,id)
   where deleted_at is null
     and upper(coalesce(source_system, '')) = 'SPOTIO'
     and fallback_identity_key is not null;
-
 create index if not exists leads_active_normalized_address_idx
-  on public.leads (normalized_address_key, id)
+  on public.leads (normalized_address_key,id)
   where deleted_at is null;
 
 create or replace function public.mccoy_upsert_spotio_lead_v1(
@@ -422,16 +416,16 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   v_batch public.spotio_import_batches%rowtype;
-  v_provider_id text := nullif(btrim(coalesce(p_record->>'provider_lead_id', '')), '');
-  v_provider text := nullif(btrim(coalesce(p_record->>'provider', '')), '');
-  v_source_stage_id text := nullif(btrim(coalesce(p_record->>'source_stage_id', '')), '');
-  v_address1 text := btrim(coalesce(p_record->>'address1', ''));
-  v_address2 text := nullif(btrim(coalesce(p_record->>'address2', '')), '');
-  v_city text := btrim(coalesce(p_record->>'city', ''));
-  v_state text := upper(btrim(coalesce(p_record->>'state', '')));
-  v_zip text := btrim(coalesce(p_record->>'zip', ''));
-  v_customer_name text := nullif(btrim(coalesce(p_record->>'customer_name', '')), '');
-  v_phone text := nullif(btrim(coalesce(p_record->>'phone', '')), '');
+  v_provider_id text := nullif(btrim(coalesce(p_record->>'provider_lead_id','')),'');
+  v_provider text := nullif(btrim(coalesce(p_record->>'provider','')),'');
+  v_source_stage_id text := nullif(btrim(coalesce(p_record->>'source_stage_id','')),'');
+  v_address1 text := btrim(coalesce(p_record->>'address1',''));
+  v_address2 text := nullif(btrim(coalesce(p_record->>'address2','')),'');
+  v_city text := btrim(coalesce(p_record->>'city',''));
+  v_state text := upper(btrim(coalesce(p_record->>'state','')));
+  v_zip text := btrim(coalesce(p_record->>'zip',''));
+  v_customer_name text := nullif(btrim(coalesce(p_record->>'customer_name','')),'');
+  v_phone text := nullif(btrim(coalesce(p_record->>'phone','')),'');
   v_latitude double precision;
   v_longitude double precision;
   v_identity text;
@@ -453,10 +447,10 @@ declare
   v_result jsonb;
 begin
   if p_batch_id is null then
-    raise exception 'batch_id_required' using errcode = '22023';
+    raise exception 'batch_id_required' using errcode='22023';
   end if;
   if p_item_index is null or p_item_index < 0 then
-    raise exception 'valid_item_index_required' using errcode = '22023';
+    raise exception 'valid_item_index_required' using errcode='22023';
   end if;
 
   select * into v_batch
@@ -464,17 +458,17 @@ begin
   where id = p_batch_id
   for update;
   if not found or v_batch.organization_id is null then
-    raise exception 'spotio_batch_not_found_or_unscoped' using errcode = 'P0002';
+    raise exception 'spotio_batch_not_found_or_unscoped' using errcode='P0002';
   end if;
 
-  if nullif(p_record->>'latitude', '') is not null then
+  if nullif(p_record->>'latitude','') is not null then
     begin
       v_latitude := (p_record->>'latitude')::double precision;
     exception when others then
       v_latitude := null;
     end;
   end if;
-  if nullif(p_record->>'longitude', '') is not null then
+  if nullif(p_record->>'longitude','') is not null then
     begin
       v_longitude := (p_record->>'longitude')::double precision;
     exception when others then
@@ -488,139 +482,128 @@ begin
     v_longitude := null;
   end if;
 
-  if not private.mccoy_spotio_valid_address(v_address1, v_address2, v_city, v_state, v_zip) then
+  if not private.mccoy_spotio_valid_address(v_address1,v_address2,v_city,v_state,v_zip) then
     v_action := 'quarantined';
     v_detail := jsonb_build_object(
-      'reason', 'invalid_or_incomplete_service_address',
-      'address1', v_address1,
-      'city', v_city,
-      'state', v_state,
-      'zip', v_zip,
-      'retained_prior_leads', true
+      'reason','invalid_or_incomplete_service_address',
+      'address1',v_address1,'city',v_city,'state',v_state,'zip',v_zip,
+      'retained_prior_leads',true
     );
     insert into public.spotio_import_results(
-      organization_id, batch_id, item_index, action, provider_lead_id, detail
+      organization_id,batch_id,item_index,action,provider_lead_id,detail
     ) values (
-      v_batch.organization_id, p_batch_id, p_item_index, v_action, v_provider_id, v_detail
+      v_batch.organization_id,p_batch_id,p_item_index,v_action,v_provider_id,v_detail
     )
-    on conflict (batch_id, item_index) do update set
-      organization_id = excluded.organization_id,
-      lead_id = null,
-      action = excluded.action,
-      canonical_identity_key = null,
-      provider_lead_id = excluded.provider_lead_id,
-      detail = excluded.detail,
-      created_at = clock_timestamp();
-    return jsonb_build_object('ok', true, 'action', v_action, 'lead_id', null, 'detail', v_detail);
+    on conflict(batch_id,item_index) do update set
+      organization_id=excluded.organization_id,
+      lead_id=null,
+      action=excluded.action,
+      canonical_identity_key=null,
+      provider_lead_id=excluded.provider_lead_id,
+      detail=excluded.detail,
+      created_at=clock_timestamp();
+    return jsonb_build_object('ok',true,'action',v_action,'lead_id',null,'detail',v_detail);
   end if;
 
-  v_address_key := private.mccoy_normalized_lead_address(
-    v_address1, v_address2, v_city, v_state, v_zip
-  );
-  v_fallback_identity := private.mccoy_spotio_fallback_identity_v1(
-    v_provider, v_address1, v_address2, v_zip
-  );
-  v_legacy_fallback_identity := private.mccoy_spotio_fallback_identity_v1(
-    null, v_address1, v_address2, v_zip
-  );
+  v_address_key := private.mccoy_normalized_lead_address(v_address1,v_address2,v_city,v_state,v_zip);
+  v_fallback_identity := private.mccoy_spotio_fallback_identity_v1(v_provider,v_address1,v_address2,v_zip);
+  v_legacy_fallback_identity := private.mccoy_spotio_fallback_identity_v1(null,v_address1,v_address2,v_zip);
   v_identity := private.mccoy_spotio_canonical_identity_v2(
-    v_provider_id, v_provider, v_address1, v_address2, v_city, v_state, v_zip
+    v_provider_id,v_provider,v_address1,v_address2,v_city,v_state,v_zip
   );
-  v_source_id := 'SPOTIO:' || v_batch.organization_id::text || ':' ||
+  v_source_id := 'SPOTIO:'||v_batch.organization_id::text||':'||
     case when v_provider_id is not null
-      then 'PROVIDER:' || regexp_replace(lower(v_provider_id), '[^a-z0-9:_-]+', '', 'g')
-      else 'ADDRESS:' || md5(v_fallback_identity)
+      then 'PROVIDER:'||regexp_replace(lower(v_provider_id),'[^a-z0-9:_-]+','','g')
+      else 'ADDRESS:'||md5(v_fallback_identity)
     end;
 
   if v_provider_id is not null then
     select * into v_by_provider
     from public.leads
-    where organization_id = v_batch.organization_id
+    where organization_id=v_batch.organization_id
       and deleted_at is null
-      and upper(coalesce(source_system, '')) = 'SPOTIO'
-      and lower(provider_lead_id) = lower(v_provider_id)
-    order by created_at, id
+      and upper(coalesce(source_system,''))='SPOTIO'
+      and lower(provider_lead_id)=lower(v_provider_id)
+    order by created_at,id
     limit 1
     for update;
   end if;
 
   select count(*) into v_fallback_count
   from public.leads
-  where organization_id = v_batch.organization_id
+  where organization_id=v_batch.organization_id
     and deleted_at is null
-    and upper(coalesce(source_system, '')) = 'SPOTIO'
-    and fallback_identity_key = v_fallback_identity;
+    and upper(coalesce(source_system,''))='SPOTIO'
+    and fallback_identity_key=v_fallback_identity;
 
-  if v_fallback_count = 1 then
+  if v_fallback_count=1 then
     select * into v_by_fallback
     from public.leads
-    where organization_id = v_batch.organization_id
+    where organization_id=v_batch.organization_id
       and deleted_at is null
-      and upper(coalesce(source_system, '')) = 'SPOTIO'
-      and fallback_identity_key = v_fallback_identity
-    order by created_at, id
+      and upper(coalesce(source_system,''))='SPOTIO'
+      and fallback_identity_key=v_fallback_identity
+    order by created_at,id
     limit 1
     for update;
-  elsif v_fallback_count = 0 and v_provider is not null then
+  elsif v_fallback_count=0 and v_provider is not null then
     select count(*) into v_fallback_count
     from public.leads
-    where organization_id = v_batch.organization_id
+    where organization_id=v_batch.organization_id
       and deleted_at is null
-      and upper(coalesce(source_system, '')) = 'SPOTIO'
-      and nullif(btrim(provider), '') is null
-      and fallback_identity_key = v_legacy_fallback_identity;
+      and upper(coalesce(source_system,''))='SPOTIO'
+      and nullif(btrim(provider),'') is null
+      and fallback_identity_key=v_legacy_fallback_identity;
 
-    if v_fallback_count = 1 then
+    if v_fallback_count=1 then
       select * into v_by_fallback
       from public.leads
-      where organization_id = v_batch.organization_id
+      where organization_id=v_batch.organization_id
         and deleted_at is null
-        and upper(coalesce(source_system, '')) = 'SPOTIO'
-        and nullif(btrim(provider), '') is null
-        and fallback_identity_key = v_legacy_fallback_identity
-      order by created_at, id
+        and upper(coalesce(source_system,''))='SPOTIO'
+        and nullif(btrim(provider),'') is null
+        and fallback_identity_key=v_legacy_fallback_identity
+      order by created_at,id
       limit 1
       for update;
     end if;
   end if;
 
-  if v_fallback_count > 1 then
+  if v_fallback_count>1 then
     v_action := 'collision';
     v_detail := jsonb_build_object(
-      'reason', 'fallback_identity_matches_multiple_active_leads',
-      'fallback_identity_key', v_fallback_identity,
-      'match_count', v_fallback_count,
-      'retained_prior_leads', true
+      'reason','fallback_identity_matches_multiple_active_leads',
+      'fallback_identity_key',v_fallback_identity,
+      'match_count',v_fallback_count,
+      'retained_prior_leads',true
     );
   elsif v_by_provider.id is not null
      and v_by_fallback.id is not null
-     and v_by_provider.id <> v_by_fallback.id then
+     and v_by_provider.id<>v_by_fallback.id then
     v_action := 'collision';
     v_detail := jsonb_build_object(
-      'reason', 'provider_id_and_fallback_identity_resolve_to_different_active_leads',
-      'provider_match_lead_id', v_by_provider.id,
-      'fallback_match_lead_id', v_by_fallback.id,
-      'retained_prior_leads', true
+      'reason','provider_id_and_fallback_identity_resolve_to_different_active_leads',
+      'provider_match_lead_id',v_by_provider.id,
+      'fallback_match_lead_id',v_by_fallback.id,
+      'retained_prior_leads',true
     );
   end if;
 
-  if v_action = 'collision' then
+  if v_action='collision' then
     insert into public.spotio_import_results(
-      organization_id, batch_id, item_index, action, canonical_identity_key,
-      provider_lead_id, detail
+      organization_id,batch_id,item_index,action,canonical_identity_key,provider_lead_id,detail
     ) values (
-      v_batch.organization_id, p_batch_id, p_item_index, v_action, v_identity,
-      v_provider_id, v_detail
+      v_batch.organization_id,p_batch_id,p_item_index,v_action,v_identity,v_provider_id,v_detail
     )
-    on conflict (batch_id, item_index) do update set
-      organization_id = excluded.organization_id,
-      lead_id = null,
-      action = excluded.action,
-      canonical_identity_key = excluded.canonical_identity_key,
-      provider_lead_id = excluded.provider_lead_id,
-      detail = excluded.detail,
-      created_at = clock_timestamp();
-    return jsonb_build_object('ok', true, 'action', v_action, 'lead_id', null, 'detail', v_detail);
+    on conflict(batch_id,item_index) do update set
+      organization_id=excluded.organization_id,
+      lead_id=null,
+      action=excluded.action,
+      canonical_identity_key=excluded.canonical_identity_key,
+      provider_lead_id=excluded.provider_lead_id,
+      detail=excluded.detail,
+      created_at=clock_timestamp();
+    return jsonb_build_object('ok',true,'action',v_action,'lead_id',null,'detail',v_detail);
   end if;
 
   if v_by_provider.id is not null then
@@ -632,84 +615,82 @@ begin
   if v_existing.id is null then
     select * into v_archived
     from public.leads
-    where organization_id = v_batch.organization_id
+    where organization_id=v_batch.organization_id
       and deleted_at is not null
-      and upper(coalesce(source_system, '')) = 'SPOTIO'
+      and upper(coalesce(source_system,''))='SPOTIO'
       and (
-        (v_provider_id is not null and lower(coalesce(provider_lead_id, '')) = lower(v_provider_id))
-        or fallback_identity_key = v_fallback_identity
-        or (v_provider is not null and nullif(btrim(provider), '') is null
-            and fallback_identity_key = v_legacy_fallback_identity)
+        (v_provider_id is not null and lower(coalesce(provider_lead_id,''))=lower(v_provider_id))
+        or fallback_identity_key=v_fallback_identity
+        or (v_provider is not null and nullif(btrim(provider),'') is null
+            and fallback_identity_key=v_legacy_fallback_identity)
       )
-    order by deleted_at desc, created_at, id
+    order by deleted_at desc,created_at,id
     limit 1;
 
     if v_archived.duplicate_of_lead_id is not null then
       select * into v_existing
       from public.leads
-      where id = v_archived.duplicate_of_lead_id
-        and organization_id = v_batch.organization_id
+      where id=v_archived.duplicate_of_lead_id
+        and organization_id=v_batch.organization_id
         and deleted_at is null
       for update;
-    elsif v_archived.id is not null and v_archived.deletion_reason = 'manual' then
+    elsif v_archived.id is not null and v_archived.deletion_reason='manual' then
       v_action := 'archived';
       v_detail := jsonb_build_object(
-        'reason', 'explicitly_archived_lead_retained',
-        'archived_lead_id', v_archived.id,
-        'retained_prior_leads', true
+        'reason','explicitly_archived_lead_retained',
+        'archived_lead_id',v_archived.id,
+        'retained_prior_leads',true
       );
       insert into public.spotio_import_results(
-        organization_id, batch_id, item_index, lead_id, action,
-        canonical_identity_key, provider_lead_id, detail
+        organization_id,batch_id,item_index,lead_id,action,canonical_identity_key,provider_lead_id,detail
       ) values (
-        v_batch.organization_id, p_batch_id, p_item_index, v_archived.id, v_action,
-        v_identity, v_provider_id, v_detail
+        v_batch.organization_id,p_batch_id,p_item_index,v_archived.id,v_action,v_identity,v_provider_id,v_detail
       )
-      on conflict (batch_id, item_index) do update set
-        organization_id = excluded.organization_id,
-        lead_id = excluded.lead_id,
-        action = excluded.action,
-        canonical_identity_key = excluded.canonical_identity_key,
-        provider_lead_id = excluded.provider_lead_id,
-        detail = excluded.detail,
-        created_at = clock_timestamp();
-      return jsonb_build_object('ok', true, 'action', v_action, 'lead_id', v_archived.id, 'detail', v_detail);
+      on conflict(batch_id,item_index) do update set
+        organization_id=excluded.organization_id,
+        lead_id=excluded.lead_id,
+        action=excluded.action,
+        canonical_identity_key=excluded.canonical_identity_key,
+        provider_lead_id=excluded.provider_lead_id,
+        detail=excluded.detail,
+        created_at=clock_timestamp();
+      return jsonb_build_object('ok',true,'action',v_action,'lead_id',v_archived.id,'detail',v_detail);
     end if;
   end if;
 
   if v_existing.id is null then
     insert into public.leads(
-      organization_id, source_system, source_id, provider, provider_lead_id,
-      canonical_identity_key, fallback_identity_key, normalized_address_key,
-      import_batch_id, source_stage_id, source_payload,
-      address1, address2, city, state, zip, latitude, longitude,
-      customer_name, phone, current_disposition, stage, pin_color, pin_color_source,
-      source_first_seen_at, source_last_seen_at, source_seen_count
+      organization_id,source_system,source_id,provider,provider_lead_id,
+      canonical_identity_key,fallback_identity_key,
+      import_batch_id,source_stage_id,source_payload,
+      address1,address2,city,state,zip,latitude,longitude,
+      customer_name,phone,current_disposition,stage,pin_color,pin_color_source,
+      source_first_seen_at,source_last_seen_at,source_seen_count
     ) values (
-      v_batch.organization_id, 'SPOTIO', v_source_id, v_provider, v_provider_id,
-      v_identity, v_fallback_identity, v_address_key,
-      p_batch_id, v_source_stage_id, coalesce(p_record->'source_payload', p_record),
-      v_address1, v_address2, v_city, v_state, v_zip, v_latitude, v_longitude,
-      v_customer_name, v_phone, 'uncontacted', 'Prospecting', '#fbbf24', 'stage',
-      v_now, v_now, 1
+      v_batch.organization_id,'SPOTIO',v_source_id,v_provider,v_provider_id,
+      v_identity,v_fallback_identity,
+      p_batch_id,v_source_stage_id,coalesce(p_record->'source_payload',p_record),
+      v_address1,v_address2,v_city,v_state,v_zip,v_latitude,v_longitude,
+      v_customer_name,v_phone,'uncontacted','Prospecting','#fbbf24','stage',
+      v_now,v_now,1
     )
     returning * into v_updated;
 
     v_action := 'created';
     v_detail := jsonb_build_object(
-      'classification', 'new_lead',
-      'assignment_preserved', true,
-      'disposition_preserved', true,
-      'verified_coordinates_preserved', null,
-      'retained_prior_leads', true
+      'classification','new_lead',
+      'assignment_preserved',true,
+      'disposition_preserved',true,
+      'verified_coordinates_preserved',null,
+      'retained_prior_leads',true
     );
   else
     v_preserve_coordinates :=
-      coalesce(v_existing.geocode_verification_status, '') in (
-        'manual_door_verified', 'google_verified_preserved', 'google_address_validation_applied'
+      coalesce(v_existing.geocode_verification_status,'') in (
+        'manual_door_verified','google_verified_preserved','google_address_validation_applied'
       )
-      or coalesce(v_existing.geocode_status, '') in (
-        'manual', 'field_verified', 'google_rooftop', 'google_address_validation'
+      or coalesce(v_existing.geocode_status,'') in (
+        'manual','field_verified','google_rooftop','google_address_validation'
       );
 
     v_material_change :=
@@ -733,46 +714,45 @@ begin
       );
 
     update public.leads
-    set source_system = 'SPOTIO',
-        source_id = v_source_id,
-        provider = coalesce(v_provider, provider),
-        provider_lead_id = coalesce(v_provider_id, provider_lead_id),
-        canonical_identity_key = v_identity,
-        fallback_identity_key = v_fallback_identity,
-        normalized_address_key = v_address_key,
-        import_batch_id = p_batch_id,
-        source_stage_id = coalesce(v_source_stage_id, source_stage_id),
-        source_payload = coalesce(p_record->'source_payload', p_record),
-        address1 = v_address1,
-        address2 = v_address2,
-        city = v_city,
-        state = v_state,
-        zip = v_zip,
-        latitude = case when v_preserve_coordinates or v_latitude is null then latitude else v_latitude end,
-        longitude = case when v_preserve_coordinates or v_longitude is null then longitude else v_longitude end,
-        geocode_status = case
+    set source_system='SPOTIO',
+        source_id=v_source_id,
+        provider=coalesce(v_provider,provider),
+        provider_lead_id=coalesce(v_provider_id,provider_lead_id),
+        canonical_identity_key=v_identity,
+        fallback_identity_key=v_fallback_identity,
+        import_batch_id=p_batch_id,
+        source_stage_id=coalesce(v_source_stage_id,source_stage_id),
+        source_payload=coalesce(p_record->'source_payload',p_record),
+        address1=v_address1,
+        address2=v_address2,
+        city=v_city,
+        state=v_state,
+        zip=v_zip,
+        latitude=case when v_preserve_coordinates or v_latitude is null then latitude else v_latitude end,
+        longitude=case when v_preserve_coordinates or v_latitude is null then longitude else v_longitude end,
+        geocode_status=case
           when v_preserve_coordinates or v_latitude is null then geocode_status
-          else coalesce(geocode_status, 'spotio_source')
+          else coalesce(geocode_status,'spotio_source')
         end,
-        geocode_provider = case
+        geocode_provider=case
           when v_preserve_coordinates or v_latitude is null then geocode_provider
-          else coalesce(geocode_provider, 'spotio')
+          else coalesce(geocode_provider,'spotio')
         end,
-        geocode_verification_status = case
+        geocode_verification_status=case
           when v_preserve_coordinates or v_latitude is null then geocode_verification_status
-          else coalesce(geocode_verification_status, 'unverified_source')
+          else coalesce(geocode_verification_status,'unverified_source')
         end,
-        customer_name = coalesce(v_customer_name, customer_name),
-        phone = coalesce(v_phone, phone),
-        source_first_seen_at = coalesce(source_first_seen_at, created_at, v_now),
-        source_last_seen_at = v_now,
-        source_seen_count = greatest(coalesce(source_seen_count, 1), 1) + 1
-    where id = v_existing.id
+        customer_name=coalesce(v_customer_name,customer_name),
+        phone=coalesce(v_phone,phone),
+        source_first_seen_at=coalesce(source_first_seen_at,created_at,v_now),
+        source_last_seen_at=v_now,
+        source_seen_count=greatest(coalesce(source_seen_count,1),1)+1
+    where id=v_existing.id
     returning * into v_updated;
 
     v_action := case when v_material_change then 'updated' else 'unchanged' end;
     v_detail := jsonb_build_object(
-      'classification', case when v_material_change then 'existing_lead_updated' else 'existing_lead_unchanged' end,
+      'classification',case when v_material_change then 'existing_lead_updated' else 'existing_lead_unchanged' end,
       'assignment_preserved',
         v_updated.assigned_rep_id is not distinct from v_existing.assigned_rep_id
         and v_updated.assigned_manager_id is not distinct from v_existing.assigned_manager_id
@@ -788,65 +768,59 @@ begin
           v_updated.latitude is not distinct from v_existing.latitude
           and v_updated.longitude is not distinct from v_existing.longitude
         ),
-      'retained_prior_leads', true
+      'retained_prior_leads',true
     );
   end if;
 
   insert into public.spotio_import_results(
-    organization_id, batch_id, item_index, lead_id, action,
-    canonical_identity_key, provider_lead_id, detail
+    organization_id,batch_id,item_index,lead_id,action,canonical_identity_key,provider_lead_id,detail
   ) values (
-    v_batch.organization_id, p_batch_id, p_item_index, v_updated.id, v_action,
-    v_identity, v_provider_id, v_detail
+    v_batch.organization_id,p_batch_id,p_item_index,v_updated.id,v_action,v_identity,v_provider_id,v_detail
   )
-  on conflict (batch_id, item_index) do update set
-    organization_id = excluded.organization_id,
-    lead_id = excluded.lead_id,
-    action = excluded.action,
-    canonical_identity_key = excluded.canonical_identity_key,
-    provider_lead_id = excluded.provider_lead_id,
-    detail = excluded.detail,
-    created_at = clock_timestamp();
+  on conflict(batch_id,item_index) do update set
+    organization_id=excluded.organization_id,
+    lead_id=excluded.lead_id,
+    action=excluded.action,
+    canonical_identity_key=excluded.canonical_identity_key,
+    provider_lead_id=excluded.provider_lead_id,
+    detail=excluded.detail,
+    created_at=clock_timestamp();
 
   v_result := jsonb_build_object(
-    'ok', true,
-    'action', v_action,
-    'lead_id', v_updated.id,
-    'provider_lead_id', v_provider_id,
-    'canonical_identity_key', v_identity,
-    'fallback_identity_key', v_fallback_identity,
-    'normalized_address_key', v_address_key
+    'ok',true,
+    'action',v_action,
+    'lead_id',v_updated.id,
+    'provider_lead_id',v_provider_id,
+    'canonical_identity_key',v_identity,
+    'fallback_identity_key',v_fallback_identity,
+    'normalized_address_key',v_address_key
   ) || v_detail;
   return v_result;
 exception
   when unique_violation then
     v_detail := jsonb_build_object(
-      'classification', 'possible_collision_requiring_review',
-      'reason', 'active_identity_changed_during_import',
-      'retained_prior_leads', true
+      'classification','possible_collision_requiring_review',
+      'reason','active_identity_changed_during_import',
+      'retained_prior_leads',true
     );
     insert into public.spotio_import_results(
-      organization_id, batch_id, item_index, action, canonical_identity_key,
-      provider_lead_id, detail
+      organization_id,batch_id,item_index,action,canonical_identity_key,provider_lead_id,detail
     ) values (
-      v_batch.organization_id, p_batch_id, p_item_index, 'collision', v_identity,
-      v_provider_id, v_detail
+      v_batch.organization_id,p_batch_id,p_item_index,'collision',v_identity,v_provider_id,v_detail
     )
-    on conflict (batch_id, item_index) do update set
-      organization_id = excluded.organization_id,
-      lead_id = null,
-      action = excluded.action,
-      canonical_identity_key = excluded.canonical_identity_key,
-      provider_lead_id = excluded.provider_lead_id,
-      detail = excluded.detail,
-      created_at = clock_timestamp();
+    on conflict(batch_id,item_index) do update set
+      organization_id=excluded.organization_id,
+      lead_id=null,
+      action=excluded.action,
+      canonical_identity_key=excluded.canonical_identity_key,
+      provider_lead_id=excluded.provider_lead_id,
+      detail=excluded.detail,
+      created_at=clock_timestamp();
     return jsonb_build_object(
-      'ok', true,
-      'action', 'collision',
-      'lead_id', null,
-      'provider_lead_id', v_provider_id,
-      'canonical_identity_key', v_identity,
-      'detail', v_detail
+      'ok',true,'action','collision','lead_id',null,
+      'provider_lead_id',v_provider_id,
+      'canonical_identity_key',v_identity,
+      'detail',v_detail
     );
 end;
 $$;
@@ -873,15 +847,13 @@ declare
   v_archived integer := 0;
 begin
   if jsonb_typeof(p_records) <> 'array' then
-    raise exception 'records_array_required' using errcode = '22023';
+    raise exception 'records_array_required' using errcode='22023';
   end if;
 
   for v_record in select value from jsonb_array_elements(p_records)
   loop
     v_result := public.mccoy_upsert_spotio_lead_v1(
-      p_batch_id,
-      greatest(coalesce(p_item_offset, 0), 0) + v_index,
-      v_record
+      p_batch_id,greatest(coalesce(p_item_offset,0),0)+v_index,v_record
     );
     case v_result->>'action'
       when 'created' then v_created := v_created + 1;
@@ -896,25 +868,25 @@ begin
   end loop;
 
   update public.spotio_import_batches
-  set created_count = created_count + v_created,
-      updated_count = updated_count + v_updated,
-      unchanged_count = unchanged_count + v_unchanged,
-      collision_count = collision_count + v_collision,
-      quarantined_count = quarantined_count + v_quarantined,
-      archived_count = archived_count + v_archived
-  where id = p_batch_id;
+  set created_count=created_count+v_created,
+      updated_count=updated_count+v_updated,
+      unchanged_count=unchanged_count+v_unchanged,
+      collision_count=collision_count+v_collision,
+      quarantined_count=quarantined_count+v_quarantined,
+      archived_count=archived_count+v_archived
+  where id=p_batch_id;
 
   return jsonb_build_object(
-    'ok', true,
-    'processed', v_index,
-    'created', v_created,
-    'updated', v_updated,
-    'unchanged', v_unchanged,
-    'collisions', v_collision,
-    'quarantined', v_quarantined,
-    'archived', v_archived,
-    'retention_mode', 'additive_missing_retained',
-    'import_batch_is_provenance_only', true
+    'ok',true,
+    'processed',v_index,
+    'created',v_created,
+    'updated',v_updated,
+    'unchanged',v_unchanged,
+    'collisions',v_collision,
+    'quarantined',v_quarantined,
+    'archived',v_archived,
+    'retention_mode','additive_missing_retained',
+    'import_batch_is_provenance_only',true
   );
 end;
 $$;
@@ -934,88 +906,86 @@ declare
 begin
   select * into v_batch
   from public.spotio_import_batches
-  where id = p_batch_id
+  where id=p_batch_id
   for update;
   if not found or v_batch.organization_id is null then
-    raise exception 'spotio_batch_not_found_or_unscoped' using errcode = 'P0002';
+    raise exception 'spotio_batch_not_found_or_unscoped' using errcode='P0002';
   end if;
 
   delete from public.spotio_import_results
-  where batch_id = p_batch_id and action = 'missing_retained';
+  where batch_id=p_batch_id and action='missing_retained';
 
   with missing as (
     select
       l.id as lead_id,
       l.canonical_identity_key,
       l.provider_lead_id,
-      row_number() over (order by l.id) - 1 as position
+      row_number() over(order by l.id)-1 as position
     from public.leads l
-    where l.organization_id = v_batch.organization_id
+    where l.organization_id=v_batch.organization_id
       and l.deleted_at is null
-      and upper(coalesce(l.source_system, '')) = 'SPOTIO'
+      and upper(coalesce(l.source_system,''))='SPOTIO'
       and not exists (
         select 1
         from public.spotio_import_results r
-        where r.batch_id = p_batch_id
-          and r.lead_id = l.id
-          and r.action in ('created', 'updated', 'unchanged')
+        where r.batch_id=p_batch_id
+          and r.lead_id=l.id
+          and r.action in ('created','updated','unchanged')
       )
   ), inserted as (
     insert into public.spotio_import_results(
-      organization_id, batch_id, item_index, lead_id, action,
-      canonical_identity_key, provider_lead_id, detail
+      organization_id,batch_id,item_index,lead_id,action,canonical_identity_key,provider_lead_id,detail
     )
     select
       v_batch.organization_id,
       p_batch_id,
-      greatest(coalesce(p_item_offset, 0), 0) + position::integer,
+      greatest(coalesce(p_item_offset,0),0)+position::integer,
       lead_id,
       'missing_retained',
       canonical_identity_key,
       provider_lead_id,
       jsonb_build_object(
-        'classification', 'missing_from_upload_but_retained',
-        'reason', 'absent_from_upload_retained',
-        'retained_prior_leads', true
+        'classification','missing_from_upload_but_retained',
+        'reason','absent_from_upload_retained',
+        'retained_prior_leads',true
       )
     from missing
-    on conflict (batch_id, item_index) do update set
-      organization_id = excluded.organization_id,
-      lead_id = excluded.lead_id,
-      action = excluded.action,
-      canonical_identity_key = excluded.canonical_identity_key,
-      provider_lead_id = excluded.provider_lead_id,
-      detail = excluded.detail,
-      created_at = clock_timestamp()
+    on conflict(batch_id,item_index) do update set
+      organization_id=excluded.organization_id,
+      lead_id=excluded.lead_id,
+      action=excluded.action,
+      canonical_identity_key=excluded.canonical_identity_key,
+      provider_lead_id=excluded.provider_lead_id,
+      detail=excluded.detail,
+      created_at=clock_timestamp()
     returning 1
   )
   select count(*) into v_inserted from inserted;
 
   update public.spotio_import_batches
-  set missing_retained_count = v_inserted
-  where id = p_batch_id;
+  set missing_retained_count=v_inserted
+  where id=p_batch_id;
 
   return jsonb_build_object(
-    'ok', true,
-    'missing_retained', v_inserted,
-    'retention_mode', 'additive_missing_retained',
-    'import_batch_is_provenance_only', true
+    'ok',true,
+    'missing_retained',v_inserted,
+    'retention_mode','additive_missing_retained',
+    'import_batch_is_provenance_only',true
   );
 end;
 $$;
 
-revoke all on function public.mccoy_upsert_spotio_lead_v1(uuid, integer, jsonb) from public, anon, authenticated;
-revoke all on function public.mccoy_upsert_spotio_batch_v1(uuid, jsonb, integer) from public, anon, authenticated;
-revoke all on function public.mccoy_classify_spotio_missing_retained_v1(uuid, integer) from public, anon, authenticated;
-grant execute on function public.mccoy_upsert_spotio_lead_v1(uuid, integer, jsonb) to service_role;
-grant execute on function public.mccoy_upsert_spotio_batch_v1(uuid, jsonb, integer) to service_role;
-grant execute on function public.mccoy_classify_spotio_missing_retained_v1(uuid, integer) to service_role;
+revoke all on function public.mccoy_upsert_spotio_lead_v1(uuid,integer,jsonb) from public,anon,authenticated;
+revoke all on function public.mccoy_upsert_spotio_batch_v1(uuid,jsonb,integer) from public,anon,authenticated;
+revoke all on function public.mccoy_classify_spotio_missing_retained_v1(uuid,integer) from public,anon,authenticated;
+grant execute on function public.mccoy_upsert_spotio_lead_v1(uuid,integer,jsonb) to service_role;
+grant execute on function public.mccoy_upsert_spotio_batch_v1(uuid,jsonb,integer) to service_role;
+grant execute on function public.mccoy_classify_spotio_missing_retained_v1(uuid,integer) to service_role;
 
-grant select, insert, update, delete on public.spotio_import_batches to service_role;
-grant select, insert, update, delete on public.spotio_import_items to service_role;
-grant select, insert, update, delete on public.spotio_import_results to service_role;
-
-grant usage, select on all sequences in schema public to service_role;
+grant select,insert,update,delete on public.spotio_import_batches to service_role;
+grant select,insert,update,delete on public.spotio_import_items to service_role;
+grant select,insert,update,delete on public.spotio_import_results to service_role;
+grant usage,select on all sequences in schema public to service_role;
 
 alter table public.spotio_import_batches enable row level security;
 alter table public.spotio_import_items enable row level security;
