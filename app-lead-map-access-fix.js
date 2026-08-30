@@ -45,6 +45,8 @@
       body.lead-pool-rep-layout #bulkAssignMapBtn,
       body.lead-pool-rep-layout #lassoSelectBtn,
       body.lead-pool-rep-layout #selectVisiblePinsBtn,
+      body.lead-pool-rep-layout #clearMapSelectionBtn,
+      body.lead-pool-rep-layout #mapSelectionStatus,
       body.lead-pool-rep-layout #leadListAssignmentBar,
       body.lead-pool-rep-layout #checkDuplicateLeadsBtn,
       body.lead-pool-rep-layout #leadCorrectionPanel{display:none!important}
@@ -60,6 +62,21 @@
   function relabelRenderedLeadControls(role){
     const assigner=canAssign(role);
     document.querySelectorAll('#leadsTable .map-one').forEach(button=>{button.textContent=assigner?'View / Assign':'View';});
+
+    const mapView=document.getElementById('leadMapView');
+    if(mapView){
+      mapView.textContent=assigner?'MAP / ASSIGN':'MAP';
+      mapView.setAttribute('aria-label',assigner?'Open lead map and assignment tools':'Open lead map');
+      mapView.title=assigner?'Open lead map and assignment tools':'Open lead map';
+    }
+
+    const mapHeaderHelp=document.querySelector('#realLeadMapHeader .muted');
+    if(mapHeaderHelp){
+      mapHeaderHelp.textContent=assigner
+        ?'Select a lead below to view its service address. Assignment changes are saved to the real McCoy lead record.'
+        :'Select a lead below to view its service address and disposition.';
+    }
+
     const count=document.getElementById('leadPoolCount');
     if(count&&!String(count.textContent||'').startsWith('DEMO')){
       const remainder=String(count.textContent||'').split('·').slice(1).join('·').trim();
@@ -88,6 +105,8 @@
     forceVisible(document.getElementById('bulkAssignMapBtn'),assigner,'block');
     forceVisible(document.getElementById('lassoSelectBtn'),assigner,'inline-block');
     forceVisible(document.getElementById('selectVisiblePinsBtn'),assigner,'inline-block');
+    forceVisible(document.getElementById('clearMapSelectionBtn'),assigner,'inline-block');
+    forceVisible(document.getElementById('mapSelectionStatus'),assigner,'block');
     forceVisible(document.getElementById('checkDuplicateLeadsBtn'),admin,'inline-block');
     preserveConditionalAdminPanel(document.getElementById('leadCorrectionPanel'),admin);
 
