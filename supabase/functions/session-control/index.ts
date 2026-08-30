@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
 const EARTH_RADIUS_METERS = 6_371_000
 const OUTSIDE_AREA_GRACE_MS = 30 * 60 * 1000
+const INACTIVITY_AUTO_STOP_MS = 30 * 60 * 1000
 const toRadians = (value: number) => value * Math.PI / 180
 
 function distanceMeters(left: any, right: any) {
@@ -83,7 +84,7 @@ Deno.serve(async request => {
         latitude: last?.latitude ?? null,
         longitude: last?.longitude ?? null,
         accuracy_meters: last?.accuracy_meters ?? null,
-        payload: { reason: 'manual_stop', controlEngine: '1.2' },
+        payload: { reason: 'manual_stop', controlEngine: '1.3' },
       })
       await admin.from('test_sessions').update({ ended_at: nowIso }).eq('id', sessionId)
       return json({ ok: true, action: 'stop', reason: 'manual_stop' })
@@ -101,8 +102,8 @@ Deno.serve(async request => {
       outside_area_distance_m: 200,
       outside_area_grace_ms: OUTSIDE_AREA_GRACE_MS,
       stationary_radius_m: 12,
-      post_disposition_idle_ms: 120_000,
-      post_sale_idle_ms: 240_000,
+      post_disposition_idle_ms: INACTIVITY_AUTO_STOP_MS,
+      post_sale_idle_ms: INACTIVITY_AUTO_STOP_MS,
     }
 
     const { data: events, error: eventsError } = await admin
@@ -168,7 +169,7 @@ Deno.serve(async request => {
           reason: 'outside_assigned_area',
           outsideSince: new Date(outsideSince).toISOString(),
           outsideAreaGraceMs: Number(rule.outside_area_grace_ms),
-          controlEngine: '1.2',
+          controlEngine: '1.3',
         }
         await admin.from('test_events').insert({
           session_id: sessionId,
@@ -215,7 +216,8 @@ Deno.serve(async request => {
             afterDisposition: lastDisposition.disposition,
             stationarySince: new Date(stationarySince).toISOString(),
             transitionElapsedMs: now - dispositionTime,
-            controlEngine: '1.2',
+            inactivityAutoStopMs: idleLimit,
+            controlEngine: '1.3',
           }
           await admin.from('test_events').insert({
             session_id: sessionId,
