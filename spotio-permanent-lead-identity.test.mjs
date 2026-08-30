@@ -279,7 +279,7 @@ test('migration encodes required durable classifications and no omission archive
   }
   assert.match(migration, /fallback_identity_key/)
   assert.match(migration, /mccoy_spotio_canonical_identity_v2/)
-  assert.match(migration, /provider, provider_lead_id/)
+  assert.match(migration, /provider,\s*provider_lead_id/)
   assert.match(migration, /import_batch_is_provenance_only/)
   assert.match(migration, /spotio_identity_migration_blocked/)
   assert.doesNotMatch(migration, /set\s+deleted_at\s*=/i)
