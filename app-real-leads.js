@@ -1,7 +1,7 @@
 (()=>{
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   let loadPromise=null;
-  let startupComplete=false,startupTimer=null;
+  let startupComplete=false,startupTimer=null,loadedScopeKey='';
   let ownersById=new Map(),ownersByEmail=new Map();
 
   async function waitForActiveAccess(timeoutMs=15000){
@@ -14,19 +14,32 @@
     return null;
   }
 
+  function expectedScope(role){
+    if(role==='admin')return'organization_all';
+    if(role==='manager'||role==='trainer')return'manager_pool';
+    if(role==='rep'||role==='tester')return'rep_assigned';
+    return null;
+  }
+
+  function currentScopeKey(user,access){
+    return [user?.id||'',access?.role||'',access?.organization_id||'',access?.assigned_manager_email||''].join(':');
+  }
+
   async function loadRealLeadRowsFromServer(onProgress=null){
     const PAGE=4000,CONCURRENT=4;
     async function fetchPage(page,totalHint=0){
       const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE,...(totalHint?{total_hint:totalHint}:{})}});
       if(error)throw error;
       if(!data?.ok)throw new Error(data?.error||'real_lead_server_read_failed');
+      const required=expectedScope(window.MCCOY_ACCESS?.access?.role);
+      if(!required||data.scope!==required)throw new Error(`lead_scope_mismatch:${data.scope||'missing'}:${required||'unsupported'}`);
       return data;
     }
     const first=await fetchPage(0);
     const total=Math.max(0,Number(first.total||0));
     const rows=Array.isArray(first.leads)?first.leads.slice():[];
     const totalPages=Math.ceil(total/PAGE);
-    const resultForRows=leadRows=>({rows:leadRows,total,batchId:first.batch_id||null,scope:first.scope||'all',assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignmentReason:first.assignment_reason||null,assignedAreas:first.assigned_areas||[],owners:Array.isArray(first.owners)?first.owners:[]});
+    const resultForRows=leadRows=>({rows:leadRows,total,batchId:first.batch_id||null,scope:first.scope,assignedTeam:first.assigned_team||null,assignmentRequired:!!first.assignment_required,assignmentReason:first.assignment_reason||null,assignedAreas:first.assigned_areas||[],owners:Array.isArray(first.owners)?first.owners:[]});
     if(totalPages>120)throw new Error('real_lead_pagination_guard');
     if(totalPages>1&&typeof onProgress==='function')onProgress(resultForRows(rows.slice()));
     for(let next=1;next<totalPages;next+=CONCURRENT){
@@ -52,6 +65,16 @@
     window.MCCOY_LEAD_OWNERSHIP_DIRECTORY=directory;
     window.dispatchEvent(new CustomEvent('mccoy-lead-owners-updated',{detail:{owners:directory}}));
     return directory;
+  }
+
+  function clearLeadState(access=null){
+    state.realLeads=[];
+    state.leads=[];
+    if(access?.role!=='admin')state.demoLeads=[];
+    setOwnershipDirectory([]);
+    state.leadAccessScope={scope:expectedScope(access?.role)||'none',assignedTeam:access?.team_name||null,assignmentRequired:access?.role!=='admin',assignmentReason:'loading_authorized_leads',assignedAreas:[]};
+    renderAll();
+    window.MCCOY_RENDER_LEAD_MAP?.(false);
   }
 
   function applyLeadOwnership(lead){
@@ -110,19 +133,21 @@
   }
 
   function applyLoadedResult(result,{partial=false}={}){
+    const required=expectedScope(window.MCCOY_ACCESS?.access?.role);
+    if(!required||result.scope!==required)throw new Error(`lead_scope_mismatch:${result.scope||'missing'}:${required||'unsupported'}`);
     setOwnershipDirectory(result.owners||[]);
     const real=mapLeadRows(result.rows);
     if(result.total>0&&real.length===0)throw new Error(`Server reported ${result.total} leads but returned none`);
     state.realLeads=real;
     if(!state.demoLeads||window.MCCOY_ACCESS?.access?.role!=='admin')state.demoLeads=[];
-    state.leadAccessScope={scope:result.scope||'all',assignedTeam:result.assignedTeam||null,assignmentRequired:!!result.assignmentRequired,assignmentReason:result.assignmentReason||null,assignedAreas:result.assignedAreas||[]};
+    state.leadAccessScope={scope:result.scope,assignedTeam:result.assignedTeam||null,assignmentRequired:!!result.assignmentRequired,assignmentReason:result.assignmentReason||null,assignedAreas:result.assignedAreas||[]};
     state.leadMode='real';
     state.leads=state.realLeads;
     const teamCounts=new Map();for(const lead of real)teamCounts.set(lead.team,(teamCounts.get(lead.team)||0)+1);for(const team of state.teams)team.leads=teamCounts.get(team.name)||0;
     renderAll();
-    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent='No real leads are available';select.replaceChildren(option);}}
-    const detail={count:real.length,batchId:result.batchId,total:result.total,partial};
-    if(partial){const progress=document.getElementById('geocodeProgress');if(progress)progress.textContent=`Loading leads… ${real.length.toLocaleString()} of ${result.total.toLocaleString()} ready.`;window.dispatchEvent(new CustomEvent('mccoy-real-leads-progress',{detail}));}
+    if(!real.length){const select=document.getElementById('fieldLeadSelect');if(select){const option=document.createElement('option');option.value='';option.textContent='No leads are assigned to this account';select.replaceChildren(option);}}
+    const detail={count:real.length,batchId:result.batchId,total:result.total,partial,scope:result.scope};
+    if(partial){const progress=document.getElementById('geocodeProgress');if(progress)progress.textContent=`Loading authorized leads… ${real.length.toLocaleString()} of ${result.total.toLocaleString()} ready.`;window.dispatchEvent(new CustomEvent('mccoy-real-leads-progress',{detail}));}
     else window.dispatchEvent(new CustomEvent('mccoy-real-leads-loaded',{detail}));
     window.MCCOY_RENDER_LEAD_MAP?.(false);
     return real;
@@ -133,18 +158,26 @@
     if(!user)throw new Error('No authenticated user');
     const access=await waitForActiveAccess();
     if(!access)throw new Error('Account access did not finish loading');
-    if(access.role!=='admin'){state.demoLeads=[];state.realLeads=state.realLeads||[];state.leadMode='real';state.leads=state.realLeads;if(!state.realLeads.length)renderAll();}
+    const required=expectedScope(access.role);
+    if(!required)throw new Error('Unsupported lead-access role');
+    const nextScopeKey=currentScopeKey(user,access);
+    clearLeadState(access);
 
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const result=await loadRealLeadRowsFromServer(preview=>applyLoadedResult(preview,{partial:true}));
-    const real=applyLoadedResult(result);startupComplete=true;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
-    window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000};
+    if(currentScopeKey(window.MCCOY_ACCESS?.user,window.MCCOY_ACCESS?.access)!==nextScopeKey)throw new Error('lead_access_changed_during_load');
+    const real=applyLoadedResult(result);startupComplete=true;loadedScopeKey=nextScopeKey;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
+    window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000,scope:result.scope};
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
-    console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting verified placement.`);
+    console.log(`McCoy role-scoped Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads in ${result.scope}; ${missing} awaiting verified placement.`);
     return real;
   }
 
-  async function loadMcCoyLeads(){
+  async function loadMcCoyLeads(options={}){
+    const force=options?.force===true;
+    const access=window.MCCOY_ACCESS?.access,user=window.MCCOY_ACCESS?.user;
+    const requestedKey=currentScopeKey(user,access);
+    if(!force&&startupComplete&&loadedScopeKey===requestedKey)return state.realLeads||[];
     if(loadPromise)return loadPromise;
     loadPromise=(async()=>{
       let lastErr=null;
@@ -152,11 +185,12 @@
         try{return await performLoad();}
         catch(e){
           lastErr=e;
-          console.warn(`Real lead server load attempt ${attempt} failed`,e);
+          console.warn(`Role-scoped real lead server load attempt ${attempt} failed`,e);
+          clearLeadState(window.MCCOY_ACCESS?.access);
           if(attempt<5)await sleep(1000*attempt);
         }
       }
-      console.error('Real lead server load failed',lastErr);
+      console.error('Role-scoped real lead server load failed',lastErr);
       window.dispatchEvent(new CustomEvent('mccoy-real-leads-load-error',{detail:{message:lastErr?.message||String(lastErr)}}));
       return [];
     })();
@@ -165,9 +199,16 @@
 
   window.loadMcCoyLeads=loadMcCoyLeads;
   window.MCCOY_RESOLVE_MISSING_LEAD_LOCATIONS=()=>Promise.resolve({ok:false,reason:'admin_google_verification_required'});
-  function scheduleInitialLoad(delay=0){if(startupComplete||loadPromise)return;clearTimeout(startupTimer);startupTimer=setTimeout(()=>{if(!startupComplete&&!loadPromise)loadMcCoyLeads();},delay);}
-  sb.auth.onAuthStateChange((_event,session)=>{if(session)scheduleInitialLoad(60);});
-  window.addEventListener('mccoy-access-ready',()=>scheduleInitialLoad(0));
+  function scheduleInitialLoad(delay=0,force=false){
+    if((startupComplete&&!force)||loadPromise)return;
+    clearTimeout(startupTimer);
+    startupTimer=setTimeout(()=>{if((!startupComplete||force)&&!loadPromise)loadMcCoyLeads({force});},delay);
+  }
+  sb.auth.onAuthStateChange((_event,session)=>{
+    if(session)scheduleInitialLoad(60,true);
+    else{startupComplete=false;loadedScopeKey='';clearLeadState(null);}
+  });
+  window.addEventListener('mccoy-access-ready',()=>{startupComplete=false;loadedScopeKey='';scheduleInitialLoad(0,true);});
   window.addEventListener('load',()=>scheduleInitialLoad(120));
   scheduleInitialLoad(450);
 })();
