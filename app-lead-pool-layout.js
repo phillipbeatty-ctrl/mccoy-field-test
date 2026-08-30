@@ -33,6 +33,7 @@
       #leadManagerPositionToggle button[aria-pressed="true"]{background:#1455d9;color:#fff;border-color:#1455d9}
       #leadManagerPositionToggle button:focus-visible{outline:3px solid rgba(20,85,217,.3);outline-offset:2px}
       body.lead-pool-manager-position #leadManagerPositionToggle{display:flex}
+      body.blind-tester.lead-pool-rep-layout #leadMapPanel>.grid-2>.card:nth-child(2){display:flex!important}
       #leadMapPanel.lead-map-expanded>.grid-2{grid-template-columns:minmax(0,1fr)!important}
       #leadMapPanel.lead-map-expanded>.grid-2>.card:first-child{grid-column:1/-1!important;width:100%!important;max-width:none!important}
       #leadMapPanel.lead-map-expanded>.grid-2>.card:nth-child(2){display:none!important}
@@ -112,7 +113,7 @@
     }
     const manager=['manager','trainer'].includes(role);
     const rep=isRepRole(role);
-    const expanded=rep||(manager&&managerMode===KNOCK_MODE);
+    const expanded=manager&&managerMode===KNOCK_MODE;
 
     document.body.classList.toggle('lead-pool-manager-position',manager);
     document.body.classList.toggle('lead-pool-knock-position',manager&&managerMode===KNOCK_MODE);
@@ -144,7 +145,7 @@
         ?'Select leads on the map, then assign the selection from the panel on the right.'
         :manager
           ?'Select a map marker to work a door. Select Knock Doors again to restore Assign Leads.'
-          :'Select a map marker to work a door. The map fills the Lead Pool workspace.';
+          :'Select a map marker to open its lead details and disposition controls.';
     }
 
     refreshMapLayout();

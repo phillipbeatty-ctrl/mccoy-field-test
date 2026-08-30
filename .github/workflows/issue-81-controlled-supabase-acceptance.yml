@@ -1,0 +1,149 @@
+name: Issue 81 controlled Supabase acceptance
+
+on:
+  push:
+    branches:
+      - fix/81-permanent-lead-identity
+    paths:
+      - .github/workflows/issue-81-controlled-supabase-acceptance.yml
+      - spotio-permanent-lead-identity.test.mjs
+      - spotio-generated-column-compatibility.test.mjs
+      - spotio-import.js
+      - supabase/functions/lead-admin/index.ts
+      - supabase/functions/spotio-import/index.ts
+      - supabase/migrations/20260830070000_spotio_permanent_lead_identity.sql
+      - supabase/migrations/20260830070001_spotio_default_provider_namespace.sql
+      - supabase/tests/issue-81/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-81-controlled-supabase-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migration-and-rpc-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local Supabase
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/issue81-supabase" "$RUNNER_TEMP/issue81-results"
+          cd "$RUNNER_TEMP/issue81-supabase"
+          supabase init
+          supabase start
+          pg_isready -h 127.0.0.1 -p 54322 -U postgres
+
+      - name: Apply exact migrations and run sequential-upload acceptance
+        env:
+          PGPASSWORD: postgres
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          set -euo pipefail
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/issue-81/foundation.sql \
+            | tee "$RUNNER_TEMP/issue81-results/01-foundation.log"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/issue-81/pre-migration-fixture.sql \
+            | tee "$RUNNER_TEMP/issue81-results/02-pre-migration-fixture.log"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260830070000_spotio_permanent_lead_identity.sql \
+            | tee "$RUNNER_TEMP/issue81-results/03-migration-permanent-identity.log"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260830070001_spotio_default_provider_namespace.sql \
+            | tee "$RUNNER_TEMP/issue81-results/04-migration-provider-namespace.log"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/issue-81/acceptance.sql \
+            2>&1 | tee "$RUNNER_TEMP/issue81-results/05-sequential-upload-acceptance.log"
+          grep -q "ISSUE81_ACCEPTANCE_PASS" "$RUNNER_TEMP/issue81-results/05-sequential-upload-acceptance.log"
+
+      - name: Prove collision guard fails closed
+        env:
+          PGPASSWORD: postgres
+          GUARD_URL: postgresql://postgres:postgres@127.0.0.1:54322/issue81_guard
+        run: |
+          set -euo pipefail
+          createdb -h 127.0.0.1 -p 54322 -U postgres issue81_guard
+          psql "$GUARD_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/issue-81/foundation.sql \
+            > "$RUNNER_TEMP/issue81-results/06-guard-foundation.log"
+          psql "$GUARD_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/tests/issue-81/collision-guard-fixture.sql \
+            > "$RUNNER_TEMP/issue81-results/07-guard-fixture.log"
+
+          set +e
+          psql "$GUARD_URL" -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260830070000_spotio_permanent_lead_identity.sql \
+            > "$RUNNER_TEMP/issue81-results/08-collision-guard.log" 2>&1
+          guard_status=$?
+          set -e
+
+          cat "$RUNNER_TEMP/issue81-results/08-collision-guard.log"
+          if [ "$guard_status" -eq 0 ]; then
+            echo "Collision migration unexpectedly succeeded" >&2
+            exit 1
+          fi
+          grep -q "spotio_identity_migration_blocked" "$RUNNER_TEMP/issue81-results/08-collision-guard.log"
+          echo "ISSUE81_COLLISION_GUARD_PASS" | tee -a "$RUNNER_TEMP/issue81-results/08-collision-guard.log"
+
+      - name: Run source-level acceptance coverage
+        run: |
+          set -euo pipefail
+          node --test \
+            spotio-permanent-lead-identity.test.mjs \
+            spotio-generated-column-compatibility.test.mjs \
+            2>&1 | tee "$RUNNER_TEMP/issue81-results/09-node-acceptance.log"
+          node --check spotio-import.js \
+            2>&1 | tee "$RUNNER_TEMP/issue81-results/10-import-ui-syntax.log"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Issue #81 controlled Supabase acceptance"
+            echo
+            if grep -q "ISSUE81_ACCEPTANCE_PASS" "$RUNNER_TEMP/issue81-results/05-sequential-upload-acceptance.log" 2>/dev/null; then
+              echo "- Exact migrations executed on a disposable local Supabase stack: **PASS**"
+              echo "- Sequential Upload A / Upload B / re-upload / incomplete capture RPC test: **PASS**"
+            else
+              echo "- Migration or sequential-upload acceptance: **FAILED OR INCOMPLETE**"
+            fi
+            if grep -q "ISSUE81_COLLISION_GUARD_PASS" "$RUNNER_TEMP/issue81-results/08-collision-guard.log" 2>/dev/null; then
+              echo "- Fail-closed collision migration guard: **PASS**"
+            else
+              echo "- Fail-closed collision migration guard: **FAILED OR INCOMPLETE**"
+            fi
+            echo "- Production Supabase project modified: **NO**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload acceptance logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-81-controlled-supabase-results
+          path: ${{ runner.temp }}/issue81-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Destroy disposable Supabase stack
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/issue81-supabase"
+          supabase stop --no-backup || true
