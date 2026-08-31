@@ -174,7 +174,7 @@ async function activate(){
     smtp_admin_email:fromEmail,
     smtp_sender_name:senderName,
     smtp_host:'smtp.resend.com',
-    smtp_port:465,
+    smtp_port:'465',
     smtp_user:'resend',
     smtp_pass:required('RESEND_API_KEY'),
     mailer_subjects_confirmation:'Confirm your McCoy email address',
@@ -185,6 +185,7 @@ async function activate(){
   if(String(verifiedConfig.site_url||'').replace(/\/$/,'')!==PROD_SITE_URL)throw new Error('Supabase Site URL verification failed after activation.');
   if(!String(verifiedConfig.uri_allow_list||'').includes(PROD_CONFIRM_URL))throw new Error('Supabase redirect allow-list verification failed after activation.');
   if(String(verifiedConfig.smtp_host||'')!=='smtp.resend.com')throw new Error('Supabase custom SMTP verification failed after activation.');
+  if(String(verifiedConfig.smtp_port||'')!=='465')throw new Error('Supabase SMTP port verification failed after activation.');
 
   const admin=createClient(SUPABASE_URL,serviceRole,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:organization,error:organizationError}=await admin.from('organizations')
