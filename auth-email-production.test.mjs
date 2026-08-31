@@ -52,13 +52,24 @@ test('provider webhook verifies Standard Webhooks signatures and deduplicates ev
   assert.match(webhook,/email\.bounced/);
 });
 
-test('confirmation page requires a user action and supports code verification',()=>{
+test('confirmation page requires a user action, isolates Auth state, and never redirects itself',()=>{
   assert.match(confirmPage,/CONFIRM EMAIL ADDRESS/);
   assert.match(confirmPage,/The token is not consumed merely by opening this page/);
+  assert.match(confirmPage,/confirmEmailContinuePanel/);
+  assert.match(confirmPage,/This page will not redirect or refresh automatically/);
+  assert.match(confirmPage,/confirm-email\.js\?v=2026083104/);
   assert.match(confirmController,/confirmLinkButton\.addEventListener\('click',confirmTokenHash\)/);
   assert.match(confirmController,/verifyOtp\(\{token_hash:tokenHash/);
   assert.match(confirmController,/verifyOtp\(\{email,token,type:'signup'\}/);
   assert.match(confirmController,/auth-email-resend/);
+  assert.match(confirmController,/persistSession:false/);
+  assert.match(confirmController,/autoRefreshToken:false/);
+  assert.match(confirmController,/detectSessionInUrl:false/);
+  assert.match(confirmController,/mccoy-confirm-email-isolated-v1/);
+  assert.match(confirmController,/confirmContinueLink\.href=next/);
+  assert.doesNotMatch(confirmController,/auth\.getSession\(/);
+  assert.doesNotMatch(confirmController,/setTimeout\(/);
+  assert.doesNotMatch(confirmController,/location\.(href|replace|reload)/);
   assert.match(confirmed,/email_not_confirmed/);
 });
 
@@ -70,11 +81,17 @@ test('signup fails closed until public production-mail readiness is true',()=>{
   assert.match(status,/fully_observable/);
 });
 
-test('Pending Account Access shows provider readiness, resends, and delivery events',()=>{
+test('Pending Account Access shows provider readiness without unattended refreshes',()=>{
   assert.match(pendingPage,/pendingMailStatus/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
   assert.match(pendingController,/pendingDeliveryLabel/);
   assert.match(pendingController,/production_ready/);
+  assert.match(pendingController,/pendingLoadPromise/);
+  assert.match(pendingController,/pendingRefresh.*addEventListener\('click'/s);
+  assert.doesNotMatch(pendingController,/setInterval\(/);
+  assert.doesNotMatch(pendingController,/addEventListener\('focus'/);
+  assert.doesNotMatch(pendingController,/visibilitychange/);
 });
 
 test('activation workflow enforces verified domain, DMARC, production redirects, and secret separation',()=>{
