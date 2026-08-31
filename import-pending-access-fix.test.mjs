@@ -21,6 +21,48 @@ function loadCompat(handler){
   return window;
 }
 
+test('current SPOTIO DOM rows are normalized to the real address before API matching',()=>{
+  const window=loadCompat(async()=>new FakeResponse('{}'));
+  const capture={
+    source:'spotio_browser_capture',
+    summary:{engine_version:'2.8.0',dom_rows:1,complete:true},
+    dom_leads:[{
+      name:'THADEUS BAKER',
+      address:'Prospecting / Keep Knocking',
+      zip:'76541',
+      raw_cells:[
+        '',
+        'THADEUS BAKER',
+        'Prospecting / Keep Knocking',
+        'Aug 22, 2026 02:07 AM',
+        'Aug 30, 2026 04:59 PM',
+        'Sep 28, 2025 01:17 AM',
+        'JBJAMES BEATTY',
+        'SUSystem Update',
+        'JBJAMES BEATTY',
+        'api',
+        'Combo_Killeen TX 76541',
+        '1907 N 4TH ST , KILLEEN, TX 76541, US',
+        '76541',
+        '0',
+        'unknown'
+      ]
+    }]
+  };
+  const normalized=JSON.parse(window.MCCOY_SPOTIO_IMPORT_COMPAT.normalizeCaptureText(JSON.stringify(capture),'capture.json'));
+  const row=normalized.dom_leads[0];
+  assert.equal(row.address,'1907 N 4TH ST , KILLEEN, TX 76541');
+  assert.equal(row.full_address,'1907 N 4TH ST , KILLEEN, TX 76541');
+  assert.equal(row.state,'TX');
+  assert.equal(row.zip,'76541');
+  assert.equal(row.raw_cells[1],'THADEUS BAKER');
+  assert.equal(row.raw_cells[2],'Prospecting / Keep Knocking');
+  assert.equal(row.raw_cells[4],'1907 N 4TH ST , KILLEEN, TX 76541');
+  assert.equal(row.raw_cells[8],'');
+  assert.equal(row.raw_cells[10],'');
+  assert.equal(row._mccoy_dom_schema_normalized,true);
+});
+
 test('incomplete SPOTIO capture is rejected before an import batch is created',async()=>{
   const calls=[];
   const window=loadCompat(async(input,init)=>{calls.push({input,init});return new FakeResponse('{}');});
@@ -68,7 +110,7 @@ test('pending access includes active accounts until email confirmation is comple
 });
 
 test('production pages load the compatibility patches with fresh versions',()=>{
-  assert.match(importPage,/spotio-import-compat\.js\?v=2026083101/);
+  assert.match(importPage,/spotio-import-compat\.js\?v=2026083102/);
   assert.match(importPage,/spotio-import\.js\?v=20260831-chunked-v2/);
   assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083101/);
 });
