@@ -35,7 +35,8 @@ test('store build uses bundled web assets rather than a remote production WebVie
 });
 
 test('Android release enforces API 36, foreground location, camera, and no cleartext traffic',()=>{
-  assert.match(nativeConfigurator,/targetSdkVersion\s*=\s*36/);
+  assert.match(nativeConfigurator,/targetSdkVersion/);
+  assert.match(nativeConfigurator,/Capacitor Android must target API 36/);
   assert.match(nativeConfigurator,/android\.permission\.ACCESS_COARSE_LOCATION/);
   assert.match(nativeConfigurator,/android\.permission\.ACCESS_FINE_LOCATION/);
   assert.match(nativeConfigurator,/android\.permission\.CAMERA/);
@@ -53,6 +54,10 @@ test('native bridge handles lifecycle without unattended reloads or polling',()=
 });
 
 test('Android CI builds an installable debug APK and unsigned release AAB',()=>{
+  assert.match(androidWorkflow,/actions\/checkout@v5/);
+  assert.match(androidWorkflow,/actions\/setup-node@v5/);
+  assert.match(androidWorkflow,/actions\/setup-java@v5/);
+  assert.match(androidWorkflow,/android-actions\/setup-android@v4/);
   assert.match(androidWorkflow,/node-version:\s*['"]22['"]/);
   assert.match(androidWorkflow,/distribution:\s*['"]temurin['"]/);
   assert.match(androidWorkflow,/java-version:\s*['"]21['"]/);
@@ -61,8 +66,8 @@ test('Android CI builds an installable debug APK and unsigned release AAB',()=>{
   assert.match(androidWorkflow,/assembleDebug/);
   assert.match(androidWorkflow,/bundleRelease/);
   assert.match(androidWorkflow,/upload-artifact@v4/);
-  assert.match(androidWorkflow,/McCoy-Android-1\.0\.0-beta\.1-debug\.apk/);
-  assert.match(androidWorkflow,/McCoy-Android-1\.0\.0-beta\.1-unsigned\.aab/);
+  assert.match(androidWorkflow,/McCoy-Android-\$\{APP_VERSION\}-debug\.apk/);
+  assert.match(androidWorkflow,/McCoy-Android-\$\{APP_VERSION\}-unsigned\.aab/);
 });
 
 test('release documentation distinguishes internal beta from store release',()=>{
