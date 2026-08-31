@@ -8,6 +8,8 @@ on:
       - 'spotio-import-compat.js'
       - 'app-pending-access-fix.js'
       - 'app-admin-lead-import.js'
+      - 'pending-access.html'
+      - 'pending-access.js'
       - 'supabase/functions/pending-account-access/**'
       - 'import-pending-access-fix.test.mjs'
       - '.github/workflows/import-pending-access-fix.yml'
@@ -18,6 +20,8 @@ on:
       - 'spotio-import-compat.js'
       - 'app-pending-access-fix.js'
       - 'app-admin-lead-import.js'
+      - 'pending-access.html'
+      - 'pending-access.js'
       - 'supabase/functions/pending-account-access/**'
       - 'import-pending-access-fix.test.mjs'
       - '.github/workflows/import-pending-access-fix.yml'
@@ -35,6 +39,7 @@ jobs:
           node --check spotio-import-compat.js
           node --check app-pending-access-fix.js
           node --check app-admin-lead-import.js
+          node --check pending-access.js
           cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
           node --check /tmp/pending-account-access.mjs
       - name: Run importer and pending account regression tests

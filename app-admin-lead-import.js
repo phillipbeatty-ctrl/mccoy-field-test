@@ -2,7 +2,7 @@
 (()=>{
   if(!document.querySelector('script[src^="app-pending-access-fix.js"]')){
     const pendingAccessPatch=document.createElement('script');
-    pendingAccessPatch.src='app-pending-access-fix.js?v=2026083101';
+    pendingAccessPatch.src='app-pending-access-fix.js?v=2026083102';
     pendingAccessPatch.async=false;
     document.body.appendChild(pendingAccessPatch);
   }
