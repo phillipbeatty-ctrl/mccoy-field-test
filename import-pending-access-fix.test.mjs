@@ -6,6 +6,8 @@ import {readFile} from 'node:fs/promises';
 const compat=await readFile(new URL('./spotio-import-compat.js',import.meta.url),'utf8');
 const pendingFunction=await readFile(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8');
 const pendingPatch=await readFile(new URL('./app-pending-access-fix.js',import.meta.url),'utf8');
+const pendingPage=await readFile(new URL('./pending-access.html',import.meta.url),'utf8');
+const pendingController=await readFile(new URL('./pending-access.js',import.meta.url),'utf8');
 const importPage=await readFile(new URL('./spotio-import.html',import.meta.url),'utf8');
 const adminBootstrap=await readFile(new URL('./app-admin-lead-import.js',import.meta.url),'utf8');
 
@@ -104,13 +106,24 @@ test('pending access includes active accounts until email confirmation is comple
   assert.match(pendingFunction,/emailConfirmedAt&&accessActive&&!requestPending/);
   assert.match(pendingFunction,/waiting_for_email_confirmation:!emailConfirmedAt/);
   assert.match(pendingFunction,/requires_access_grant:!accessActive/);
+  assert.match(pendingPatch,/typeof sb!=='undefined'/);
   assert.match(pendingPatch,/ACCESS ALREADY GRANTED/);
-  assert.match(pendingPatch,/action:'reset_user_password'/);
+  assert.match(pendingPatch,/pending-access\.html\?v=20260831\.2/);
   assert.match(pendingPatch,/setInterval\(refreshVisibleAdminUsers,30000\)/);
+});
+
+test('direct pending access page uses the authoritative Admin endpoint',()=>{
+  assert.match(pendingPage,/Pending Account Access/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083102/);
+  assert.match(pendingController,/pending-account-access/);
+  assert.match(pendingController,/action:'list'/);
+  assert.match(pendingController,/grant_pending_account_access/);
+  assert.match(pendingController,/reset_user_password/);
+  assert.match(pendingController,/waiting_for_email_confirmation/);
 });
 
 test('production pages load the compatibility patches with fresh versions',()=>{
   assert.match(importPage,/spotio-import-compat\.js\?v=2026083102/);
   assert.match(importPage,/spotio-import\.js\?v=20260831-chunked-v2/);
-  assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083101/);
+  assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083102/);
 });
