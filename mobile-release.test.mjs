@@ -35,12 +35,12 @@ test('store build uses bundled web assets rather than a remote production WebVie
 });
 
 test('Android release enforces API 36, foreground location, camera, and no cleartext traffic',()=>{
-  assert.match(nativeConfigurator,/targetSdkVersion\\s\*=\\s\*36/);
+  assert.match(nativeConfigurator,/targetSdkVersion\s*=\s*36/);
   assert.match(nativeConfigurator,/android\.permission\.ACCESS_COARSE_LOCATION/);
   assert.match(nativeConfigurator,/android\.permission\.ACCESS_FINE_LOCATION/);
   assert.match(nativeConfigurator,/android\.permission\.CAMERA/);
-  assert.match(nativeConfigurator,/android:usesCleartextTraffic=\\"false\\"/);
-  assert.match(nativeConfigurator,/android:scheme=\\"mccoy\\"/);
+  assert.match(nativeConfigurator,/android:usesCleartextTraffic="false"/);
+  assert.match(nativeConfigurator,/android:scheme="mccoy"/);
 });
 
 test('native bridge handles lifecycle without unattended reloads or polling',()=>{
