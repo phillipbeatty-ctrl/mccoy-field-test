@@ -52,7 +52,7 @@
   };
   const findPhone=row=>{
     for(const value of [row?.phone,row?.phone_number,...(Array.isArray(row?.raw_cells)?row.raw_cells:[])]){
-      const text=clean(value);if(!text||dateLike(text))continue;
+      const text=clean(value);if(!text||dateLike(text)||addressLike(text))continue;
       const digits=text.replace(/\D/g,'');
       if(digits.length===10||(digits.length===11&&digits.startsWith('1')))return digits;
     }
