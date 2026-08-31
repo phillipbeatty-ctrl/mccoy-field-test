@@ -14,7 +14,7 @@ function check(name,condition,detail){
 }
 
 const packageJson=JSON.parse(await read('package.json'));
-const capacitorConfig=await read('capacitor.config.ts');
+const capacitorConfig=JSON.parse(await read('capacitor.config.json'));
 const mobileIndex=await read('mobile-web/index.html').catch(()=>null);
 const mobileBridge=await read('mobile-web/mobile-native-bridge.js').catch(()=>null);
 const mobileMetadata=JSON.parse(await read('mobile-web/mobile-build.json').catch(()=>'{"missing":true}'));
@@ -23,10 +23,10 @@ check('package version',packageJson.version==='1.0.0-beta.1',`expected 1.0.0-bet
 check('Capacitor 8 core',packageJson.dependencies?.['@capacitor/core']==='8.5.0','@capacitor/core must be pinned to 8.5.0');
 check('Android platform',packageJson.dependencies?.['@capacitor/android']==='8.5.0','@capacitor/android must be pinned to 8.5.0');
 check('iOS platform',packageJson.dependencies?.['@capacitor/ios']==='8.5.0','@capacitor/ios must be pinned to 8.5.0');
-check('bundle identifier',/appId:\s*'com\.mccoyplatform\.app'/.test(capacitorConfig),'Capacitor appId mismatch');
-check('bundled production assets',/webDir:\s*'mobile-web'/.test(capacitorConfig),'Capacitor webDir must be mobile-web');
-check('no remote production WebView',!/\burl:\s*['"]https?:\/\//.test(capacitorConfig),'server.url is not allowed for a production store build');
-check('no production navigation allowlist',!/allowNavigation\s*:/.test(capacitorConfig),'allowNavigation is not allowed for this production wrapper');
+check('bundle identifier',capacitorConfig.appId==='com.mccoyplatform.app','Capacitor appId mismatch');
+check('bundled production assets',capacitorConfig.webDir==='mobile-web','Capacitor webDir must be mobile-web');
+check('no remote production WebView',!capacitorConfig.server?.url,'server.url is not allowed for a production store build');
+check('no production navigation allowlist',!capacitorConfig.server?.allowNavigation,'allowNavigation is not allowed for this production wrapper');
 check('local mobile index',Boolean(mobileIndex),'mobile-web/index.html is missing');
 check('native bridge bundled',Boolean(mobileBridge&&mobileIndex?.includes('mobile-native-bridge.js')),'native bridge was not injected into the bundled index');
 check('build metadata',mobileMetadata.app_id==='com.mccoyplatform.app','mobile build metadata is missing or incorrect');
