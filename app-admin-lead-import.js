@@ -1,5 +1,12 @@
 // Keep real-lead importing completely unavailable unless the authenticated account is an active admin.
 (()=>{
+  if(!document.querySelector('script[src^="app-pending-access-fix.js"]')){
+    const pendingAccessPatch=document.createElement('script');
+    pendingAccessPatch.src='app-pending-access-fix.js?v=2026083101';
+    pendingAccessPatch.async=false;
+    document.body.appendChild(pendingAccessPatch);
+  }
+
   const button=document.getElementById('adminLeadImportBtn');
   if(!button)return;
 
