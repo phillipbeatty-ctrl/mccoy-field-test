@@ -1,17 +1,18 @@
-# Field Coach — McCoy native development build
+# Field Coach — McCoy native release candidate
 
-This is a development-only Capacitor shell for the existing McCoy web application. It does not replace the Vercel production app.
+This Capacitor shell packages the existing McCoy production application as the **Field Coach** mobile app while preserving the Vercel web app for browser users.
 
-## Branding
+## Branding and application identity
 
 - App name: **Field Coach**
 - Developer/legal author: **McCoy Platform LLC**
-- Development bundle id: `com.mccoy.fieldcoach.dev`
+- Production bundle/application id: `com.mccoy.fieldcoach`
 - Apple target: universal **iPhone + iPad** application
+- Android target: phone and tablet application
 
 ## Native session behavior
 
-1. User signs in normally against the existing Supabase project.
+1. User signs in normally against the existing production Supabase project.
 2. **START KNOCKING** creates the existing server-controlled field session.
 3. The native bridge registers a random session-scoped location token and starts `@capgo/background-geolocation`.
 4. Location fixes are POSTed from native code directly to the `native-location-ingest` Supabase Edge Function, so delivery does not depend on the WebView staying active.
@@ -25,17 +26,15 @@ This is a development-only Capacitor shell for the existing McCoy web applicatio
 - The Field Session and Live Session Stats cards use the wider tablet area while preserving the same START/STOP session controls.
 - iPad touch controls use a minimum 48 px target size and the map is invalidated after tablet/window-layout changes.
 
-## Apple simulator matrix
+## Automated release-candidate builds
 
-The `Field Coach iOS Dev` GitHub Action runs separate **iPhone** and **iPad** simulator jobs. Each job generates the universal Capacitor project, verifies target family `1,2`, boots the appropriate simulator family, compiles the unsigned app for that simulator, installs it, launches `com.mccoy.fieldcoach.dev`, and terminates it after the launch smoke test.
+The `Field Coach iOS Release Candidate` GitHub Action runs separate **iPhone** and **iPad** simulator jobs. Each job generates the universal Capacitor project, verifies target family `1,2`, boots the appropriate simulator family, compiles the unsigned app, installs it, launches `com.mccoy.fieldcoach`, and terminates it after the smoke test.
 
-## Android device test
+The `Field Coach Android Release Candidate` action produces an installable artifact named `field-coach-android-release-candidate-apk` and verifies the production application ID.
 
-The GitHub Action `Field Coach Android Dev` builds a debug APK artifact named `field-coach-android-dev-apk`.
+## Android physical-device acceptance
 
-Test on a physical Android phone/tablet:
-
-1. Install the debug APK.
+1. Install the release-candidate APK.
 2. Sign in to Field Coach.
 3. Allow precise location and notifications when requested.
 4. Tap **START KNOCKING** and confirm the persistent `Field Coach — session active` notification appears.
@@ -48,7 +47,7 @@ Test on a physical Android phone/tablet:
 
 ## Apple TestFlight physical acceptance gate
 
-The same signed TestFlight build must pass on **both a physical iPhone and a physical iPad** before either Apple device class can be promoted toward production distribution.
+The same signed TestFlight build must pass on **both a physical iPhone and a physical iPad** before Apple production distribution.
 
 Run the following on each device:
 
@@ -63,12 +62,14 @@ Run the following on each device:
 9. Tap **STOP SESSION**.
 10. Confirm native tracking terminates and no new `native_background_location` records arrive after the recorded stop time.
 
-A pass requires both device classes to complete all applicable steps. A failure on either device keeps PR #47 and native production promotion blocked.
+A pass requires both device classes to complete all applicable steps. A failure on either device blocks App Store promotion.
 
-## Known development limits
+## Remaining distribution limits
 
+- Apple distribution requires the McCoy Platform LLC Apple Distribution certificate, provisioning profile for `com.mccoy.fieldcoach`, App Store Connect API key, and Apple Team ID in GitHub Actions secrets.
+- Android public distribution still requires a protected release keystore and Play Console credentials; the current automated artifact is an installable release-candidate/debug APK for controlled testing.
 - Android native POST delivery is best-effort and the plugin does not persist failed points to disk.
 - iOS/iPadOS stops background location if the user force-quits the app; this is an OS restriction.
 - Simulator builds verify target compatibility, launchability, and responsive code contracts; they do not validate real background GPS behavior.
-- Physical testing must include poor connectivity, Low Power Mode/battery saver, screen lock, app switching, permission changes, and explicit force-stop/force-quit scenarios before native distribution replaces the web app.
-- This development build intentionally does not request Android `ACCESS_BACKGROUND_LOCATION` because continuous tracking is performed with a location foreground service; requesting the more sensitive background/geofence permission is unnecessary for this phase.
+- Physical testing must include poor connectivity, Low Power Mode/battery saver, screen lock, app switching, permission changes, and explicit force-stop/force-quit scenarios before store release.
+- Android does not request `ACCESS_BACKGROUND_LOCATION`; continuous active-session tracking uses a location foreground service instead.
