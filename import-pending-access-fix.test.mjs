@@ -94,8 +94,21 @@ test('pending access includes active accounts until email confirmation is comple
   assert.match(pendingFunction,/production_smtp_not_active/);
   assert.match(pendingPatch,/typeof sb!=='undefined'/);
   assert.match(pendingPatch,/ACCESS ALREADY GRANTED/);
-  assert.match(pendingPatch,/pending-access\.html\?v=20260831\.2/);
-  assert.match(pendingPatch,/setInterval\(refreshVisibleAdminUsers,30000\)/);
+  assert.match(pendingPatch,/pending-access\.html\?v=20260831\.4/);
+});
+
+test('Admin pending-access refresh is view-scoped, idempotent, and guarded',()=>{
+  assert.match(pendingPatch,/function usersViewIsActive\(\)/);
+  assert.match(pendingPatch,/classList\.contains\('active'\)===true/);
+  assert.match(pendingPatch,/function setTextIfChanged\(/);
+  assert.match(pendingPatch,/if\(element&&element\.textContent!==value\)element\.textContent=value/);
+  assert.match(pendingPatch,/state\.refreshPromise/);
+  assert.match(pendingPatch,/inFlightInvocations:new Map\(\)/);
+  assert.match(pendingPatch,/state\.observer\.observe\(root,\{childList:true,subtree:true\}\)/);
+  assert.doesNotMatch(pendingPatch,/observer\.observe\(document\.body/);
+  assert.doesNotMatch(pendingPatch,/setInterval\(refreshVisibleAdminUsers,30000\)/);
+  assert.doesNotMatch(pendingPatch,/window\.addEventListener\('focus',refreshVisibleAdminUsers\)/);
+  assert.doesNotMatch(pendingPatch,/visibilitychange.*refreshVisibleAdminUsers/);
 });
 
 test('direct pending access page uses the authoritative Admin endpoint and production delivery state',()=>{
@@ -113,5 +126,5 @@ test('direct pending access page uses the authoritative Admin endpoint and produ
 test('production pages load the compatibility patches with fresh versions',()=>{
   assert.match(importPage,/spotio-import-compat\.js\?v=2026083102/);
   assert.match(importPage,/spotio-import\.js\?v=20260831-chunked-v2/);
-  assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083102/);
+  assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083104/);
 });
