@@ -1,0 +1,48 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.mccoyplatform.app',
+  appName: 'McCoy',
+  webDir: 'mobile-web',
+  backgroundColor: '#111827',
+  loggingBehavior: 'none',
+  includePlugins: [
+    '@capacitor/app',
+    '@capacitor/splash-screen'
+  ],
+  server: {
+    hostname: 'localhost',
+    androidScheme: 'https',
+    cleartext: false,
+    errorPath: 'offline.html'
+  },
+  android: {
+    backgroundColor: '#111827',
+    captureInput: true,
+    webContentsDebuggingEnabled: false,
+    minWebViewVersion: 60,
+    buildOptions: {
+      releaseType: 'AAB',
+      signingType: 'apksigner'
+    }
+  },
+  ios: {
+    backgroundColor: '#111827',
+    contentInset: 'automatic',
+    appendUserAgent: ' McCoyNative/1.0.0-beta.1'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 850,
+      launchAutoHide: true,
+      launchFadeOutDuration: 200,
+      backgroundColor: '#111827',
+      showSpinner: false
+    },
+    SystemBars: {
+      insetsHandling: 'css'
+    }
+  }
+};
+
+export default config;
