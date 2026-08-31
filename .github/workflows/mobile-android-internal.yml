@@ -1,0 +1,114 @@
+name: Mobile Android Internal Beta
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'assets/**'
+      - 'mobile/**'
+      - 'scripts/build-mobile-web.mjs'
+      - 'scripts/configure-native-project.mjs'
+      - 'scripts/mobile-release-doctor.mjs'
+      - 'mobile-release.test.mjs'
+      - 'APP_RELEASE.md'
+      - '.github/workflows/mobile-android-internal.yml'
+      - '*.html'
+      - '*.js'
+      - '*.css'
+      - '*.svg'
+      - '*.webmanifest'
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'capacitor.config.json'
+      - 'assets/**'
+      - 'mobile/**'
+      - 'scripts/build-mobile-web.mjs'
+      - 'scripts/configure-native-project.mjs'
+      - 'scripts/mobile-release-doctor.mjs'
+      - 'mobile-release.test.mjs'
+      - 'APP_RELEASE.md'
+      - '.github/workflows/mobile-android-internal.yml'
+      - '*.html'
+      - '*.js'
+      - '*.css'
+      - '*.svg'
+      - '*.webmanifest'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-internal-beta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_VERSION: 1.0.0-beta.1
+      ANDROID_BUILD_TOOLS: 36.0.0
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android API 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Install pinned mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify mobile release contract
+        run: npm run test:mobile
+
+      - name: Generate bundled web assets and Android project
+        run: npm run mobile:android:prepare
+
+      - name: Run release doctor
+        run: npm run mobile:doctor
+
+      - name: Build debug APK and unsigned release AAB
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug bundleRelease
+
+      - name: Verify and package Android artifacts
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/McCoy-Android-${APP_VERSION}-debug.apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist/McCoy-Android-${APP_VERSION}-unsigned.aab"
+          cp mobile-release-doctor.json dist/mobile-release-doctor.json
+          cp mobile-web/mobile-build.json dist/mobile-build.json
+          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "dist/McCoy-Android-${APP_VERSION}-debug.apk" | tee dist/apk-badging.txt
+          grep -q "package: name='com.mccoyplatform.app'" dist/apk-badging.txt
+          grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
+          test -s "dist/McCoy-Android-${APP_VERSION}-debug.apk"
+          test -s "dist/McCoy-Android-${APP_VERSION}-unsigned.aab"
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+
+      - name: Upload Android internal beta
+        uses: actions/upload-artifact@v4
+        with:
+          name: McCoy-Android-1.0.0-beta.1
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30

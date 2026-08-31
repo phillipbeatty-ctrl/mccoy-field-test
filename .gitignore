@@ -1,0 +1,11 @@
+node_modules/
+mobile-web/
+android/
+ios/
+dist/
+mobile-release-doctor.json
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+.DS_Store
