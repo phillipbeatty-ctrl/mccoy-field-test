@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>McCoy Pending Account Access</title>
-  <link rel="stylesheet" href="styles.css?v=2026083102">
+  <link rel="stylesheet" href="styles.css?v=2026083103">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
       <h2>Admin sign-in</h2>
       <p class="muted small">Your existing McCoy session will be used automatically. Sign in here only when no active Admin session is found.</p>
       <input id="pendingEmail" type="email" autocomplete="email" placeholder="Admin email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
-      <input id="pendingPassword" type="password" autocomplete="current-password" placeholder="Admin password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
+      <input id="pendingPassword" type="password" autocomplete="current-password" placeholder="McCoy password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
       <button id="pendingSignIn" class="primary">SIGN IN</button>
       <div id="pendingAuthMessage" class="muted small" role="status" aria-live="polite" style="margin-top:8px"></div>
     </section>
@@ -41,10 +41,11 @@
           <button id="pendingSignOut" class="assign-btn">SIGN OUT</button>
         </div>
       </div>
+      <div id="pendingMailStatus" class="geo-box" style="margin:10px 0">Checking production email delivery…</div>
       <div id="pendingAccessMessage" class="muted small" role="status" aria-live="polite" style="margin:10px 0"></div>
       <div id="pendingAccessList" style="display:grid;gap:12px"></div>
     </section>
   </main>
-  <script src="pending-access.js?v=2026083102"></script>
+  <script src="pending-access.js?v=2026083103"></script>
 </body>
 </html>

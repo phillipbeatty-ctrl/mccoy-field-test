@@ -1,0 +1,58 @@
+name: Production Auth Email Regression
+
+on:
+  pull_request:
+    paths:
+      - 'app-auth-production-redirect.js'
+      - 'confirm-email.html'
+      - 'confirm-email.js'
+      - 'pending-access.html'
+      - 'pending-access.js'
+      - 'supabase/functions/auth-email-*/**'
+      - 'supabase/functions/pending-account-access/**'
+      - 'supabase/migrations/*auth_email*'
+      - 'scripts/configure-production-auth-email.mjs'
+      - 'auth-email-production.test.mjs'
+      - '.github/workflows/auth-email-production-regression.yml'
+      - '.github/workflows/configure-production-auth-email.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'app-auth-production-redirect.js'
+      - 'confirm-email.html'
+      - 'confirm-email.js'
+      - 'pending-access.html'
+      - 'pending-access.js'
+      - 'supabase/functions/auth-email-*/**'
+      - 'supabase/functions/pending-account-access/**'
+      - 'supabase/migrations/*auth_email*'
+      - 'scripts/configure-production-auth-email.mjs'
+      - 'auth-email-production.test.mjs'
+      - '.github/workflows/auth-email-production-regression.yml'
+      - '.github/workflows/configure-production-auth-email.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify browser, activation, and Edge syntax
+        run: |
+          node --check app-auth-production-redirect.js
+          node --check confirm-email.js
+          node --check pending-access.js
+          node --check scripts/configure-production-auth-email.mjs
+          for file in \
+            supabase/functions/pending-account-access/index.ts \
+            supabase/functions/auth-email-resend/index.ts \
+            supabase/functions/auth-email-status/index.ts \
+            supabase/functions/auth-email-confirmed/index.ts \
+            supabase/functions/auth-email-provider-webhook/index.ts; do
+            cp "$file" "/tmp/$(basename "$(dirname "$file")").mjs"
+            node --check "/tmp/$(basename "$(dirname "$file")").mjs"
+          done
+      - name: Run production Auth email regression tests
+        run: node --test auth-email-production.test.mjs
