@@ -8,7 +8,8 @@ const android=await readFile(new URL('../scripts/configure-native-location.mjs',
 
 test('native shell is isolated and branded Field Coach by McCoy',()=>{
   assert.match(config,/appName: 'Field Coach'/);
-  assert.match(config,/com\.mccoy\.fieldcoach\.dev/);
+  assert.match(config,/com\.mccoy\.fieldcoach'/);
+  assert.doesNotMatch(config,/com\.mccoy\.fieldcoach\.dev/);
   assert.match(bridge,/Capacitor\.isNativePlatform\(\)/);
 });
 
