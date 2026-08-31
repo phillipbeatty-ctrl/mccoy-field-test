@@ -1,10 +1,19 @@
-name: Field Coach iOS Dev
+name: Field Coach iOS Release Candidate
 
 on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - codex/capacitor-native-location
+    paths:
+      - 'mobile/**'
+      - 'scripts/**'
+      - 'app-ipad-layout.js'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - '.github/workflows/mobile-ios-dev.yml'
+  pull_request:
     paths:
       - 'mobile/**'
       - 'scripts/**'
@@ -22,6 +31,7 @@ jobs:
         family: [iphone, ipad]
     env:
       DEVICE_FAMILY: ${{ matrix.family }}
+      BUNDLE_ID: com.mccoy.fieldcoach
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,11 +40,12 @@ jobs:
       - run: npm install
       - run: node --test mobile/native-location.test.mjs mobile/ipados-layout.test.mjs
       - run: npm run mobile:add:ios
-      - name: Verify universal target, branding, and location background mode
+      - name: Verify universal target, production branding, and location background mode
         run: |
           grep -q '<string>location</string>' ios/App/App/Info.plist
           grep -q 'UISupportedInterfaceOrientations~ipad' ios/App/App/Info.plist
           grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj
+          grep -R -q "$BUNDLE_ID" ios/App
       - name: Select simulator for matrix family
         run: |
           set -euo pipefail
@@ -76,6 +87,6 @@ jobs:
           APP=$(find "$RUNNER_TEMP/DerivedData-$DEVICE_FAMILY/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$APP"
           xcrun simctl install "$SIMULATOR_UDID" "$APP"
-          xcrun simctl launch "$SIMULATOR_UDID" com.mccoy.fieldcoach.dev
+          xcrun simctl launch "$SIMULATOR_UDID" "$BUNDLE_ID"
           sleep 3
-          xcrun simctl terminate "$SIMULATOR_UDID" com.mccoy.fieldcoach.dev || true
+          xcrun simctl terminate "$SIMULATOR_UDID" "$BUNDLE_ID" || true
