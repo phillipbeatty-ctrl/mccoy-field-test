@@ -7,7 +7,7 @@ const compat=await readFile(new URL('./spotio-import-compat.js',import.meta.url)
 const pendingFunction=await readFile(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8');
 const pendingPatch=await readFile(new URL('./app-pending-access-fix.js',import.meta.url),'utf8');
 const importPage=await readFile(new URL('./spotio-import.html',import.meta.url),'utf8');
-const pageLayout=await readFile(new URL('./app-page-layout.js',import.meta.url),'utf8');
+const adminBootstrap=await readFile(new URL('./app-admin-lead-import.js',import.meta.url),'utf8');
 
 class FakeResponse{
   constructor(body,{status=200,headers={}}={}){this.body=body;this.status=status;this.headers=headers;this.ok=status>=200&&status<300;}
@@ -70,5 +70,5 @@ test('pending access includes active accounts until email confirmation is comple
 test('production pages load the compatibility patches with fresh versions',()=>{
   assert.match(importPage,/spotio-import-compat\.js\?v=2026083101/);
   assert.match(importPage,/spotio-import\.js\?v=20260831-chunked-v2/);
-  assert.match(pageLayout,/app-pending-access-fix\.js\?v=2026083101/);
+  assert.match(adminBootstrap,/app-pending-access-fix\.js\?v=2026083101/);
 });
