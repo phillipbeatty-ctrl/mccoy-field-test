@@ -57,6 +57,7 @@
   function bindHeaders(){document.querySelectorAll('.nav-btn').forEach(btn=>{if(btn.dataset.mccoyPageHeaderBound==='1')return;btn.dataset.mccoyPageHeaderBound='1';btn.addEventListener('click',()=>setTimeout(()=>setPageHeader(btn.dataset.view,btn.textContent.trim()),0));});}
   function loadSaleLifecycle(){
     for(const src of [
+      'app-pending-access-fix.js?v=2026083101',
       'app-sale-lifecycle.js?v=2026082801',
       'app-sales-hub-layout.js?v=2026082803',
       'app-sales-hub-fieldcoach-workday-layout.js?v=2026082803',
