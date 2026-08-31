@@ -1,0 +1,41 @@
+name: Import and Pending Access Regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'spotio-import.html'
+      - 'spotio-import-compat.js'
+      - 'app-pending-access-fix.js'
+      - 'app-admin-lead-import.js'
+      - 'supabase/functions/pending-account-access/**'
+      - 'import-pending-access-fix.test.mjs'
+      - '.github/workflows/import-pending-access-fix.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'spotio-import.html'
+      - 'spotio-import-compat.js'
+      - 'app-pending-access-fix.js'
+      - 'app-admin-lead-import.js'
+      - 'supabase/functions/pending-account-access/**'
+      - 'import-pending-access-fix.test.mjs'
+      - '.github/workflows/import-pending-access-fix.yml'
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify browser and Edge syntax
+        run: |
+          node --check spotio-import-compat.js
+          node --check app-pending-access-fix.js
+          node --check app-admin-lead-import.js
+          cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
+          node --check /tmp/pending-account-access.mjs
+      - name: Run importer and pending account regression tests
+        run: node --test import-pending-access-fix.test.mjs
