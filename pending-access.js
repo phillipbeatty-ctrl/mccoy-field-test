@@ -9,20 +9,20 @@ const pendingAuthMessage=pendingById('pendingAuthMessage');
 const pendingAccessMessage=pendingById('pendingAccessMessage');
 const pendingAccessList=pendingById('pendingAccessList');
 const pendingAccessCount=pendingById('pendingAccessCount');
+const pendingMailStatus=pendingById('pendingMailStatus');
 let pendingBusy=false;
+let pendingMailConfiguration=null;
 
 function pendingSetMessage(element,text,ok=false){
   if(!element)return;
   element.textContent=text;
   element.style.color=ok?'#166534':'#991b1b';
 }
-
 function pendingDate(value){
   if(!value)return'Never';
   const date=new Date(value);
   return Number.isNaN(date.getTime())?'Unknown':date.toLocaleString();
 }
-
 function pendingStatus(account){
   if(account.waiting_for_email_confirmation&&account.access_active)return'Email not confirmed · access pre-granted';
   if(account.waiting_for_email_confirmation)return'Email not confirmed';
@@ -31,7 +31,23 @@ function pendingStatus(account){
   if(account.access_state==='no_access_record')return'McCoy access not created';
   return'Admin attention required';
 }
-
+function pendingDeliveryLabel(delivery){
+  if(!delivery)return'No McCoy delivery event recorded';
+  const labels={
+    accepted_by_auth:'Accepted by Auth; awaiting provider event',
+    sent:'Sent by provider',
+    delivered:'Delivered to recipient mail server',
+    delivery_delayed:'Delivery delayed',
+    bounced:'Bounced',
+    complained:'Marked as spam',
+    suppressed:'Suppressed by provider',
+    failed:'Delivery failed',
+    opened:'Opened',
+    clicked:'Confirmation link clicked',
+    confirmed:'Email ownership confirmed'
+  };
+  return labels[delivery.status]||String(delivery.status||delivery.event_type||'Unknown');
+}
 async function pendingErrorDetail(error,fallback='Request failed.'){
   let detail=error?.message||fallback;
   try{
@@ -42,14 +58,12 @@ async function pendingErrorDetail(error,fallback='Request failed.'){
   }catch(_error){}
   return String(detail||fallback).replaceAll('_',' ');
 }
-
 async function pendingInvoke(functionName,body){
   const {data,error}=await pendingClient.functions.invoke(functionName,{body});
   if(error)throw new Error(await pendingErrorDetail(error));
   if(data?.error)throw new Error(data.detail||data.error);
   return data||{};
 }
-
 async function pendingVerifyAdmin(){
   const {data:{user},error:userError}=await pendingClient.auth.getUser();
   if(userError||!user?.email)throw new Error(userError?.message||'No signed-in McCoy Admin session was found.');
@@ -62,20 +76,34 @@ async function pendingVerifyAdmin(){
   if(!access?.active||access.role!=='admin')throw new Error('Active McCoy Admin access is required.');
   return{user,access};
 }
-
 function pendingElement(tag,text,className){
   const element=document.createElement(tag);
   if(text!==undefined&&text!==null)element.textContent=String(text);
   if(className)element.className=className;
   return element;
 }
-
 function pendingActionButton(text,className='assign-btn'){
   const button=pendingElement('button',text,className);
   button.type='button';
   return button;
 }
-
+function pendingRenderMailConfiguration(configuration){
+  pendingMailConfiguration=configuration||{};
+  if(configuration?.fully_observable){
+    pendingMailStatus.textContent=`Production email active · ${configuration.sender_name||'McCoy'} <${configuration.sender_email}> · delivery tracking active`;
+    pendingMailStatus.style.borderColor='#86efac';
+    pendingMailStatus.style.background='#f0fdf4';
+  }else if(configuration?.production_ready){
+    pendingMailStatus.textContent=`Production SMTP active through ${configuration.provider||'the configured provider'}, but delivery webhook verification is still pending.`;
+    pendingMailStatus.style.borderColor='#f3d28b';
+    pendingMailStatus.style.background='#fffbeb';
+  }else{
+    const missing=(configuration?.activation_required||[]).join(', ')||'SMTP configuration';
+    pendingMailStatus.textContent=`Production confirmation delivery is not active. Missing: ${missing}. Resend controls are disabled so the app cannot falsely claim an email was sent.`;
+    pendingMailStatus.style.borderColor='#fca5a5';
+    pendingMailStatus.style.background='#fef2f2';
+  }
+}
 function pendingRenderAccount(account){
   const card=pendingElement('article',null,'card');
   card.style.margin='0';
@@ -85,8 +113,7 @@ function pendingRenderAccount(account){
   heading.style.cssText='display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap';
   const identity=pendingElement('div');
   identity.appendChild(pendingElement('strong',account.display_name||account.email));
-  const email=pendingElement('div',account.email,'muted small');
-  identity.appendChild(email);
+  identity.appendChild(pendingElement('div',account.email,'muted small'));
   const badge=pendingElement('span',pendingStatus(account),'badge');
   badge.style.background=account.waiting_for_email_confirmation?'#fef3c7':'#dbeafe';
   badge.style.color=account.waiting_for_email_confirmation?'#92400e':'#1e40af';
@@ -96,12 +123,17 @@ function pendingRenderAccount(account){
   const details=pendingElement('div');
   details.style.cssText='display:grid;gap:4px;margin-top:10px;font-size:12px;color:#4b5563';
   details.appendChild(pendingElement('span',`Account created: ${pendingDate(account.account_created_at)}`));
+  details.appendChild(pendingElement('span',`Latest Auth confirmation request: ${pendingDate(account.confirmation_sent_at)}`));
   details.appendChild(pendingElement('span',`Email confirmed: ${account.email_confirmed_at?pendingDate(account.email_confirmed_at):'No'}`));
   details.appendChild(pendingElement('span',`Last authentication: ${pendingDate(account.last_sign_in_at)}`));
   details.appendChild(pendingElement('span',`Access request: ${account.request?.status||'Not submitted'}`));
   details.appendChild(pendingElement('span',`McCoy access: ${account.access_active?'Already granted':'Not active'}`));
+  const deliveryLine=pendingElement('strong',`Delivery: ${pendingDeliveryLabel(account.delivery)}`);
+  deliveryLine.style.color=['bounced','failed','complained','suppressed'].includes(account.delivery?.status)?'#991b1b':'#374151';
+  details.appendChild(deliveryLine);
+  if(account.delivery?.created_at)details.appendChild(pendingElement('span',`Delivery event time: ${pendingDate(account.delivery.created_at)}`));
   if(account.waiting_for_email_confirmation){
-    const warning=pendingElement('strong','This user must confirm the email address before the account can sign in normally.');
+    const warning=pendingElement('strong','This user must confirm ownership of the email address before normal sign-in.');
     warning.style.color='#92400e';
     details.appendChild(warning);
   }
@@ -112,6 +144,26 @@ function pendingRenderAccount(account){
   const grant=pendingActionButton(account.access_active?'ACCESS ALREADY GRANTED':'GRANT ACCESS',account.access_active?'assign-btn':'primary');
   grant.disabled=Boolean(account.access_active);
   actions.appendChild(grant);
+  if(account.waiting_for_email_confirmation){
+    const resend=pendingActionButton('RESEND CONFIRMATION','primary');
+    resend.disabled=!pendingMailConfiguration?.production_ready;
+    resend.title=resend.disabled?'Production SMTP must be active before a resend is allowed.':'Send a fresh one-time confirmation through the verified production provider.';
+    actions.appendChild(resend);
+    const confirmPage=pendingElement('a','OPEN CONFIRMATION PAGE','assign-btn');
+    confirmPage.href=`/confirm-email.html?email=${encodeURIComponent(account.email)}`;
+    confirmPage.style.cssText='text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:8px 10px';
+    actions.appendChild(confirmPage);
+    resend.addEventListener('click',async()=>{
+      if(pendingBusy||resend.disabled)return;
+      pendingBusy=true;resend.disabled=true;grant.disabled=true;reset.disabled=true;resend.textContent='REQUESTING…';
+      try{
+        const data=await pendingInvoke('pending-account-access',{action:'resend_confirmation',email:account.email});
+        pendingSetMessage(message,data.detail||'Fresh confirmation requested.',true);
+        await pendingLoad();
+      }catch(error){pendingSetMessage(message,error?.message||'Unable to resend confirmation.');}
+      finally{pendingBusy=false;resend.textContent='RESEND CONFIRMATION';}
+    });
+  }
   const reset=pendingActionButton('RESET PASSWORD');
   actions.appendChild(reset);
   card.appendChild(actions);
@@ -143,16 +195,8 @@ function pendingRenderAccount(account){
       grant.disabled=false;reset.disabled=false;grant.textContent='GRANT ACCESS';
     }finally{pendingBusy=false;}
   });
-
-  reset.addEventListener('click',()=>{
-    form.hidden=false;
-    form.style.display='grid';
-    reset.hidden=true;
-    password.focus();
-  });
-  cancel.addEventListener('click',()=>{
-    password.value='';confirmation.value='';form.hidden=true;form.style.display='none';reset.hidden=false;message.textContent='';
-  });
+  reset.addEventListener('click',()=>{form.hidden=false;form.style.display='grid';reset.hidden=true;password.focus();});
+  cancel.addEventListener('click',()=>{password.value='';confirmation.value='';form.hidden=true;form.style.display='none';reset.hidden=false;message.textContent='';});
   apply.addEventListener('click',async()=>{
     if(pendingBusy)return;
     if(password.value.length<8){pendingSetMessage(message,'Use a password with at least 8 characters.');return;}
@@ -163,35 +207,28 @@ function pendingRenderAccount(account){
       await pendingInvoke('rep-onboarding',{action,email:account.email,password:password.value});
       password.value='';confirmation.value='';form.hidden=true;form.style.display='none';reset.hidden=false;
       pendingSetMessage(message,'Password updated securely.',true);
-    }catch(error){
-      pendingSetMessage(message,error?.message||'Unable to update this password.');
-    }finally{
-      pendingBusy=false;apply.disabled=false;grant.disabled=Boolean(account.access_active);cancel.disabled=false;apply.textContent='UPDATE PASSWORD';
-    }
+    }catch(error){pendingSetMessage(message,error?.message||'Unable to update this password.');}
+    finally{pendingBusy=false;apply.disabled=false;grant.disabled=Boolean(account.access_active);cancel.disabled=false;apply.textContent='UPDATE PASSWORD';}
   });
-
   return card;
 }
-
 async function pendingLoad(){
   if(pendingBusy)return;
   pendingBusy=true;
   const refresh=pendingById('pendingRefresh');
   if(refresh){refresh.disabled=true;refresh.textContent='REFRESHING…';}
-  pendingSetMessage(pendingAccessMessage,'Loading authoritative pending-account data…',true);
+  pendingSetMessage(pendingAccessMessage,'Loading authoritative pending-account and email-delivery data…',true);
   try{
     const {access}=await pendingVerifyAdmin();
     const data=await pendingInvoke('pending-account-access',{action:'list'});
     const accounts=Array.isArray(data.accounts)?data.accounts:[];
+    pendingRenderMailConfiguration(data.mail_configuration||{});
     pendingAuthCard.hidden=true;
     pendingAccessCard.hidden=false;
     pendingAccessList.replaceChildren();
     pendingAccessCount.textContent=String(accounts.length);
-    if(!accounts.length){
-      pendingAccessList.appendChild(pendingElement('div','No login accounts currently require Admin attention.','muted'));
-    }else{
-      for(const account of accounts)pendingAccessList.appendChild(pendingRenderAccount(account));
-    }
+    if(!accounts.length)pendingAccessList.appendChild(pendingElement('div','No login accounts currently require Admin attention.','muted'));
+    else for(const account of accounts)pendingAccessList.appendChild(pendingRenderAccount(account));
     pendingSetMessage(pendingAccessMessage,`${accounts.length} account${accounts.length===1?'':'s'} require attention. Signed in as ${access.display_name||access.email}.`,true);
   }catch(error){
     pendingAccessCard.hidden=true;
@@ -216,7 +253,6 @@ pendingById('pendingSignIn').addEventListener('click',async()=>{
   }catch(error){pendingSetMessage(pendingAuthMessage,error?.message||'Unable to sign in.');}
   finally{button.disabled=false;button.textContent='SIGN IN';}
 });
-
 pendingById('pendingRefresh').addEventListener('click',pendingLoad);
 pendingById('pendingSignOut').addEventListener('click',async()=>{await pendingClient.auth.signOut();location.reload();});
 window.addEventListener('focus',()=>{if(!document.hidden&&pendingAccessCard&&!pendingAccessCard.hidden)pendingLoad();});
@@ -224,6 +260,9 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pendingAc
 setInterval(()=>{if(!document.hidden&&pendingAccessCard&&!pendingAccessCard.hidden)pendingLoad();},30000);
 
 (async()=>{
+  const params=new URLSearchParams(location.search);
+  const email=params.get('email');
+  if(email)pendingById('pendingEmail').value=email;
   const {data:{session}}=await pendingClient.auth.getSession();
   if(session)await pendingLoad();
 })();

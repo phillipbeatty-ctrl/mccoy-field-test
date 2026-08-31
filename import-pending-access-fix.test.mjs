@@ -32,23 +32,7 @@ test('current SPOTIO DOM rows are normalized to the real address before API matc
       name:'THADEUS BAKER',
       address:'Prospecting / Keep Knocking',
       zip:'76541',
-      raw_cells:[
-        '',
-        'THADEUS BAKER',
-        'Prospecting / Keep Knocking',
-        'Aug 22, 2026 02:07 AM',
-        'Aug 30, 2026 04:59 PM',
-        'Sep 28, 2025 01:17 AM',
-        'JBJAMES BEATTY',
-        'SUSystem Update',
-        'JBJAMES BEATTY',
-        'api',
-        'Combo_Killeen TX 76541',
-        '1907 N 4TH ST , KILLEEN, TX 76541, US',
-        '76541',
-        '0',
-        'unknown'
-      ]
+      raw_cells:['','THADEUS BAKER','Prospecting / Keep Knocking','Aug 22, 2026 02:07 AM','Aug 30, 2026 04:59 PM','Sep 28, 2025 01:17 AM','JBJAMES BEATTY','SUSystem Update','JBJAMES BEATTY','api','Combo_Killeen TX 76541','1907 N 4TH ST , KILLEEN, TX 76541, US','76541','0','unknown']
     }]
   };
   const normalized=JSON.parse(window.MCCOY_SPOTIO_IMPORT_COMPAT.normalizeCaptureText(JSON.stringify(capture),'capture.json'));
@@ -106,20 +90,24 @@ test('pending access includes active accounts until email confirmation is comple
   assert.match(pendingFunction,/emailConfirmedAt&&accessActive&&!requestPending/);
   assert.match(pendingFunction,/waiting_for_email_confirmation:!emailConfirmedAt/);
   assert.match(pendingFunction,/requires_access_grant:!accessActive/);
+  assert.match(pendingFunction,/resend_confirmation/);
+  assert.match(pendingFunction,/production_smtp_not_active/);
   assert.match(pendingPatch,/typeof sb!=='undefined'/);
   assert.match(pendingPatch,/ACCESS ALREADY GRANTED/);
   assert.match(pendingPatch,/pending-access\.html\?v=20260831\.2/);
   assert.match(pendingPatch,/setInterval\(refreshVisibleAdminUsers,30000\)/);
 });
 
-test('direct pending access page uses the authoritative Admin endpoint',()=>{
+test('direct pending access page uses the authoritative Admin endpoint and production delivery state',()=>{
   assert.match(pendingPage,/Pending Account Access/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083102/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083103/);
   assert.match(pendingController,/pending-account-access/);
   assert.match(pendingController,/action:'list'/);
   assert.match(pendingController,/grant_pending_account_access/);
   assert.match(pendingController,/reset_user_password/);
   assert.match(pendingController,/waiting_for_email_confirmation/);
+  assert.match(pendingController,/RESEND CONFIRMATION/);
+  assert.match(pendingController,/production_ready/);
 });
 
 test('production pages load the compatibility patches with fresh versions',()=>{

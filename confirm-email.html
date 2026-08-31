@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Confirm McCoy Email</title>
+  <link rel="stylesheet" href="styles.css?v=2026083103">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main class="main" style="max-width:760px;margin:0 auto;padding:24px">
+    <header class="topbar" style="position:static;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+      <div>
+        <h1>Confirm your McCoy email</h1>
+        <div class="muted">Complete email ownership verification before signing in to McCoy.</div>
+      </div>
+      <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">BACK TO MCCOY</a>
+    </header>
+
+    <section class="card">
+      <div id="confirmEmailProvider" class="geo-box">Checking McCoy email delivery status…</div>
+      <div id="confirmEmailMessage" class="muted" role="status" aria-live="polite" style="margin-top:12px"></div>
+
+      <div id="confirmEmailLinkPanel" hidden style="margin-top:16px">
+        <h2>Confirm this email address</h2>
+        <p class="muted small">Press the button below to use the one-time confirmation token. The token is not consumed merely by opening this page.</p>
+        <button id="confirmEmailLinkButton" class="primary">CONFIRM EMAIL ADDRESS</button>
+      </div>
+
+      <div id="confirmEmailOtpPanel" style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
+        <h2>Enter a confirmation code</h2>
+        <p class="muted small">Use this when the McCoy email contains a six-digit confirmation code.</p>
+        <input id="confirmEmailAddress" type="email" autocomplete="email" placeholder="Email address" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
+        <input id="confirmEmailCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Confirmation code" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
+        <button id="confirmEmailCodeButton" class="primary">VERIFY CODE</button>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
+        <h2>Need a new confirmation?</h2>
+        <p class="muted small">A fresh link can be sent only when McCoy's verified production email provider is active.</p>
+        <input id="confirmEmailResendAddress" type="email" autocomplete="email" placeholder="Email address" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
+        <button id="confirmEmailResendButton" class="assign-btn" disabled>RESEND CONFIRMATION</button>
+      </div>
+    </section>
+  </main>
+  <script src="confirm-email.js?v=2026083103"></script>
+</body>
+</html>
