@@ -49,9 +49,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
 
-      - name: Install locked application dependencies
+      - name: Install application dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
 
       - name: Verify required production secrets are present
