@@ -1,0 +1,83 @@
+name: Activate production Auth email
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type ACTIVATE to configure Supabase Auth, create the Resend webhook, and resend confirmations.
+        required: true
+        type: string
+      sender_name:
+        description: Display name used in confirmation email From headers.
+        required: true
+        default: McCoy Platform
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-auth-email-activation
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    if: github.event.inputs.confirmation == 'ACTIVATE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      MCCOY_AUTH_FROM_EMAIL: ${{ secrets.MCCOY_AUTH_FROM_EMAIL }}
+      MCCOY_AUTH_SENDER_NAME: ${{ github.event.inputs.sender_name }}
+      MCCOY_EMAIL_CONTEXT_FILE: /tmp/mccoy-auth-email-context.json
+      MCCOY_EMAIL_WEBHOOK_SECRET_FILE: /tmp/mccoy-auth-email-webhook-secret
+      MCCOY_EMAIL_RESULT_FILE: /tmp/mccoy-auth-email-activation.json
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify required production secrets are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_SERVICE_ROLE_KEY RESEND_API_KEY MCCOY_AUTH_FROM_EMAIL; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub production secret: ${name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Verify Resend domain, SPF/DKIM state, DMARC, and prepare signed webhook
+        run: node scripts/configure-production-auth-email.mjs prepare
+
+      - name: Install provider webhook signing secret in Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          SECRET_ENV=/tmp/mccoy-email-webhook.env
+          umask 077
+          printf 'MCCOY_EMAIL_WEBHOOK_SECRET=%s\n' "$(tr -d '\r\n' < "$MCCOY_EMAIL_WEBHOOK_SECRET_FILE")" > "$SECRET_ENV"
+          npx --yes supabase@latest secrets set --project-ref athxxrfqxwlfnuvbqadp --env-file "$SECRET_ENV"
+          rm -f "$SECRET_ENV" "$MCCOY_EMAIL_WEBHOOK_SECRET_FILE"
+
+      - name: Activate SMTP, production redirects, delivery auditing, and fresh confirmations
+        run: node scripts/configure-production-auth-email.mjs activate
+
+      - name: Publish safe activation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mccoy-production-auth-email-activation
+          path: /tmp/mccoy-auth-email-activation.json
+          if-no-files-found: warn
+          retention-days: 30
