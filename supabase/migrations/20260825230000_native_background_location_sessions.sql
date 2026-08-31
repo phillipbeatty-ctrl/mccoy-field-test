@@ -1,0 +1,3 @@
+-- Historical reference intentionally neutralized.
+-- Native background-location sessions and RPCs are already deployed in production.
+-- This no-op prevents replay during mobile source integration.

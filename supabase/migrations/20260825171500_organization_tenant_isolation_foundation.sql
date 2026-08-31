@@ -1,0 +1,4 @@
+-- Historical reference removed from the mobile release branch.
+-- The production tenant foundation is already deployed and verified.
+-- Keeping an unrecorded historical migration here would cause a future
+-- migration runner to replay tenant creation and policy changes.

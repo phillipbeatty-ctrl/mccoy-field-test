@@ -2,8 +2,26 @@
   "name": "mccoy-field-test",
   "private": true,
   "type": "module",
+  "author": "McCoy Platform LLC",
+  "scripts": {
+    "mobile:prepare": "node scripts/prepare-mobile-web.mjs",
+    "mobile:add:android": "npm run mobile:prepare && npx cap add android && node scripts/configure-native-location.mjs && npx cap sync android",
+    "mobile:add:ios": "npm run mobile:prepare && npx cap add ios && node scripts/configure-native-location.mjs && npx cap sync ios",
+    "mobile:sync": "npm run mobile:prepare && node scripts/configure-native-location.mjs && npx cap sync",
+    "mobile:open:android": "npx cap open android",
+    "mobile:open:ios": "npx cap open ios"
+  },
   "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/core": "8.5.0",
+    "@capacitor/ios": "8.5.0",
+    "@capgo/background-geolocation": "8.4.3",
     "@supabase/supabase-js": "^2.95.0",
     "twilio": "^5.10.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.0",
+    "esbuild": "0.25.10",
+    "typescript": "^5.9.2"
   }
 }

@@ -1,0 +1,133 @@
+name: Field Coach iOS TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive-sign-upload:
+    runs-on: macos-15
+    env:
+      BUNDLE_ID: com.mccoy.fieldcoach
+      APP_NAME: Field Coach
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+      IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require McCoy Platform LLC signing credentials
+        run: |
+          set -euo pipefail
+          for name in APPLE_TEAM_ID IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_API_KEY_BASE64; do
+            test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
+          done
+      - run: npm install
+      - run: node --test mobile/native-location.test.mjs mobile/ipados-layout.test.mjs
+      - run: npm run mobile:add:ios
+      - name: Verify universal iPhone and iPad production target
+        run: |
+          grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj
+          grep -q 'UISupportedInterfaceOrientations~ipad' ios/App/App/Info.plist
+          grep -R -q "$BUNDLE_ID" ios/App
+      - name: Install Apple Distribution certificate and provisioning profile
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/field-coach-signing.keychain-db"
+          CERT="$RUNNER_TEMP/distribution.p12"
+          PROFILE="$RUNNER_TEMP/field-coach.mobileprovision"
+          echo "$IOS_DISTRIBUTION_P12_BASE64" | base64 --decode > "$CERT"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE"
+          security create-keychain -p temporary "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p temporary "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$IOS_DISTRIBUTION_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k temporary "$KEYCHAIN"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$PROFILE" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          PROFILE_APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
+          case "$PROFILE_APP_IDENTIFIER" in
+            *.$BUNDLE_ID) ;;
+            *) echo "Provisioning profile does not authorize $BUNDLE_ID"; exit 1 ;;
+          esac
+          cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+      - name: Configure App Store Connect API key
+        run: |
+          set -euo pipefail
+          KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIR"
+          KEY_PATH="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+      - name: Archive signed Field Coach build
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/FieldCoach.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            PRODUCT_NAME="$APP_NAME" \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            archive
+      - name: Export signed IPA
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>provisioningProfiles</key><dict><key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string></dict>
+          </dict></plist>
+          EOF
+          mkdir -p "$RUNNER_TEMP/field-coach-export"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/FieldCoach.xcarchive" \
+            -exportPath "$RUNNER_TEMP/field-coach-export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+      - name: Upload to TestFlight
+        run: |
+          set -euo pipefail
+          IPA=$(find "$RUNNER_TEMP/field-coach-export" -name '*.ipa' -print -quit)
+          test -n "$IPA"
+          xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$APP_STORE_CONNECT_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Record physical Apple acceptance gate
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## Field Coach physical release gate
+          TestFlight upload does **not** authorize production promotion by itself.
+
+          The same signed build must pass the background-GPS acceptance procedure on:
+          - a physical iPhone, and
+          - a physical iPad.
+
+          Both devices must verify START KNOCKING, background app switching, screen-lock movement, uninterrupted native_background_location history, and termination after STOP SESSION. iPad must additionally pass portrait/landscape plus narrow Split View or Stage Manager layout checks.
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: field-coach-ios-testflight-ipa
+          path: ${{ runner.temp }}/field-coach-export/*.ipa
+          if-no-files-found: error

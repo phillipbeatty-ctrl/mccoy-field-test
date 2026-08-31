@@ -1,0 +1,3 @@
+-- Historical reference intentionally neutralized.
+-- Native and telemetry session tenant scope is already deployed in production.
+-- This no-op prevents replay during mobile source integration.

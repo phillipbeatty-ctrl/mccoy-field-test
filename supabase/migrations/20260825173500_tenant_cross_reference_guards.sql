@@ -1,0 +1,3 @@
+-- Historical reference intentionally neutralized.
+-- Tenant cross-reference guards are already deployed and verified in production.
+-- This no-op prevents replay during mobile source integration.

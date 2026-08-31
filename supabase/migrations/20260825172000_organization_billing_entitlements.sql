@@ -1,0 +1,3 @@
+-- Historical reference intentionally neutralized.
+-- Organization billing and entitlements are already deployed in production.
+-- This no-op prevents the mobile source integration from replaying old DDL.
