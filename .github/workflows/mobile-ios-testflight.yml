@@ -10,7 +10,7 @@ jobs:
   archive-sign-upload:
     runs-on: macos-15
     env:
-      BUNDLE_ID: com.mccoy.fieldcoach.dev
+      BUNDLE_ID: com.mccoy.fieldcoach
       APP_NAME: Field Coach
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
@@ -33,10 +33,11 @@ jobs:
       - run: npm install
       - run: node --test mobile/native-location.test.mjs mobile/ipados-layout.test.mjs
       - run: npm run mobile:add:ios
-      - name: Verify universal iPhone and iPad target
+      - name: Verify universal iPhone and iPad production target
         run: |
           grep -q 'TARGETED_DEVICE_FAMILY = "1,2";' ios/App/App.xcodeproj/project.pbxproj
           grep -q 'UISupportedInterfaceOrientations~ipad' ios/App/App/Info.plist
+          grep -R -q "$BUNDLE_ID" ios/App
       - name: Install Apple Distribution certificate and provisioning profile
         run: |
           set -euo pipefail
@@ -56,6 +57,11 @@ jobs:
           security cms -D -i "$PROFILE" > "$PROFILE_PLIST"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          PROFILE_APP_IDENTIFIER=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$PROFILE_PLIST")
+          case "$PROFILE_APP_IDENTIFIER" in
+            *.$BUNDLE_ID) ;;
+            *) echo "Provisioning profile does not authorize $BUNDLE_ID"; exit 1 ;;
+          esac
           cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
       - name: Configure App Store Connect API key
