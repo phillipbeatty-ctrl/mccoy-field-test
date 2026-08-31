@@ -12,9 +12,13 @@ on:
         required: true
         default: McCoy Platform
         type: string
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 concurrency:
   group: production-auth-email-activation
@@ -22,7 +26,11 @@ concurrency:
 
 jobs:
   activate:
-    if: github.event.inputs.confirmation == 'ACTIVATE'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation == 'ACTIVATE') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.comment.body == 'ACTIVATE_MCCOY_AUTH_EMAIL' &&
+       github.event.comment.user.login == github.repository_owner)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -31,7 +39,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       MCCOY_AUTH_FROM_EMAIL: ${{ secrets.MCCOY_AUTH_FROM_EMAIL }}
-      MCCOY_AUTH_SENDER_NAME: ${{ github.event.inputs.sender_name }}
+      MCCOY_AUTH_SENDER_NAME: ${{ github.event.inputs.sender_name || 'McCoy Platform' }}
       MCCOY_EMAIL_CONTEXT_FILE: /tmp/mccoy-auth-email-context.json
       MCCOY_EMAIL_WEBHOOK_SECRET_FILE: /tmp/mccoy-auth-email-webhook-secret
       MCCOY_EMAIL_RESULT_FILE: /tmp/mccoy-auth-email-activation.json
@@ -50,12 +58,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          missing=()
           for name in SUPABASE_ACCESS_TOKEN SUPABASE_SERVICE_ROLE_KEY RESEND_API_KEY MCCOY_AUTH_FROM_EMAIL; do
             if [ -z "${!name:-}" ]; then
-              echo "Missing required GitHub production secret: ${name}" >&2
-              exit 1
+              missing+=("$name")
             fi
           done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            {
+              echo '## Production Auth email activation blocked'
+              echo
+              echo 'The following GitHub production-environment secrets are missing:'
+              for name in "${missing[@]}"; do
+                echo "- \`$name\`"
+                echo "Missing required GitHub production secret: $name" >&2
+              done
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Verify Resend domain, SPF/DKIM state, DMARC, and prepare signed webhook
         run: node scripts/configure-production-auth-email.mjs prepare
