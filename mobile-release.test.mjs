@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const read=path=>readFile(new URL(path,import.meta.url),'utf8');
 const packageJson=JSON.parse(await read('./package.json'));
-const capacitorConfig=await read('./capacitor.config.ts');
+const capacitorConfig=JSON.parse(await read('./capacitor.config.json'));
 const webBuilder=await read('./scripts/build-mobile-web.mjs');
 const nativeConfigurator=await read('./scripts/configure-native-project.mjs');
 const releaseDoctor=await read('./scripts/mobile-release-doctor.mjs');
@@ -19,14 +19,14 @@ test('Capacitor 8 release toolchain is pinned and targets the McCoy bundle ID',(
   assert.equal(packageJson.dependencies['@capacitor/android'],'8.5.0');
   assert.equal(packageJson.dependencies['@capacitor/ios'],'8.5.0');
   assert.equal(packageJson.devDependencies['@capacitor/cli'],'8.5.0');
-  assert.match(capacitorConfig,/appId:\s*'com\.mccoyplatform\.app'/);
-  assert.match(capacitorConfig,/appName:\s*'McCoy'/);
-  assert.match(capacitorConfig,/webDir:\s*'mobile-web'/);
+  assert.equal(capacitorConfig.appId,'com.mccoyplatform.app');
+  assert.equal(capacitorConfig.appName,'McCoy');
+  assert.equal(capacitorConfig.webDir,'mobile-web');
 });
 
 test('store build uses bundled web assets rather than a remote production WebView',()=>{
-  assert.doesNotMatch(capacitorConfig,/\burl:\s*['"]https?:\/\//);
-  assert.doesNotMatch(capacitorConfig,/allowNavigation\s*:/);
+  assert.equal(capacitorConfig.server?.url,undefined);
+  assert.equal(capacitorConfig.server?.allowNavigation,undefined);
   assert.match(webBuilder,/mobile-web/);
   assert.match(webBuilder,/mobile-native-bridge\.js/);
   assert.match(webBuilder,/injectNativeBridge/);
