@@ -1,9 +1,30 @@
 {
   "name": "mccoy-field-test",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
+  "description": "McCoy Platform field sales, lead mapping, session, and sales operations app.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "mobile:web": "node scripts/build-mobile-web.mjs",
+    "mobile:doctor": "node scripts/mobile-release-doctor.mjs",
+    "mobile:android:prepare": "npm run mobile:web && rm -rf android && npx cap add android && npx cap sync android && npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#111827' --iconBackgroundColorDark '#111827' --splashBackgroundColor '#111827' --splashBackgroundColorDark '#111827' && node scripts/configure-native-project.mjs android",
+    "mobile:ios:prepare": "npm run mobile:web && rm -rf ios && npx cap add ios && npx cap sync ios && npx @capacitor/assets generate --ios --assetPath assets --iconBackgroundColor '#111827' --iconBackgroundColorDark '#111827' --splashBackgroundColor '#111827' --splashBackgroundColorDark '#111827' && node scripts/configure-native-project.mjs ios",
+    "test:mobile": "node --test mobile-release.test.mjs"
+  },
   "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.0",
+    "@capacitor/ios": "8.5.0",
+    "@capacitor/splash-screen": "8.0.2",
     "@supabase/supabase-js": "^2.95.0",
     "twilio": "^5.10.4"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "8.5.0"
   }
 }
