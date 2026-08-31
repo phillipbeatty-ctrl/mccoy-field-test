@@ -111,9 +111,9 @@ test('Admin pending-access refresh is view-scoped, idempotent, and guarded',()=>
   assert.doesNotMatch(pendingPatch,/visibilitychange.*refreshVisibleAdminUsers/);
 });
 
-test('direct pending access page uses the authoritative Admin endpoint and production delivery state',()=>{
+test('direct pending access page uses the authoritative endpoint without unattended refreshes',()=>{
   assert.match(pendingPage,/Pending Account Access/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083103/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
   assert.match(pendingController,/pending-account-access/);
   assert.match(pendingController,/action:'list'/);
   assert.match(pendingController,/grant_pending_account_access/);
@@ -121,6 +121,10 @@ test('direct pending access page uses the authoritative Admin endpoint and produ
   assert.match(pendingController,/waiting_for_email_confirmation/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
   assert.match(pendingController,/production_ready/);
+  assert.match(pendingController,/pendingLoadPromise/);
+  assert.doesNotMatch(pendingController,/setInterval\(/);
+  assert.doesNotMatch(pendingController,/addEventListener\('focus'/);
+  assert.doesNotMatch(pendingController,/visibilitychange/);
 });
 
 test('production pages load the compatibility patches with fresh versions',()=>{
