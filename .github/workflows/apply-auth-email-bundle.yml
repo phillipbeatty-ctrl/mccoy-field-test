@@ -26,14 +26,13 @@ jobs:
           ref: fix/auth-email-production-delivery-20260831
           fetch-depth: 0
 
-      - name: Expand, verify, and commit the production Auth email implementation
+      - name: Expand, verify, and commit non-workflow Auth email files
         run: |
           set -euo pipefail
           python - <<'PY'
           import base64
           import gzip
           import json
-          import shutil
           from pathlib import Path
 
           root = Path('.')
@@ -61,9 +60,6 @@ jobs:
               target.write_text(item['content'], encoding='utf-8')
               if item.get('mode') == '100755':
                   target.chmod(0o755)
-
-          shutil.rmtree(bundle_dir)
-          Path('.github/workflows/apply-auth-email-bundle.yml').unlink()
           PY
 
           node --check app-auth-production-redirect.js
@@ -83,8 +79,19 @@ jobs:
           node --check /tmp/auth-email-provider-webhook.mjs
           node --test auth-email-production.test.mjs
 
+          rm -f .github/workflows/auth-email-production-regression.yml
+          rm -f .github/workflows/configure-production-auth-email.yml
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add app-auth-production-redirect.js confirm-email.html confirm-email.js pending-access.html pending-access.js service-worker.js \
+            supabase/functions/pending-account-access/index.ts \
+            supabase/functions/auth-email-resend/index.ts \
+            supabase/functions/auth-email-status/index.ts \
+            supabase/functions/auth-email-confirmed/index.ts \
+            supabase/functions/auth-email-provider-webhook/index.ts \
+            supabase/migrations/20260831023000_auth_email_delivery_observability.sql \
+            scripts/configure-production-auth-email.mjs docs/production-auth-email.md \
+            auth-email-production.test.mjs import-pending-access-fix.test.mjs
           git commit -m 'Implement production Auth email delivery controls'
           git push origin HEAD:fix/auth-email-production-delivery-20260831
