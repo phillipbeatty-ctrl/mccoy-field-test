@@ -79,6 +79,9 @@ test('Pending Account Access shows provider readiness, resends, and delivery eve
 
 test('activation workflow enforces verified domain, DMARC, production redirects, and secret separation',()=>{
   assert.match(activator,/smtp\.resend\.com/);
+  assert.match(activator,/smtp_port:'465'/);
+  assert.doesNotMatch(activator,/smtp_port:465/);
+  assert.match(activator,/Supabase SMTP port verification failed after activation/);
   assert.match(activator,/uri_allow_list/);
   assert.match(activator,/mailer_autoconfirm:false/);
   assert.match(activator,/mailer_templates_confirmation_content/);
