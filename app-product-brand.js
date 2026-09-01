@@ -5,6 +5,7 @@
 
   const PRODUCT='Field Coach';
   const LEGAL='McCoy Platform LLC';
+  const LOGO='/assets/brand/official-logo-source.png';
   const replacements=new Map([
     ['McCoy Field Coach V9.2',PRODUCT],
     ['Create McCoy Field Coach Account',`Create ${PRODUCT} Account`],
@@ -37,7 +38,7 @@
     if(!card||card.querySelector('.field-coach-auth-brand'))return;
     const brand=document.createElement('div');
     brand.className='field-coach-auth-brand';
-    brand.innerHTML=`<img src="/assets/logo.svg" alt=""><div><strong>${PRODUCT}</strong><span>by ${LEGAL}</span></div>`;
+    brand.innerHTML=`<img src="${LOGO}" alt=""><div><strong>${PRODUCT}</strong><span>by ${LEGAL}</span></div>`;
     card.prepend(brand);
   }
 
