@@ -37,7 +37,7 @@ test('the update action always navigates even if service-worker APIs stall', () 
 })
 
 test('the current service worker activates immediately and cleans both legacy cache namespaces', () => {
-  assert.match(worker, /mccoy-app-shell-v2-20260831-update-recovery/)
+  assert.match(worker, /const VERSION='field-coach-app-shell-v\d+-\d{8}-[a-z0-9-]+'/)
   assert.match(worker, /APP_SHELL_PREFIXES=\['mccoy-app-shell-','field-coach-app-shell-'\]/)
   assert.match(worker, /type==='SKIP_WAITING'/)
   assert.match(worker, /type==='CLEAR_APP_SHELL'/)
