@@ -7,7 +7,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'mobile-web');
 const nativeBridgeSource=path.join(root,'mobile','mobile-native-bridge.js');
 const nativeBridgeName='mobile-native-bridge.js';
-const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.1"></script>';
+const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.2"></script>';
 
 const allowedExtensions=new Set(['.html','.js','.css','.svg','.png','.jpg','.jpeg','.webp','.ico','.webmanifest']);
 const excludedFiles=new Set([
@@ -79,7 +79,7 @@ if(!index)throw new Error('Native build failed: mobile-web/index.html was not pr
 const offlinePath=path.join(output,'offline.html');
 const offline=await readFile(offlinePath,'utf8').catch(()=>null);
 if(!offline){
-  await writeFile(offlinePath,'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>McCoy Offline</title></head><body><main><h1>McCoy is offline</h1><p>Reconnect to load live leads, assignments, sessions, and sales.</p></main></body></html>');
+  await writeFile(offlinePath,'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Field Coach Offline</title></head><body><main><h1>Field Coach is offline</h1><p>Reconnect to load live leads, assignments, sessions, and sales.</p></main></body></html>');
 }
 
 const produced=[];
@@ -95,12 +95,12 @@ produced.sort();
 
 await writeFile(path.join(output,'mobile-build.json'),JSON.stringify({
   app_id:'com.mccoyplatform.app',
-  app_name:'McCoy',
-  version:'1.0.0-beta.1',
+  app_name:'Field Coach',
+  version:'1.0.0-beta.2',
   source_commit:process.env.GITHUB_SHA||null,
   bundled_web_assets:true,
   production_origin:'https://www.mccoyplatform.com',
   files:produced.length
 },null,2));
 
-console.log(`Prepared ${produced.length} bundled runtime files in ${path.relative(root,output)}.`);
+console.log(`Prepared ${produced.length} bundled Field Coach runtime files in ${path.relative(root,output)}.`);
