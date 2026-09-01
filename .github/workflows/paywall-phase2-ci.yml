@@ -1,0 +1,81 @@
+name: Paywall Phase 2 and Web App Release
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'scripts/paywall-targets.mjs'
+      - 'scripts/apply-edge-paywall-guards.mjs'
+      - 'scripts/build-webapp-download.mjs'
+      - 'paywall-phase2.test.mjs'
+      - 'paywall-deployment.test.mjs'
+      - 'webapp-download.test.mjs'
+      - 'ios-install.html'
+      - 'webapp-download.html'
+      - 'manifest.webmanifest'
+      - 'service-worker.js'
+      - '.github/workflows/paywall-phase2-ci.yml'
+      - '.github/workflows/deploy-paywall-phase2.yml'
+      - '.github/workflows/field-coach-webapp-download.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'scripts/paywall-targets.mjs'
+      - 'scripts/apply-edge-paywall-guards.mjs'
+      - 'scripts/build-webapp-download.mjs'
+      - 'paywall-phase2.test.mjs'
+      - 'paywall-deployment.test.mjs'
+      - 'webapp-download.test.mjs'
+      - 'ios-install.html'
+      - 'webapp-download.html'
+      - '.github/workflows/paywall-phase2-ci.yml'
+      - '.github/workflows/deploy-paywall-phase2.yml'
+      - '.github/workflows/field-coach-webapp-download.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paywall-phase2-webapp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify generated guards are committed
+        run: node scripts/apply-edge-paywall-guards.mjs
+
+      - name: Run paywall and web release regressions
+        run: node --test organization-access-gate.test.mjs paywall-phase2.test.mjs paywall-deployment.test.mjs webapp-download.test.mjs
+
+      - name: Type-check the shared fail-closed guard
+        run: deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
+
+      - name: Parse every protected Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          node -e "import('./scripts/paywall-targets.mjs').then(({edgePaywallTargets})=>console.log([...edgePaywallTargets.keys()].join('\n')))" | while IFS= read -r slug; do
+            cp "supabase/functions/${slug}/index.ts" "$temp_dir/${slug}.ts"
+            deno fmt "$temp_dir/${slug}.ts" >/dev/null
+          done
