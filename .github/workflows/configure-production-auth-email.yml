@@ -1,4 +1,4 @@
-name: Activate production Auth email
+name: Activate Field Coach production Auth email
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
       sender_name:
         description: Display name used in confirmation email From headers.
         required: true
-        default: McCoy Platform
+        default: Field Coach
         type: string
   issue_comment:
     types: [created]
@@ -39,14 +39,15 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       MCCOY_AUTH_FROM_EMAIL: ${{ secrets.MCCOY_AUTH_FROM_EMAIL }}
-      MCCOY_AUTH_SENDER_NAME: ${{ github.event.inputs.sender_name || 'McCoy Platform' }}
+      MCCOY_AUTH_SENDER_NAME: ${{ github.event.inputs.sender_name || 'Field Coach' }}
       MCCOY_EMAIL_CONTEXT_FILE: /tmp/mccoy-auth-email-context.json
       MCCOY_EMAIL_WEBHOOK_SECRET_FILE: /tmp/mccoy-auth-email-webhook-secret
       MCCOY_EMAIL_RESULT_FILE: /tmp/mccoy-auth-email-activation.json
+      FIELD_COACH_BRAND_RESULT_FILE: /tmp/field-coach-production-brand.json
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -65,7 +66,7 @@ jobs:
           done
           if [ "${#missing[@]}" -gt 0 ]; then
             {
-              echo '## Production Auth email activation blocked'
+              echo '## Field Coach production Auth email activation blocked'
               echo
               echo 'The following GitHub production-environment secrets are missing:'
               for name in "${missing[@]}"; do
@@ -92,11 +93,16 @@ jobs:
       - name: Activate SMTP, production redirects, delivery auditing, and fresh confirmations
         run: node scripts/configure-production-auth-email.mjs activate
 
+      - name: Reassert Field Coach sender and template branding
+        run: node scripts/apply-field-coach-auth-brand.mjs
+
       - name: Publish safe activation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mccoy-production-auth-email-activation
-          path: /tmp/mccoy-auth-email-activation.json
+          name: field-coach-production-auth-email-activation
+          path: |
+            /tmp/mccoy-auth-email-activation.json
+            /tmp/field-coach-production-brand.json
           if-no-files-found: warn
           retention-days: 30
