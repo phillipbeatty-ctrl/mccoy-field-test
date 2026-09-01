@@ -12,10 +12,12 @@
   "theme_color": "#050505",
   "categories": ["business", "productivity", "navigation"],
   "icons": [
-    {"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+    {"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
-    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]},
-    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]}
+    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png"}]},
+    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png"}]}
   ]
 }

@@ -10,7 +10,9 @@ on:
       - 'webapp-csp-install.test.mjs'
       - '.github/workflows/webapp-install-runtime.yml'
   push:
-    branches: [main]
+    branches:
+      - main
+      - fix/field-coach-logo-android-beta3-20260901
     paths:
       - 'install-ios.html'
       - 'install-ios.js'

@@ -1,6 +1,24 @@
-const VERSION='field-coach-app-shell-v3-20260901-brand';
+const VERSION='field-coach-app-shell-v4-20260901-beta3-icons';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
-const SHELL=['/','/offline.html','/install.html','/styles.css','/manifest.webmanifest','/assets/logo.svg','/app-product-brand.js','/app-organization-access-gate.js','/confirm-email.html','/pending-access.html'];
+const SHELL=[
+  '/',
+  '/offline.html',
+  '/install.html',
+  '/install-ios.html',
+  '/download.html',
+  '/styles.css',
+  '/manifest.webmanifest',
+  '/assets/logo.svg',
+  '/assets/favicon-64.png',
+  '/assets/apple-touch-icon-180.png',
+  '/assets/icon-192.png',
+  '/assets/icon-512.png',
+  '/assets/icon-maskable-512.png',
+  '/app-product-brand.js',
+  '/app-organization-access-gate.js',
+  '/confirm-email.html',
+  '/pending-access.html'
+];
 
 function deleteOldAppShellCaches(){
   return caches.keys().then(keys=>Promise.all(
