@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" role="img" aria-labelledby="title desc">
+  <title id="title">Field Coach — Velocity</title>
+  <desc id="desc">Sharp white and orange high-motion treatment based on Logo 1.</desc>
+  <defs>
+    <linearGradient id="o" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb000"/><stop offset=".55" stop-color="#ff7200"/><stop offset="1" stop-color="#e22e00"/></linearGradient>
+    <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#d7dae0"/></linearGradient>
+  </defs>
+  <rect width="1400" height="700" rx="48" fill="#020304"/>
+  <g transform="translate(38 42) scale(.61)">
+    <circle cx="512" cy="506" r="338" fill="none" stroke="url(#w)" stroke-width="31" stroke-linecap="round" stroke-dasharray="1460 660" transform="rotate(34 512 506)"/>
+    <circle cx="512" cy="506" r="300" fill="none" stroke="url(#o)" stroke-width="18" stroke-linecap="round" stroke-dasharray="910 970" transform="rotate(-67 512 506)"/>
+    <path d="M170 756 310 280h138l88 206 168-206h146L710 756H566l78-271-164 211h-38l-71-211-70 271Z" fill="url(#w)"/>
+    <path d="M538 664 695 332h148c118 0 181 47 181 141 0 121-90 191-243 191h-62l-43 92H538Zm237-137h45c45 0 70-17 70-48 0-20-17-30-52-30h-28Z" fill="url(#o)"/>
+    <path d="M815 110 527 432h142L342 889 857 413H704Z" fill="url(#o)"/>
+  </g>
+  <text x="650" y="300" fill="url(#w)" font-family="Inter,Arial,sans-serif" font-size="108" font-style="italic" font-weight="950" letter-spacing="2">FIELD</text>
+  <text x="650" y="420" fill="url(#o)" font-family="Inter,Arial,sans-serif" font-size="108" font-style="italic" font-weight="950" letter-spacing="2">COACH</text>
+  <path d="M650 462h610l80-18-68 38H650Z" fill="url(#o)"/>
+  <text x="655" y="530" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="27" font-style="italic" font-weight="800" letter-spacing="9">POWERED BY McCOY PLATFORM</text>
+</svg>
