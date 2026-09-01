@@ -1,0 +1,2 @@
+Second connector-origin release trigger after approved source materialization.
+No runtime behavior.
