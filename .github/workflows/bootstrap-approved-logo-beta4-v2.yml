@@ -5,7 +5,6 @@ on:
     branches:
       - fix/approved-official-logo-beta4-20260901
     paths:
-      - '.bootstrap/**'
       - '.github/workflows/bootstrap-approved-logo-beta4-v2.yml'
   workflow_dispatch:
 
@@ -18,7 +17,7 @@ concurrency:
 
 jobs:
   materialize-approved-logo:
-    if: ${{ !contains(github.event.head_commit.message || '', '[approved-logo-bootstrap-complete]') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message || '', '[run-approved-logo-bootstrap]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,78 +27,54 @@ jobs:
           fetch-depth: 0
           ref: fix/approved-official-logo-beta4-20260901
 
-      - name: Salvage and inspect staged transport
+      - name: Decode the exact approved JPEG transport
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t parts < <(find .bootstrap -maxdepth 1 -type f -name 'mccoy-logo-beta4-patch.b64.part*' | sort)
-          test "${#parts[@]}" -eq 20
-          for index in $(seq -w 0 18); do
-            test "$(wc -c < ".bootstrap/mccoy-logo-beta4-patch.b64.part${index}")" -eq 8000
+          mapfile -t parts < <(find .bootstrap -maxdepth 1 -type f -name 'approved-upload-original.b64.part*' | sort)
+          test "${#parts[@]}" -eq 11
+          for index in $(seq -w 0 09); do
+            test "$(wc -c < ".bootstrap/approved-upload-original.b64.part${index}")" -eq 12000
           done
-          test "$(wc -c < .bootstrap/mccoy-logo-beta4-patch.b64.part19)" -eq 7828
-          cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
-          sha256sum /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/transport-sha256.txt
+          test "$(wc -c < .bootstrap/approved-upload-original.b64.part10)" -eq 9064
+          cat "${parts[@]}" > /tmp/approved-upload-original.jpg.b64
+          echo '78959d28bbb3b8124431c2371a33a604e1436626bebe0fcc8155c362668ab20d  /tmp/approved-upload-original.jpg.b64' | sha256sum -c -
+          mkdir -p assets/brand
+          base64 --decode /tmp/approved-upload-original.jpg.b64 > assets/brand/approved-upload-original.jpg
+          echo '227203e1c0ab14a1aa400e6f0d1411a6512222a685589df92dac3f3c1633cd90  assets/brand/approved-upload-original.jpg' | sha256sum -c -
 
-          # The wrapper has a known CRC defect. Preserve every recoverable tar block;
-          # the exact JPEG and PNG checksums below remain the authority.
-          set +e
-          gzip -dc /tmp/mccoy-logo-beta4-patch.tar.gz > /tmp/mccoy-logo-beta4-patch.tar
-          gzip_status=$?
-          set -e
-          echo "gzip salvage status: ${gzip_status}"
-          test -s /tmp/mccoy-logo-beta4-patch.tar
-
-          set +e
-          tar --ignore-zeros -tf /tmp/mccoy-logo-beta4-patch.tar > /tmp/mccoy-logo-beta4-files.txt 2>/tmp/tar-list-errors.txt
-          tar_list_status=$?
-          tar --ignore-zeros -xf /tmp/mccoy-logo-beta4-patch.tar -C . 2>/tmp/tar-extract-errors.txt
-          tar_extract_status=$?
-          set -e
-          echo "tar list salvage status: ${tar_list_status}"
-          echo "tar extract salvage status: ${tar_extract_status}"
-          cat /tmp/mccoy-logo-beta4-files.txt
-          cat /tmp/tar-list-errors.txt || true
-          cat /tmp/tar-extract-errors.txt || true
-
-          if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/mccoy-logo-beta4-files.txt; then
-            echo 'Unsafe archive path detected.' >&2
-            exit 1
-          fi
-
-          test -f assets/brand/source-staging/official-logo-source-original.jpg.b64.part00
-          mapfile -t source_parts < <(find assets/brand/source-staging -maxdepth 1 -type f -name 'official-logo-source-original.jpg.b64.part*' | sort)
-          test "${#source_parts[@]}" -eq 7
-          for part in "${source_parts[@]}"; do test -s "$part"; done
-
-      - name: Materialize and verify approved source
+      - name: Materialize and verify the approved PNG source
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
-          if test -f scripts/materialize-approved-logo-source.py; then
-            python3 scripts/materialize-approved-logo-source.py
-          else
-            cat assets/brand/source-staging/official-logo-source-original.jpg.b64.part* | base64 --decode > assets/brand/approved-upload-original.jpg
-            python3 - <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
           from PIL import Image
+
           source = Path('assets/brand/approved-upload-original.jpg')
           target = Path('assets/brand/official-logo-source.png')
           with Image.open(source) as image:
               image.load()
+              if image.size != (1024, 1024):
+                  raise SystemExit(f'unexpected approved source dimensions: {image.size}')
               image.convert('RGB').save(target, format='PNG', optimize=True, compress_level=9)
-          target.with_suffix('.sha256').write_text(
+          Path('assets/brand/official-logo-source.sha256').write_text(
               'ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5  assets/brand/official-logo-source.png\n',
               encoding='utf-8',
           )
           PY
-          fi
+          echo 'ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5  assets/brand/official-logo-source.png' | sha256sum -c -
           python3 scripts/verify-approved-logo-source.py
-          python3 scripts/generate-field-coach-icons.py
-          node scripts/verify-png-content.mjs assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png assets/apple-touch-icon-180.png
 
-      - name: Run release contract tests
+      - name: Generate and inspect every logo derivative
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/generate-field-coach-icons.py
+          node scripts/verify-png-content.mjs assets/favicon-64.png assets/apple-touch-icon-180.png assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png
+
+      - name: Run beta 4 release contract tests
         shell: bash
         run: |
           set -euo pipefail
@@ -109,7 +84,7 @@ jobs:
           node --check scripts/build-webapp-download.mjs
           node --test mobile-release.test.mjs webapp-download.test.mjs app-update-recovery.test.mjs
 
-      - name: Remove transport and commit verified patch
+      - name: Remove temporary transport and commit the verified source
         shell: bash
         run: |
           set -euo pipefail
