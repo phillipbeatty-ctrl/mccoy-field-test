@@ -3,70 +3,61 @@ name: Apply service-role paywall guards
 on:
   push:
     branches:
-      - feat/organization-paywall-gate-20260831
+      - feat/paywall-phase2-webapp-download-20260901
     paths:
+      - 'scripts/paywall-targets.mjs'
       - 'scripts/apply-edge-paywall-guards.mjs'
-      - 'supabase/functions/_shared/organization-paywall.ts'
+      - 'paywall-phase2.test.mjs'
+      - 'supabase/functions/**'
       - '.github/workflows/apply-edge-paywall-guards.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: apply-paywall-guards-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   apply-guards:
+    if: github.actor == 'phillipbeatty-ctrl'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out current branch
+        uses: actions/checkout@v5
         with:
-          ref: feat/organization-paywall-gate-20260831
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
-      - uses: denoland/setup-deno@v2
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Apply deterministic guards
-        run: node scripts/apply-edge-paywall-guards.mjs
-      - name: Type-check shared guard
-        run: deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
-      - name: Parse every patched function
+
+      - name: Apply deterministic entitlement guards
+        run: node scripts/apply-edge-paywall-guards.mjs --write
+
+      - name: Verify repository-wide Phase 2 contract
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs
+          node --test organization-access-gate.test.mjs paywall-phase2.test.mjs
+
+      - name: Type-check shared guard and protected functions
         shell: bash
         run: |
           set -euo pipefail
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          for file in \
-            supabase/functions/accounting-records/index.ts \
-            supabase/functions/accounting-sales/index.ts \
-            supabase/functions/admin-session-history/index.ts \
-            supabase/functions/company-leaders/index.ts \
-            supabase/functions/compensation-settings/index.ts \
-            supabase/functions/field-analytics/index.ts \
-            supabase/functions/lead-admin/index.ts \
-            supabase/functions/lead-field-actions/index.ts \
-            supabase/functions/lead-geocode/index.ts \
-            supabase/functions/lead-map-address-search/index.ts \
-            supabase/functions/metrics-visibility/index.ts \
-            supabase/functions/pay-progress/index.ts \
-            supabase/functions/pending-account-access/index.ts \
-            supabase/functions/provider-reconcile/index.ts \
-            supabase/functions/provider-sale-capture/index.ts \
-            supabase/functions/rep-coach-summary/index.ts \
-            supabase/functions/sale-approvals/index.ts \
-            supabase/functions/sale-order-photo-pilot/index.ts \
-            supabase/functions/sale-order-photo/index.ts \
-            supabase/functions/sale-submit/index.ts \
-            supabase/functions/session-control/index.ts \
-            supabase/functions/spotio-import/index.ts
-          do
-            target="$temp_dir/$(basename "$(dirname "$file")").ts"
-            cp "$file" "$target"
-            deno fmt "$target" >/dev/null
+          deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
+          node -e "import('./scripts/paywall-targets.mjs').then(({edgePaywallTargets})=>console.log([...edgePaywallTargets.keys()].map(s=>'supabase/functions/'+s+'/index.ts').join('\n')))" | while IFS= read -r file; do
+            deno check --node-modules-dir=auto "$file"
           done
-      - name: Verify every target is guarded exactly once
-        run: node scripts/apply-edge-paywall-guards.mjs
+
       - name: Commit generated guards
         shell: bash
         run: |
@@ -77,6 +68,6 @@ jobs:
           fi
           git config user.name 'Field Coach Release Bot'
           git config user.email 'phillip.beatty@gmail.com'
-          git add supabase/functions
-          git commit -m 'Enforce organization paywall in service-role functions'
-          git push origin HEAD:feat/organization-paywall-gate-20260831
+          git add supabase/functions scripts/paywall-targets.mjs scripts/apply-edge-paywall-guards.mjs paywall-phase2.test.mjs
+          git commit -m 'Enforce Phase 2 organization entitlements in Edge Functions'
+          git push origin HEAD:${{ github.ref_name }}
