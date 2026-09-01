@@ -113,7 +113,7 @@ test('Admin pending-access refresh is view-scoped, idempotent, and guarded',()=>
 
 test('direct pending access page uses the authoritative endpoint without unattended refreshes',()=>{
   assert.match(pendingPage,/Pending Account Access/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083105/);
   assert.match(pendingController,/pending-account-access/);
   assert.match(pendingController,/action:'list'/);
   assert.match(pendingController,/grant_pending_account_access/);
