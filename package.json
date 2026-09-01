@@ -1,6 +1,6 @@
 {
   "name": "mccoy-field-test",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "private": true,
   "type": "module",
   "description": "Field Coach by McCoy Platform LLC for field sales, lead mapping, sessions, coaching, and sales operations.",
@@ -8,7 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "icons:generate": "python3 scripts/generate-field-coach-icons.py",
+    "icons:source:verify": "python3 scripts/verify-approved-logo-source.py",
+    "icons:generate": "npm run icons:source:verify && python3 scripts/generate-field-coach-icons.py",
     "icons:verify": "node scripts/verify-png-content.mjs assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png",
     "mobile:web": "node scripts/build-mobile-web.mjs",
     "mobile:doctor": "node scripts/mobile-release-doctor.mjs",
