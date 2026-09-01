@@ -2,6 +2,7 @@
 // Photos are bound only to a provider capture started and validated during the
 // current Sales Hub attempt, then moved onto the completed sale.
 (function(){
+  if(typeof window==='undefined'||typeof document==='undefined')return;
   if(window.MCCOY_SALE_PHOTO_STAGING)return;
   window.MCCOY_SALE_PHOTO_STAGING=true;
 
@@ -84,7 +85,7 @@
   }
 
   async function invoke(action,payload={}){
-    if(!window.sb?.functions?.invoke)throw new Error('McCoy connection is not ready.');
+    if(!window.sb?.functions?.invoke)throw new Error('Field Coach connection is not ready.');
     const {data,error}=await sb.functions.invoke('provider-sale-photo-stage',{body:{action,...payload}});
     if(error||!data?.ok){
       let detail=data?.detail||data?.error||error?.message||'photo_stage_request_failed';
@@ -129,7 +130,7 @@
       return;
     }
     if(!state.captureValidated){
-      state.lastMessage='McCoy is still securing this provider attempt. Wait for the provider dashboard, then press PHOTO again.';
+      state.lastMessage='Field Coach is still securing this provider attempt. Wait for the provider dashboard, then press PHOTO again.';
       renderStatus();
       return;
     }
@@ -241,7 +242,7 @@
   function captureFromEvent(event){return event?.detail?.capture||null;}
   function startCurrentAttempt(capture){
     state.capture=capture||null;state.captureStartedHere=!!capture;state.captureValidated=false;state.rows=[];
-    state.lastMessage='Provider attempt started. McCoy is securing it before PHOTO becomes available.';renderStatus();
+    state.lastMessage='Provider attempt started. Field Coach is securing it before PHOTO becomes available.';renderStatus();
   }
   function acceptValidatedCapture(capture){
     if(!capture?.id||!state.captureStartedHere||!sameCapture(capture,state.capture))return;

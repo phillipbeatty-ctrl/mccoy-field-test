@@ -12,15 +12,16 @@ const nativeBridge=await read('./mobile/mobile-native-bridge.js');
 const androidWorkflow=await read('./.github/workflows/mobile-android-internal.yml');
 const releaseDoc=await read('./APP_RELEASE.md');
 
-test('Capacitor 8 release toolchain is pinned and targets the McCoy bundle ID',()=>{
-  assert.equal(packageJson.version,'1.0.0-beta.1');
+test('Capacitor 8 release toolchain is pinned and keeps the stable bundle ID',()=>{
+  assert.equal(packageJson.name,'field-coach-app');
+  assert.equal(packageJson.version,'1.0.0-beta.2');
   assert.equal(packageJson.engines.node,'>=22');
   assert.equal(packageJson.dependencies['@capacitor/core'],'8.5.0');
   assert.equal(packageJson.dependencies['@capacitor/android'],'8.5.0');
   assert.equal(packageJson.dependencies['@capacitor/ios'],'8.5.0');
   assert.equal(packageJson.devDependencies['@capacitor/cli'],'8.5.0');
   assert.equal(capacitorConfig.appId,'com.mccoyplatform.app');
-  assert.equal(capacitorConfig.appName,'McCoy');
+  assert.equal(capacitorConfig.appName,'Field Coach');
   assert.equal(capacitorConfig.webDir,'mobile-web');
 });
 
@@ -29,9 +30,19 @@ test('store build uses bundled web assets rather than a remote production WebVie
   assert.equal(capacitorConfig.server?.allowNavigation,undefined);
   assert.match(webBuilder,/mobile-web/);
   assert.match(webBuilder,/mobile-native-bridge\.js/);
+  assert.match(webBuilder,/app_name:'Field Coach'/);
+  assert.match(webBuilder,/version:'1\.0\.0-beta\.2'/);
   assert.match(webBuilder,/injectNativeBridge/);
   assert.match(releaseDoctor,/server\.url is not allowed/);
   assert.match(releaseDoctor,/allowNavigation is not allowed/);
+});
+
+test('Android and Apple native projects enforce the Field Coach display name',()=>{
+  assert.match(nativeConfigurator,/const productName='Field Coach'/);
+  assert.match(nativeConfigurator,/app_name/);
+  assert.match(nativeConfigurator,/CFBundleDisplayName/);
+  assert.match(nativeConfigurator,/CURRENT_PROJECT_VERSION = 2/);
+  assert.match(nativeConfigurator,/versionCode='2'/);
 });
 
 test('Android release enforces API 36, foreground location, camera, and no cleartext traffic',()=>{
@@ -53,7 +64,7 @@ test('native bridge handles lifecycle without unattended reloads or polling',()=
   assert.doesNotMatch(nativeBridge,/setInterval/);
 });
 
-test('Android CI builds an installable debug APK and unsigned release AAB',()=>{
+test('Android CI builds an installable Field Coach debug APK and unsigned release AAB',()=>{
   assert.match(androidWorkflow,/actions\/checkout@v5/);
   assert.match(androidWorkflow,/actions\/setup-node@v5/);
   assert.match(androidWorkflow,/actions\/setup-java@v5/);
@@ -66,12 +77,13 @@ test('Android CI builds an installable debug APK and unsigned release AAB',()=>{
   assert.match(androidWorkflow,/assembleDebug/);
   assert.match(androidWorkflow,/bundleRelease/);
   assert.match(androidWorkflow,/upload-artifact@v4/);
-  assert.match(androidWorkflow,/McCoy-Android-\$\{APP_VERSION\}-debug\.apk/);
-  assert.match(androidWorkflow,/McCoy-Android-\$\{APP_VERSION\}-unsigned\.aab/);
+  assert.match(androidWorkflow,/Field-Coach-Android-\$\{APP_VERSION\}-debug\.apk/);
+  assert.match(androidWorkflow,/Field-Coach-Android-\$\{APP_VERSION\}-unsigned\.aab/);
 });
 
 test('release documentation distinguishes internal beta from store release',()=>{
-  assert.match(releaseDoc,/1\.0\.0-beta\.1/);
+  assert.match(releaseDoc,/Field Coach app release status/);
+  assert.match(releaseDoc,/1\.0\.0-beta\.2/);
   assert.match(releaseDoc,/debug APK/i);
   assert.match(releaseDoc,/unsigned AAB/i);
   assert.match(releaseDoc,/not a public Play Store release/i);

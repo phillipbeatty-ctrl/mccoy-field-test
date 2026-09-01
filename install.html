@@ -6,20 +6,20 @@
   <meta name="theme-color" content="#111827">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="McCoy">
-  <title>Install McCoy</title>
+  <meta name="apple-mobile-web-app-title" content="Field Coach">
+  <title>Install Field Coach</title>
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/mccoy-app-icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/mccoy-app-icon.svg">
+  <link rel="icon" href="/field-coach-app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/field-coach-app-icon.svg">
   <style>
     *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f4f6;color:#111827;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.card{width:min(620px,calc(100% - 32px));background:#fff;border-radius:20px;padding:28px;box-shadow:0 18px 60px #0002}.brand{display:flex;align-items:center;gap:16px}.brand img{width:76px;height:76px}.brand h1{margin:0}.muted{color:#4b5563}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}button,a{border:0;border-radius:11px;padding:12px 16px;font-weight:800;text-decoration:none;cursor:pointer}.primary{background:#111827;color:#fff}.secondary{background:#fbbf24;color:#111827}.steps{padding-left:22px}.status{margin-top:14px;padding:12px;border-radius:10px;background:#f3f4f6}.hidden{display:none}
   </style>
 </head>
 <body>
   <main class="card">
-    <div class="brand"><img src="/mccoy-app-icon.svg" alt=""><div><h1>Install McCoy</h1><div class="muted">Lead mapping, field sessions, assignments, coaching, and sales operations.</div></div></div>
-    <p>Install McCoy as a standalone app. It uses the same secure production login, permissions, assignments, and live database as the web version.</p>
-    <div class="actions"><button id="installBtn" class="primary" disabled>INSTALL MCCOY APP</button><a class="secondary" href="/">OPEN MCCOY</a></div>
+    <div class="brand"><img src="/field-coach-app-icon.svg" alt="Field Coach icon"><div><h1>Install Field Coach</h1><div class="muted">Lead mapping, field sessions, assignments, coaching, and sales operations.</div></div></div>
+    <p>Install Field Coach as a standalone app. It uses the same secure production login, permissions, assignments, and live database as the web version.</p>
+    <div class="actions"><button id="installBtn" class="primary" disabled>INSTALL FIELD COACH</button><a class="secondary" href="/">OPEN FIELD COACH</a></div>
     <div id="status" class="status">Preparing the secure app installer…</div>
     <section id="iosHelp" class="hidden"><h2>Install on iPhone or iPad</h2><ol class="steps"><li>Open this page in Safari.</li><li>Tap the Share button.</li><li>Choose <strong>Add to Home Screen</strong>.</li><li>Tap <strong>Add</strong>.</li></ol></section>
   </main>
@@ -29,10 +29,10 @@
     const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
     const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
     if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(error=>{status.textContent='The app installer could not start: '+error.message;});
-    if(standalone){status.textContent='McCoy is already installed on this device.';button.textContent='ALREADY INSTALLED';}
+    if(standalone){status.textContent='Field Coach is already installed on this device.';button.textContent='ALREADY INSTALLED';}
     else if(ios){status.textContent='Use Safari’s Add to Home Screen command.';iosHelp.classList.remove('hidden');button.style.display='none';}
-    addEventListener('beforeinstallprompt',event=>{event.preventDefault();promptEvent=event;button.disabled=false;status.textContent='McCoy is ready to install.';});
-    addEventListener('appinstalled',()=>{promptEvent=null;button.disabled=true;button.textContent='INSTALLED';status.textContent='McCoy was installed successfully.';});
+    addEventListener('beforeinstallprompt',event=>{event.preventDefault();promptEvent=event;button.disabled=false;status.textContent='Field Coach is ready to install.';});
+    addEventListener('appinstalled',()=>{promptEvent=null;button.disabled=true;button.textContent='INSTALLED';status.textContent='Field Coach was installed successfully.';});
     button.addEventListener('click',async()=>{if(!promptEvent)return;button.disabled=true;await promptEvent.prompt();const choice=await promptEvent.userChoice.catch(()=>null);status.textContent=choice?.outcome==='accepted'?'Installation started.':'Installation was canceled.';promptEvent=null;});
     setTimeout(()=>{if(!standalone&&!ios&&!promptEvent)status.textContent='Open this page in Chrome, Edge, or another install-capable browser, then use the browser menu’s Install App command.';},2500);
   </script>

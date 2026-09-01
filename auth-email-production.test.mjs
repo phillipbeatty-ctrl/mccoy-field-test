@@ -15,6 +15,7 @@ const confirmController=await read('./confirm-email.js');
 const pendingPage=await read('./pending-access.html');
 const pendingController=await read('./pending-access.js');
 const activator=await read('./scripts/configure-production-auth-email.mjs');
+const brandUpdater=await read('./scripts/apply-field-coach-auth-brand.mjs');
 const workflow=await read('./.github/workflows/configure-production-auth-email.yml');
 
 
@@ -34,8 +35,10 @@ test('Admin resend requires production SMTP and records rate-limited audit event
   assert.match(pendingFunction,/delivery_webhook_active/);
 });
 
-test('public resend is enumeration-safe and audited',()=>{
-  assert.match(publicResend,/If this address has an unconfirmed McCoy account/);
+test('public resend is enumeration-safe, Field Coach branded, and audited',()=>{
+  assert.match(publicResend,/If this address has an unconfirmed Field Coach account/);
+  assert.match(publicResend,/Field Coach production confirmation email is not active/);
+  assert.doesNotMatch(publicResend,/unconfirmed McCoy account/);
   assert.match(publicResend,/production_smtp_not_active/);
   assert.match(publicResend,/event_type:'confirmation_requested'/);
   assert.match(publicResend,/public_confirmation_page/);
@@ -57,7 +60,7 @@ test('confirmation page requires a user action, isolates Auth state, and never r
   assert.match(confirmPage,/The token is not consumed merely by opening this page/);
   assert.match(confirmPage,/confirmEmailContinuePanel/);
   assert.match(confirmPage,/This page will not redirect or refresh automatically/);
-  assert.match(confirmPage,/confirm-email\.js\?v=2026083104/);
+  assert.match(confirmPage,/confirm-email\.js\?v=2026083105/);
   assert.match(confirmController,/confirmLinkButton\.addEventListener\('click',confirmTokenHash\)/);
   assert.match(confirmController,/verifyOtp\(\{token_hash:tokenHash/);
   assert.match(confirmController,/verifyOtp\(\{email,token,type:'signup'\}/);
@@ -83,7 +86,7 @@ test('signup fails closed until public production-mail readiness is true',()=>{
 
 test('Pending Account Access shows provider readiness without unattended refreshes',()=>{
   assert.match(pendingPage,/pendingMailStatus/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083105/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
   assert.match(pendingController,/pendingDeliveryLabel/);
   assert.match(pendingController,/production_ready/);
@@ -94,7 +97,7 @@ test('Pending Account Access shows provider readiness without unattended refresh
   assert.doesNotMatch(pendingController,/visibilitychange/);
 });
 
-test('activation workflow enforces verified domain, DMARC, production redirects, and secret separation',()=>{
+test('activation workflow enforces verified domain, DMARC, production redirects, and Field Coach branding',()=>{
   assert.match(activator,/smtp\.resend\.com/);
   assert.match(activator,/smtp_port:'465'/);
   assert.doesNotMatch(activator,/smtp_port:465/);
@@ -105,10 +108,14 @@ test('activation workflow enforces verified domain, DMARC, production redirects,
   assert.match(activator,/No DMARC TXT record/);
   assert.match(activator,/domain.*verified/is);
   assert.match(activator,/fresh_confirmations_requested/);
+  assert.match(brandUpdater,/Confirm your Field Coach email address/);
+  assert.match(brandUpdater,/confirmation_emails_sent:0/);
   assert.match(workflow,/SUPABASE_ACCESS_TOKEN/);
   assert.match(workflow,/SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(workflow,/RESEND_API_KEY/);
   assert.match(workflow,/MCCOY_AUTH_FROM_EMAIL/);
+  assert.match(workflow,/default: Field Coach/);
+  assert.match(workflow,/apply-field-coach-auth-brand\.mjs/);
   assert.match(workflow,/--env-file/);
   assert.doesNotMatch(activator,/console\.log\([^\n]*RESEND_API_KEY/);
 });

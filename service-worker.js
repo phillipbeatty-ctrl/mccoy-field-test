@@ -1,7 +1,7 @@
-const VERSION='mccoy-app-shell-v1-20260831-auth-email';
-const SHELL=['/','/offline.html','/styles.css','/manifest.webmanifest','/mccoy-app-icon.svg','/confirm-email.html','/pending-access.html'];
+const VERSION='field-coach-app-shell-v2-20260831-brand';
+const SHELL=['/','/offline.html','/styles.css','/manifest.webmanifest','/field-coach-app-icon.svg','/app-branding.js','/confirm-email.html','/pending-access.html'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));});
-self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('mccoy-app-shell-')&&key!==VERSION).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
+self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>(key.startsWith('mccoy-app-shell-')||key.startsWith('field-coach-app-shell-'))&&key!==VERSION).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
   const request=event.request;
   if(request.method!=='GET')return;

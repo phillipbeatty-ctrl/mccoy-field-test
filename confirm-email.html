@@ -3,22 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Confirm McCoy Email</title>
+  <title>Confirm Field Coach Email</title>
   <link rel="stylesheet" href="styles.css?v=2026083103">
+  <link rel="icon" href="/field-coach-app-icon.svg" type="image/svg+xml">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <main class="main" style="max-width:760px;margin:0 auto;padding:24px">
     <header class="topbar" style="position:static;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
-        <h1>Confirm your McCoy email</h1>
-        <div class="muted">Complete email ownership verification before signing in to McCoy.</div>
+        <h1>Confirm your Field Coach email</h1>
+        <div class="muted">Complete email ownership verification before signing in to Field Coach.</div>
       </div>
-      <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">BACK TO MCCOY</a>
+      <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">BACK TO FIELD COACH</a>
     </header>
 
     <section class="card">
-      <div id="confirmEmailProvider" class="geo-box">Checking McCoy email delivery status…</div>
+      <div id="confirmEmailProvider" class="geo-box">Checking Field Coach email delivery status…</div>
       <div id="confirmEmailMessage" class="muted" role="status" aria-live="polite" style="margin-top:12px"></div>
 
       <div id="confirmEmailLinkPanel" hidden style="margin-top:16px">
@@ -30,12 +31,12 @@
       <div id="confirmEmailContinuePanel" hidden style="margin-top:16px;padding:14px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4">
         <strong>Email ownership verified.</strong>
         <p class="muted small">This page will not redirect or refresh automatically. Continue only when you are ready.</p>
-        <a id="confirmEmailContinueLink" href="/" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">CONTINUE TO MCCOY</a>
+        <a id="confirmEmailContinueLink" href="/" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">CONTINUE TO FIELD COACH</a>
       </div>
 
       <div id="confirmEmailOtpPanel" style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
         <h2>Enter a confirmation code</h2>
-        <p class="muted small">Use this when the McCoy email contains a six-digit confirmation code.</p>
+        <p class="muted small">Use this when the Field Coach email contains a six-digit confirmation code.</p>
         <input id="confirmEmailAddress" type="email" autocomplete="email" placeholder="Email address" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
         <input id="confirmEmailCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Confirmation code" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
         <button id="confirmEmailCodeButton" class="primary">VERIFY CODE</button>
@@ -43,12 +44,12 @@
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
         <h2>Need a new confirmation?</h2>
-        <p class="muted small">A fresh link can be sent only when McCoy's verified production email provider is active.</p>
+        <p class="muted small">A fresh link can be sent only when Field Coach's verified production email provider is active.</p>
         <input id="confirmEmailResendAddress" type="email" autocomplete="email" placeholder="Email address" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
         <button id="confirmEmailResendButton" class="assign-btn" disabled>RESEND CONFIRMATION</button>
       </div>
     </section>
   </main>
-  <script src="confirm-email.js?v=2026083104"></script>
+  <script src="confirm-email.js?v=2026083105"></script>
 </body>
 </html>

@@ -49,7 +49,7 @@ async function confirmSuccess(session){
   await confirmAudit(session);
   const email=session?.user?.email||'';
   const next=confirmSafeNext(new URLSearchParams(location.search).get('next'));
-  confirmSetMessage(`Email confirmed${email?` for ${email}`:''}. Continue to McCoy when you are ready.`,true);
+  confirmSetMessage(`Email confirmed${email?` for ${email}`:''}. Continue to Field Coach when you are ready.`,true);
   confirmLinkPanel.hidden=true;
   confirmContinueLink.href=next;
   confirmContinuePanel.hidden=false;
@@ -62,7 +62,7 @@ async function confirmProviderStatus(){
     confirmMailReady=data.production_ready===true;
     confirmResendButton.disabled=!confirmMailReady;
     if(data.fully_observable){
-      confirmProvider.textContent=`Production email active · ${data.sender_name||'McCoy'} <${data.sender_email}> · delivery tracking active`;
+      confirmProvider.textContent=`Production email active · ${data.sender_name||'Field Coach'} <${data.sender_email}> · delivery tracking active`;
       confirmProvider.style.borderColor='#86efac';
       confirmProvider.style.background='#f0fdf4';
     }else if(confirmMailReady){
@@ -127,7 +127,7 @@ async function confirmCode(){
 }
 async function confirmResend(){
   if(confirmBusy)return;
-  if(!confirmMailReady){confirmSetMessage('McCoy production email is not active, so a resend was not attempted.');return;}
+  if(!confirmMailReady){confirmSetMessage('Field Coach production email is not active, so a resend was not attempted.');return;}
   const email=confirmById('confirmEmailResendAddress').value.trim().toLowerCase();
   if(!email){confirmSetMessage('Enter the email address that needs confirmation.');return;}
   confirmBusy=true;
@@ -167,7 +167,7 @@ confirmResendButton.addEventListener('click',confirmResend);
   }
   if(params.get('confirmed')==='1'){
     confirmContinuePanel.hidden=false;
-    confirmSetMessage('Email ownership was verified. Continue to McCoy when you are ready.',true);
+    confirmSetMessage('Email ownership was verified. Continue to Field Coach when you are ready.',true);
     return;
   }
   const errorDescription=params.get('error_description')||params.get('error');

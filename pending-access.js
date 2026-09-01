@@ -30,11 +30,11 @@ function pendingStatus(account){
   if(account.waiting_for_email_confirmation)return'Email not confirmed';
   if(account.request?.status==='pending')return'Approval requested';
   if(account.access_state==='access_inactive')return'Access inactive';
-  if(account.access_state==='no_access_record')return'McCoy access not created';
+  if(account.access_state==='no_access_record')return'Field Coach access not created';
   return'Admin attention required';
 }
 function pendingDeliveryLabel(delivery){
-  if(!delivery)return'No McCoy delivery event recorded';
+  if(!delivery)return'No Field Coach delivery event recorded';
   const labels={
     accepted_by_auth:'Accepted by Auth; awaiting provider event',
     sent:'Sent by provider',
@@ -68,14 +68,14 @@ async function pendingInvoke(functionName,body){
 }
 async function pendingVerifyAdmin(){
   const {data:{user},error:userError}=await pendingClient.auth.getUser();
-  if(userError||!user?.email)throw new Error(userError?.message||'No signed-in McCoy Admin session was found.');
+  if(userError||!user?.email)throw new Error(userError?.message||'No signed-in Field Coach Admin session was found.');
   const email=user.email.trim().toLowerCase();
   const {data:access,error:accessError}=await pendingClient.from('app_user_access')
     .select('email,display_name,role,active')
     .eq('email',email)
     .maybeSingle();
   if(accessError)throw accessError;
-  if(!access?.active||access.role!=='admin')throw new Error('Active McCoy Admin access is required.');
+  if(!access?.active||access.role!=='admin')throw new Error('Active Field Coach Admin access is required.');
   return{user,access};
 }
 function pendingElement(tag,text,className){
@@ -92,7 +92,7 @@ function pendingActionButton(text,className='assign-btn'){
 function pendingRenderMailConfiguration(configuration){
   pendingMailConfiguration=configuration||{};
   if(configuration?.fully_observable){
-    pendingMailStatus.textContent=`Production email active · ${configuration.sender_name||'McCoy'} <${configuration.sender_email}> · delivery tracking active`;
+    pendingMailStatus.textContent=`Production email active · ${configuration.sender_name||'Field Coach'} <${configuration.sender_email}> · delivery tracking active`;
     pendingMailStatus.style.borderColor='#86efac';
     pendingMailStatus.style.background='#f0fdf4';
   }else if(configuration?.production_ready){
@@ -135,7 +135,7 @@ function pendingRenderAccount(account){
   details.appendChild(pendingElement('span',`Email confirmed: ${account.email_confirmed_at?pendingDate(account.email_confirmed_at):'No'}`));
   details.appendChild(pendingElement('span',`Last authentication: ${pendingDate(account.last_sign_in_at)}`));
   details.appendChild(pendingElement('span',`Access request: ${account.request?.status||'Not submitted'}`));
-  details.appendChild(pendingElement('span',`McCoy access: ${account.access_active?'Already granted':'Not active'}`));
+  details.appendChild(pendingElement('span',`Field Coach access: ${account.access_active?'Already granted':'Not active'}`));
   const deliveryLine=pendingElement('strong',`Delivery: ${pendingDeliveryLabel(account.delivery)}`);
   deliveryLine.style.color=['bounced','failed','complained','suppressed'].includes(account.delivery?.status)?'#991b1b':'#374151';
   details.appendChild(deliveryLine);

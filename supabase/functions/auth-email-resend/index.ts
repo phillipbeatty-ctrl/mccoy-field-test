@@ -17,7 +17,7 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{
 const genericAccepted=()=>json({
   ok:true,
   accepted:true,
-  detail:'If this address has an unconfirmed McCoy account, a fresh confirmation was requested. Check inbox, spam, and junk.'
+  detail:'If this address has an unconfirmed Field Coach account, a fresh confirmation was requested. Check inbox, spam, and junk.'
 })
 
 async function listAllAuthUsers(admin){
@@ -128,7 +128,7 @@ Deno.serve(async request=>{
     if(!settings.production_ready){
       return json({
         error:'production_smtp_not_active',
-        detail:'McCoy production confirmation email is not active. No resend was attempted.'
+        detail:'Field Coach production confirmation email is not active. No resend was attempted.'
       },503)
     }
     if(!(await enforceRateLimit(admin,organizationId,email)))return genericAccepted()

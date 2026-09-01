@@ -4,7 +4,7 @@
     sales:'Sales Hub',
     field:'Sales, door knocking, pay progress, and field coaching',
     'customer-list':'Approved customer sales and Admin review controls',
-    teams:'McCoy Team-members',
+    teams:'Field Coach team members',
     leads:'Lead dispositioning & Tracking',
     settings:''
   };
@@ -56,7 +56,9 @@
   function reorderNav(){const nav=document.querySelector('.sidebar nav');if(!nav)return;['dashboard','field','customer-list','teams','leads'].forEach(view=>{const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);if(btn)nav.appendChild(btn);});moveImportButtonToSidebar();const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');if(systemBtn)nav.appendChild(systemBtn);}
   function bindHeaders(){document.querySelectorAll('.nav-btn').forEach(btn=>{if(btn.dataset.mccoyPageHeaderBound==='1')return;btn.dataset.mccoyPageHeaderBound='1';btn.addEventListener('click',()=>setTimeout(()=>setPageHeader(btn.dataset.view,btn.textContent.trim()),0));});}
   function loadSaleLifecycle(){
+    // Load the product-brand controller before late feature modules so newly rendered UI uses Field Coach immediately.
     for(const src of [
+      'app-branding.js?v=2026083101',
       'app-sale-lifecycle.js?v=2026082801',
       'app-sales-hub-layout.js?v=2026082803',
       'app-sales-hub-fieldcoach-workday-layout.js?v=2026082803',

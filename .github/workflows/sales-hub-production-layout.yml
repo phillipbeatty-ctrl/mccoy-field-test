@@ -1,41 +1,78 @@
-name: Production Sales Hub layout
+name: Sales Hub Production Layout
 
 on:
   push:
-    branches:
-      - fix/production-sales-hub-wide-door-20260828
-      - fix/production-sales-hub-photo-closest-20260828
-      - promote/preview-sales-hub-layouts-20260828
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'app-page-layout.js'
+      - 'app-sales-hub-layout.js'
+      - 'app-sales-hub-fieldcoach-workday-layout.js'
+      - 'app-sales-hub-production-layout.js'
+      - 'app-sph-presence.js'
+      - 'app-sale-photo-staging.js'
+      - 'app-closest-lead-autofill-v2.js'
+      - 'app-sales-to-complete.js'
+      - 'app-sale-order-photo-admin.js'
+      - 'app-admin-session-history.js'
+      - 'app-live-wins.js'
+      - 'app-provider-sale-router.js'
+      - 'app-sales.js'
+      - 'app-unified-sales-hub.js'
+      - 'app-lead-map.js'
+      - 'app-lead-pool-layout.js'
+      - 'app-rep-dashboard.js'
+      - 'sales-hub-production-layout.test.mjs'
+      - 'sales-hub-preview-layout-promotion.test.mjs'
+      - 'sales-hub-production-photo-closest.test.mjs'
+      - '.github/workflows/sales-hub-production-layout.yml'
   pull_request:
     paths:
-      - app-sales-hub-layout.js
-      - app-sales-hub-fieldcoach-workday-layout.js
-      - app-sph-presence.js
-      - app-page-layout.js
-      - app-sale-photo-staging.js
-      - app-closest-lead-autofill-v2.js
-      - vercel.json
-      - sales-hub-production-layout.test.mjs
-      - sales-hub-preview-layout-promotion.test.mjs
-      - sales-hub-production-photo-closest.test.mjs
-      - .github/workflows/sales-hub-production-layout.yml
-  workflow_dispatch:
+      - 'index.html'
+      - 'app-page-layout.js'
+      - 'app-sales-hub-layout.js'
+      - 'app-sales-hub-fieldcoach-workday-layout.js'
+      - 'app-sales-hub-production-layout.js'
+      - 'app-sph-presence.js'
+      - 'app-sale-photo-staging.js'
+      - 'app-closest-lead-autofill-v2.js'
+      - 'app-sales-to-complete.js'
+      - 'app-sale-order-photo-admin.js'
+      - 'app-admin-session-history.js'
+      - 'app-live-wins.js'
+      - 'app-provider-sale-router.js'
+      - 'app-sales.js'
+      - 'app-unified-sales-hub.js'
+      - 'app-lead-map.js'
+      - 'app-lead-pool-layout.js'
+      - 'app-rep-dashboard.js'
+      - 'sales-hub-production-layout.test.mjs'
+      - 'sales-hub-preview-layout-promotion.test.mjs'
+      - 'sales-hub-production-photo-closest.test.mjs'
+      - '.github/workflows/sales-hub-production-layout.yml'
 
 permissions:
   contents: read
 
 jobs:
-  contract:
+  verify-production-sales-hub-layout:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify checked-out source
+        run: |
+          echo "checked_out=$(git rev-parse HEAD)"
+          echo "expected=${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: node --check app-sales-hub-layout.js
-      - run: node --check app-sales-hub-fieldcoach-workday-layout.js
-      - run: node --check app-sph-presence.js
-      - run: node --check app-page-layout.js
-      - run: node --check app-sale-photo-staging.js
-      - run: node --check app-closest-lead-autofill-v2.js
-      - run: node --test sales-hub-production-layout.test.mjs sales-hub-preview-layout-promotion.test.mjs sales-hub-production-photo-closest.test.mjs
+          node-version: '22'
+      - name: Verify production Sales Hub layout
+        run: node --test sales-hub-production-layout.test.mjs
+      - name: Verify Field Coach placement and workday layout
+        run: node --test sales-hub-preview-layout-promotion.test.mjs
+      - name: Verify photo staging and closest-lead controls
+        run: node --test sales-hub-production-photo-closest.test.mjs
