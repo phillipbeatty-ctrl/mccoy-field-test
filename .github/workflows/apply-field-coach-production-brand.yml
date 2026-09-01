@@ -1,0 +1,60 @@
+name: Apply Field Coach Production Brand
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/apply-field-coach-auth-brand.mjs'
+      - 'scripts/configure-production-auth-email.mjs'
+      - 'app-branding.js'
+      - 'manifest.webmanifest'
+      - 'capacitor.config.json'
+      - '.github/workflows/apply-field-coach-production-brand.yml'
+      - '.github/workflows/configure-production-auth-email.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: field-coach-production-brand
+  cancel-in-progress: false
+
+jobs:
+  apply-brand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      FIELD_COACH_BRAND_RESULT_FILE: /tmp/field-coach-production-brand.json
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install application dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify protected production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+          test -n "${SUPABASE_SERVICE_ROLE_KEY:-}"
+
+      - name: Apply Field Coach Auth and organization display branding
+        run: node scripts/apply-field-coach-auth-brand.mjs
+
+      - name: Publish non-secret branding evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: field-coach-production-brand
+          path: /tmp/field-coach-production-brand.json
+          if-no-files-found: error
+          retention-days: 30
