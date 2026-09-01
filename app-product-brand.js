@@ -1,8 +1,10 @@
 // Field Coach product identity. McCoy Platform LLC remains the legal company name.
 (()=>{
+  if(globalThis.__fieldCoachProductBrandInstalled)return;
+  globalThis.__fieldCoachProductBrandInstalled=true;
+
   const PRODUCT='Field Coach';
   const LEGAL='McCoy Platform LLC';
-  document.title=PRODUCT;
   const replacements=new Map([
     ['McCoy Field Coach V9.2',PRODUCT],
     ['Create McCoy Field Coach Account',`Create ${PRODUCT} Account`],
@@ -10,14 +12,24 @@
     ['Unified McCoy Field Coach and Sales platform is connected and ready for testing.',`${PRODUCT} is connected and ready for testing.`]
   ]);
 
+  function replaceTextNode(node){
+    const current=node.nodeValue?.trim();
+    const replacement=replacements.get(current);
+    if(!replacement)return;
+    const next=node.nodeValue.replace(current,replacement);
+    if(next!==node.nodeValue)node.nodeValue=next;
+  }
+
   function normalizeText(root=document){
+    if(root?.nodeType===Node.TEXT_NODE){
+      replaceTextNode(root);
+      return;
+    }
+    if(!root)return;
     const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
     const nodes=[];
     while(walker.nextNode())nodes.push(walker.currentNode);
-    for(const node of nodes){
-      const replacement=replacements.get(node.nodeValue?.trim());
-      if(replacement)node.nodeValue=node.nodeValue.replace(node.nodeValue.trim(),replacement);
-    }
+    for(const node of nodes)replaceTextNode(node);
   }
 
   function ensureAuthBrand(){
@@ -30,12 +42,11 @@
   }
 
   function apply(){
-    document.title=PRODUCT;
+    if(document.title!==PRODUCT)document.title=PRODUCT;
     const title=document.getElementById('pageTitle');
     if(title&&/McCoy Platform|McCoy Field Coach/i.test(title.textContent||''))title.textContent=PRODUCT;
     const brandTitle=document.querySelector('.sidebar .brand-title');
-    if(brandTitle)brandTitle.textContent=PRODUCT;
-    normalizeText(document);
+    if(brandTitle&&(brandTitle.textContent||'').trim()!==PRODUCT)brandTitle.textContent=PRODUCT;
     ensureAuthBrand();
   }
 
@@ -49,6 +60,28 @@
     .sidebar .brand>.logo img{display:block;width:100%;height:100%;object-fit:cover}
   `;
   document.head.appendChild(style);
-  new MutationObserver(apply).observe(document.documentElement,{subtree:true,childList:true});
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
+
+  let scheduled=false;
+  function scheduleApply(){
+    if(scheduled)return;
+    scheduled=true;
+    queueMicrotask(()=>{
+      scheduled=false;
+      apply();
+    });
+  }
+
+  const observer=new MutationObserver(records=>{
+    for(const record of records){
+      for(const node of record.addedNodes)normalizeText(node);
+    }
+    scheduleApply();
+  });
+  observer.observe(document.documentElement,{subtree:true,childList:true});
+
+  const initialize=()=>{
+    normalizeText(document);
+    apply();
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
