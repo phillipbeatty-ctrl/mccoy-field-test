@@ -9,6 +9,8 @@ const PROD_SITE_URL='https://mccoy-field-test.vercel.app';
 const PROD_CONFIRM_URL=`${PROD_SITE_URL}/confirm-email.html`;
 const WEBHOOK_ENDPOINT=`${SUPABASE_URL}/functions/v1/auth-email-provider-webhook`;
 const ORGANIZATION_SLUG='mccoy-platform-llc';
+const PRODUCT_NAME='Field Coach';
+const LEGAL_NAME='McCoy Platform LLC';
 const WEBHOOK_EVENTS=[
   'email.sent',
   'email.delivered',
@@ -139,12 +141,13 @@ async function prepare(){
 
 function confirmationTemplate(){
   return [
-    '<h2>Confirm your McCoy email address</h2>',
-    '<p>Confirm this email address to finish creating your McCoy account.</p>',
+    `<h2>Confirm your ${PRODUCT_NAME} email address</h2>`,
+    `<p>Confirm this email address to finish creating your ${PRODUCT_NAME} account.</p>`,
     '<p><a href="{{ .SiteURL }}/confirm-email.html?token_hash={{ .TokenHash }}&type=email&next=/">Confirm email address</a></p>',
-    '<p>Or enter this one-time code on the McCoy confirmation page:</p>',
+    `<p>Or enter this one-time code on the ${PRODUCT_NAME} confirmation page:</p>`,
     '<p style="font-size:24px;font-weight:700;letter-spacing:4px">{{ .Token }}</p>',
-    '<p>This confirmation is single-use. McCoy will never ask you to send this code to another person.</p>'
+    `<p>This confirmation is single-use. ${PRODUCT_NAME} will never ask you to send this code to another person.</p>`,
+    `<p style="font-size:12px;color:#6b7280">${PRODUCT_NAME} is operated by ${LEGAL_NAME}.</p>`
   ].join('');
 }
 async function listAllUsers(client){
@@ -160,7 +163,7 @@ async function listAllUsers(client){
 }
 async function activate(){
   const fromEmail=lower(required('MCCOY_AUTH_FROM_EMAIL'));
-  const senderName=String(process.env.MCCOY_AUTH_SENDER_NAME||'McCoy Platform').trim()||'McCoy Platform';
+  const senderName=String(process.env.MCCOY_AUTH_SENDER_NAME||PRODUCT_NAME).trim()||PRODUCT_NAME;
   const serviceRole=required('SUPABASE_SERVICE_ROLE_KEY');
   const context=JSON.parse(await readFile(CONTEXT_FILE,'utf8'));
   if(context.sender_email!==fromEmail)throw new Error('Prepared sender does not match MCCOY_AUTH_FROM_EMAIL.');
@@ -177,7 +180,7 @@ async function activate(){
     smtp_port:'465',
     smtp_user:'resend',
     smtp_pass:required('RESEND_API_KEY'),
-    mailer_subjects_confirmation:'Confirm your McCoy email address',
+    mailer_subjects_confirmation:`Confirm your ${PRODUCT_NAME} email address`,
     mailer_templates_confirmation_content:confirmationTemplate()
   };
   await managementRequest(`/v1/projects/${PROJECT_REF}/config/auth`,{method:'PATCH',body:authConfig});
@@ -186,6 +189,8 @@ async function activate(){
   if(!String(verifiedConfig.uri_allow_list||'').includes(PROD_CONFIRM_URL))throw new Error('Supabase redirect allow-list verification failed after activation.');
   if(String(verifiedConfig.smtp_host||'')!=='smtp.resend.com')throw new Error('Supabase custom SMTP verification failed after activation.');
   if(String(verifiedConfig.smtp_port||'')!=='465')throw new Error('Supabase SMTP port verification failed after activation.');
+  if(String(verifiedConfig.smtp_sender_name||'')!==PRODUCT_NAME)throw new Error('Supabase Field Coach sender-name verification failed after activation.');
+  if(String(verifiedConfig.mailer_subjects_confirmation||'')!==`Confirm your ${PRODUCT_NAME} email address`)throw new Error('Supabase Field Coach confirmation-subject verification failed after activation.');
 
   const admin=createClient(SUPABASE_URL,serviceRole,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:organization,error:organizationError}=await admin.from('organizations')
@@ -209,7 +214,7 @@ async function activate(){
     custom_smtp_activated_at:activatedAt,
     webhook_configured_at:activatedAt,
     last_verified_at:activatedAt,
-    verification_detail:'Resend SMTP and production Auth URLs activated. Waiting for the first signed provider delivery event.',
+    verification_detail:`Resend SMTP and ${PRODUCT_NAME} production Auth URLs activated. Waiting for the first signed provider delivery event.`,
     updated_at:activatedAt
   },{onConflict:'organization_id'});
   if(settingsError)throw settingsError;
@@ -246,7 +251,7 @@ async function activate(){
       provider:'resend',
       request_source:'production_email_activation',
       redirect_url:PROD_CONFIRM_URL,
-      detail:error?String(error.message||'Initial production confirmation failed.'):'Fresh confirmation requested immediately after production SMTP activation.',
+      detail:error?String(error.message||'Initial production confirmation failed.'):`Fresh ${PRODUCT_NAME} confirmation requested immediately after production SMTP activation.`,
       provider_payload:{source:'production_email_activation'},
       event_created_at:requestedAt,
       received_at:requestedAt
@@ -272,6 +277,7 @@ async function activate(){
     site_url:PROD_SITE_URL,
     confirmation_redirect_url:PROD_CONFIRM_URL,
     provider:'resend',
+    product_name:PRODUCT_NAME,
     sender_domain:context.sender_domain,
     custom_smtp_active:true,
     webhook_configured:true,
