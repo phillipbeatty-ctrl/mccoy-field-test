@@ -7,7 +7,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'mobile-web');
 const nativeBridgeSource=path.join(root,'mobile','mobile-native-bridge.js');
 const nativeBridgeName='mobile-native-bridge.js';
-const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.3"></script>';
+const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.4"></script>';
 
 const allowedExtensions=new Set(['.html','.js','.css','.svg','.png','.jpg','.jpeg','.webp','.ico','.webmanifest']);
 const excludedFiles=new Set([
@@ -96,7 +96,7 @@ produced.sort();
 await writeFile(path.join(output,'mobile-build.json'),JSON.stringify({
   app_id:'com.mccoyplatform.app',
   app_name:'Field Coach',
-  version:'1.0.0-beta.3',
+  version:'1.0.0-beta.4',
   source_commit:process.env.GITHUB_SHA||null,
   bundled_web_assets:true,
   production_origin:'https://www.mccoyplatform.com',
