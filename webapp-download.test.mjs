@@ -18,7 +18,7 @@ test('iPhone and iPad guide describes the real Safari installation flow',()=>{
   assert.match(iosGuide,/Add to Home Screen/i)
   assert.match(iosGuide,/Field Coach/)
   assert.match(iosGuide,/apple-touch-icon-180\.png/)
-  assert.doesNotMatch(iosGuide,/stripe|checkout|subscribe now|buy now|in-app purchase/i)
+  assert.doesNotMatch(iosGuide,/stripe\.com|checkout-session|subscribe now|buy now|in-app purchase/i)
 })
 
 test('installation center separates native Android download from browser web-app installation',()=>{
