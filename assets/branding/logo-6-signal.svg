@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" role="img" aria-labelledby="title desc">
+  <title id="title">Field Coach — Signal</title>
+  <desc id="desc">Warm, residential signal treatment based on Logo 6.</desc>
+  <defs>
+    <linearGradient id="o" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb52d"/><stop offset=".5" stop-color="#ff7a00"/><stop offset="1" stop-color="#ed4b00"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#fff4dc"/><stop offset="1" stop-color="#ffd28a"/></radialGradient>
+  </defs>
+  <rect width="1400" height="700" rx="48" fill="#fffaf2"/>
+  <g transform="translate(65 48)">
+    <circle cx="290" cy="300" r="256" fill="url(#halo)" stroke="#ff8900" stroke-width="16"/>
+    <g stroke="#ff7a00" stroke-width="34" stroke-linecap="round" opacity=".8">
+      <path d="M290 55v90"/><path d="M290 455v90"/><path d="M45 300h90"/><path d="M445 300h90"/>
+      <path d="m117 127 64 64"/><path d="m399 409 64 64"/><path d="m463 127-64 64"/><path d="m181 409-64 64"/>
+    </g>
+    <circle cx="290" cy="300" r="174" fill="#fff"/>
+    <path d="M190 295 290 205l100 90h-28v112h-60v-74h-25v74h-60V295Z" fill="url(#o)"/>
+    <circle cx="290" cy="176" r="14" fill="#ff7a00"/>
+    <path d="M237 158q53-52 106 0" fill="none" stroke="#ff7a00" stroke-width="17" stroke-linecap="round"/>
+  </g>
+  <text x="650" y="295" fill="#1e2430" font-family="Inter,Arial,sans-serif" font-size="105" font-weight="900" letter-spacing="2">FIELD</text>
+  <text x="650" y="415" fill="url(#o)" font-family="Inter,Arial,sans-serif" font-size="105" font-weight="900" letter-spacing="2">COACH</text>
+  <rect x="650" y="454" width="635" height="5" rx="3" fill="#ff7a00"/>
+  <text x="655" y="525" fill="#6b4a2b" font-family="Inter,Arial,sans-serif" font-size="27" font-weight="800" letter-spacing="9">McCOY PLATFORM LLC</text>
+</svg>
