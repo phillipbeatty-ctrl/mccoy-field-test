@@ -1,0 +1,31 @@
+name: Diagnose logo transport blocks
+
+on:
+  push:
+    branches:
+      - fix/approved-official-logo-beta4-20260901
+    paths:
+      - '.github/workflows/diagnose-logo-transport.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hash-blocks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/approved-official-logo-beta4-20260901
+      - name: Hash 100-byte blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/part14 /tmp/part17
+          split -b 100 -d -a 2 .bootstrap/mccoy-logo-beta4-patch.b64.part14 /tmp/part14/block.
+          split -b 100 -d -a 2 .bootstrap/mccoy-logo-beta4-patch.b64.part17 /tmp/part17/block.
+          echo 'PART14'
+          sha256sum /tmp/part14/block.*
+          echo 'PART17'
+          sha256sum /tmp/part17/block.*
