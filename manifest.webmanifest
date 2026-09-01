@@ -1,21 +1,21 @@
 {
   "id": "/",
-  "name": "McCoy Platform",
-  "short_name": "McCoy",
-  "description": "McCoy field sales, lead mapping, assignments, sessions, coaching, and sales operations.",
+  "name": "Field Coach",
+  "short_name": "Field Coach",
+  "description": "Secure lead mapping, field sessions, assignments, coaching, sales tracking, and organization-managed access from McCoy Platform LLC.",
   "start_url": "/?source=installed-app",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#f3f4f6",
-  "theme_color": "#111827",
+  "background_color": "#050607",
+  "theme_color": "#080a0d",
   "categories": ["business", "productivity", "navigation"],
   "icons": [
-    {"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+    {"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable monochrome"}
   ],
   "shortcuts": [
-    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
-    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]}
+    {"name": "Lead Pool", "short_name": "Leads", "description": "Open assigned leads and map", "url": "/#leads", "icons": [{"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
+    {"name": "Sales Hub", "short_name": "Sales", "description": "Open Field Coach sales workflow", "url": "/#sales", "icons": [{"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]}
   ]
 }
