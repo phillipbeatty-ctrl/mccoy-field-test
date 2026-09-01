@@ -19,14 +19,18 @@ const manifest=JSON.parse(await read('manifest.webmanifest'));
 const mobileIndex=await read('mobile-web/index.html').catch(()=>null);
 const mobileBridge=await read('mobile-web/mobile-native-bridge.js').catch(()=>null);
 const mobileMetadata=JSON.parse(await read('mobile-web/mobile-build.json').catch(()=>'{"missing":true}'));
+const manifestIcons=new Map((manifest.icons||[]).map(icon=>[icon.src,icon]));
 
-check('package version',packageJson.version==='1.0.0-beta.2',`expected 1.0.0-beta.2, received ${packageJson.version}`);
+check('package version',packageJson.version==='1.0.0-beta.3',`expected 1.0.0-beta.3, received ${packageJson.version}`);
 check('Capacitor 8 core',packageJson.dependencies?.['@capacitor/core']==='8.5.0','@capacitor/core must be pinned to 8.5.0');
 check('Android platform',packageJson.dependencies?.['@capacitor/android']==='8.5.0','@capacitor/android must be pinned to 8.5.0');
 check('iOS platform',packageJson.dependencies?.['@capacitor/ios']==='8.5.0','@capacitor/ios must be pinned to 8.5.0');
 check('bundle identifier',capacitorConfig.appId==='com.mccoyplatform.app','Capacitor appId mismatch');
 check('native display name',capacitorConfig.appName==='Field Coach',`expected Field Coach, received ${capacitorConfig.appName}`);
 check('PWA display name',manifest.name==='Field Coach'&&manifest.short_name==='Field Coach','manifest must identify the installed app as Field Coach');
+check('PWA 192 icon',manifestIcons.get('/assets/icon-192.png')?.sizes==='192x192','manifest must include the 192x192 PNG icon');
+check('PWA 512 icon',manifestIcons.get('/assets/icon-512.png')?.sizes==='512x512','manifest must include the 512x512 PNG icon');
+check('PWA maskable icon',manifestIcons.get('/assets/icon-maskable-512.png')?.purpose==='maskable','manifest must include a separate maskable PNG icon');
 check('bundled production assets',capacitorConfig.webDir==='mobile-web','Capacitor webDir must be mobile-web');
 check('no remote production WebView',!capacitorConfig.server?.url,'server.url is not allowed for a production store build');
 check('no production navigation allowlist',!capacitorConfig.server?.allowNavigation,'allowNavigation is not allowed for this production wrapper');
@@ -34,6 +38,7 @@ check('local mobile index',Boolean(mobileIndex),'mobile-web/index.html is missin
 check('native bridge bundled',Boolean(mobileBridge&&mobileIndex?.includes('mobile-native-bridge.js')),'native bridge was not injected into the bundled index');
 check('build metadata',mobileMetadata.app_id==='com.mccoyplatform.app','mobile build metadata is missing or incorrect');
 check('build display name',mobileMetadata.app_name==='Field Coach','mobile build metadata must use Field Coach');
+check('build version',mobileMetadata.version==='1.0.0-beta.3','mobile build metadata must use beta 3');
 
 let productionStatus=null;
 let confirmationStatus=null;
