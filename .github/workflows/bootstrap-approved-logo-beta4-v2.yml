@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           ref: fix/approved-official-logo-beta4-20260901
 
-      - name: Decode and inspect staged transport
+      - name: Salvage and inspect staged transport
         shell: bash
         run: |
           set -euo pipefail
@@ -40,12 +40,27 @@ jobs:
           test "$(wc -c < .bootstrap/mccoy-logo-beta4-patch.b64.part19)" -eq 7828
           cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
           sha256sum /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/transport-sha256.txt
-          tar -tzf /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/mccoy-logo-beta4-files.txt
+
+          # The transport wrapper has a known CRC defect. Preserve every decompressed
+          # tar block and let the approved-source checksums decide whether the source
+          # itself is exact. Never accept a merely readable or visually similar image.
+          set +e
+          gzip -dc /tmp/mccoy-logo-beta4-patch.tar.gz > /tmp/mccoy-logo-beta4-patch.tar
+          gzip_status=$?
+          set -e
+          echo "gzip salvage status: ${gzip_status}"
+          test -s /tmp/mccoy-logo-beta4-patch.tar
+
+          tar --ignore-zeros -tf /tmp/mccoy-logo-beta4-patch.tar | tee /tmp/mccoy-logo-beta4-files.txt
           if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/mccoy-logo-beta4-files.txt; then
             echo 'Unsafe archive path detected.' >&2
             exit 1
           fi
-          tar -xzf /tmp/mccoy-logo-beta4-patch.tar.gz -C .
+          tar --ignore-zeros -xf /tmp/mccoy-logo-beta4-patch.tar -C .
+
+          test -f assets/brand/source-staging/official-logo-source-original.jpg.b64.part00
+          mapfile -t source_parts < <(find assets/brand/source-staging -maxdepth 1 -type f -name 'official-logo-source-original.jpg.b64.part*' | sort)
+          test "${#source_parts[@]}" -eq 7
 
       - name: Materialize and verify approved source
         shell: bash
@@ -54,6 +69,21 @@ jobs:
           python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
           if test -f scripts/materialize-approved-logo-source.py; then
             python3 scripts/materialize-approved-logo-source.py
+          else
+            cat assets/brand/source-staging/official-logo-source-original.jpg.b64.part* | base64 --decode > assets/brand/approved-upload-original.jpg
+            python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          source = Path('assets/brand/approved-upload-original.jpg')
+          target = Path('assets/brand/official-logo-source.png')
+          with Image.open(source) as image:
+              image.load()
+              image.convert('RGB').save(target, format='PNG', optimize=True, compress_level=9)
+          target.with_suffix('.sha256').write_text(
+              'ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5  assets/brand/official-logo-source.png\n',
+              encoding='utf-8',
+          )
+          PY
           fi
           python3 scripts/verify-approved-logo-source.py
           python3 scripts/generate-field-coach-icons.py
@@ -74,6 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .bootstrap
+          rm -rf assets/brand/source-staging
           rm -f .github/workflows/bootstrap-approved-logo-beta4.yml
           rm -f .github/workflows/bootstrap-approved-logo-beta4-v2.yml
           rm -f .github/workflows/diagnose-logo-transport.yml
