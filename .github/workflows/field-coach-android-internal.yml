@@ -142,8 +142,16 @@ jobs:
           grep -q "application-label:'Field Coach'" dist/apk-badging.txt
           grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
 
-          unzip -q "dist/Field-Coach-Android-${APP_VERSION}-debug.apk" 'res/mipmap*/ic_launcher*.png' -d /tmp/field-coach-apk-icons
-          mapfile -t packaged_icons < <(find /tmp/field-coach-apk-icons -type f -name 'ic_launcher*.png' | sort)
+          unzip -q "dist/Field-Coach-Android-${APP_VERSION}-debug.apk" \
+            'res/mipmap*/ic_launcher.png' \
+            'res/mipmap*/ic_launcher_round.png' \
+            'res/mipmap*/ic_launcher_foreground.png' \
+            -d /tmp/field-coach-apk-icons
+          mapfile -t packaged_icons < <(
+            find /tmp/field-coach-apk-icons -type f \
+              \( -name 'ic_launcher.png' -o -name 'ic_launcher_round.png' -o -name 'ic_launcher_foreground.png' \) \
+              | sort
+          )
           test "${#packaged_icons[@]}" -gt 0
           node scripts/verify-png-content.mjs "${packaged_icons[@]}" | tee dist/apk-launcher-evidence.jsonl
 
