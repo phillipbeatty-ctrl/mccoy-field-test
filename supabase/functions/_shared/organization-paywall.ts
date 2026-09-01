@@ -43,7 +43,7 @@ export function serveWithOrganizationAccess(entitlement:string,handler:EdgeHandl
       const {data:{user},error:userError}=await admin.auth.getUser(jwt)
       if(userError||!user)return json({error:'unauthorized'},401)
 
-      const {data:state,error:accessError}=await admin.rpc('service_assert_organization_access',{
+      const {error:accessError}=await admin.rpc('service_assert_organization_access',{
         p_auth_user_id:user.id,
         p_entitlement:entitlement
       })
@@ -67,8 +67,17 @@ export function serveWithOrganizationAccess(entitlement:string,handler:EdgeHandl
       enrichedHeaders.set('x-field-coach-entitlement',entitlement)
       const verifiedRequest=new Request(request,{headers:enrichedHeaders})
       const response=await handler(verifiedRequest)
-      response.headers.set('X-Field-Coach-Organization-Access','verified')
-      return response
+
+      // Some fetch-originated Responses expose immutable headers. Clone instead
+      // of mutating so the paywall marker never turns a successful operation into
+      // a runtime exception.
+      const responseHeaders=new Headers(response.headers)
+      responseHeaders.set('X-Field-Coach-Organization-Access','verified')
+      return new Response(response.body,{
+        status:response.status,
+        statusText:response.statusText,
+        headers:responseHeaders
+      })
     }catch(error){
       console.error('organization paywall guard failed',error)
       return json({error:'organization_access_check_failed'},503)
