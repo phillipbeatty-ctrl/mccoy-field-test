@@ -129,37 +129,41 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist downloads /tmp/field-coach-apk-icons
-          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/Field-Coach-Android-${APP_VERSION}-debug.apk"
+          apk="dist/Field-Coach-Android-${APP_VERSION}-debug.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
           cp android/app/build/outputs/bundle/release/app-release.aab "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
           cp mobile-release-doctor.json dist/mobile-release-doctor.json
           cp mobile-web/mobile-build.json dist/mobile-build.json
           cp icon-source-evidence.jsonl generated-launcher-evidence.jsonl dist/
 
-          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "dist/Field-Coach-Android-${APP_VERSION}-debug.apk" > dist/apk-badging.txt
+          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "$apk" > dist/apk-badging.txt
           grep -q "package: name='com.mccoyplatform.app'" dist/apk-badging.txt
           grep -q "versionCode='3'" dist/apk-badging.txt
           grep -q "versionName='1.0.0-beta.3'" dist/apk-badging.txt
           grep -q "application-label:'Field Coach'" dist/apk-badging.txt
           grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
 
-          unzip -q "dist/Field-Coach-Android-${APP_VERSION}-debug.apk" \
-            'res/mipmap*/ic_launcher.png' \
-            'res/mipmap*/ic_launcher_round.png' \
-            'res/mipmap*/ic_launcher_foreground.png' \
-            -d /tmp/field-coach-apk-icons
-          mapfile -t packaged_icons < <(
-            find /tmp/field-coach-apk-icons -type f \
-              \( -name 'ic_launcher.png' -o -name 'ic_launcher_round.png' -o -name 'ic_launcher_foreground.png' \) \
+          mapfile -t packaged_entries < <(
+            unzip -Z1 "$apk" \
+              | grep -E '^res/mipmap[^/]*/ic_launcher(_foreground|_round)?\.png$' \
               | sort
           )
-          test "${#packaged_icons[@]}" -gt 0
+          test "${#packaged_entries[@]}" -gt 0
+          index=0
+          for entry in "${packaged_entries[@]}"; do
+            index=$((index+1))
+            target="/tmp/field-coach-apk-icons/$(printf '%03d' "$index")-$(basename "$entry")"
+            unzip -p "$apk" "$entry" > "$target"
+            test -s "$target"
+          done
+          mapfile -t packaged_icons < <(find /tmp/field-coach-apk-icons -type f -name '*.png' | sort)
           node scripts/verify-png-content.mjs "${packaged_icons[@]}" | tee dist/apk-launcher-evidence.jsonl
 
-          test -s "dist/Field-Coach-Android-${APP_VERSION}-debug.apk"
+          test -s "$apk"
           test -s "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
           (cd dist && sha256sum Field-Coach-Android-${APP_VERSION}-debug.apk Field-Coach-Android-${APP_VERSION}-unsigned.aab apk-badging.txt mobile-build.json mobile-release-doctor.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl apk-launcher-evidence.jsonl > SHA256SUMS.txt)
 
-          cp "dist/Field-Coach-Android-${APP_VERSION}-debug.apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
+          cp "$apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
           sha256sum "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" > "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
 
       - name: Publish stable Android beta download into the repair branch
@@ -170,7 +174,8 @@ jobs:
           git config user.name 'Field Coach Release Bot'
           git config user.email 'phillip.beatty@gmail.com'
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-          git add assets/*.png downloads/ *.html
+          git add assets/*.png *.html
+          git add -f "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
           if git diff --cached --quiet; then
             echo 'Generated icon and Android download files are already current.'
             exit 0
