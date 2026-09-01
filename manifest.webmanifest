@@ -12,10 +12,10 @@
   "theme_color": "#050505",
   "categories": ["business", "productivity", "navigation"],
   "icons": [
-    {"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+    {"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
   ],
   "shortcuts": [
-    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
-    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/field-coach-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]}
+    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]},
+    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]}
   ]
 }
