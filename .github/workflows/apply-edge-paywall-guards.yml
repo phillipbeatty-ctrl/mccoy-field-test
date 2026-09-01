@@ -1,0 +1,82 @@
+name: Apply service-role paywall guards
+
+on:
+  push:
+    branches:
+      - feat/organization-paywall-gate-20260831
+    paths:
+      - 'scripts/apply-edge-paywall-guards.mjs'
+      - 'supabase/functions/_shared/organization-paywall.ts'
+      - '.github/workflows/apply-edge-paywall-guards.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/organization-paywall-gate-20260831
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Apply deterministic guards
+        run: node scripts/apply-edge-paywall-guards.mjs
+      - name: Type-check shared guard
+        run: deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
+      - name: Parse every patched function
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          for file in \
+            supabase/functions/accounting-records/index.ts \
+            supabase/functions/accounting-sales/index.ts \
+            supabase/functions/admin-session-history/index.ts \
+            supabase/functions/company-leaders/index.ts \
+            supabase/functions/compensation-settings/index.ts \
+            supabase/functions/field-analytics/index.ts \
+            supabase/functions/lead-admin/index.ts \
+            supabase/functions/lead-field-actions/index.ts \
+            supabase/functions/lead-geocode/index.ts \
+            supabase/functions/lead-map-address-search/index.ts \
+            supabase/functions/metrics-visibility/index.ts \
+            supabase/functions/pay-progress/index.ts \
+            supabase/functions/pending-account-access/index.ts \
+            supabase/functions/provider-reconcile/index.ts \
+            supabase/functions/provider-sale-capture/index.ts \
+            supabase/functions/rep-coach-summary/index.ts \
+            supabase/functions/sale-approvals/index.ts \
+            supabase/functions/sale-order-photo-pilot/index.ts \
+            supabase/functions/sale-order-photo/index.ts \
+            supabase/functions/sale-submit/index.ts \
+            supabase/functions/session-control/index.ts \
+            supabase/functions/spotio-import/index.ts
+          do
+            target="$temp_dir/$(basename "$(dirname "$file")").ts"
+            cp "$file" "$target"
+            deno fmt "$target" >/dev/null
+          done
+      - name: Verify every target is guarded exactly once
+        run: node scripts/apply-edge-paywall-guards.mjs
+      - name: Commit generated guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No guard changes were required.'
+            exit 0
+          fi
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
+          git add supabase/functions
+          git commit -m 'Enforce organization paywall in service-role functions'
+          git push origin HEAD:feat/organization-paywall-gate-20260831

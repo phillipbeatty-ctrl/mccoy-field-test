@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 
@@ -213,7 +214,7 @@ async function enforceResendRateLimit(admin,organizationId,targetEmail){
   return {allowed:true}
 }
 
-Deno.serve(async request=>{
+serveWithOrganizationAccess('admin_controls',async request=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   if(request.method!=='POST')return json({error:'method_not_allowed'},405)
   try{

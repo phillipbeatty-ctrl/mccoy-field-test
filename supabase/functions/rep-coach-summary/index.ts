@@ -1,8 +1,9 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 const R=6371000,toRad=(x:number)=>x*Math.PI/180;
 function dist(a:any,b:any){if(!a||!b||a.latitude==null||a.longitude==null||b.latitude==null||b.longitude==null)return null;const dLat=toRad(b.latitude-a.latitude),dLon=toRad(b.longitude-a.longitude);const x=Math.sin(dLat/2)**2+Math.cos(toRad(a.latitude))*Math.cos(toRad(b.latitude))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
-Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
+serveWithOrganizationAccess('analytics',async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
  const auth=req.headers.get('Authorization')||'',jwt=auth.replace(/^Bearer\s+/,'');if(!jwt)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});
  const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:uerr}=await admin.auth.getUser(jwt);if(uerr||!user?.email)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});

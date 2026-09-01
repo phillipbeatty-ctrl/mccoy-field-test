@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
@@ -14,7 +15,7 @@ function approvalStatus(snapshot:any){
   return outsideSystem(snapshot)?'pending':'not_required'
 }
 
-Deno.serve(async req=>{
+serveWithOrganizationAccess('sales_tracking',async req=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'')

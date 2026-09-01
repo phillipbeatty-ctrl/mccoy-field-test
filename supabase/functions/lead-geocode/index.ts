@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 // @ts-nocheck
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
@@ -22,7 +23,7 @@ function addressInput(body:any){
   }
 }
 
-Deno.serve(async(req:Request)=>{
+serveWithOrganizationAccess('lead_management',async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'')

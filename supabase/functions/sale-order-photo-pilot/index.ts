@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
@@ -112,7 +113,7 @@ function buildSummary(rows:any[]){
   }
 }
 
-Deno.serve(async(req:Request)=>{
+serveWithOrganizationAccess('admin_controls',async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     if(req.method!=='POST')return json({error:'method_not_allowed'},405)

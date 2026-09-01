@@ -1,9 +1,10 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
 // Compatibility endpoint for existing McCoy clients. The database RPC is the
 // sole ranking authority; this function performs no independent calculation.
-Deno.serve(async(req)=>{
+serveWithOrganizationAccess('rankings',async(req)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const authorization=req.headers.get('Authorization')||''

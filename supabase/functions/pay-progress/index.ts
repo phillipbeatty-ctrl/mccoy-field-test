@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { normalizePayLevel, payLevelLabel, weeklyProductionTier } from '../_shared/compensation-calculator.mjs'
@@ -24,7 +25,7 @@ async function weeklyEligibleSales(admin:any,userId:string,weekStart:string,week
   throw new Error('weekly_eligible_sales_too_large')
 }
 
-Deno.serve(async(req)=>{
+serveWithOrganizationAccess('sales_tracking',async(req)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'')

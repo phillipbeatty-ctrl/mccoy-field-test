@@ -1,8 +1,9 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { PAY_LEVELS } from '../_shared/compensation-calculator.mjs'
 
-Deno.serve(async (req) => {
+serveWithOrganizationAccess('admin_controls',async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/, '')
