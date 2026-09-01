@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Field Coach">
+  <title>Install Field Coach on iPhone or iPad</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/logo.svg">
+  <script src="/install-ios.js" defer></script>
+  <style>
+    :root{color-scheme:dark;--ink:#f8fafc;--muted:#a8b0bd;--line:#282c34;--orange:#f97316;--orange2:#fb923c}
+    *{box-sizing:border-box}html{background:#050505}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -10%,#25211d 0,#0a0a0a 38%,#050505 76%);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 18px env(safe-area-inset-bottom)}
+    main{width:min(720px,100%);margin:0 auto;padding:28px 0 48px}.brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}.brand img{width:72px;height:72px;border-radius:18px;background:#000;box-shadow:0 10px 38px #000}.brand strong{display:block;font-size:25px}.brand span{display:block;color:var(--orange2);font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;margin-top:4px}
+    .hero{padding:28px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(145deg,rgba(22,24,29,.98),rgba(10,10,11,.98));box-shadow:0 20px 70px rgba(0,0,0,.45)}h1{font-size:clamp(30px,8vw,52px);line-height:1.02;margin:0 0 14px;letter-spacing:-.04em}p{color:var(--muted);line-height:1.55;margin:0}.status{margin:20px 0 0;padding:13px 15px;border:1px solid rgba(34,197,94,.45);background:rgba(34,197,94,.1);border-radius:14px;color:#bbf7d0;font-weight:700}[hidden]{display:none!important}
+    .steps{display:grid;gap:12px;margin:22px 0}.step{display:grid;grid-template-columns:42px 1fr;gap:13px;padding:16px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.025)}.number{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:var(--orange);color:#111;font-size:18px;font-weight:900}.step strong{display:block;margin:2px 0 5px;font-size:17px}.step p{font-size:14px}.share-icon{display:inline-grid;place-items:center;width:27px;height:27px;border:1px solid #aeb7c6;border-radius:7px;color:#dbeafe;font-size:18px;line-height:1;margin:0 4px;vertical-align:middle}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}.button{appearance:none;border:0;border-radius:14px;padding:15px 18px;text-align:center;text-decoration:none;font:inherit;font-weight:900;cursor:pointer}.primary{background:var(--orange);color:#111}.secondary{background:#20242b;color:#f8fafc;border:1px solid #353a44}.fine{margin-top:18px;font-size:12px}.warning{margin:0 0 18px;padding:14px;border:1px solid #49331f;background:#21170e;border-radius:14px;color:#fed7aa}
+    @media(max-width:520px){body{padding-left:12px;padding-right:12px}.hero{padding:21px 16px}.actions{grid-template-columns:1fr}.brand img{width:60px;height:60px}.brand strong{font-size:22px}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><img src="/assets/logo.svg" alt="Field Coach logo"><div><strong>Field Coach</strong><span>by McCoy Platform LLC</span></div></div>
+    <div id="deviceWarning" class="warning" hidden>This guide is designed for Safari on an iPhone or iPad. Open this same address on that device to install Field Coach.</div>
+    <section class="hero">
+      <h1>Put Field Coach on your Home Screen.</h1>
+      <p>The iPhone and iPad web app installs directly from Safari. It remains the same organization-managed Field Coach account and does not require an App Store purchase.</p>
+      <div id="installedStatus" class="status" hidden>Field Coach is already running as an installed Home Screen app on this device.</div>
+      <div class="steps" aria-label="iPhone and iPad installation steps">
+        <div class="step"><div class="number">1</div><div><strong>Open this page in Safari</strong><p>Do not use an email preview, social-media browser, or Private Browsing window. Select “Open in Safari” first when necessary.</p></div></div>
+        <div class="step"><div class="number">2</div><div><strong>Open Safari’s Share menu</strong><p>Tap the <span class="share-icon" aria-label="Share icon">⇧</span> Share button in Safari’s toolbar.</p></div></div>
+        <div class="step"><div class="number">3</div><div><strong>Select “Add to Home Screen”</strong><p>Scroll through the actions if it is not immediately visible, then select <b>Add to Home Screen</b>.</p></div></div>
+        <div class="step"><div class="number">4</div><div><strong>Confirm the name and add it</strong><p>Leave the name as <b>Field Coach</b>, then tap <b>Add</b>. The app icon will appear on the Home Screen.</p></div></div>
+        <div class="step"><div class="number">5</div><div><strong>Open, sign in, and allow field permissions</strong><p>Open the new icon. Sign in with the assigned organization account, then allow location and camera access when Field Coach requests them.</p></div></div>
+      </div>
+      <div class="actions"><a class="button primary" href="/">OPEN FIELD COACH</a><button id="copyLink" class="button secondary" type="button">COPY INSTALL LINK</button></div>
+      <p class="fine">Access is controlled by the organization’s subscription, assigned membership, role, and enabled features. This page intentionally contains no purchase or checkout action.</p>
+    </section>
+  </main>
+</body>
+</html>
