@@ -1,0 +1,6 @@
+approved_upload_path=assets/brand/approved-upload-original.jpg
+approved_upload_sha256=227203e1c0ab14a1aa400e6f0d1411a6512222a685589df92dac3f3c1633cd90
+normalized_source_path=assets/brand/official-logo-source.png
+normalized_source_sha256=ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5
+dimensions=1024x1024
+decoded_pixels_identical=true
