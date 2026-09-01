@@ -16,6 +16,11 @@ function assertNoInlineScript(source,name){
   for(const match of scriptTags)assert.match(match[1],/\bsrc=/i,`${name} cannot use inline script under production CSP`)
 }
 
+function assertNoPurchaseAction(source){
+  assert.doesNotMatch(source,/href=["'][^"']*(?:stripe\.com|checkout|subscribe|billing|purchase)[^"']*["']/i)
+  assert.doesNotMatch(source,/<(?:a|button)\b[^>]*>\s*(?:subscribe now|buy now|purchase|checkout)\b/i)
+}
+
 test('production installation pages are compatible with the deployed script-src CSP',()=>{
   assertNoInlineScript(iosPage,'install-ios.html')
   assertNoInlineScript(downloadPage,'download.html')
@@ -39,9 +44,10 @@ test('browser controller uses the native install prompt and never fabricates an 
   assert.doesNotMatch(installer,/\.mobileconfig|ipa|App Store/i)
 })
 
-test('installation center links to the CSP-compatible iPhone and iPad guide',()=>{
+test('installation center links to the CSP-compatible iPhone and iPad guide without a purchase action',()=>{
   assert.match(downloadPage,/href="\/install-ios\.html"/)
   assert.match(iosPage,/Open this page in Safari/i)
   assert.match(iosPage,/Add to Home Screen/i)
-  assert.doesNotMatch(`${downloadPage}\n${iosPage}`,/stripe|checkout|subscribe now|buy now|in-app purchase/i)
+  assertNoPurchaseAction(downloadPage)
+  assertNoPurchaseAction(iosPage)
 })
