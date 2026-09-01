@@ -17,7 +17,7 @@ const generatedAt=process.env.SOURCE_DATE_EPOCH
 
 const allowedRootExtensions=new Set(['.css','.html','.js','.webmanifest'])
 const allowedRootNames=new Set(['VERSION'])
-const excludedNamePatterns=[/\.test\./i,/^node_modules$/i,/^dist$/i,/^api$/i,/^supabase$/i,/^scripts$/i,/^docs$/i,/^\.github$/i,/^\.env/i]
+const excludedNamePatterns=[/\.test\./i,/^node_modules$/i,/^dist$/i,/^api$/i,/^supabase$/i,/^scripts$/i,/^docs$/i,/^downloads$/i,/^\.github$/i,/^\.env/i]
 
 await rm(output,{recursive:true,force:true})
 await mkdir(output,{recursive:true})
@@ -79,11 +79,13 @@ const release={
   generated_at:generatedAt,
   production_origin:productionOrigin,
   launch_url:`${productionOrigin}/`,
-  installation_center_url:`${productionOrigin}/webapp-download.html`,
-  ios_install_guide_url:`${productionOrigin}/ios-install.html`,
-  distribution_model:'organization_managed_web_app',
+  installation_center_url:`${productionOrigin}/download.html`,
+  ios_install_guide_url:`${productionOrigin}/install-ios.html`,
+  android_beta_url:`${productionOrigin}/downloads/Field-Coach-Android-${version}-debug.apk`,
+  distribution_model:'organization_managed_web_app_and_internal_android_beta',
   archive_role:'release_verification_and_controlled_hosting',
   ios_install_method:'Safari Add to Home Screen from the production origin',
+  android_install_method:'Download the official-domain APK and approve the Android package installer',
   file_count:files.length,
   files
 }
@@ -95,13 +97,14 @@ await writeFile(path.join(output,'README.txt'),[
   'McCoy Platform LLC',
   '',
   `Production: ${productionOrigin}/`,
-  `Installation center: ${productionOrigin}/webapp-download.html`,
-  `iPhone/iPad guide: ${productionOrigin}/ios-install.html`,
+  `Installation center: ${productionOrigin}/download.html`,
+  `iPhone/iPad guide: ${productionOrigin}/install-ios.html`,
+  `Android internal beta: ${productionOrigin}/downloads/Field-Coach-Android-${version}-debug.apk`,
   '',
   'This archive is generated for release verification and controlled hosting.',
-  'Do not unzip this archive on an iPhone or iPad to install the app.',
-  'Install the iOS web app from Safari so it retains the secure production origin,',
-  'service worker, organization access checks, and live Supabase connections.',
+  'Do not unzip this archive on an iPhone, iPad, or Android phone to install the app.',
+  'Install iOS from Safari. Install the Android native beta from the official APK link.',
+  'Both retain the server-authoritative organization access requirements.',
   ''
 ].join('\n'))
 
