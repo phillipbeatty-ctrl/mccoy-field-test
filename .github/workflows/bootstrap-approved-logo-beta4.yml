@@ -38,6 +38,7 @@ jobs:
             test "$(wc -c < ".bootstrap/mccoy-logo-beta4-patch.b64.part${index}")" -eq 8000
           done
           test "$(wc -c < .bootstrap/mccoy-logo-beta4-patch.b64.part19)" -eq 7828
+          sha256sum "${parts[@]}"
           cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
           echo 'd118b20ae1a0996950f56c7c53970b934457a5eec0652cd99fd737a506678964  /tmp/mccoy-logo-beta4-patch.tar.gz' | sha256sum -c -
           tar -tzf /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/mccoy-logo-beta4-files.txt
