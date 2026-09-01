@@ -1,0 +1,249 @@
+name: One-shot Field Coach branding
+
+on:
+  push:
+    branches:
+      - rename/field-coach-all-apps-20260831
+
+permissions:
+  contents: write
+
+concurrency:
+  group: field-coach-branding-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  rename-product:
+    if: github.actor == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out rename branch
+        uses: actions/checkout@v5
+        with:
+          ref: rename/field-coach-all-apps-20260831
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Apply user-facing Field Coach branding
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          root = Path('.')
+          allowed_suffixes = {'.html','.js','.mjs','.ts','.json','.webmanifest','.md','.yml','.yaml','.css','.svg','.txt'}
+          excluded_parts = {'.git','node_modules','android','ios','mobile-web','dist'}
+          changed = []
+
+          def should_edit(path: Path) -> bool:
+              if path.suffix.lower() not in allowed_suffixes:
+                  return False
+              if any(part in excluded_parts for part in path.parts):
+                  return False
+              if len(path.parts) >= 2 and path.parts[0] == 'supabase' and path.parts[1] == 'migrations':
+                  return False
+              if path.as_posix() == '.github/workflows/one-shot-field-coach-branding.yml':
+                  return False
+              return True
+
+          legal_tokens = {
+              'McCoy Platform LLC': '__FIELD_COACH_LEGAL_LLC__',
+              'McCoy Platform, LLC': '__FIELD_COACH_LEGAL_COMMA_LLC__',
+          }
+
+          for path in root.rglob('*'):
+              if not path.is_file() or not should_edit(path):
+                  continue
+              try:
+                  original = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              text = original
+              for phrase, token in legal_tokens.items():
+                  text = text.replace(phrase, token)
+              text = text.replace('McCoy Field Coach V9.2', 'Field Coach')
+              text = text.replace('McCoy Field Coach', 'Field Coach')
+              text = re.sub(r'\bMcCoy Platform\b', 'Field Coach', text)
+              text = re.sub(r'\bMcCoy\b', 'Field Coach', text)
+              text = text.replace('McCoyNative', 'FieldCoachNative')
+              text = text.replace('McCoy-Android', 'Field-Coach-Android')
+              text = text.replace('McCoy-iOS', 'Field-Coach-iOS')
+              text = text.replace('McCoy-iPad', 'Field-Coach-iPad')
+              text = text.replace('McCoy-mobile', 'Field-Coach-mobile')
+              for phrase, token in legal_tokens.items():
+                  text = text.replace(token, phrase)
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed.append(path.as_posix())
+
+          package_path = Path('package.json')
+          package = json.loads(package_path.read_text(encoding='utf-8'))
+          package['version'] = '1.0.0-beta.2'
+          package['description'] = 'Field Coach field sales, lead mapping, session, and sales operations app.'
+          package.setdefault('scripts', {})['test:branding'] = 'node --test field-coach-branding.test.mjs'
+          package_path.write_text(json.dumps(package, indent=2) + '\n', encoding='utf-8')
+
+          version_path = Path('VERSION')
+          if version_path.exists():
+              version_path.write_text('1.0.0-beta.2\n', encoding='utf-8')
+
+          version_targets = [
+              Path('capacitor.config.json'), Path('capacitor.config.ts'),
+              Path('scripts/configure-native-project.mjs'),
+              Path('scripts/mobile-release-doctor.mjs'),
+              Path('mobile-release.test.mjs'), Path('APP_RELEASE.md'),
+              Path('.github/workflows/mobile-android-internal.yml')
+          ]
+          for path in version_targets:
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding='utf-8').replace('1.0.0-beta.1', '1.0.0-beta.2')
+              text = re.sub(r"const versionCode='1';", "const versionCode='2';", text)
+              text = re.sub(r'CURRENT_PROJECT_VERSION = 1;', 'CURRENT_PROJECT_VERSION = 2;', text)
+              path.write_text(text, encoding='utf-8')
+
+          config_json = Path('capacitor.config.json')
+          if config_json.exists():
+              config = json.loads(config_json.read_text(encoding='utf-8'))
+              config['appName'] = 'Field Coach'
+              config.setdefault('ios', {})['appendUserAgent'] = ' FieldCoachNative/1.0.0-beta.2'
+              config_json.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')
+
+          config_ts = Path('capacitor.config.ts')
+          if config_ts.exists():
+              text = config_ts.read_text(encoding='utf-8')
+              text = re.sub(r"appName:\s*'[^']+'", "appName: 'Field Coach'", text)
+              text = re.sub(r"appendUserAgent:\s*'[^']+'", "appendUserAgent: ' FieldCoachNative/1.0.0-beta.2'", text)
+              config_ts.write_text(text, encoding='utf-8')
+
+          native_config = Path('scripts/configure-native-project.mjs')
+          if native_config.exists():
+              text = native_config.read_text(encoding='utf-8')
+              android_injection = """
+              const stringsPath='android/app/src/main/res/values/strings.xml';
+              let strings=await read(stringsPath);
+              strings=strings.replace(/<string name=\"app_name\">[^<]*<\\/string>/,'<string name=\"app_name\">Field Coach</string>');
+              strings=strings.replace(/<string name=\"title_activity_main\">[^<]*<\\/string>/,'<string name=\"title_activity_main\">Field Coach</string>');
+              await write(stringsPath,strings);
+          """
+              marker = "  const gradlePath='android/app/build.gradle';"
+              if "stringsPath='android/app/src/main/res/values/strings.xml'" not in text and marker in text:
+                  text = text.replace(marker, android_injection + '\n' + marker)
+              ios_injection = """
+              const displayNameEntry='\\t<key>CFBundleDisplayName</key>\\n\\t<string>Field Coach</string>\\n';
+              if(plist.includes('<key>CFBundleDisplayName</key>')){
+                plist=plist.replace(/<key>CFBundleDisplayName<\\/key>\\s*<string>[^<]*<\\/string>/,'<key>CFBundleDisplayName</key>\\n\\t<string>Field Coach</string>');
+              }else{
+                plist=insertBeforeOnce(plist,'</dict>',displayNameEntry,'<key>CFBundleDisplayName</key>');
+              }
+          """
+              marker = "  const entries=["
+              if "const displayNameEntry=" not in text and marker in text:
+                  text = text.replace(marker, ios_injection + '\n' + marker)
+              text = text.replace('CURRENT_PROJECT_VERSION = 1;', 'CURRENT_PROJECT_VERSION = 2;')
+              native_config.write_text(text, encoding='utf-8')
+
+          manifest_path = Path('manifest.webmanifest')
+          if manifest_path.exists():
+              manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+              manifest['name'] = 'Field Coach'
+              manifest['short_name'] = 'Field Coach'
+              manifest['description'] = 'Field Coach for field sales, lead mapping, sessions, and sales operations.'
+              manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+
+          test = r'''import assert from 'node:assert/strict';
+          import test from 'node:test';
+          import {readFile} from 'node:fs/promises';
+
+          const read=path=>readFile(new URL(path,import.meta.url),'utf8');
+
+          test('web and PWA install as Field Coach',async()=>{
+            const index=await read('./index.html');
+            const manifest=JSON.parse(await read('./manifest.webmanifest'));
+            assert.match(index,/<title>Field Coach\b/);
+            assert.match(index,/>Field Coach</);
+            assert.equal(manifest.name,'Field Coach');
+            assert.equal(manifest.short_name,'Field Coach');
+          });
+
+          test('Android, iPhone, and iPad native labels are Field Coach',async()=>{
+            const config=JSON.parse(await read('./capacitor.config.json'));
+            const nativeConfig=await read('./scripts/configure-native-project.mjs');
+            assert.equal(config.appName,'Field Coach');
+            assert.equal(config.appId,'com.mccoyplatform.app');
+            assert.equal(config.ios.appendUserAgent,' FieldCoachNative/1.0.0-beta.2');
+            assert.match(nativeConfig,/app_name\">Field Coach/);
+            assert.match(nativeConfig,/CFBundleDisplayName/);
+            assert.match(nativeConfig,/<string>Field Coach<\/string>/);
+          });
+
+          test('mobile update has a new installable version and Field Coach artifact names',async()=>{
+            const pkg=JSON.parse(await read('./package.json'));
+            const workflow=await read('./.github/workflows/mobile-android-internal.yml');
+            assert.equal(pkg.version,'1.0.0-beta.2');
+            assert.match(workflow,/1\.0\.0-beta\.2/);
+            assert.match(workflow,/Field-Coach-Android/);
+            assert.doesNotMatch(workflow,/McCoy-Android/);
+          });
+
+          test('technical continuity and legal company identity remain unchanged',async()=>{
+            const config=JSON.parse(await read('./capacitor.config.json'));
+            const privacy=await read('./privacy.html');
+            assert.equal(config.appId,'com.mccoyplatform.app');
+            assert.match(privacy,/McCoy Platform LLC/);
+          });
+          '''
+          Path('field-coach-branding.test.mjs').write_text('\n'.join(line.strip() for line in test.splitlines())+'\n',encoding='utf-8')
+
+          migration_note = '''# Field Coach product-name migration
+
+All user-facing app names are now **Field Coach** across the web app, installable PWA, Android, iPhone, and iPad builds.
+
+The following technical and legal identifiers are intentionally unchanged so existing installs, authentication, data, deep links, and contracts continue to work:
+
+- Android/iOS bundle identifier: `com.mccoyplatform.app`
+- Production domains and Supabase project identifiers
+- Database, storage, event, and JavaScript identifiers beginning with `mccoy`
+- Repository name
+- Legal operator: **McCoy Platform LLC**
+
+Mobile display-name changes ship as `1.0.0-beta.2` with Android version code 2 and iOS build number 2.
+'''
+          Path('FIELD_COACH_BRANDING.md').write_text(migration_note,encoding='utf-8')
+
+          print('Changed product branding in', len(changed), 'tracked text files.')
+          for path in changed:
+              print(path)
+          PY
+
+      - name: Install dependencies and regenerate lock data
+        run: npm install --no-audit --no-fund
+
+      - name: Run branding and mobile release tests
+        run: |
+          npm run test:branding
+          npm run test:mobile
+
+      - name: Verify no old installed-app labels remain
+        shell: bash
+        run: |
+          ! grep -RInE 'appName[[:space:]]*[:=][[:space:]]*["'\'' ]*McCoy|"short_name"[[:space:]]*:[[:space:]]*"McCoy"|<title>McCoy|McCoy-Android' \
+            --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=supabase/migrations .
+          grep -RIn 'McCoy Platform LLC' privacy.html support.html FIELD_COACH_BRANDING.md
+
+      - name: Commit completed rename and remove one-shot workflow
+        shell: bash
+        run: |
+          git rm .github/workflows/one-shot-field-coach-branding.yml
+          git config user.name 'McCoy Release Automation'
+          git config user.email 'noreply@auth.mccoyplatform.com'
+          git add -A
+          git commit -m 'Rename all app versions to Field Coach'
+          git push origin HEAD:rename/field-coach-all-apps-20260831
