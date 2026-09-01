@@ -1,0 +1,98 @@
+name: Repair Field Coach Paywall Phase 2 Source
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: field-coach-paywall-phase2-source-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.event.issue.number == 105 &&
+      github.event.comment.user.login == 'phillipbeatty-ctrl' &&
+      github.event.comment.body == 'REPAIR_FIELD_COACH_PAYWALL_PHASE2_SOURCE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Generate the exact protected-function wrappers
+        run: node scripts/apply-edge-paywall-guards.mjs --write
+
+      - name: Verify the source is exhaustive and repeat-safe
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs
+          node --test organization-access-gate.test.mjs paywall-phase2.test.mjs paywall-deployment.test.mjs webapp-download.test.mjs webapp-csp-install.test.mjs
+
+      - name: Commit generated wrapper changes when required
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo 'sha='"$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
+          git add supabase/functions
+          git commit -m 'Generate exhaustive Paywall Phase 2 Edge guards'
+          git push origin HEAD:main
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+          echo 'sha='"$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Record successful source repair
+        if: success()
+        uses: actions/github-script@v7
+        env:
+          REPAIR_SHA: ${{ steps.commit.outputs.sha }}
+          REPAIR_CHANGED: ${{ steps.commit.outputs.changed }}
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner:context.repo.owner,
+              repo:context.repo.repo,
+              issue_number:105,
+              body:[
+                '## Paywall Phase 2 source gate passed',
+                '',
+                `- Generated changes committed: \`${process.env.REPAIR_CHANGED}\``,
+                `- Validated source commit: \`${process.env.REPAIR_SHA}\``,
+                '- Every Edge Function is now either protected by one mapped entitlement or has a documented narrow infrastructure exemption.',
+                '- The production Edge deployment remains a separate explicit owner command.'
+              ].join('\n')
+            });
+
+      - name: Record stopped source repair
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner:context.repo.owner,
+              repo:context.repo.repo,
+              issue_number:105,
+              body:[
+                '## Paywall Phase 2 source gate stopped',
+                '',
+                `- Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '- No successful source-repair result was recorded. Inspect the failed validation before production deployment.'
+              ].join('\n')
+            });
