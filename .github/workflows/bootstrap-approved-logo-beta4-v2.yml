@@ -41,9 +41,8 @@ jobs:
           cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
           sha256sum /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/transport-sha256.txt
 
-          # The transport wrapper has a known CRC defect. Preserve every decompressed
-          # tar block and let the approved-source checksums decide whether the source
-          # itself is exact. Never accept a merely readable or visually similar image.
+          # The wrapper has a known CRC defect. Preserve every recoverable tar block;
+          # the exact JPEG and PNG checksums below remain the authority.
           set +e
           gzip -dc /tmp/mccoy-logo-beta4-patch.tar.gz > /tmp/mccoy-logo-beta4-patch.tar
           gzip_status=$?
@@ -51,16 +50,27 @@ jobs:
           echo "gzip salvage status: ${gzip_status}"
           test -s /tmp/mccoy-logo-beta4-patch.tar
 
-          tar --ignore-zeros -tf /tmp/mccoy-logo-beta4-patch.tar | tee /tmp/mccoy-logo-beta4-files.txt
+          set +e
+          tar --ignore-zeros -tf /tmp/mccoy-logo-beta4-patch.tar > /tmp/mccoy-logo-beta4-files.txt 2>/tmp/tar-list-errors.txt
+          tar_list_status=$?
+          tar --ignore-zeros -xf /tmp/mccoy-logo-beta4-patch.tar -C . 2>/tmp/tar-extract-errors.txt
+          tar_extract_status=$?
+          set -e
+          echo "tar list salvage status: ${tar_list_status}"
+          echo "tar extract salvage status: ${tar_extract_status}"
+          cat /tmp/mccoy-logo-beta4-files.txt
+          cat /tmp/tar-list-errors.txt || true
+          cat /tmp/tar-extract-errors.txt || true
+
           if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/mccoy-logo-beta4-files.txt; then
             echo 'Unsafe archive path detected.' >&2
             exit 1
           fi
-          tar --ignore-zeros -xf /tmp/mccoy-logo-beta4-patch.tar -C .
 
           test -f assets/brand/source-staging/official-logo-source-original.jpg.b64.part00
           mapfile -t source_parts < <(find assets/brand/source-staging -maxdepth 1 -type f -name 'official-logo-source-original.jpg.b64.part*' | sort)
           test "${#source_parts[@]}" -eq 7
+          for part in "${source_parts[@]}"; do test -s "$part"; done
 
       - name: Materialize and verify approved source
         shell: bash
