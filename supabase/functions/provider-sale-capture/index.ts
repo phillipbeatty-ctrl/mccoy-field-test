@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import {
@@ -22,7 +23,7 @@ function validPoint(value: any) {
   return { latitude, longitude }
 }
 
-Deno.serve(async request => {
+serveWithOrganizationAccess('provider_integrations',async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 

@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { Client as GoogleMapsClient } from 'npm:@googlemaps/google-maps-services-js@3.4.2'
@@ -33,7 +34,7 @@ function point(value: any) {
   return { latitude, longitude }
 }
 
-Deno.serve(async request => {
+serveWithOrganizationAccess('lead_management',async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 

@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { assignedAdminManagerEmail, isManagerPermissionRole, managerControlsLead, normalizeEmail } from '../_shared/manager-lead-assignment.mjs'
@@ -6,7 +7,7 @@ function statesForTeam(team:any){const normalized=String(team||'').trim().toLowe
 function distanceMeters(lat1:number,lng1:number,lat2:number,lng2:number){const r=Math.PI/180,dlat=(lat2-lat1)*r,dlng=(lng2-lng1)*r;const a=Math.sin(dlat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dlng/2)**2;return 6371000*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
 function validArea(area:any){return Number.isFinite(Number(area.center_latitude))&&Number.isFinite(Number(area.center_longitude))&&Number.isFinite(Number(area.radius_m))&&Number(area.radius_m)>0}
 function inAssignedArea(lead:any,area:any){const lat=Number(lead.latitude),lng=Number(lead.longitude);if(lead.latitude==null||lead.longitude==null||!Number.isFinite(lat)||!Number.isFinite(lng))return false;return distanceMeters(lat,lng,Number(area.center_latitude),Number(area.center_longitude))<=Number(area.radius_m)}
-Deno.serve(async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
+serveWithOrganizationAccess('lead_management',async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
  const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'');if(!jwt)return json({error:'unauthorized'},401)
  const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}})
  const {data:{user}}=await admin.auth.getUser(jwt);if(!user?.email)return json({error:'unauthorized'},401)
