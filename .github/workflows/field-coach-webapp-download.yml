@@ -1,0 +1,88 @@
+name: Field Coach Web App Download
+
+on:
+  pull_request:
+    paths:
+      - '*.html'
+      - '*.js'
+      - '*.css'
+      - 'assets/**'
+      - 'manifest.webmanifest'
+      - 'service-worker.js'
+      - 'package.json'
+      - 'VERSION'
+      - 'scripts/build-webapp-download.mjs'
+      - 'webapp-download.test.mjs'
+      - '.github/workflows/field-coach-webapp-download.yml'
+  push:
+    branches:
+      - main
+      - feat/paywall-phase2-webapp-download-20260901
+    paths:
+      - '*.html'
+      - '*.js'
+      - '*.css'
+      - 'assets/**'
+      - 'manifest.webmanifest'
+      - 'service-worker.js'
+      - 'package.json'
+      - 'VERSION'
+      - 'scripts/build-webapp-download.mjs'
+      - 'webapp-download.test.mjs'
+      - '.github/workflows/field-coach-webapp-download.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: field-coach-webapp-download-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-webapp-download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify web app installation and packaging contract
+        run: node --test webapp-download.test.mjs
+
+      - name: Build the versioned web release directory
+        env:
+          FIELD_COACH_BUILD_SHA: ${{ github.sha }}
+        run: node scripts/build-webapp-download.mjs
+
+      - name: Create release ZIP and integrity checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          archive="Field-Coach-Web-App-${version}.zip"
+          (
+            cd dist
+            zip -X -q -r "$archive" field-coach-web-app
+            sha256sum "$archive" > "${archive}.sha256"
+          )
+          test -s "dist/$archive"
+          test -s "dist/${archive}.sha256"
+          echo "archive=$archive" >> "$GITHUB_ENV"
+
+      - name: Upload Field Coach web app download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Field-Coach-Web-App-1.0.0-beta.2
+          path: |
+            dist/${{ env.archive }}
+            dist/${{ env.archive }}.sha256
+            dist/field-coach-web-app/field-coach-web-release.json
+            dist/field-coach-web-app/README.txt
+          if-no-files-found: error
+          retention-days: 30

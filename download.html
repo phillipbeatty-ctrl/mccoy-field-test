@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Field Coach">
+  <title>Install or Download Field Coach</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/logo.svg">
+  <script src="/webapp-installer.js" defer></script>
+  <style>
+    :root{color-scheme:dark;--ink:#f8fafc;--muted:#a8b0bd;--line:#2a2e36;--orange:#f97316;--orange2:#fb923c}
+    *{box-sizing:border-box}html{background:#050505}body{margin:0;min-height:100vh;padding:env(safe-area-inset-top) 18px env(safe-area-inset-bottom);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:radial-gradient(circle at 45% -10%,#2d241d,#090909 38%,#050505 75%)}
+    main{width:min(880px,100%);margin:0 auto;padding:32px 0 54px}.brand{display:flex;align-items:center;gap:14px;margin-bottom:30px}.brand img{width:72px;height:72px;border-radius:18px;background:#000}.brand strong{display:block;font-size:25px}.brand span{display:block;color:var(--orange2);font-size:12px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;margin-top:4px}h1{font-size:clamp(34px,7vw,64px);letter-spacing:-.045em;line-height:.98;margin:0 0 16px;max-width:760px}p{color:var(--muted);line-height:1.55;margin:0}.lead{font-size:18px;max-width:700px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:28px 0}.card{display:flex;flex-direction:column;min-height:260px;padding:24px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,rgba(22,24,29,.98),rgba(10,10,11,.98));box-shadow:0 18px 55px rgba(0,0,0,.32)}.eyebrow{color:var(--orange2);font-size:12px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.card h2{font-size:28px;letter-spacing:-.03em;margin:10px 0}.card p{font-size:14px}.button{appearance:none;border:0;border-radius:14px;padding:15px 18px;margin-top:auto;text-decoration:none;text-align:center;font:inherit;font-weight:900;cursor:pointer}.primary{background:var(--orange);color:#111}.secondary{background:#20242b;color:#f8fafc;border:1px solid #363b45}.button[disabled]{opacity:.48;cursor:not-allowed}.installed{margin:24px 0 0;padding:14px 16px;border:1px solid rgba(34,197,94,.45);background:rgba(34,197,94,.1);color:#bbf7d0;border-radius:14px;font-weight:800}[hidden]{display:none!important}.admin{padding:18px;border:1px solid var(--line);border-radius:18px;background:#0d0f12}.admin strong{display:block;margin-bottom:5px}.fine{margin-top:16px;font-size:12px}
+    @media(max-width:680px){body{padding-left:12px;padding-right:12px}.grid{grid-template-columns:1fr}.card{min-height:235px}.brand img{width:60px;height:60px}.brand strong{font-size:22px}}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><img src="/assets/logo.svg" alt="Field Coach logo"><div><strong>Field Coach</strong><span>by McCoy Platform LLC</span></div></div>
+    <h1>Install the right Field Coach build for this device.</h1>
+    <p class="lead">The production web app installs from the browser and stays connected to the same live organization account. Administrators also receive an integrity-checked web release archive from the GitHub build.</p>
+    <div id="installedStatus" class="installed" hidden>Field Coach is already running as an installed app on this device.</div>
+    <div class="grid">
+      <section class="card">
+        <span class="eyebrow">iPhone and iPad</span>
+        <h2>Install from Safari</h2>
+        <p>Use Safari’s Add to Home Screen action. The dedicated guide detects installed mode and walks through every tap.</p>
+        <a class="button primary" href="/install-ios.html">OPEN iOS INSTALL GUIDE</a>
+      </section>
+      <section class="card">
+        <span class="eyebrow">Android and desktop</span>
+        <h2>Install from this browser</h2>
+        <p id="browserInstallText">When this browser confirms that Field Coach is installable, the button below will open its native installation prompt.</p>
+        <button id="browserInstall" class="button secondary" type="button" disabled>INSTALL FIELD COACH</button>
+      </section>
+    </div>
+    <section class="admin">
+      <strong>Administrator release archive</strong>
+      <p>Each approved source revision produces a versioned ZIP, release manifest, and SHA-256 checksum in the “Field Coach Web App Download” GitHub Actions artifact. The archive is for release verification and controlled hosting—not for installing the app on iOS. iPhone and iPad users must install from Safari so the app retains its secure production origin.</p>
+    </section>
+    <p class="fine">Field Coach uses organization-managed access. This installation center intentionally contains no pricing, purchase, subscription, or checkout action.</p>
+  </main>
+</body>
+</html>

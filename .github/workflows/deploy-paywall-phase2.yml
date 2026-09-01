@@ -1,0 +1,98 @@
+name: Deploy Field Coach Paywall Phase 2
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY to deploy the guarded Edge Functions.
+        required: true
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: field-coach-paywall-phase2-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation == 'DEPLOY') ||
+      (github.event_name == 'issue_comment' && github.event.issue.number == 105 && github.event.comment.user.login == 'phillipbeatty-ctrl' && github.event.comment.body == 'DEPLOY_FIELD_COACH_PAYWALL_PHASE2')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: athxxrfqxwlfnuvbqadp
+    steps:
+      - name: Check out verified main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify protected production credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+
+      - name: Verify exact source contract before deployment
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs
+          node --test organization-access-gate.test.mjs paywall-phase2.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
+
+      - name: Deploy protected service-role functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t functions < <(node -e "import('./scripts/paywall-targets.mjs').then(({edgePaywallTargets})=>console.log([...edgePaywallTargets.keys()].join('\n')))" )
+          for function_name in "${functions[@]}"; do
+            echo "Deploying ${function_name}"
+            if [ "$function_name" = 'native-location-ingest' ]; then
+              npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+            else
+              npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF"
+            fi
+          done
+
+      - name: Capture non-secret deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/field-coach-paywall-phase2
+          npx --yes supabase@2.39.2 functions list --project-ref "$SUPABASE_PROJECT_REF" --output json > /tmp/field-coach-paywall-phase2/functions.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const targets=require('child_process').execFileSync(process.execPath,['-e',"import('./scripts/paywall-targets.mjs').then(({edgePaywallTargets})=>console.log(JSON.stringify([...edgePaywallTargets.entries()])))"],{encoding:'utf8'});
+          const evidence={
+            deployed_at:new Date().toISOString(),
+            repository:process.env.GITHUB_REPOSITORY,
+            commit:process.env.GITHUB_SHA,
+            project_ref:process.env.SUPABASE_PROJECT_REF,
+            targets:JSON.parse(targets)
+          };
+          fs.writeFileSync('/tmp/field-coach-paywall-phase2/deployment.json',JSON.stringify(evidence,null,2)+'\n');
+          NODE
+
+      - name: Publish deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: field-coach-paywall-phase2-production
+          path: /tmp/field-coach-paywall-phase2/
+          if-no-files-found: error
+          retention-days: 30

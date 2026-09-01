@@ -1,0 +1,47 @@
+name: Generate Paywall Phase 2 Guards
+
+on:
+  push:
+    branches:
+      - feat/paywall-phase2-webapp-download-20260901
+    paths:
+      - 'scripts/paywall-targets.mjs'
+      - 'scripts/apply-edge-paywall-guards.mjs'
+      - '.github/workflows/generate-paywall-phase2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-paywall-phase2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: github.actor == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Generate exact entitlement wrappers
+        run: node scripts/apply-edge-paywall-guards.mjs --write
+      - name: Commit generated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Generated source is already current.'
+            exit 0
+          fi
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
+          git add supabase/functions
+          git commit -m 'Generate Phase 2 Edge entitlement guards'
+          git push origin HEAD:${{ github.ref_name }}

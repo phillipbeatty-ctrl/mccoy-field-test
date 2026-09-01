@@ -1,0 +1,36 @@
+name: Web App Installation Runtime Contract
+
+on:
+  pull_request:
+    paths:
+      - 'install-ios.html'
+      - 'install-ios.js'
+      - 'download.html'
+      - 'webapp-installer.js'
+      - 'webapp-csp-install.test.mjs'
+      - '.github/workflows/webapp-install-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'install-ios.html'
+      - 'install-ios.js'
+      - 'download.html'
+      - 'webapp-installer.js'
+      - 'webapp-csp-install.test.mjs'
+      - '.github/workflows/webapp-install-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  csp-compatible-installation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --check install-ios.js
+      - run: node --check webapp-installer.js
+      - run: node --test webapp-csp-install.test.mjs
