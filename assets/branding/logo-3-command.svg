@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 700" role="img" aria-labelledby="title desc">
+  <title id="title">Field Coach — Command</title>
+  <desc id="desc">Official black, orange, and white product treatment based on Logo 3.</desc>
+  <defs>
+    <linearGradient id="o" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffb000"/><stop offset=".52" stop-color="#ff7800"/><stop offset="1" stop-color="#e73700"/></linearGradient>
+    <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#d9dce2"/></linearGradient>
+  </defs>
+  <rect width="1400" height="700" rx="48" fill="#050607"/>
+  <g transform="translate(45 40) scale(.61)">
+    <circle cx="512" cy="506" r="350" fill="none" stroke="url(#o)" stroke-width="34" stroke-linecap="round" stroke-dasharray="1710 490" transform="rotate(-30 512 506)"/>
+    <circle cx="512" cy="506" r="297" fill="none" stroke="#f2f3f5" stroke-width="18" stroke-linecap="round" stroke-dasharray="1150 720" transform="rotate(64 512 506)" opacity=".92"/>
+    <path d="M174 744 294 278h156l98 216 160-216h142L715 744H566l71-259-151 199h-38l-79-199-67 259Z" fill="url(#w)"/>
+    <path d="M545 652 700 326h148c111 0 177 51 177 143 0 119-91 183-237 183h-66l-42 92H545Zm232-136h42c43 0 68-16 68-45 0-21-17-31-50-31h-24Z" fill="url(#o)"/>
+    <path d="M780 144 493 492h136L365 856 836 429H692Z" fill="url(#o)"/>
+  </g>
+  <text x="650" y="305" fill="#fff" font-family="Inter,Arial,sans-serif" font-size="112" font-weight="900" letter-spacing="4">FIELD</text>
+  <text x="650" y="425" fill="url(#o)" font-family="Inter,Arial,sans-serif" font-size="112" font-weight="900" letter-spacing="4">COACH</text>
+  <line x1="650" y1="470" x2="1285" y2="470" stroke="#ff7800" stroke-width="5"/>
+  <text x="655" y="525" fill="#c8ccd4" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700" letter-spacing="10">McCOY PLATFORM LLC</text>
+</svg>
