@@ -60,7 +60,7 @@ test('confirmation page requires a user action, isolates Auth state, and never r
   assert.match(confirmPage,/The token is not consumed merely by opening this page/);
   assert.match(confirmPage,/confirmEmailContinuePanel/);
   assert.match(confirmPage,/This page will not redirect or refresh automatically/);
-  assert.match(confirmPage,/confirm-email\.js\?v=2026083104/);
+  assert.match(confirmPage,/confirm-email\.js\?v=2026083105/);
   assert.match(confirmController,/confirmLinkButton\.addEventListener\('click',confirmTokenHash\)/);
   assert.match(confirmController,/verifyOtp\(\{token_hash:tokenHash/);
   assert.match(confirmController,/verifyOtp\(\{email,token,type:'signup'\}/);
@@ -86,7 +86,7 @@ test('signup fails closed until public production-mail readiness is true',()=>{
 
 test('Pending Account Access shows provider readiness without unattended refreshes',()=>{
   assert.match(pendingPage,/pendingMailStatus/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026083105/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
   assert.match(pendingController,/pendingDeliveryLabel/);
   assert.match(pendingController,/production_ready/);
