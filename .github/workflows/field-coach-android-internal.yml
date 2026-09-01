@@ -12,6 +12,7 @@ on:
       - 'scripts/build-mobile-web.mjs'
       - 'scripts/configure-native-project.mjs'
       - 'scripts/generate-field-coach-icons.py'
+      - 'scripts/verify-approved-logo-source.py'
       - 'scripts/apply-field-coach-icon-links.py'
       - 'scripts/verify-png-content.mjs'
       - 'scripts/field-coach-icons-requirements.txt'
@@ -27,7 +28,7 @@ on:
   push:
     branches:
       - main
-      - fix/field-coach-logo-android-beta3-20260901
+      - fix/approved-official-logo-beta4-20260901
     paths:
       - 'package.json'
       - 'capacitor.config.json'
@@ -37,6 +38,7 @@ on:
       - 'scripts/build-mobile-web.mjs'
       - 'scripts/configure-native-project.mjs'
       - 'scripts/generate-field-coach-icons.py'
+      - 'scripts/verify-approved-logo-source.py'
       - 'scripts/apply-field-coach-icon-links.py'
       - 'scripts/verify-png-content.mjs'
       - 'scripts/field-coach-icons-requirements.txt'
@@ -59,11 +61,11 @@ concurrency:
 
 jobs:
   android-internal-beta:
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[android-beta3-generated]')
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[android-beta4-generated]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      APP_VERSION: 1.0.0-beta.3
+      APP_VERSION: 1.0.0-beta.4
       ANDROID_BUILD_TOOLS: 36.0.0
     steps:
       - name: Check out source
@@ -94,12 +96,12 @@ jobs:
           npm install --no-audit --no-fund
           python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
 
-      - name: Generate and inspect browser and native icon sources
+      - name: Verify approved source and generate browser and native icons
         run: |
           python3 scripts/apply-field-coach-icon-links.py
+          npm run icons:source:verify | tee approved-logo-source-evidence.json
           npm run icons:generate
           npm run icons:verify | tee icon-source-evidence.jsonl
-          ! grep -qiE '<image|data:image' assets/logo.svg
 
       - name: Verify mobile release contract
         run: npm run test:mobile
@@ -134,12 +136,12 @@ jobs:
           cp android/app/build/outputs/bundle/release/app-release.aab "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
           cp mobile-release-doctor.json dist/mobile-release-doctor.json
           cp mobile-web/mobile-build.json dist/mobile-build.json
-          cp icon-source-evidence.jsonl generated-launcher-evidence.jsonl dist/
+          cp approved-logo-source-evidence.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl dist/
 
           "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "$apk" > dist/apk-badging.txt
           grep -q "package: name='com.mccoyplatform.app'" dist/apk-badging.txt
-          grep -q "versionCode='3'" dist/apk-badging.txt
-          grep -q "versionName='1.0.0-beta.3'" dist/apk-badging.txt
+          grep -q "versionCode='4'" dist/apk-badging.txt
+          grep -q "versionName='1.0.0-beta.4'" dist/apk-badging.txt
           grep -q "application-label:'Field Coach'" dist/apk-badging.txt
           grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
 
@@ -161,13 +163,13 @@ jobs:
 
           test -s "$apk"
           test -s "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
-          (cd dist && sha256sum Field-Coach-Android-${APP_VERSION}-debug.apk Field-Coach-Android-${APP_VERSION}-unsigned.aab apk-badging.txt mobile-build.json mobile-release-doctor.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl apk-launcher-evidence.jsonl > SHA256SUMS.txt)
+          (cd dist && sha256sum Field-Coach-Android-${APP_VERSION}-debug.apk Field-Coach-Android-${APP_VERSION}-unsigned.aab apk-badging.txt mobile-build.json mobile-release-doctor.json approved-logo-source-evidence.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl apk-launcher-evidence.jsonl > SHA256SUMS.txt)
 
           cp "$apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
           sha256sum "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" > "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
 
-      - name: Publish stable Android beta download into the repair branch
-        if: github.event_name == 'push' && github.ref_name == 'fix/field-coach-logo-android-beta3-20260901'
+      - name: Publish approved icons and stable Android beta download into the correction branch
+        if: github.event_name == 'push' && github.ref_name == 'fix/approved-official-logo-beta4-20260901'
         shell: bash
         run: |
           set -euo pipefail
@@ -177,16 +179,16 @@ jobs:
           git add assets/*.png *.html
           git add -f "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
           if git diff --cached --quiet; then
-            echo 'Generated icon and Android download files are already current.'
+            echo 'Generated approved icons and Android download files are already current.'
             exit 0
           fi
-          git commit -m 'Publish verified Field Coach Android beta 3 [android-beta3-generated]'
+          git commit -m 'Publish verified Field Coach Android beta 4 [android-beta4-generated]'
           git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Upload Field Coach Android internal beta
         uses: actions/upload-artifact@v4
         with:
-          name: Field-Coach-Android-1.0.0-beta.3
+          name: Field-Coach-Android-1.0.0-beta.4
           path: dist/
           if-no-files-found: error
           retention-days: 30
