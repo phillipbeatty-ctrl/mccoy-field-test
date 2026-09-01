@@ -101,7 +101,7 @@ test('Android CI builds, checks launcher pixels, and publishes a stable beta 3 A
   assert.match(androidWorkflow,/assembleDebug/);
   assert.match(androidWorkflow,/bundleRelease/);
   assert.match(androidWorkflow,/verify-png-content\.mjs/);
-  assert.match(androidWorkflow,/apktool/);
+  assert.match(androidWorkflow,/unzip -q/);
   assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-debug\.apk/);
   assert.match(androidWorkflow,/upload-artifact@v4/);
   assert.doesNotMatch(androidWorkflow,/McCoy-Android-/);
