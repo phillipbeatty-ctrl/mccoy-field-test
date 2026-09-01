@@ -87,4 +87,20 @@ await updateSource('rep-onboarding',source=>{
   return source
 },'rep-onboarding:action-aware')
 
-console.log(JSON.stringify({changed,unchanged,total:simpleTargets.size+1},null,2))
+// Signed URLs are bearer credentials. Keep private order-photo links short lived
+// so a suspended organization cannot keep using a copied URL for 10-15 minutes.
+for(const slug of ['sale-order-photo','sale-order-photo-pilot']){
+  const file=path.join(root,'supabase','functions',slug,'index.ts')
+  const original=await readFile(file,'utf8')
+  const source=original.replace(/createSignedUrl\(([^,]+),\s*(?:600|900)\)/g,'createSignedUrl($1,60)')
+  if(!/createSignedUrl\([^,]+,60\)/.test(source))throw new Error(`${slug}: sixty-second signed URL was not installed`)
+  if(/createSignedUrl\([^,]+,\s*(?:600|900)\)/.test(source))throw new Error(`${slug}: long-lived signed URL remains`)
+  if(source!==original){
+    await writeFile(file,source)
+    changed.push(`${slug}:signed-url-60s`)
+  }else{
+    unchanged.push(`${slug}:signed-url-60s`)
+  }
+}
+
+console.log(JSON.stringify({changed,unchanged,total:simpleTargets.size+3},null,2))
