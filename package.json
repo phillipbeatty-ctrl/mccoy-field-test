@@ -1,6 +1,6 @@
 {
   "name": "mccoy-field-test",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "private": true,
   "type": "module",
   "description": "Field Coach by McCoy Platform LLC for field sales, lead mapping, sessions, coaching, and sales operations.",
@@ -8,10 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "icons:generate": "python3 scripts/generate-field-coach-icons.py",
+    "icons:verify": "node scripts/verify-png-content.mjs assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png",
     "mobile:web": "node scripts/build-mobile-web.mjs",
     "mobile:doctor": "node scripts/mobile-release-doctor.mjs",
-    "mobile:android:prepare": "npm run mobile:web && rm -rf android && npx cap add android && npx cap sync android && npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs android",
-    "mobile:ios:prepare": "npm run mobile:web && rm -rf ios && npx cap add ios && npx cap sync ios && npx @capacitor/assets generate --ios --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs ios",
+    "mobile:android:prepare": "npm run icons:generate && npm run icons:verify && npm run mobile:web && rm -rf android && npx cap add android && npx cap sync android && npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs android",
+    "mobile:ios:prepare": "npm run icons:generate && npm run icons:verify && npm run mobile:web && rm -rf ios && npx cap add ios && npx cap sync ios && npx @capacitor/assets generate --ios --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs ios",
     "test:mobile": "node --test mobile-release.test.mjs"
   },
   "dependencies": {
