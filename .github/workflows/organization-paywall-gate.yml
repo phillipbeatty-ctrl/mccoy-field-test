@@ -1,0 +1,23 @@
+name: Organization paywall gate
+
+on:
+  pull_request:
+    paths:
+      - 'app-organization-access-gate.js'
+      - 'index.html'
+      - 'organization-paywall-gate.test.mjs'
+      - 'supabase/migrations/20260901033000_organization_access_state_foundation.sql'
+      - 'supabase/migrations/20260901034000_organization_access_enforcement.sql'
+      - '.github/workflows/organization-paywall-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  paywall-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-organization-access-gate.js
+      - run: node --test organization-paywall-gate.test.mjs
