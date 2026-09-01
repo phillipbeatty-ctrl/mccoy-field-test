@@ -1,21 +1,21 @@
 {
   "id": "/",
-  "name": "McCoy Platform",
-  "short_name": "McCoy",
-  "description": "McCoy field sales, lead mapping, assignments, sessions, coaching, and sales operations.",
+  "name": "Field Coach",
+  "short_name": "Field Coach",
+  "description": "Field Coach by McCoy Platform LLC for lead mapping, assignments, field sessions, coaching, and sales operations.",
   "start_url": "/?source=installed-app",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#f3f4f6",
-  "theme_color": "#111827",
+  "background_color": "#050505",
+  "theme_color": "#050505",
   "categories": ["business", "productivity", "navigation"],
   "icons": [
-    {"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+    {"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
   ],
   "shortcuts": [
-    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
-    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/mccoy-app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]}
+    {"name": "Lead Pool", "short_name": "Leads", "url": "/#leads", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]},
+    {"name": "Sales Hub", "short_name": "Sales", "url": "/#sales", "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]}
   ]
 }

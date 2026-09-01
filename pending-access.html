@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>McCoy Pending Account Access</title>
-  <link rel="stylesheet" href="styles.css?v=2026083103">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <title>Field Coach Pending Account Access</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2026090101">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -12,19 +14,19 @@
     <header class="topbar" style="position:static;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
         <h1>Pending Account Access</h1>
-        <div class="muted">Authoritative Admin view of every McCoy login account that still needs attention.</div>
+        <div class="muted">Authoritative Admin view of every Field Coach login account that still needs attention.</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">BACK TO MCCOY</a>
+        <a href="/" class="assign-btn" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">BACK TO FIELD COACH</a>
         <a href="/#teams" class="primary" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:10px 14px">USERS & TEAMS</a>
       </div>
     </header>
 
     <section id="pendingAuthCard" class="card">
       <h2>Admin sign-in</h2>
-      <p class="muted small">Your existing McCoy session will be used automatically. Sign in here only when no active Admin session is found.</p>
+      <p class="muted small">Your existing Field Coach session will be used automatically. Sign in here only when no active Admin session is found.</p>
       <input id="pendingEmail" type="email" autocomplete="email" placeholder="Admin email" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
-      <input id="pendingPassword" type="password" autocomplete="current-password" placeholder="McCoy password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
+      <input id="pendingPassword" type="password" autocomplete="current-password" placeholder="Field Coach password" style="box-sizing:border-box;width:100%;padding:12px;margin:6px 0">
       <button id="pendingSignIn" class="primary">SIGN IN</button>
       <div id="pendingAuthMessage" class="muted small" role="status" aria-live="polite" style="margin-top:8px"></div>
     </section>
@@ -33,7 +35,7 @@
       <div class="card-head" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
         <div>
           <h2 style="margin-bottom:4px">Accounts requiring Admin attention</h2>
-          <div class="muted small">Includes unconfirmed emails, pending requests, inactive access, and accounts without a McCoy access record.</div>
+          <div class="muted small">Includes unconfirmed emails, pending requests, inactive access, and accounts without a Field Coach access record.</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span id="pendingAccessCount" class="badge">0</span>

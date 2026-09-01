@@ -1,8 +1,8 @@
 {
   "appId": "com.mccoyplatform.app",
-  "appName": "McCoy",
+  "appName": "Field Coach",
   "webDir": "mobile-web",
-  "backgroundColor": "#111827",
+  "backgroundColor": "#050505",
   "loggingBehavior": "none",
   "includePlugins": [
     "@capacitor/app",
@@ -15,26 +15,27 @@
     "errorPath": "offline.html"
   },
   "android": {
-    "backgroundColor": "#111827",
+    "backgroundColor": "#050505",
     "captureInput": true,
     "webContentsDebuggingEnabled": false,
     "minWebViewVersion": 60,
+    "appendUserAgent": " FieldCoachNative/1.0.0-beta.2",
     "buildOptions": {
       "releaseType": "AAB",
       "signingType": "apksigner"
     }
   },
   "ios": {
-    "backgroundColor": "#111827",
+    "backgroundColor": "#050505",
     "contentInset": "automatic",
-    "appendUserAgent": " McCoyNative/1.0.0-beta.1"
+    "appendUserAgent": " FieldCoachNative/1.0.0-beta.2"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 850,
       "launchAutoHide": true,
       "launchFadeOutDuration": 200,
-      "backgroundColor": "#111827",
+      "backgroundColor": "#050505",
       "showSpinner": false
     },
     "SystemBars": {

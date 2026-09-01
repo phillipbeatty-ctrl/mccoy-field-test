@@ -1,6 +1,6 @@
-const VERSION='mccoy-app-shell-v2-20260831-update-recovery';
+const VERSION='field-coach-app-shell-v3-20260901-brand';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
-const SHELL=['/','/offline.html','/styles.css','/manifest.webmanifest','/mccoy-app-icon.svg','/confirm-email.html','/pending-access.html'];
+const SHELL=['/','/offline.html','/install.html','/styles.css','/manifest.webmanifest','/assets/logo.svg','/app-product-brand.js','/app-organization-access-gate.js','/confirm-email.html','/pending-access.html'];
 
 function deleteOldAppShellCaches(){
   return caches.keys().then(keys=>Promise.all(
