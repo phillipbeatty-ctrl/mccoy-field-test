@@ -22,7 +22,8 @@ const salesRoute=await read('./sales-hub.html');
 const icon=await read('./field-coach-app-icon.svg');
 const legacyIcon=await read('./mccoy-app-icon.svg');
 const nativeConfigurator=await read('./scripts/configure-native-project.mjs');
-const authEmailConfigurator=await read('./scripts/configure-production-auth-email.mjs');
+const authBrandUpdater=await read('./scripts/apply-field-coach-auth-brand.mjs');
+const activationWorkflow=await read('./.github/workflows/configure-production-auth-email.yml');
 const serviceWorker=await read('./service-worker.js');
 
 const forbiddenVisibleBrand=/(McCoy Platform(?! LLC)|McCoy Field Coach|Install McCoy|OPEN MCCOY|BACK TO MCCOY|CONTINUE TO MCCOY|McCoy Lead Import|McCoy Pending Account Access)/;
@@ -60,7 +61,7 @@ test('Field Coach icon replaces the old M artwork while retaining a compatibilit
   assert.match(icon,/aria-label="Field Coach"/);
   assert.match(legacyIcon,/aria-label="Field Coach"/);
   assert.doesNotMatch(icon,/aria-label="McCoy"/);
-  assert.match(icon,/>FC</,{skip:true});
+  assert.doesNotMatch(icon,/M95 364V148/);
 });
 
 test('Android, iPhone, and iPad generated projects explicitly receive Field Coach',()=>{
@@ -71,13 +72,16 @@ test('Android, iPhone, and iPad generated projects explicitly receive Field Coac
   assert.match(nativeConfigurator,/Field Coach uses your location/);
 });
 
-test('Auth email template and sender default use Field Coach',()=>{
-  assert.match(authEmailConfigurator,/Confirm your Field Coach email address/);
-  assert.match(authEmailConfigurator,/MCCOY_AUTH_SENDER_NAME\|\|'Field Coach'/);
-  assert.doesNotMatch(authEmailConfigurator,/Confirm your McCoy email address/);
+test('Auth sender and confirmation template are permanently reasserted as Field Coach',()=>{
+  assert.match(authBrandUpdater,/PRODUCT_NAME='Field Coach'/);
+  assert.match(authBrandUpdater,/Confirm your Field Coach email address/);
+  assert.match(authBrandUpdater,/confirmation_emails_sent:0/);
+  assert.match(activationWorkflow,/default: Field Coach/);
+  assert.match(activationWorkflow,/apply-field-coach-auth-brand\.mjs/);
 });
 
 test('service worker advances the Field Coach shell and caches the new icon',()=>{
   assert.match(serviceWorker,/field-coach-app-shell/);
   assert.match(serviceWorker,/field-coach-app-icon\.svg/);
+  assert.match(serviceWorker,/app-branding\.js/);
 });
