@@ -1,0 +1,82 @@
+name: Bootstrap approved Field Coach logo beta 4
+
+on:
+  push:
+    branches:
+      - fix/approved-official-logo-beta4-20260901
+    paths:
+      - '.bootstrap/**'
+      - '.github/workflows/bootstrap-approved-logo-beta4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: approved-logo-beta4-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize-approved-logo:
+    if: ${{ !contains(github.event.head_commit.message || '', '[approved-logo-bootstrap-complete]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out correction branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: fix/approved-official-logo-beta4-20260901
+
+      - name: Verify staged transport and extract patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t parts < <(find .bootstrap -maxdepth 1 -type f -name 'mccoy-logo-beta4-patch.b64.part*' | sort)
+          test "${#parts[@]}" -eq 20
+          for index in $(seq -w 0 18); do
+            test "$(wc -c < ".bootstrap/mccoy-logo-beta4-patch.b64.part${index}")" -eq 8000
+          done
+          test "$(wc -c < .bootstrap/mccoy-logo-beta4-patch.b64.part19)" -eq 7828
+          cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
+          echo 'd118b20ae1a0996950f56c7c53970b934457a5eec0652cd99fd737a506678964  /tmp/mccoy-logo-beta4-patch.tar.gz' | sha256sum -c -
+          tar -tzf /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/mccoy-logo-beta4-files.txt
+          if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/mccoy-logo-beta4-files.txt; then
+            echo 'Unsafe archive path detected.' >&2
+            exit 1
+          fi
+          tar -xzf /tmp/mccoy-logo-beta4-patch.tar.gz -C .
+
+      - name: Materialize and verify approved source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
+          python3 scripts/materialize-approved-logo-source.py
+          python3 scripts/verify-official-logo-source.py
+          python3 scripts/generate-field-coach-icons.py
+          node scripts/verify-png-content.mjs
+
+      - name: Run release contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/build-mobile-web.mjs
+          node --check scripts/configure-native-project.mjs
+          node --check scripts/mobile-release-doctor.mjs
+          node --check scripts/build-webapp-download.mjs
+          node --test mobile-release.test.mjs webapp-download.test.mjs app-update-recovery.test.mjs
+
+      - name: Remove transport and commit verified patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap-approved-logo-beta4.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'No verified patch changes found.' >&2; exit 1; }
+          git commit -m 'Apply owner-approved logo source and beta 4 release contract [approved-logo-bootstrap-complete]'
+          git push origin HEAD:fix/approved-official-logo-beta4-20260901
