@@ -1,4 +1,6 @@
-# McCoy app release status
+# Field Coach app release status
+
+Field Coach is the product name. McCoy Platform LLC remains the company and the existing technical bundle owner.
 
 ## Production web app
 
@@ -7,45 +9,41 @@ The production web build is available at:
 - `https://www.mccoyplatform.com`
 - `https://mccoy-field-test.vercel.app`
 
-It is also configured as an installable Progressive Web App with a network-first service worker. Live Supabase lead, assignment, session, and sales traffic is never intentionally cached.
+It is configured as an installable Progressive Web App with a network-first service worker. Live Supabase lead, assignment, session, and sales traffic is never intentionally cached.
 
-## Android internal beta — 1.0.0-beta.1
+## Android internal beta — 1.0.0-beta.2
 
-The repository now contains a reproducible Capacitor 8 Android build path with application ID:
+The repository contains a reproducible Capacitor 8 Android build path with the existing application ID:
 
 ```text
 com.mccoyplatform.app
 ```
 
+The visible app name, launcher label, installer metadata, and download filenames are **Field Coach**. Keeping the existing application ID allows the new internal build to update the prior test installation instead of creating an unrelated second app.
+
 The CI workflow creates:
 
 - An installable **debug APK** for controlled internal device testing.
-- An **unsigned AAB** to verify that the Play release bundle compiles.
-- A release-doctor report, APK package/SDK evidence, bundled-web metadata, and SHA-256 checksums.
+- An **unsigned AAB** only to verify that the Android release bundle still compiles.
+- A release-doctor report, APK package/name/SDK evidence, bundled-web metadata, and SHA-256 checksums.
 
-The store build bundles McCoy's production web assets inside the native application. It does not use Capacitor `server.url` or `allowNavigation` to turn the public website into a remote production WebView.
+The build bundles Field Coach's production web assets inside the native application. It does not use Capacitor `server.url` or `allowNavigation` to turn the public website into a remote production WebView.
 
-The Android project is regenerated deterministically from the repository during CI, targets API 36, blocks cleartext network traffic, and declares camera plus foreground coarse/fine location permissions. No signing key is committed to the repository.
+The Android project is regenerated deterministically during CI, targets API 36, blocks cleartext network traffic, and declares camera plus foreground coarse/fine location permissions. No signing key is committed to the repository.
 
-This internal beta is **not a public Play Store release**. The debug APK is suitable only for controlled testing. The unsigned AAB cannot be uploaded as McCoy's final Play release until a company-controlled Android upload key and Play Console application record exist.
+This internal beta is **not a public Play Store release**. Store submission, signing-key creation, listing work, and Play Console work are intentionally deferred.
 
-## iOS continuation
+## iPhone and iPad web app
 
-The same source includes a reproducible Capacitor iOS project-generation script with:
+The immediate iOS target is the installable Field Coach web app in Safari, not an App Store or TestFlight release. Web-app work covers Apple touch icons, standalone metadata, safe areas, keyboard and viewport behavior, touch targets, install guidance, service-worker behavior, and iPhone/iPad acceptance.
 
-- Bundle ID `com.mccoyplatform.app`
-- Foreground-location purpose text
-- Camera and selected-photo purpose text
-- Safe-area handling
-- The `mccoy://` application URL scheme
+The source still retains a reproducible Capacitor iOS project-generation path for later. A native distributable would eventually require the McCoy Platform LLC **Apple Developer** team, signing credentials, provisioning, and Xcode, but those tasks are outside the current release scope.
 
-A distributable iPhone build still requires the McCoy **Apple Developer** team, App Store Connect application record, signing certificate, provisioning profile, and Xcode 26 or later. Those credentials and identifiers must remain outside the repository.
+## Current release order
 
-## Release order
-
-1. Build and install `1.0.0-beta.1` on one controlled Android field device.
-2. Run the real-device acceptance checklist for login, assigned leads, map interaction, GPS, active sessions, dispositions, provider handoff, restart persistence, and confirmation links.
-3. Create the company-controlled Google Play Console application and Android upload key.
-4. Produce and upload a signed AAB to Play internal testing.
-5. Create the Apple Developer/App Store Connect application and generate a signed TestFlight build.
-6. Complete privacy disclosures, store listings, screenshots, tester acceptance, and phased production release.
+1. Build and install Field Coach `1.0.0-beta.2` on one controlled Android field device.
+2. Complete server-side paywall and entitlement enforcement, including direct-bypass testing.
+3. Complete and release the installable web app for Safari on iPhone and iPad.
+4. Compare and select one of the three Field Coach interface directions.
+5. Improve ergonomics and aesthetics around the selected direction.
+6. Defer all public App Store and Play Store work until explicitly authorized.
