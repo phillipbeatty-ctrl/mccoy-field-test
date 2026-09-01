@@ -16,6 +16,7 @@ function assertNoInlineScript(source,name){
   for(const match of scriptTags)assert.match(match[1],/\bsrc=/i,`${name} cannot use inline script under production CSP`)
 }
 
+// Explanatory no-purchase language is allowed; interactive purchase controls are not.
 function assertNoPurchaseAction(source){
   assert.doesNotMatch(source,/href=["'][^"']*(?:stripe\.com|checkout|subscribe|billing|purchase)[^"']*["']/i)
   assert.doesNotMatch(source,/<(?:a|button)\b[^>]*>\s*(?:subscribe now|buy now|purchase|checkout)\b/i)
