@@ -1,0 +1,22 @@
+name: App update recovery
+
+on:
+  pull_request:
+    paths:
+      - 'app-security.js'
+      - 'service-worker.js'
+      - 'app-update-recovery.test.mjs'
+      - '.github/workflows/app-update-recovery.yml'
+  workflow_dispatch:
+
+jobs:
+  update-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-security.js
+      - run: node --check service-worker.js
+      - run: node --test app-update-recovery.test.mjs
