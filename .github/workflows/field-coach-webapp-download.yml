@@ -17,7 +17,7 @@ on:
   push:
     branches:
       - main
-      - feat/paywall-phase2-webapp-download-20260901
+      - fix/field-coach-logo-android-beta3-20260901
     paths:
       - '*.html'
       - '*.js'
@@ -78,7 +78,7 @@ jobs:
       - name: Upload Field Coach web app download
         uses: actions/upload-artifact@v4
         with:
-          name: Field-Coach-Web-App-1.0.0-beta.2
+          name: Field-Coach-Web-App-1.0.0-beta.3
           path: |
             dist/${{ env.archive }}
             dist/${{ env.archive }}.sha256
