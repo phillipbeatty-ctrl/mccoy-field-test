@@ -1,0 +1,67 @@
+name: Continue Paywall Phase 2 After Source Repair
+
+on:
+  workflow_run:
+    workflows: ['Repair Field Coach Paywall Phase 2 Source']
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+jobs:
+  continue-deployment:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'issue_comment' &&
+      github.event.workflow_run.triggering_actor.login == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch the protected production deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner:context.repo.owner,
+              repo:context.repo.repo,
+              workflow_id:'deploy-paywall-phase2.yml',
+              ref:'main',
+              inputs:{confirmation:'DEPLOY'}
+            });
+            await github.rest.issues.createComment({
+              owner:context.repo.owner,
+              repo:context.repo.repo,
+              issue_number:105,
+              body:[
+                '## Paywall Phase 2 deployment dispatched',
+                '',
+                '- The deterministic source gate passed.',
+                '- The protected production-environment Edge Function deployment has now been dispatched from `main`.',
+                '- Completion will be recorded separately; a dispatch is not treated as deployment success.'
+              ].join('\n')
+            });
+
+  stop-on-failed-repair:
+    if: >-
+      github.event.workflow_run.conclusion != 'success' &&
+      github.event.workflow_run.event == 'issue_comment' &&
+      github.event.workflow_run.triggering_actor.login == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record that deployment was not dispatched
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner:context.repo.owner,
+              repo:context.repo.repo,
+              issue_number:105,
+              body:[
+                '## Paywall Phase 2 deployment not dispatched',
+                '',
+                `- Source-repair conclusion: \`${context.payload.workflow_run.conclusion}\``,
+                `- Source workflow: ${context.payload.workflow_run.html_url}`,
+                '- Production deployment remains stopped until the deterministic source gate passes.'
+              ].join('\n')
+            });
