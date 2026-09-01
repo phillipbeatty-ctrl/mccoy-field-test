@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="McCoy">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Field Coach">
   <rect width="512" height="512" rx="112" fill="#111827"/>
-  <path d="M95 364V148h61l100 126 100-126h61v216h-70V250l-91 111-91-111v114H95z" fill="#fbbf24"/>
-  <circle cx="256" cy="111" r="25" fill="#ffffff"/>
+  <path d="M92 132h176v58H158v62h96v56h-96v116H92V132z" fill="#fbbf24"/>
+  <path d="M424 193c-24-45-67-69-119-69-81 0-139 61-139 132s58 132 139 132c52 0 95-24 119-69l-58-30c-12 23-33 37-61 37-42 0-72-29-72-70s30-70 72-70c28 0 49 14 61 37l58-30z" fill="#fbbf24"/>
+  <circle cx="366" cy="110" r="22" fill="#fff"/>
 </svg>
