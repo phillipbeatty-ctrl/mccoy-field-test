@@ -87,7 +87,7 @@ test('native bridge handles lifecycle without unattended reloads or polling',()=
   assert.doesNotMatch(nativeBridge,/setInterval/);
 });
 
-test('Android CI builds, checks launcher pixels, and publishes a stable beta 3 APK path',()=>{
+test('Android CI builds, checks visible launcher pixels, and publishes a stable beta 3 APK path',()=>{
   assert.match(androidWorkflow,/actions\/checkout@v5/);
   assert.match(androidWorkflow,/actions\/setup-node@v5/);
   assert.match(androidWorkflow,/actions\/setup-java@v5/);
@@ -102,6 +102,11 @@ test('Android CI builds, checks launcher pixels, and publishes a stable beta 3 A
   assert.match(androidWorkflow,/bundleRelease/);
   assert.match(androidWorkflow,/verify-png-content\.mjs/);
   assert.match(androidWorkflow,/unzip -q/);
+  assert.match(androidWorkflow,/ic_launcher\.png/);
+  assert.match(androidWorkflow,/ic_launcher_round\.png/);
+  assert.match(androidWorkflow,/ic_launcher_foreground\.png/);
+  assert.doesNotMatch(androidWorkflow,/ic_launcher_background\.png/);
+  assert.doesNotMatch(androidWorkflow,/-name 'ic_launcher\*\.png'/);
   assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-debug\.apk/);
   assert.match(androidWorkflow,/upload-artifact@v4/);
   assert.doesNotMatch(androidWorkflow,/McCoy-Android-/);
