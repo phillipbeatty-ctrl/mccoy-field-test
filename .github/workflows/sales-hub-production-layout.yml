@@ -70,4 +70,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test sales-hub-production-layout.test.mjs sales-hub-preview-layout-promotion.test.mjs sales-hub-production-photo-closest.test.mjs
+      - name: Verify production Sales Hub layout
+        run: node --test sales-hub-production-layout.test.mjs
+      - name: Verify Field Coach placement and workday layout
+        run: node --test sales-hub-preview-layout-promotion.test.mjs
+      - name: Verify photo staging and closest-lead controls
+        run: node --test sales-hub-production-photo-closest.test.mjs
