@@ -1,0 +1,1 @@
+Field Coach beta 4 does not require or authorize any Supabase migration, Edge Function deployment, Auth update, Resend change, lead mutation, assignment change, session change, sale change, compensation change, or provider evidence change.
