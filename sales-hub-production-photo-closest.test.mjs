@@ -23,9 +23,9 @@ test('PHOTO cannot open before a provider capture started in this Sales Hub atte
 
 test('staged photo count, completion handoff, and abandoned deletion are present',()=>{
   assert.match(photo,/PHOTO \(\$\{state\.rows\.length\}\)/)
-  assert.match(photo,/action:'finalize'/)
+  assert.match(photo,/invoke\('finalize',\{capture_id:captureId,sale_id:saleId\}\)/)
   assert.match(photo,/mccoy-provider-sale-abandoned/)
-  assert.match(photo,/action:'discard'/)
+  assert.match(photo,/invoke\('discard',\{capture_id:captureId\}\)/)
   assert.match(photo,/mccoy-sale-saved/)
 })
 
