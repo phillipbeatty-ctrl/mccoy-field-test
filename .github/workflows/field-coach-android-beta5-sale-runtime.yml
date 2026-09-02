@@ -2,11 +2,6 @@ name: Field Coach Android Beta 5 Sale Runtime
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - fix/sale-completion-runtime-20260902
-    paths:
-      - '.github/workflows/field-coach-android-beta5-sale-runtime.yml'
 
 permissions:
   contents: write
