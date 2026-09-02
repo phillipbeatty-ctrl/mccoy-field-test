@@ -5,6 +5,10 @@
   const byId=id=>document.getElementById(id);
   const ISP_PROVIDERS=new Set(['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','Other']);
 
+  function client(requirements={}){
+    return window.MCCOY_GET_SUPABASE_CLIENT?.(requirements)||null;
+  }
+
   const style=document.createElement('style');
   style.textContent=`
     .sale-product-box{grid-column:1/-1;border:1px solid #e5e7eb;border-radius:10px;padding:10px;background:#f8fafc}
@@ -104,12 +108,27 @@
   }
 
   // Extend only sale-submit payloads; all other Supabase function calls are untouched.
-  if(window.sb?.functions?.invoke){
-    const originalInvoke=sb.functions.invoke.bind(sb.functions);
-    sb.functions.invoke=(name,options)=>{
+  function installSaleSubmitExtension(){
+    const supabase=client({functions:true});
+    if(!supabase)return false;
+    if(supabase.functions.invoke.__mccoySalesProducts)return true;
+    const originalInvoke=supabase.functions.invoke.bind(supabase.functions);
+    const wrapped=(name,options)=>{
       if(name==='sale-submit'&&options?.body&&options.body.capture_only_completion!==true)options={...options,body:{...options.body,...readExtras()}};
       return originalInvoke(name,options);
     };
+    wrapped.__mccoySalesProducts=true;
+    wrapped.__mccoyOriginalInvoke=originalInvoke;
+    supabase.functions.invoke=wrapped;
+    return true;
+  }
+
+  if(!installSaleSubmitExtension()){
+    let attempts=0;
+    const clientTimer=setInterval(()=>{
+      attempts++;
+      if(installSaleSubmitExtension()||attempts>=40)clearInterval(clientTimer);
+    },100);
   }
 
   const providerSelect=byId('sessionIsp');
