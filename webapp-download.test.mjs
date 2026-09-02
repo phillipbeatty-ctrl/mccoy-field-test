@@ -21,9 +21,11 @@ test('iPhone and iPad guide describes the real Safari installation flow',()=>{
   assert.doesNotMatch(iosGuide,/stripe\.com|checkout-session|subscribe now|buy now|in-app purchase/i)
 })
 
-test('installation center separates native Android download from browser web-app installation',()=>{
+test('installation center separates persistently signed Android beta 4 from browser web-app installation',()=>{
   assert.match(downloadCenter,/\/install-ios\.html/)
-  assert.match(downloadCenter,/Field-Coach-Android-1\.0\.0-beta\.3-debug\.apk/)
+  assert.match(downloadCenter,/Field-Coach-Android-1\.0\.0-beta\.4-internal\.apk/)
+  assert.match(downloadCenter,/persistently signed/i)
+  assert.match(downloadCenter,/beta 3 must be uninstalled/i)
   assert.match(downloadCenter,/DOWNLOAD ANDROID BETA \(\.APK\)/)
   assert.match(downloadCenter,/INSTALL FIELD COACH WEB APP/)
   assert.match(installer,/beforeinstallprompt/)
@@ -55,7 +57,7 @@ test('download builder has an allowlist and excludes server, database, test, APK
   assert.match(builder,/android_install_method:/)
 })
 
-test('builder produces an integrity manifest containing required install assets',async()=>{
+test('builder produces an integrity manifest containing approved source and required install assets',async()=>{
   execFileSync(process.execPath,['scripts/build-webapp-download.mjs'],{
     cwd:new URL('.',import.meta.url),
     env:{...process.env,FIELD_COACH_BUILD_SHA:'test-build',SOURCE_DATE_EPOCH:'1788249600'},
@@ -69,7 +71,9 @@ test('builder produces an integrity manifest containing required install assets'
     'download.html',
     'manifest.webmanifest',
     'service-worker.js',
-    'assets/logo.svg',
+    'assets/brand/official-logo-source.png',
+    'assets/brand/official-logo-source.sha256',
+    'assets/brand/logo-usage.md',
     'assets/icon-192.png',
     'assets/icon-512.png',
     'assets/icon-maskable-512.png',
@@ -77,21 +81,25 @@ test('builder produces an integrity manifest containing required install assets'
   ])assert.ok(paths.has(required),`${required} missing from release archive`)
   assert.equal(release.product,'Field Coach')
   assert.equal(release.legal_operator,'McCoy Platform LLC')
-  assert.equal(release.version,'1.0.0-beta.3')
+  assert.equal(release.version,'1.0.0-beta.4')
   assert.equal(release.build_sha,'test-build')
   assert.equal(release.production_origin,'https://mccoyplatform.com')
-  assert.match(release.android_beta_url,/Field-Coach-Android-1\.0\.0-beta\.3-debug\.apk$/)
+  assert.match(release.android_beta_url,/Field-Coach-Android-1\.0\.0-beta\.4-internal\.apk$/)
+  assert.equal(release.android_beta_install_mode,'clean_install_required_from_beta3; in_place_updates_supported_from_beta4_forward')
+  assert.equal(release.android_signing_certificate_sha256,'a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935')
   assert.ok(release.files.every(file=>/^[a-f0-9]{64}$/.test(file.sha256)))
   assert.ok(release.files.every(file=>!/(^|\/)(api|supabase|scripts|docs|downloads|\.github)(\/|$)/.test(file.path)))
   assert.ok((await stat(new URL('./dist/field-coach-web-app/README.txt',import.meta.url))).size>0)
 })
 
-test('GitHub Actions publishes a versioned ZIP, checksum, manifest, and README',()=>{
+test('GitHub Actions verifies the approved source and publishes a versioned beta 4 archive',()=>{
   assert.match(workflow,/name: Field Coach Web App Download/)
+  assert.match(workflow,/verify-approved-logo-source\.py/)
+  assert.match(workflow,/icons:source:verify/)
   assert.match(workflow,/generate-field-coach-icons\.py/)
   assert.match(workflow,/zip -X -q -r/)
   assert.match(workflow,/sha256sum/)
-  assert.match(workflow,/Field-Coach-Web-App-1\.0\.0-beta\.3/)
+  assert.match(workflow,/Field-Coach-Web-App-1\.0\.0-beta\.4/)
   assert.match(workflow,/field-coach-web-release\.json/)
   assert.match(workflow,/README\.txt/)
   assert.match(workflow,/actions\/upload-artifact@v4/)

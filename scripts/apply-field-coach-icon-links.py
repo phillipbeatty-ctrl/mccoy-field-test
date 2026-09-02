@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Replace SVG-only browser icon links with explicit PNG favicon and Apple touch assets."""
+"""Apply approved PNG icon and full-brand references to browser HTML."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+APPROVED_SOURCE = "/assets/brand/official-logo-source.png"
 changed: list[str] = []
 
 for path in sorted(ROOT.glob("*.html")):
@@ -22,8 +23,14 @@ for path in sorted(ROOT.glob("*.html")):
         text,
         flags=re.IGNORECASE,
     )
+    text = re.sub(
+        r'(<img\b[^>]*\bsrc=["\'])/assets/logo\.svg(["\'])',
+        rf'\1{APPROVED_SOURCE}\2',
+        text,
+        flags=re.IGNORECASE,
+    )
     if text != original:
         path.write_text(text, encoding="utf-8")
         changed.append(path.name)
 
-print({"changed": changed, "count": len(changed)})
+print({"changed": changed, "count": len(changed), "approved_source": APPROVED_SOURCE})

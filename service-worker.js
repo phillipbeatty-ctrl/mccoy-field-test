@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v4-20260901-beta3-icons';
+const VERSION='field-coach-app-shell-v5-20260901-beta4-approved-logo';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -8,7 +8,7 @@ const SHELL=[
   '/download.html',
   '/styles.css',
   '/manifest.webmanifest',
-  '/assets/logo.svg',
+  '/assets/brand/official-logo-source.png',
   '/assets/favicon-64.png',
   '/assets/apple-touch-icon-180.png',
   '/assets/icon-192.png',

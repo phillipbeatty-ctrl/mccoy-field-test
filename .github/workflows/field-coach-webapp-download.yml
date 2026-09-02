@@ -13,6 +13,7 @@ on:
       - 'VERSION'
       - 'scripts/build-webapp-download.mjs'
       - 'scripts/generate-field-coach-icons.py'
+      - 'scripts/verify-approved-logo-source.py'
       - 'scripts/verify-png-content.mjs'
       - 'scripts/field-coach-icons-requirements.txt'
       - 'webapp-download.test.mjs'
@@ -20,7 +21,7 @@ on:
   push:
     branches:
       - main
-      - fix/field-coach-logo-android-beta3-20260901
+      - fix/approved-official-logo-beta4-20260901
     paths:
       - '*.html'
       - '*.js'
@@ -32,6 +33,7 @@ on:
       - 'VERSION'
       - 'scripts/build-webapp-download.mjs'
       - 'scripts/generate-field-coach-icons.py'
+      - 'scripts/verify-approved-logo-source.py'
       - 'scripts/verify-png-content.mjs'
       - 'scripts/field-coach-icons-requirements.txt'
       - 'webapp-download.test.mjs'
@@ -58,10 +60,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Generate and verify browser installation icons
+      - name: Verify approved source and generate browser installation icons
         run: |
           python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
-          python3 scripts/generate-field-coach-icons.py
+          npm run icons:source:verify
+          npm run icons:generate
           node scripts/verify-png-content.mjs assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/apple-touch-icon-180.png
 
       - name: Verify web app installation and packaging contract
@@ -90,7 +93,7 @@ jobs:
       - name: Upload Field Coach web app download
         uses: actions/upload-artifact@v4
         with:
-          name: Field-Coach-Web-App-1.0.0-beta.3
+          name: Field-Coach-Web-App-1.0.0-beta.4
           path: |
             dist/${{ env.archive }}
             dist/${{ env.archive }}.sha256

@@ -8,6 +8,7 @@ on:
       - 'scripts/paywall-targets.mjs'
       - 'scripts/apply-edge-paywall-guards.mjs'
       - 'scripts/build-webapp-download.mjs'
+      - 'organization-access-gate.test.mjs'
       - 'paywall-phase2.test.mjs'
       - 'paywall-deployment.test.mjs'
       - 'webapp-download.test.mjs'
@@ -26,11 +27,14 @@ on:
       - 'scripts/paywall-targets.mjs'
       - 'scripts/apply-edge-paywall-guards.mjs'
       - 'scripts/build-webapp-download.mjs'
+      - 'organization-access-gate.test.mjs'
       - 'paywall-phase2.test.mjs'
       - 'paywall-deployment.test.mjs'
       - 'webapp-download.test.mjs'
       - 'ios-install.html'
       - 'webapp-download.html'
+      - 'manifest.webmanifest'
+      - 'service-worker.js'
       - '.github/workflows/paywall-phase2-ci.yml'
       - '.github/workflows/deploy-paywall-phase2.yml'
       - '.github/workflows/field-coach-webapp-download.yml'
@@ -49,27 +53,59 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node 22
         uses: actions/setup-node@v5
         with:
           node-version: '22'
 
+      - name: Detect whether paywall source changed
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base='${{ github.event.pull_request.base.sha }}'
+            head='${{ github.event.pull_request.head.sha }}'
+          else
+            base='${{ github.event.before }}'
+            head='${{ github.sha }}'
+          fi
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="${head}^"
+          fi
+          git diff --name-only "${base}" "${head}" | tee /tmp/field-coach-changed-files.txt
+          if grep -Eq '^(supabase/functions/|supabase/migrations/|scripts/paywall-targets\.mjs$|scripts/apply-edge-paywall-guards\.mjs$|organization-access-gate\.test\.mjs$|paywall-phase2\.test\.mjs$|paywall-deployment\.test\.mjs$|\.github/workflows/deploy-paywall-phase2\.yml$)' /tmp/field-coach-changed-files.txt; then
+            echo 'paywall_source_changed=true' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'paywall_source_changed=false' >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Set up Deno
+        if: steps.scope.outputs.paywall_source_changed == 'true'
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
       - name: Verify generated guards are committed
+        if: steps.scope.outputs.paywall_source_changed == 'true'
         run: node scripts/apply-edge-paywall-guards.mjs
 
-      - name: Run paywall and web release regressions
-        run: node --test organization-access-gate.test.mjs paywall-phase2.test.mjs paywall-deployment.test.mjs webapp-download.test.mjs
+      - name: Run web release regression
+        run: node --test webapp-download.test.mjs
+
+      - name: Run paywall regressions
+        if: steps.scope.outputs.paywall_source_changed == 'true'
+        run: node --test organization-access-gate.test.mjs paywall-phase2.test.mjs paywall-deployment.test.mjs
 
       - name: Type-check the shared fail-closed guard
+        if: steps.scope.outputs.paywall_source_changed == 'true'
         run: deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
 
       - name: Parse every protected Edge Function
+        if: steps.scope.outputs.paywall_source_changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
