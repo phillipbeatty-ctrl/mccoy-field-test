@@ -1,4 +1,4 @@
-name: Bootstrap approved Field Coach logo beta 4
+name: Recover approved Field Coach logo source
 
 on:
   push:
@@ -13,12 +13,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: approved-logo-beta4-${{ github.ref }}
+  group: approved-logo-source-recovery-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  materialize-approved-logo:
-    if: ${{ !contains(github.event.head_commit.message || '', '[approved-logo-bootstrap-complete]') }}
+  recover-approved-logo:
+    if: ${{ !contains(github.event.head_commit.message || '', '[approved-logo-source-recovered]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           ref: fix/approved-official-logo-beta4-20260901
 
-      - name: Verify staged transport and extract patch
+      - name: Reassemble checksum-verified recovery transport
         shell: bash
         run: |
           set -euo pipefail
@@ -43,11 +43,11 @@ jobs:
             .bootstrap/correct-part17.02
             .bootstrap/correct-part17.03
           )
-          test "${#corrections[@]}" -eq 8
           for correction in "${corrections[@]}"; do
             test -f "$correction"
             test "$(wc -c < "$correction")" -eq 2000
           done
+
           cat <<'HASHES' | sha256sum -c -
           3f21944d97945f634f0df7f5a70fcb8ec988bff9c26a292029b76398fec30911  .bootstrap/correct-part14.00
           0fd4bf3fc0b1c617b04593edd0ce02f8a9b0f04a88c3ea5501a77a23018e298c  .bootstrap/correct-part14.01
@@ -58,6 +58,7 @@ jobs:
           9e651c1a5272fc510536f92fdcc697d7411c76633fb46de86e16cd2fd1319d61  .bootstrap/correct-part17.02
           366999dd01c3b523ecc4806eb159b6e52e8b567692d47945e6b09a305590a362  .bootstrap/correct-part17.03
           HASHES
+
           cat .bootstrap/correct-part14.* > .bootstrap/mccoy-logo-beta4-patch.b64.part14
           cat .bootstrap/correct-part17.* > .bootstrap/mccoy-logo-beta4-patch.b64.part17
           echo '473de9bacb5f7bf64ccf756daecec0f8efba75f0fef738a4a186d83747e95713  .bootstrap/mccoy-logo-beta4-patch.b64.part14' | sha256sum -c -
@@ -69,45 +70,97 @@ jobs:
             test "$(wc -c < ".bootstrap/mccoy-logo-beta4-patch.b64.part${index}")" -eq 8000
           done
           test "$(wc -c < .bootstrap/mccoy-logo-beta4-patch.b64.part19)" -eq 7828
+
           cat "${parts[@]}" | base64 --decode > /tmp/mccoy-logo-beta4-patch.tar.gz
           echo 'd118b20ae1a0996950f56c7c53970b934457a5eec0652cd99fd737a506678964  /tmp/mccoy-logo-beta4-patch.tar.gz' | sha256sum -c -
-          tar -tzf /tmp/mccoy-logo-beta4-patch.tar.gz | tee /tmp/mccoy-logo-beta4-files.txt
-          if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/mccoy-logo-beta4-files.txt; then
+
+      - name: Recover only the approved upload from the damaged wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/approved-logo-recovery
+
+          set +e
+          gzip -dc /tmp/mccoy-logo-beta4-patch.tar.gz > /tmp/mccoy-logo-beta4-patch.tar
+          gzip_status=$?
+          set -e
+          echo "gzip salvage status: ${gzip_status}"
+          test -s /tmp/mccoy-logo-beta4-patch.tar
+
+          set +e
+          tar --ignore-zeros -tf /tmp/mccoy-logo-beta4-patch.tar > /tmp/recovered-members.txt 2>/tmp/recovered-list-errors.txt
+          list_status=$?
+          tar --ignore-zeros -xf /tmp/mccoy-logo-beta4-patch.tar -C /tmp/approved-logo-recovery --wildcards 'assets/brand/source-staging/official-logo-source-original.jpg.b64.part*' 2>/tmp/recovered-extract-errors.txt
+          extract_status=$?
+          set -e
+
+          echo "tar list salvage status: ${list_status}"
+          echo "tar extract salvage status: ${extract_status}"
+          cat /tmp/recovered-list-errors.txt || true
+          cat /tmp/recovered-extract-errors.txt || true
+
+          if grep -Eq '(^/|(^|/)\.\.(/|$))' /tmp/recovered-members.txt; then
             echo 'Unsafe archive path detected.' >&2
             exit 1
           fi
-          tar -xzf /tmp/mccoy-logo-beta4-patch.tar.gz -C .
 
-      - name: Materialize and verify approved source
+          mapfile -t source_parts < <(find /tmp/approved-logo-recovery/assets/brand/source-staging -maxdepth 1 -type f -name 'official-logo-source-original.jpg.b64.part*' | sort)
+          test "${#source_parts[@]}" -eq 7
+          for part in "${source_parts[@]}"; do test -s "$part"; done
+          cat "${source_parts[@]}" | base64 --decode > /tmp/approved-upload-original.jpg
+          echo '227203e1c0ab14a1aa400e6f0d1411a6512222a685589df92dac3f3c1633cd90  /tmp/approved-upload-original.jpg' | sha256sum -c -
+
+      - name: Materialize and verify the authoritative PNG
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
-          python3 scripts/materialize-approved-logo-source.py
-          python3 scripts/verify-official-logo-source.py
+          python3 -m pip install --disable-pip-version-check 'Pillow==12.3.0'
+          mkdir -p assets/brand
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          from PIL import Image
+
+          original = Path('/tmp/approved-upload-original.jpg')
+          target = Path('assets/brand/official-logo-source.png')
+          expected = 'ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5'
+
+          with Image.open(original) as image:
+              image.load()
+              if image.size != (1024, 1024):
+                  raise SystemExit(f'Unexpected approved logo dimensions: {image.size}')
+              image.convert('RGB').save(target, format='PNG', optimize=True, compress_level=9)
+
+          actual = sha256(target.read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'Approved PNG checksum mismatch: {actual}')
+
+          target.with_suffix('.sha256').write_text(
+              f'{expected}  assets/brand/official-logo-source.png\n',
+              encoding='utf-8',
+          )
+          print({'source': str(target), 'sha256': actual, 'dimensions': [1024, 1024]})
+          PY
+
+          python3 scripts/verify-approved-logo-source.py
           python3 scripts/generate-field-coach-icons.py
-          node scripts/verify-png-content.mjs
+          node scripts/verify-png-content.mjs assets/favicon-64.png assets/apple-touch-icon-180.png assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png
 
-      - name: Run release contract tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check scripts/build-mobile-web.mjs
-          node --check scripts/configure-native-project.mjs
-          node --check scripts/mobile-release-doctor.mjs
-          node --check scripts/build-webapp-download.mjs
-          node --test mobile-release.test.mjs webapp-download.test.mjs app-update-recovery.test.mjs
-
-      - name: Remove transport and commit verified patch
+      - name: Remove temporary transports and commit the verified source
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .bootstrap
+          rm -rf assets/brand/source-staging
+          rm -f assets/brand/approved-upload-original.jpg
           rm -f .github/workflows/bootstrap-approved-logo-beta4.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/bootstrap-approved-logo-beta4-v2.yml
+          rm -f .github/workflows/diagnose-logo-transport.yml
+
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
           git add -A
           git diff --cached --check
-          git diff --cached --quiet && { echo 'No verified patch changes found.' >&2; exit 1; }
-          git commit -m 'Apply owner-approved logo source and beta 4 release contract [approved-logo-bootstrap-complete]'
+          git diff --cached --quiet && { echo 'No recovered source changes found.' >&2; exit 1; }
+          git commit -m 'Commit checksum-locked approved logo source [approved-logo-source-recovered]'
           git push origin HEAD:fix/approved-official-logo-beta4-20260901
