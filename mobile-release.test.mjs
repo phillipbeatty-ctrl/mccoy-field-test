@@ -31,12 +31,16 @@ test('Capacitor 8 release toolchain is pinned and keeps the existing McCoy Platf
   assert.equal(manifest.short_name,'Field Coach');
 });
 
-test('approved JPEG and normalized PNG are immutable, checksum-gated source assets',()=>{
-  assert.match(approvedSourceVerifier,/approved-upload-original\.jpg/);
+test('the immutable approved PNG is the only required build-time brand source',()=>{
   assert.match(approvedSourceVerifier,/official-logo-source\.png/);
-  assert.match(approvedSourceVerifier,/227203e1c0ab14a1aa400e6f0d1411a6512222a685589df92dac3f3c1633cd90/);
   assert.match(approvedSourceVerifier,/ca00cdb16a50d463f9add9c15c4d193b038143f5e2b1cc4b86b9bc8cd4d787f5/);
-  assert.match(approvedSourceVerifier,/ImageChops\.difference/);
+  assert.match(approvedSourceVerifier,/a07761316ddcbf77af92a7d6abbb2393ab1cde6ef251d0d39731788535a0279e/);
+  assert.match(approvedSourceVerifier,/EXPECTED_SIZE = \(1024, 1024\)/);
+  assert.match(approvedSourceVerifier,/EXPECTED_FORMAT = "PNG"/);
+  assert.match(approvedSourceVerifier,/EXPECTED_MODE = "RGB"/);
+  assert.match(approvedSourceVerifier,/original_upload_required_at_build_time/);
+  assert.doesNotMatch(approvedSourceVerifier,/approved-upload-original\.jpg|ImageChops/);
+  assert.match(logoUsage,/The JPEG is not required at build time/i);
   assert.match(logoUsage,/No redrawing, recoloring, vectorization, generative reconstruction/i);
   assert.match(logoUsage,/assets\/logo\.svg.*deprecated/is);
   assert.match(packageJson.scripts['icons:source:verify'],/verify-approved-logo-source\.py/);
@@ -103,39 +107,49 @@ test('native bridge handles lifecycle without unattended reloads or polling',()=
   assert.doesNotMatch(nativeBridge,/setInterval/);
 });
 
-test('Android CI verifies the approved source, checks launcher pixels, and publishes beta 4 only from the correction branch',()=>{
+test('Android CI builds a release package and signs it with the persistent Vault-backed internal key',()=>{
   assert.match(androidWorkflow,/actions\/checkout@v5/);
   assert.match(androidWorkflow,/actions\/setup-node@v5/);
   assert.match(androidWorkflow,/actions\/setup-java@v5/);
   assert.match(androidWorkflow,/android-actions\/setup-android@v4/);
   assert.match(androidWorkflow,/node-version:\s*['"]22['"]/);
-  assert.match(androidWorkflow,/distribution:\s*['"]temurin['"]/);
   assert.match(androidWorkflow,/java-version:\s*['"]21['"]/);
   assert.match(androidWorkflow,/APP_VERSION: 1\.0\.0-beta\.4/);
   assert.match(androidWorkflow,/fix\/approved-official-logo-beta4-20260901/);
+  assert.match(androidWorkflow,/environment: production/);
+  assert.match(androidWorkflow,/get_field_coach_android_internal_signing_v1/);
+  assert.match(androidWorkflow,/SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(androidWorkflow,/a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935/);
   assert.match(androidWorkflow,/icons:source:verify/);
   assert.match(androidWorkflow,/platforms;android-36/);
   assert.match(androidWorkflow,/build-tools;36\.0\.0/);
-  assert.match(androidWorkflow,/assembleDebug/);
+  assert.match(androidWorkflow,/assembleRelease/);
   assert.match(androidWorkflow,/bundleRelease/);
+  assert.doesNotMatch(androidWorkflow,/assembleDebug/);
+  assert.match(androidWorkflow,/apksigner[^\n]*sign/s);
+  assert.match(androidWorkflow,/apksigner[^\n]*verify/s);
+  assert.match(androidWorkflow,/jarsigner/);
+  assert.match(androidWorkflow,/zipalign/);
   assert.match(androidWorkflow,/verify-png-content\.mjs/);
   assert.match(androidWorkflow,/unzip -Z1/);
   assert.match(androidWorkflow,/unzip -p/);
   assert.match(androidWorkflow,/packaged_entries/);
   assert.ok(androidWorkflow.includes('ic_launcher(_foreground|_round)?\\.png'));
   assert.doesNotMatch(androidWorkflow,/ic_launcher_background/);
-  assert.doesNotMatch(androidWorkflow,/-name 'ic_launcher\*\.png'/);
-  assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-debug\.apk/);
+  assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-internal\.apk/);
+  assert.match(androidWorkflow,/byte-identical compatibility alias/i);
+  assert.match(androidWorkflow,/clean_install_required/);
   assert.match(androidWorkflow,/git add -f/);
   assert.match(androidWorkflow,/upload-artifact@v4/);
   assert.doesNotMatch(androidWorkflow,/McCoy-Android-/);
 });
 
-test('release documentation distinguishes approved-source beta 4 from a public store release',()=>{
+test('release documentation describes a signed internal beta and the beta 3 clean-install boundary',()=>{
   assert.match(releaseDoc,/1\.0\.0-beta\.4/);
   assert.match(releaseDoc,/approved uploaded artwork/i);
-  assert.match(releaseDoc,/debug APK/i);
-  assert.match(releaseDoc,/unsigned AAB/i);
+  assert.match(releaseDoc,/persistently signed internal APK/i);
+  assert.match(releaseDoc,/Supabase Vault/i);
+  assert.match(releaseDoc,/clean installation/i);
   assert.match(releaseDoc,/not a public Play Store release/i);
   assert.match(releaseDoc,/Apple Developer/i);
 });
