@@ -69,18 +69,18 @@ test('denial and a different signed-in user invalidate the page verification cac
   assert.match(client,/organizationState=null;\s*window\.FIELD_COACH_ORGANIZATION_ACCESS=null;/)
 })
 
-test('organization gate loads before application modules',()=>{
-  const gate=indexHtml.indexOf('app-organization-access-gate.js')
+test('organization gate loads before application modules with a fresh iOS cache key',()=>{
+  const gate=indexHtml.indexOf('app-organization-access-gate.js?v=2026090201')
   const firstApp=indexHtml.indexOf('app-part1.js')
   const auth=indexHtml.indexOf('app-auth.js')
-  assert.ok(gate>=0,'organization gate script missing')
+  assert.ok(gate>=0,'cache-busted organization gate script missing')
   assert.ok(gate<firstApp,'organization gate must load before app-part1')
   assert.ok(gate<auth,'organization gate must load before app-auth')
 })
 
-test('service worker rotates the app shell for the stable organization-access gate',()=>{
+test('service worker rotates the app shell and precaches the cache-busted organization gate',()=>{
   assert.match(serviceWorker,/field-coach-app-shell-v6-20260902-stable-organization-access/)
-  assert.match(serviceWorker,/'\/app-organization-access-gate\.js'/)
+  assert.match(serviceWorker,/'\/app-organization-access-gate\.js\?v=2026090201'/)
 })
 
 test('Edge endpoint validates JWT and restricts entitlement names',()=>{
