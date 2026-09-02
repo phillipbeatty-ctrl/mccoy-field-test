@@ -15,7 +15,7 @@ const SHELL=[
   '/assets/icon-512.png',
   '/assets/icon-maskable-512.png',
   '/app-product-brand.js',
-  '/app-organization-access-gate.js',
+  '/app-organization-access-gate.js?v=2026090201',
   '/confirm-email.html',
   '/pending-access.html'
 ];
