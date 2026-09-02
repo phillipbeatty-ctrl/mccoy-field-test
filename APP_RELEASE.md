@@ -81,6 +81,8 @@ The CI workflow creates and verifies:
 - a stable official-domain APK at `downloads/Field-Coach-Android-1.0.0-beta.4-internal.apk`;
 - a byte-identical `...-debug.apk` compatibility alias for the previously announced beta 4 route.
 
+Android release optimization can rewrite physical ZIP entry names while preserving logical resource identities. CI therefore resolves the compiled `ic_launcher`, `ic_launcher_foreground`, and `ic_launcher_round` resources through `aapt2 dump resources`, extracts the resolved PNG entries, and verifies their decoded content instead of assuming their original source filenames remain in the APK.
+
 The build bundles Field Coach's production web assets inside the native application. It does not use Capacitor `server.url` or `allowNavigation` to turn the public website into a remote production WebView.
 
 The Android project is regenerated deterministically during CI, targets API 36, blocks cleartext network traffic, and declares camera plus foreground coarse/fine location permissions.
