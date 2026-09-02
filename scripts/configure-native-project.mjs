@@ -6,8 +6,8 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const platform=String(process.argv[2]||'').toLowerCase();
 const appDisplayName='Field Coach';
-const versionName='1.0.0-beta.4';
-const versionCode='4';
+const versionName='1.0.0-beta.5';
+const versionCode='5';
 
 async function read(relativePath){return readFile(path.join(root,relativePath),'utf8');}
 async function write(relativePath,content){await writeFile(path.join(root,relativePath),content);}
@@ -96,7 +96,7 @@ async function configureIos(){
   const projectPath='ios/App/App.xcodeproj/project.pbxproj';
   let project=await read(projectPath);
   project=project.replace(/MARKETING_VERSION = [^;]+;/g,'MARKETING_VERSION = 1.0.0;');
-  project=project.replace(/CURRENT_PROJECT_VERSION = [^;]+;/g,'CURRENT_PROJECT_VERSION = 4;');
+  project=project.replace(/CURRENT_PROJECT_VERSION = [^;]+;/g,'CURRENT_PROJECT_VERSION = 5;');
   await write(projectPath,project);
   console.log(`Configured iOS ${appDisplayName} ${versionName} with explicit foreground-location, camera, and photo usage descriptions.`);
 }
