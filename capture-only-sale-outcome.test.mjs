@@ -34,7 +34,7 @@ test('Complete Sale sends capture identity and outcome without customer or order
 
 test('sale-submit accepts only an authenticated capture owned by the signed-in rep', () => {
   assert.match(submit, /admin\.auth\.getUser\(jwt\)/)
-  assert.match(submit, /\.eq\('id', captureId\)\s*\.eq\('rep_user_id', user\.id\)/)
+  assert.match(submit, /\.eq\('id', captureId\)\s*\.eq\('organization_id', access\.organization_id\)\s*\.eq\('rep_user_id', user\.id\)/)
   assert.match(submit, /valid_provider_capture_required/)
   assert.match(submit, /provider_capture_abandoned/)
   assert.match(submit, /provider_capture_not_open/)
@@ -72,10 +72,15 @@ test('Abandoned closes the capture without calling sale-submit', () => {
 test('stale field session ids are discarded before a provider capture is inserted', () => {
   assert.match(capture, /\.from\('test_sessions'\)/)
   assert.match(capture, /\.eq\('tester_user_id', user\.id\)/)
-  assert.match(capture, /if \(session\?\.id\) sessionId = session\.id/)
+  assert.match(capture, /if \(session\?\.id/)
 })
 
-test('Sales Hub cache-busts the two-button outcome script', () => {
+test('Sales Hub loads the shared client before sale modules and cache-busts changed scripts', () => {
+  assert.match(html, /app-supabase-client\.js\?v=2026090201/)
+  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026082417'))
   assert.match(html, /app-sales\.js\?v=2026082417/)
-  assert.match(html, /app-sales-products\.js\?v=2026082417/)
+  assert.match(html, /app-sale-lifecycle\.js\?v=2026090201/)
+  assert.match(html, /app-sale-photo-staging\.js\?v=2026090201/)
+  assert.match(html, /app-sales-products\.js\?v=2026090201/)
+  assert.match(html, /app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
 })

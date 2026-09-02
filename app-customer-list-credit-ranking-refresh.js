@@ -7,6 +7,10 @@
   const customerRecords=new Map();
   const normalized=value=>String(value||'').trim().toLowerCase();
 
+  function client(requirements={}){
+    return window.MCCOY_GET_SUPABASE_CLIENT?.(requirements)||null;
+  }
+
   function formatCalendarDate(value){
     if(value==null||value==='')return '—';
     const text=String(value).trim();
@@ -60,9 +64,10 @@
   }
 
   function installRpc(){
-    if(!window.sb?.rpc)return false;
-    if(sb.rpc.__mccoyCustomerListCreditRefresh)return true;
-    const originalRpc=sb.rpc.bind(sb);
+    const supabase=client({rpc:true});
+    if(!supabase)return false;
+    if(supabase.rpc.__mccoyCustomerListCreditRefresh)return true;
+    const originalRpc=supabase.rpc.bind(supabase);
     const wrapped=async function(name,args,options){
       const result=await originalRpc(name,args,options);
       if(name==='admin_edit_customer_list_sale'&&!result?.error&&result?.data){
@@ -87,14 +92,15 @@
     };
     wrapped.__mccoyCustomerListCreditRefresh=true;
     wrapped.__mccoyOriginalRpc=originalRpc;
-    sb.rpc=wrapped;
+    supabase.rpc=wrapped;
     return true;
   }
 
   function installFunctionInvoke(){
-    if(!window.sb?.functions?.invoke)return false;
-    if(sb.functions.invoke.__mccoyCustomerDateFix)return true;
-    const originalInvoke=sb.functions.invoke.bind(sb.functions);
+    const supabase=client({functions:true});
+    if(!supabase)return false;
+    if(supabase.functions.invoke.__mccoyCustomerDateFix)return true;
+    const originalInvoke=supabase.functions.invoke.bind(supabase.functions);
     const wrapped=async function(name,options){
       const result=await originalInvoke(name,options);
       if(name==='accounting-records'&&String(options?.body?.action||'customer_list')==='customer_list')rememberCustomerRecords(result);
@@ -102,7 +108,7 @@
     };
     wrapped.__mccoyCustomerDateFix=true;
     wrapped.__mccoyOriginalInvoke=originalInvoke;
-    sb.functions.invoke=wrapped;
+    supabase.functions.invoke=wrapped;
     return true;
   }
 

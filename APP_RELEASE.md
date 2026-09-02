@@ -35,7 +35,21 @@ The original JPEG hash remains provenance evidence, but the JPEG is not a second
 
 The approved composition is never redrawn, recolored, vectorized, regenerated, retouched, or cropped. Platform derivatives may only resize the complete composition or add safe padding.
 
-## Android internal beta — 1.0.0-beta.4
+## Sale-completion runtime repair
+
+Field Coach beta 5 contains the repaired provider-sale runtime:
+
+- one browser-wide resolver locates the existing global lexical Supabase client without assuming `window.sb` exists;
+- `COMPLETE SALE` submits once through `sale-submit` rather than using an asynchronous browser preflight and synthetic second click;
+- `sale-submit` remains the atomic authority for authentication, organization, capture ownership, open status, duplicate prevention, canonical sale creation, and capture recording;
+- private provider screenshot staging uses the same client resolver;
+- failed completions remain visible in the Provider Outcome panel;
+- executable browser tests cover sale creation, capture recording, private photo staging, Admin Sale Review visibility, ranking refresh, and stale/wrong-user blocking;
+- the PWA shell is rotated to `field-coach-app-shell-v7-20260902-sale-completion-runtime`.
+
+No migration or Edge Function deployment is required for this repair. The active server functions already contain the required ownership, state, and idempotency controls.
+
+## Android internal beta — 1.0.0-beta.5
 
 The repository contains a reproducible Capacitor 8 Android build path with application ID:
 
@@ -43,43 +57,39 @@ The repository contains a reproducible Capacitor 8 Android build path with appli
 com.mccoyplatform.app
 ```
 
-The visible app name, launcher label, installer metadata, and download filenames are **Field Coach**. Version code 4 identifies beta 4 as newer than beta 3.
+The visible app name, launcher label, installer metadata, and download filenames are **Field Coach**. Version code 5 identifies beta 5 as newer than beta 4 and ensures existing beta 4 installations can receive the repaired embedded web runtime as an in-place update.
 
 ### Persistent internal signing
 
-Beta 4 is built as a release APK and signed with a persistent McCoy Platform LLC internal-beta certificate. The encrypted PKCS12 signing material is held in Supabase Vault and can be retrieved only by the `service_role` through a restricted `SECURITY DEFINER` RPC inside the protected GitHub `production` environment.
+Beta 5 is built as a release APK and signed with the same persistent McCoy Platform LLC internal-beta certificate used by beta 4. The encrypted PKCS12 signing material is held in Supabase Vault and can be retrieved only by the `service_role` through a restricted `SECURITY DEFINER` RPC inside the protected GitHub `production` environment.
 
 The private key, store password, and key password are not committed to the repository, written to release artifacts, or exposed to application users. CI verifies the keystore checksum and certificate fingerprint before signing, then verifies the finished APK certificate again before publication.
 
-Locked beta 4 signing-certificate SHA-256:
+Locked internal signing-certificate SHA-256:
 
 ```text
 a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935
 ```
 
-### Beta 3 clean-install boundary
+### Update boundaries
 
-The beta 3 APK was signed by a one-time CI debug key whose private key was not preserved. Android therefore cannot verify beta 4 as an authorized in-place update to beta 3, even though the application ID is unchanged.
+The beta 3 APK was signed by a one-time CI debug key whose private key was not preserved. Android therefore cannot verify beta 4 or beta 5 as an authorized in-place update to beta 3, even though the application ID is unchanged.
 
-The controlled beta 4 acceptance device must use a **clean installation**:
-
-1. Record the beta 3 App Info and current test state.
-2. Uninstall beta 3 from the controlled device.
-3. Install the persistently signed beta 4 internal APK.
-4. Sign in again and verify organization access, role, assignments, launcher, splash, login branding, restart behavior, and update behavior.
-
-Future internal betas signed with the locked beta 4 key can update beta 4 in place.
+- Beta 3 must be uninstalled before beta 5 is installed.
+- Beta 4 can update to beta 5 in place because both use the same persistent internal signing certificate.
+- Future internal betas must retain the same certificate and use a higher Android version code.
 
 ### Build outputs
 
-The CI workflow creates and verifies:
+The protected beta 5 workflow creates and verifies:
 
 - a persistently signed internal APK;
 - a signed internal AAB for controlled release verification;
 - package ID, version name, version code, application label, target SDK, signer fingerprint, launcher-pixel, source-integrity, bundled-web, and release-doctor evidence;
+- presence and content of the repaired Supabase resolver, sale lifecycle, and photo-staging scripts inside the compiled APK;
 - SHA-256 checksums for every release artifact;
-- a stable official-domain APK at `downloads/Field-Coach-Android-1.0.0-beta.4-internal.apk`;
-- a byte-identical `...-debug.apk` compatibility alias for the previously announced beta 4 route.
+- a stable official-domain APK at `downloads/Field-Coach-Android-1.0.0-beta.5-internal.apk`;
+- a byte-identical `...-debug.apk` compatibility alias for controlled testing.
 
 Android release optimization can rewrite physical ZIP entry names while preserving logical resource identities. CI therefore resolves the compiled `ic_launcher`, `ic_launcher_foreground`, and `ic_launcher_round` resources through `aapt2 dump resources`, extracts the resolved PNG entries, and verifies their decoded content instead of assuming their original source filenames remain in the APK.
 
@@ -97,12 +107,13 @@ The source retains a reproducible Capacitor iOS project-generation path for late
 
 ## Current release order
 
-1. Verify the immutable approved PNG and deterministic derivatives on PR #109.
-2. Build and sign Field Coach `1.0.0-beta.4` with the persistent internal certificate.
-3. Verify package identity, version, target SDK, signer, launcher resources, APK checksum, and Vercel preview.
-4. Publish the signed APK and checksum to the correction branch.
-5. Merge only after every required automated and preview gate passes.
-6. Confirm the production installation center identifies beta 4 and the APK route returns HTTP 200.
-7. Perform a clean beta 4 installation on one controlled Android device and verify launcher, splash, login, organization access, assigned leads, restart persistence, and future update readiness.
-8. Add the production web app to one iPhone or iPad Home Screen and verify icon, standalone launch, login branding, and cache-update behavior.
-9. Defer public App Store and Play Store distribution until explicitly authorized.
+1. Verify the repaired sale runtime and immutable approved PNG on PR #113.
+2. Build and sign Field Coach `1.0.0-beta.5` with the persistent internal certificate.
+3. Verify the package identity, version 5, target SDK, signer, launcher resources, embedded repaired scripts, APK checksum, and exact-head Vercel preview.
+4. Publish the signed beta 5 APK and checksum to the PR branch.
+5. Merge only after the generated release commit and every required automated and preview gate pass.
+6. Confirm the production installation center identifies beta 5 and the APK route returns HTTP 200 with the published checksum.
+7. Perform an in-place beta 4 to beta 5 update on one controlled Android device. Beta 3 devices must clean-install.
+8. Refresh or reinstall the production web app on one iPhone or iPad and verify the v7 app shell, sale completion, private photo staging, Admin Sale Review visibility, and rankings.
+9. Recover Dustin Gallagher's blocked order only after the original screenshot, provider order/account identifier, linked-seller identity, processed date, and duplicate checks pass.
+10. Defer public App Store and Play Store distribution until explicitly authorized.

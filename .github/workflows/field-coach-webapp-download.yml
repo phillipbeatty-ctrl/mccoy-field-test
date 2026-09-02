@@ -93,7 +93,7 @@ jobs:
       - name: Upload Field Coach web app download
         uses: actions/upload-artifact@v4
         with:
-          name: Field-Coach-Web-App-1.0.0-beta.4
+          name: Field-Coach-Web-App-1.0.0-beta.5
           path: |
             dist/${{ env.archive }}
             dist/${{ env.archive }}.sha256

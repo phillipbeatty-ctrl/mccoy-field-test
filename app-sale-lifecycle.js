@@ -1,5 +1,6 @@
-// One field lifecycle: SAVE DISPOSITION owns the visit; SALE opens the provider dashboard flow.
-// Provider outcomes are allowed only after the active capture is verified for the signed-in user.
+// One field lifecycle: SAVE owns the visit; SALE opens the provider dashboard flow.
+// COMPLETE SALE submits directly through app-sales.js. The server remains the
+// authority for capture ownership, status, idempotency, sale creation, and ranking.
 (function(){
   if(window.MCCOY_SALE_LIFECYCLE)return;
   window.MCCOY_SALE_LIFECYCLE=true;
@@ -7,6 +8,10 @@
   const byId=id=>document.getElementById(id);
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   let reconciliationPromise=null;
+
+  function client(){
+    return window.MCCOY_GET_SUPABASE_CLIENT?.({functions:true})||null;
+  }
 
   function ensureSaleButton(){
     let button=byId('processSaleBtn');
@@ -73,11 +78,13 @@
 
   async function reconcileProviderCapture({announce=true}={}){
     if(reconciliationPromise)return reconciliationPromise;
-    if(!window.MCCOY_ACCESS?.access?.active||!window.sb?.functions?.invoke)return null;
+    if(!window.MCCOY_ACCESS?.access?.active)return null;
+    const supabase=client();
+    if(!supabase)return null;
 
     reconciliationPromise=(async()=>{
-      let local=await awaitCaptureReady(readLocalCapture());
-      const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action:'list',open_only:true,mine_only:true}});
+      const local=await awaitCaptureReady(readLocalCapture());
+      const {data,error}=await supabase.functions.invoke('provider-sale-capture',{body:{action:'list',open_only:true,mine_only:true}});
       if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_capture_validation_failed');
       const captures=Array.isArray(data.captures)?data.captures:[];
       const match=local?captures.find(capture=>sameCapture(capture,local)):null;
@@ -98,6 +105,9 @@
     finally{reconciliationPromise=null;}
   }
 
+  // PHOTO uses this to confirm that the capture remains open. COMPLETE SALE does
+  // not use a browser preflight: app-sales.js submits once and sale-submit checks
+  // the authenticated owner and status atomically on the server.
   window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE=()=>reconcileProviderCapture({announce:true});
 
   function selectedPinDisposition(){
@@ -135,45 +145,6 @@
     event.preventDefault();
     event.stopImmediatePropagation();
     saveDisposition();
-  },true);
-
-  // Stop COMPLETE SALE / ABANDONED before their legacy handlers when the browser
-  // is holding another user's or an already-closed provider capture.
-  document.addEventListener('click',event=>{
-    const button=event.target?.closest?.('#completeSaleBtn,#abandonedSaleBtn');
-    if(!button)return;
-    if(button.dataset.mccoyCaptureValidated==='1'){
-      delete button.dataset.mccoyCaptureValidated;
-      return;
-    }
-
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const originalText=button.textContent;
-    button.disabled=true;
-    button.textContent='CHECKING CAPTURE…';
-
-    reconcileProviderCapture({announce:true}).then(capture=>{
-      button.disabled=false;
-      button.textContent=originalText;
-      if(!capture?.id){
-        const message=byId('saleMsg');
-        if(message){message.textContent='This provider attempt is stale or belongs to another account. Press SALE to start a fresh ISP dashboard sale.';message.classList.add('sale-msg-error');}
-        byId('saleModal')?.classList.remove('show');
-        const saleButton=ensureSaleButton();
-        saleButton?.scrollIntoView?.({behavior:'smooth',block:'center'});
-        setTimeout(()=>saleButton?.focus(),120);
-        return;
-      }
-      button.dataset.mccoyCaptureValidated='1';
-      button.click();
-    }).catch(error=>{
-      console.error('Provider capture validation failed',error);
-      button.disabled=false;
-      button.textContent=originalText;
-      const message=byId('saleMsg');
-      if(message){message.textContent='McCoy could not validate this provider attempt. Check the connection, then press SALE and retry.';message.classList.add('sale-msg-error');}
-    });
   },true);
 
   function scheduleCaptureReconciliation(){

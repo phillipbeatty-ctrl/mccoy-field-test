@@ -7,7 +7,13 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const output=path.join(root,'mobile-web');
 const nativeBridgeSource=path.join(root,'mobile','mobile-native-bridge.js');
 const nativeBridgeName='mobile-native-bridge.js';
-const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.4"></script>';
+const nativeBridgeTag='<script src="mobile-native-bridge.js?v=1.0.0-beta.5"></script>';
+const requiredRuntimeFiles=[
+  'app-supabase-client.js',
+  'app-sale-lifecycle.js',
+  'app-sale-photo-staging.js',
+  'app-sales.js'
+];
 
 const allowedExtensions=new Set(['.html','.js','.css','.svg','.png','.jpg','.jpeg','.webp','.ico','.webmanifest']);
 const excludedFiles=new Set([
@@ -76,6 +82,14 @@ const indexPath=path.join(output,'index.html');
 const index=await readFile(indexPath,'utf8').catch(()=>null);
 if(!index)throw new Error('Native build failed: mobile-web/index.html was not produced.');
 
+for(const runtimeFile of requiredRuntimeFiles){
+  const content=await readFile(path.join(output,runtimeFile),'utf8').catch(()=>null);
+  if(!content)throw new Error(`Native build failed: mobile-web/${runtimeFile} was not produced.`);
+}
+if(!index.includes('app-supabase-client.js?v=2026090201'))throw new Error('Native build failed: shared Supabase client resolver is not loaded.');
+if(!index.includes('app-sale-lifecycle.js?v=2026090201'))throw new Error('Native build failed: repaired sale lifecycle is not loaded.');
+if(!index.includes('app-sale-photo-staging.js?v=2026090201'))throw new Error('Native build failed: repaired photo staging is not loaded.');
+
 const offlinePath=path.join(output,'offline.html');
 const offline=await readFile(offlinePath,'utf8').catch(()=>null);
 if(!offline){
@@ -96,10 +110,11 @@ produced.sort();
 await writeFile(path.join(output,'mobile-build.json'),JSON.stringify({
   app_id:'com.mccoyplatform.app',
   app_name:'Field Coach',
-  version:'1.0.0-beta.4',
+  version:'1.0.0-beta.5',
   source_commit:process.env.GITHUB_SHA||null,
   bundled_web_assets:true,
   production_origin:'https://www.mccoyplatform.com',
+  required_sale_runtime:requiredRuntimeFiles,
   files:produced.length
 },null,2));
 
