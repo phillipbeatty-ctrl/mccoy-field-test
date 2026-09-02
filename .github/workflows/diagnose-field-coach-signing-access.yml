@@ -1,0 +1,94 @@
+name: Diagnose Field Coach signing access
+
+on:
+  push:
+    branches:
+      - fix/approved-official-logo-beta4-20260901
+    paths:
+      - '.github/workflows/diagnose-field-coach-signing-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_URL: https://athxxrfqxwlfnuvbqadp.supabase.co
+
+jobs:
+  diagnose-signing-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - name: Check protected secret and signing RPC without exposing payload
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+            echo '::error::SUPABASE_SERVICE_ROLE_KEY is missing from the protected production environment.'
+            exit 10
+          fi
+          echo 'SUPABASE_SERVICE_ROLE_KEY is present in the protected production environment.'
+
+          status="$(curl --silent --show-error --retry 2 \
+            --request POST \
+            "${SUPABASE_URL}/rest/v1/rpc/get_field_coach_android_internal_signing_v1" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            --output /tmp/signing-response.json \
+            --write-out '%{http_code}')"
+          echo "Signing RPC HTTP status: ${status}"
+
+          if [[ "${status}" != '200' ]]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('/tmp/signing-response.json')
+          try:
+              payload = json.loads(path.read_text(encoding='utf-8'))
+          except Exception:
+              print('Signing RPC returned a non-JSON error response.')
+              raise SystemExit(1)
+          if not isinstance(payload, dict):
+              print('Signing RPC returned an unexpected error payload type.')
+              raise SystemExit(1)
+          safe = {
+              key: str(payload.get(key, ''))[:500]
+              for key in ('code', 'message', 'details', 'hint')
+              if payload.get(key) not in (None, '')
+          }
+          print(json.dumps(safe, sort_keys=True))
+          raise SystemExit(1)
+          PY
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/signing-response.json').read_text(encoding='utf-8'))
+          if isinstance(payload, str):
+              payload = json.loads(payload)
+          if not isinstance(payload, dict):
+              raise SystemExit('Signing RPC returned an unexpected success payload type.')
+          required = {
+              'keystore_base64',
+              'store_password',
+              'key_alias',
+              'key_password',
+              'certificate_sha256',
+              'keystore_sha256',
+              'version',
+          }
+          missing = sorted(required.difference(payload))
+          if missing:
+              raise SystemExit(f'Signing RPC success payload is incomplete: {missing}')
+          print('Signing RPC returned a complete protected payload; values were not displayed.')
+          PY
+
+          rm -f /tmp/signing-response.json
