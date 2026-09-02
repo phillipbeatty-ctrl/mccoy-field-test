@@ -131,10 +131,11 @@ test('Android CI builds a release package and signs it with the persistent Vault
   assert.match(androidWorkflow,/jarsigner/);
   assert.match(androidWorkflow,/zipalign/);
   assert.match(androidWorkflow,/verify-png-content\.mjs/);
-  assert.match(androidWorkflow,/unzip -Z1/);
+  assert.match(androidWorkflow,/aapt2[^\n]*dump resources/s);
+  assert.match(androidWorkflow,/field-coach-apk-launcher-entries/);
   assert.match(androidWorkflow,/unzip -p/);
   assert.match(androidWorkflow,/packaged_entries/);
-  assert.ok(androidWorkflow.includes('ic_launcher(_foreground|_round)?\\.png'));
+  assert.match(androidWorkflow,/launchers = \{'ic_launcher', 'ic_launcher_foreground', 'ic_launcher_round'\}/);
   assert.doesNotMatch(androidWorkflow,/ic_launcher_background/);
   assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-internal\.apk/);
   assert.match(androidWorkflow,/byte-identical compatibility alias/i);

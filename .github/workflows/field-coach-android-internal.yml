@@ -354,11 +354,39 @@ jobs:
           grep -q "application-label:'Field Coach'" dist/apk-badging.txt
           grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
 
-          mapfile -t packaged_entries < <(
-            unzip -Z1 "${apk}" \
-              | grep -E '^res/mipmap[^/]*/ic_launcher(_foreground|_round)?\.png$' \
-              | sort
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" dump resources "${apk}" \
+            > /tmp/field-coach-apk-resources.txt
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          resource_dump = Path('/tmp/field-coach-apk-resources.txt').read_text(encoding='utf-8')
+          resource_line = re.compile(r'^\s*resource\s+\S+\s+mipmap/(\S+)\s*$')
+          packaged_file = re.compile(r'^\s*\([^)]+\)\s+\(file\)\s+(res/\S+\.png)\s+type=PNG\s*$')
+          launchers = {'ic_launcher', 'ic_launcher_foreground', 'ic_launcher_round'}
+          current_is_launcher = False
+          entries = []
+
+          for line in resource_dump.splitlines():
+              resource_match = resource_line.match(line)
+              if resource_match:
+                  current_is_launcher = resource_match.group(1) in launchers
+                  continue
+              if current_is_launcher:
+                  file_match = packaged_file.match(line)
+                  if file_match:
+                      entries.append(file_match.group(1))
+
+          entries = sorted(set(entries))
+          if not entries:
+              raise SystemExit('No packaged launcher PNGs were resolved from the compiled resource table.')
+          Path('/tmp/field-coach-apk-launcher-entries.txt').write_text(
+              ''.join(f'{entry}\n' for entry in entries),
+              encoding='utf-8',
           )
+          print(f'Resolved {len(entries)} packaged launcher PNGs from the compiled resource table.')
+          PY
+          mapfile -t packaged_entries < /tmp/field-coach-apk-launcher-entries.txt
           test "${#packaged_entries[@]}" -gt 0
           index=0
           for entry in "${packaged_entries[@]}"; do
