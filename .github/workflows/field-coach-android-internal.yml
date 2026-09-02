@@ -340,7 +340,8 @@ jobs:
             -sigalg SHA256withRSA \
             "${aab}" \
             "${FIELD_COACH_KEY_ALIAS}" >/tmp/field-coach-jarsigner.txt
-          jarsigner -verify -strict "${aab}" | tee dist/aab-signing.txt
+          jarsigner -verify -verbose -certs "${aab}" | tee dist/aab-signing.txt
+          grep -q 'jar verified\.' dist/aab-signing.txt
 
           cp mobile-release-doctor.json dist/mobile-release-doctor.json
           cp mobile-web/mobile-build.json dist/mobile-build.json
