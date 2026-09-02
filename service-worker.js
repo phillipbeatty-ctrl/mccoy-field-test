@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v5-20260901-beta4-approved-logo';
+const VERSION='field-coach-app-shell-v6-20260902-stable-organization-access';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
