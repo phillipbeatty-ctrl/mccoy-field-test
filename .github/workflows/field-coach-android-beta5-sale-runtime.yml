@@ -2,37 +2,6 @@ name: Field Coach Android Beta 5 Sale Runtime
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - fix/sale-completion-runtime-20260902
-    paths:
-      - 'VERSION'
-      - 'package.json'
-      - 'capacitor.config.json'
-      - 'APP_RELEASE.md'
-      - 'download.html'
-      - 'index.html'
-      - 'service-worker.js'
-      - 'app-supabase-client.js'
-      - 'app-sale-lifecycle.js'
-      - 'app-sale-photo-staging.js'
-      - 'app-sales.js'
-      - 'app-sales-products.js'
-      - 'app-customer-list-credit-ranking-refresh.js'
-      - 'assets/**'
-      - 'downloads/**'
-      - 'mobile/**'
-      - 'scripts/build-mobile-web.mjs'
-      - 'scripts/configure-native-project.mjs'
-      - 'scripts/generate-field-coach-icons.py'
-      - 'scripts/verify-approved-logo-source.py'
-      - 'scripts/apply-field-coach-icon-links.py'
-      - 'scripts/verify-png-content.mjs'
-      - 'scripts/field-coach-icons-requirements.txt'
-      - 'scripts/mobile-release-doctor.mjs'
-      - 'mobile-release.test.mjs'
-      - 'sale-completion-runtime.test.mjs'
-      - '.github/workflows/field-coach-android-beta5-sale-runtime.yml'
 
 permissions:
   contents: write
@@ -48,7 +17,6 @@ env:
 
 jobs:
   publish-beta5:
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[android-beta5-sale-runtime-generated]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -117,8 +85,8 @@ jobs:
           grep -q 'MCCOY_REQUIRE_SUPABASE_CLIENT' mobile-web/app-sale-photo-staging.js
           grep -q "sb.functions.invoke('sale-submit'" mobile-web/app-sales.js
           ! grep -q 'mccoyCaptureValidated' mobile-web/app-sale-lifecycle.js
-          ! grep -q 'window\.sb?\.' mobile-web/app-sale-lifecycle.js
-          ! grep -q 'window\.sb?\.' mobile-web/app-sale-photo-staging.js
+          ! grep -Fq 'window.sb?.' mobile-web/app-sale-lifecycle.js
+          ! grep -Fq 'window.sb?.' mobile-web/app-sale-photo-staging.js
           grep -q 'field-coach-app-shell-v7-20260902-sale-completion-runtime' mobile-web/service-worker.js
 
       - name: Verify generated Android launcher resources and release doctor
