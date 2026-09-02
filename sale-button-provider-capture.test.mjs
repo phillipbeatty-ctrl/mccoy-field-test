@@ -6,7 +6,7 @@ const lifecycle=readFileSync(new URL('./app-sale-lifecycle.js',import.meta.url),
 const sales=readFileSync(new URL('./app-sales.js',import.meta.url),'utf8')
 const captureFunction=readFileSync(new URL('./supabase/functions/provider-sale-capture/index.ts',import.meta.url),'utf8')
 const saleSubmit=readFileSync(new URL('./supabase/functions/sale-submit/index.ts',import.meta.url),'utf8')
-const layout=readFileSync(new URL('./app-page-layout.js',import.meta.url),'utf8')
+const index=readFileSync(new URL('./index.html',import.meta.url),'utf8')
 
 test('the visible SALE button starts the standard provider dashboard flow',()=>{
   assert.match(lifecycle,/button\.id='processSaleBtn'/)
@@ -15,7 +15,8 @@ test('the visible SALE button starts the standard provider dashboard flow',()=>{
   assert.match(lifecycle,/button\.hidden=false/)
   assert.doesNotMatch(lifecycle,/button\.remove\(\)/)
   assert.doesNotMatch(lifecycle,/new\s+MutationObserver|MutationObserver\s*\(/)
-  assert.match(layout,/app-sale-lifecycle\.js\?v=2026090201/)
+  assert.match(index,/app-sale-lifecycle\.js\?v=2026090201/)
+  assert.match(index,/app-sale-photo-staging\.js\?v=2026090201/)
 })
 
 test('COMPLETE SALE is submitted once to the server without a synthetic validation click',()=>{
