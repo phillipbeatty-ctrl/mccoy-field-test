@@ -12,6 +12,11 @@
   const state={capture:null,captureStartedHere:false,captureValidated:false,rows:[],busy:false,pendingFinalize:null,lastMessage:'Press SALE first, then use PHOTO after the provider attempt is secured.'};
   const byId=id=>document.getElementById(id);
 
+  function client(requirements={}){
+    if(typeof window.MCCOY_REQUIRE_SUPABASE_CLIENT==='function')return window.MCCOY_REQUIRE_SUPABASE_CLIENT(requirements);
+    throw new Error('McCoy connection is not ready. Refresh Field Coach and retry.');
+  }
+
   function ensureControls(){
     const actions=document.querySelector('.spotio-disposition-actions');
     if(!actions)return false;
@@ -84,8 +89,8 @@
   }
 
   async function invoke(action,payload={}){
-    if(!window.sb?.functions?.invoke)throw new Error('McCoy connection is not ready.');
-    const {data,error}=await sb.functions.invoke('provider-sale-photo-stage',{body:{action,...payload}});
+    const supabase=client({functions:true});
+    const {data,error}=await supabase.functions.invoke('provider-sale-photo-stage',{body:{action,...payload}});
     if(error||!data?.ok){
       let detail=data?.detail||data?.error||error?.message||'photo_stage_request_failed';
       try{if(!data&&error?.context?.clone){const value=await error.context.clone().json();detail=value?.detail||value?.error||detail;}}catch(_){}
@@ -185,7 +190,8 @@
       if(file.size>MAX_UPLOAD_BYTES)throw new Error('Photo must be 10 MB or less after compression.');
       setBusy(true,'UPLOADING…');state.lastMessage='Creating a private signed upload…';renderStatus();
       created=await invoke('create_upload',{capture_id:capture.id,mime_type:file.type,file_size_bytes:file.size,original_file_name:selected.name||null});
-      const upload=await sb.storage.from(BUCKET).uploadToSignedUrl(created.path,created.token,file,{contentType:file.type});
+      const supabase=client({storage:true});
+      const upload=await supabase.storage.from(BUCKET).uploadToSignedUrl(created.path,created.token,file,{contentType:file.type});
       if(upload.error)throw upload.error;
       await invoke('commit_upload',{photo_id:created.photo_id});
       state.lastMessage='Photo staged privately. It will attach when COMPLETE SALE succeeds.';
@@ -207,7 +213,8 @@
 
   async function startExtraction(photoIds,saleId){
     const ids=Array.isArray(photoIds)?photoIds:[];
-    const results=await Promise.allSettled(ids.map(photoId=>sb.functions.invoke('sale-order-photo',{body:{action:'process',photo_id:photoId}})));
+    const supabase=client({functions:true});
+    const results=await Promise.allSettled(ids.map(photoId=>supabase.functions.invoke('sale-order-photo',{body:{action:'process',photo_id:photoId}})));
     const failed=results.filter(result=>result.status==='rejected'||result.value?.error||result.value?.data?.ok===false).length;
     window.dispatchEvent(new CustomEvent('mccoy-sale-order-photo-updated',{detail:{saleId,photoIds:ids,results}}));
     window.dispatchEvent(new CustomEvent('mccoy-sale-details-updated',{detail:{saleId}}));
@@ -226,7 +233,13 @@
       const count=Array.isArray(data.sale_photo_ids)?data.sale_photo_ids.length:0;
       state.lastMessage=count?`${count} photo${count===1?'':'s'} attached to the sale. Extracting visible order details…`:'Sale completed with no staged photo.';
       renderStatus();
-      if(count){const extraction=await startExtraction(data.sale_photo_ids,saleId);state.lastMessage=extraction.failed?`${count} photo${count===1?'':'s'} attached. Automatic extraction was unavailable for ${extraction.failed}; enter or confirm the information in SALES TO COMPLETE.`:`${count} photo${count===1?'':'s'} attached. Review extracted suggestions in SALES TO COMPLETE.`;}
+      if(count){
+        const extraction=await startExtraction(data.sale_photo_ids,saleId);
+        state.lastMessage=extraction.failed
+          ? `${count} photo${count===1?'':'s'} attached. Automatic extraction was unavailable for ${extraction.failed}; enter or confirm the information in SALES TO COMPLETE.`
+          : `${count} photo${count===1?'':'s'} attached. Review extracted suggestions in SALES TO COMPLETE.`;
+        renderStatus();
+      }
     }catch(error){
       state.pendingFinalize=pending;
       state.lastMessage=`Sale saved, but photo attachment is pending: ${errorMessage(error)}`;
