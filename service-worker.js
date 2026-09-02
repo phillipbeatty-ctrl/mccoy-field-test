@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v6-20260902-stable-organization-access';
+const VERSION='field-coach-app-shell-v7-20260902-sale-completion-runtime';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -16,6 +16,13 @@ const SHELL=[
   '/assets/icon-maskable-512.png',
   '/app-product-brand.js',
   '/app-organization-access-gate.js?v=2026090201',
+  '/app-supabase-client.js?v=2026090201',
+  '/app-sales.js?v=2026082417',
+  '/app-sales-products.js?v=2026090201',
+  '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
+  '/app-page-layout.js?v=2026090201',
+  '/app-sale-lifecycle.js?v=2026090201',
+  '/app-sale-photo-staging.js?v=2026090201',
   '/confirm-email.html',
   '/pending-access.html'
 ];
