@@ -13,21 +13,6 @@ const changed=[]
 const unchanged=[]
 const drift=[]
 
-// Audit the repository inventory before opening individual source files so drift
-// is reported as one complete, actionable list instead of an opaque ENOENT for
-// whichever stale target happens to appear first.
-const functionDirectories=(await readdir(functionsRoot,{withFileTypes:true}))
-  .filter(entry=>entry.isDirectory()&&entry.name!=='_shared')
-  .map(entry=>entry.name)
-  .sort()
-const uncategorized=functionDirectories.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
-const missingTargets=[...edgePaywallTargets.keys()].filter(slug=>!functionDirectories.includes(slug))
-const missingExemptions=[...edgePaywallExemptions.keys()].filter(slug=>!functionDirectories.includes(slug))
-
-if(uncategorized.length)throw new Error(`uncategorized Edge Functions: ${uncategorized.join(', ')}`)
-if(missingTargets.length)throw new Error(`missing protected Edge Functions: ${missingTargets.join(', ')}`)
-if(missingExemptions.length)throw new Error(`missing exempt Edge Functions: ${missingExemptions.join(', ')}`)
-
 for(const [slug,entitlement] of edgePaywallTargets){
   const file=path.join(functionsRoot,slug,'index.ts')
   let source=await readFile(file,'utf8')
@@ -69,6 +54,18 @@ for(const [slug,entitlement] of edgePaywallTargets){
     unchanged.push(`${slug}:${entitlement}`)
   }
 }
+
+const functionDirectories=(await readdir(functionsRoot,{withFileTypes:true}))
+  .filter(entry=>entry.isDirectory()&&entry.name!=='_shared')
+  .map(entry=>entry.name)
+  .sort()
+const uncategorized=functionDirectories.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
+const missingTargets=[...edgePaywallTargets.keys()].filter(slug=>!functionDirectories.includes(slug))
+const missingExemptions=[...edgePaywallExemptions.keys()].filter(slug=>!functionDirectories.includes(slug))
+
+if(uncategorized.length)throw new Error(`uncategorized Edge Functions: ${uncategorized.join(', ')}`)
+if(missingTargets.length)throw new Error(`missing protected Edge Functions: ${missingTargets.join(', ')}`)
+if(missingExemptions.length)throw new Error(`missing exempt Edge Functions: ${missingExemptions.join(', ')}`)
 
 const report={
   mode:writeMode?'write':'check',
