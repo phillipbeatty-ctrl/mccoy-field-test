@@ -59,19 +59,21 @@ concurrency:
   group: field-coach-android-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APP_VERSION: 1.0.0-beta.4
+  ANDROID_BUILD_TOOLS: 36.0.0
+  EXPECTED_SIGNER_SHA256: a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935
+
 jobs:
-  android-internal-beta:
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[android-beta4-generated]')
+  android-contract:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[android-beta4-generated]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      APP_VERSION: 1.0.0-beta.4
-      ANDROID_BUILD_TOOLS: 36.0.0
     steps:
-      - name: Check out source
+      - name: Check out exact source
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref_name }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Set up Node 22
@@ -120,25 +122,231 @@ jobs:
       - name: Run release doctor
         run: npm run mobile:doctor
 
-      - name: Build debug APK and unsigned release AAB
+      - name: Compile unsigned release APK and AAB
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace assembleDebug bundleRelease
+          ./gradlew --no-daemon --stacktrace assembleRelease bundleRelease
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
 
-      - name: Verify and package Android artifacts
+  publish-signed-internal-beta:
+    needs: android-contract
+    if: >-
+      needs.android-contract.result == 'success' &&
+      !contains(github.event.head_commit.message || '', '[android-beta4-generated]') &&
+      (
+        (github.event_name == 'push' && github.ref_name == 'fix/approved-official-logo-beta4-20260901') ||
+        (github.event_name == 'workflow_dispatch' && github.ref_name == 'fix/approved-official-logo-beta4-20260901')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - name: Check out exact release source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android API 36
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Install pinned mobile and icon dependencies
+        run: |
+          npm install --no-audit --no-fund
+          python3 -m pip install --disable-pip-version-check -r scripts/field-coach-icons-requirements.txt
+
+      - name: Verify approved source and prepare Android project
+        run: |
+          python3 scripts/apply-field-coach-icon-links.py
+          npm run icons:source:verify | tee approved-logo-source-evidence.json
+          npm run icons:generate
+          npm run icons:verify | tee icon-source-evidence.jsonl
+          npm run test:mobile
+          npm run mobile:android:prepare
+          npm run mobile:doctor
+
+      - name: Verify generated Android launcher resources before compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t launchers < <(find android/app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_foreground.png' \) | sort)
+          test "${#launchers[@]}" -gt 0
+          node scripts/verify-png-content.mjs "${launchers[@]}" | tee generated-launcher-evidence.jsonl
+
+      - name: Retrieve the persistent internal signing key
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: https://athxxrfqxwlfnuvbqadp.supabase.co
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          umask 077
+          curl --fail-with-body --silent --show-error --retry 3 \
+            --request POST \
+            "${SUPABASE_URL}/rest/v1/rpc/get_field_coach_android_internal_signing_v1" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            --output /tmp/field-coach-signing.json
+
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          response = json.loads(Path('/tmp/field-coach-signing.json').read_text(encoding='utf-8'))
+          if isinstance(response, str):
+              response = json.loads(response)
+          if not isinstance(response, dict):
+              raise SystemExit('Signing RPC returned an unexpected payload type')
+
+          required = {
+              'keystore_base64',
+              'store_password',
+              'key_alias',
+              'key_password',
+              'certificate_sha256',
+              'keystore_sha256',
+              'version',
+          }
+          missing = sorted(required.difference(response))
+          if missing:
+              raise SystemExit(f'Signing payload is incomplete: {missing}')
+          if response['version'] != 1:
+              raise SystemExit(f"Unsupported signing payload version: {response['version']}")
+
+          alias = str(response['key_alias'])
+          store_password = str(response['store_password'])
+          key_password = str(response['key_password'])
+          if not re.fullmatch(r'[A-Za-z0-9._-]{1,80}', alias):
+              raise SystemExit('Signing alias contains unsupported characters')
+          if any(character in store_password + key_password for character in '\r\n\0'):
+              raise SystemExit('Signing password contains an unsupported control character')
+
+          expected_cert = os.environ['EXPECTED_SIGNER_SHA256'].lower()
+          payload_cert = str(response['certificate_sha256']).replace(':', '').lower()
+          if payload_cert != expected_cert:
+              raise SystemExit(f'Unexpected signing certificate fingerprint: {payload_cert}')
+
+          keystore = base64.b64decode(str(response['keystore_base64']), validate=True)
+          expected_keystore = str(response['keystore_sha256']).lower()
+          actual_keystore = hashlib.sha256(keystore).hexdigest()
+          if actual_keystore != expected_keystore:
+              raise SystemExit(f'Keystore checksum mismatch: {actual_keystore}')
+
+          keystore_path = Path('/tmp/field-coach-internal.p12')
+          keystore_path.write_bytes(keystore)
+          keystore_path.chmod(0o600)
+
+          print(f'::add-mask::{store_password}')
+          print(f'::add-mask::{key_password}')
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as env_file:
+              env_file.write(f'FIELD_COACH_KEYSTORE_PATH={keystore_path}\n')
+              env_file.write(f'FIELD_COACH_KEY_ALIAS={alias}\n')
+              env_file.write(f'FIELD_COACH_STORE_PASSWORD={store_password}\n')
+              env_file.write(f'FIELD_COACH_KEY_PASSWORD={key_password}\n')
+              env_file.write(f'FIELD_COACH_CERT_SHA256={payload_cert}\n')
+              env_file.write(f'FIELD_COACH_KEYSTORE_SHA256={actual_keystore}\n')
+          PY
+
+          rm -f /tmp/field-coach-signing.json
+
+      - name: Verify persistent signing certificate before build
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -exportcert \
+            -keystore "${FIELD_COACH_KEYSTORE_PATH}" \
+            -storetype PKCS12 \
+            -storepass "${FIELD_COACH_STORE_PASSWORD}" \
+            -alias "${FIELD_COACH_KEY_ALIAS}" \
+            > /tmp/field-coach-signing-cert.der
+          actual="$(sha256sum /tmp/field-coach-signing-cert.der | awk '{print $1}')"
+          test "${actual}" = "${EXPECTED_SIGNER_SHA256}"
+          test "${actual}" = "${FIELD_COACH_CERT_SHA256}"
+          keytool -list \
+            -keystore "${FIELD_COACH_KEYSTORE_PATH}" \
+            -storetype PKCS12 \
+            -storepass "${FIELD_COACH_STORE_PASSWORD}" \
+            -alias "${FIELD_COACH_KEY_ALIAS}" >/dev/null
+          echo "Verified persistent internal signing certificate ${actual}."
+
+      - name: Compile unsigned release APK and AAB
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleRelease bundleRelease
+
+      - name: Sign, verify, and package Android artifacts
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist downloads /tmp/field-coach-apk-icons
-          apk="dist/Field-Coach-Android-${APP_VERSION}-debug.apk"
-          cp android/app/build/outputs/apk/debug/app-debug.apk "$apk"
-          cp android/app/build/outputs/bundle/release/app-release.aab "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
+
+          unsigned_apk='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          unsigned_aab='android/app/build/outputs/bundle/release/app-release.aab'
+          aligned_apk='/tmp/field-coach-release-aligned.apk'
+          apk="dist/Field-Coach-Android-${APP_VERSION}-internal.apk"
+          aab="dist/Field-Coach-Android-${APP_VERSION}-internal.aab"
+
+          test -s "${unsigned_apk}"
+          test -s "${unsigned_aab}"
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/zipalign" -p -f 4 "${unsigned_apk}" "${aligned_apk}"
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" sign \
+            --ks "${FIELD_COACH_KEYSTORE_PATH}" \
+            --ks-type PKCS12 \
+            --ks-key-alias "${FIELD_COACH_KEY_ALIAS}" \
+            --ks-pass env:FIELD_COACH_STORE_PASSWORD \
+            --key-pass env:FIELD_COACH_KEY_PASSWORD \
+            --out "${apk}" \
+            "${aligned_apk}"
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner" verify \
+            --verbose \
+            --print-certs \
+            "${apk}" | tee dist/apk-signing.txt
+
+          actual_signer="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' dist/apk-signing.txt | head -n1 | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          test "${actual_signer}" = "${EXPECTED_SIGNER_SHA256}"
+          grep -q '^Verified using v2 scheme (APK Signature Scheme v2): true' dist/apk-signing.txt
+
+          cp "${unsigned_aab}" "${aab}"
+          jarsigner \
+            -keystore "${FIELD_COACH_KEYSTORE_PATH}" \
+            -storetype PKCS12 \
+            -storepass "${FIELD_COACH_STORE_PASSWORD}" \
+            -keypass "${FIELD_COACH_KEY_PASSWORD}" \
+            -digestalg SHA-256 \
+            -sigalg SHA256withRSA \
+            "${aab}" \
+            "${FIELD_COACH_KEY_ALIAS}" >/tmp/field-coach-jarsigner.txt
+          jarsigner -verify -strict "${aab}" | tee dist/aab-signing.txt
+
           cp mobile-release-doctor.json dist/mobile-release-doctor.json
           cp mobile-web/mobile-build.json dist/mobile-build.json
           cp approved-logo-source-evidence.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl dist/
 
-          "$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "$apk" > dist/apk-badging.txt
+          "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt" dump badging "${apk}" > dist/apk-badging.txt
           grep -q "package: name='com.mccoyplatform.app'" dist/apk-badging.txt
           grep -q "versionCode='4'" dist/apk-badging.txt
           grep -q "versionName='1.0.0-beta.4'" dist/apk-badging.txt
@@ -146,7 +354,7 @@ jobs:
           grep -q "targetSdkVersion:'36'" dist/apk-badging.txt
 
           mapfile -t packaged_entries < <(
-            unzip -Z1 "$apk" \
+            unzip -Z1 "${apk}" \
               | grep -E '^res/mipmap[^/]*/ic_launcher(_foreground|_round)?\.png$' \
               | sort
           )
@@ -154,22 +362,58 @@ jobs:
           index=0
           for entry in "${packaged_entries[@]}"; do
             index=$((index+1))
-            target="/tmp/field-coach-apk-icons/$(printf '%03d' "$index")-$(basename "$entry")"
-            unzip -p "$apk" "$entry" > "$target"
-            test -s "$target"
+            target="/tmp/field-coach-apk-icons/$(printf '%03d' "${index}")-$(basename "${entry}")"
+            unzip -p "${apk}" "${entry}" > "${target}"
+            test -s "${target}"
           done
           mapfile -t packaged_icons < <(find /tmp/field-coach-apk-icons -type f -name '*.png' | sort)
           node scripts/verify-png-content.mjs "${packaged_icons[@]}" | tee dist/apk-launcher-evidence.jsonl
 
-          test -s "$apk"
-          test -s "dist/Field-Coach-Android-${APP_VERSION}-unsigned.aab"
-          (cd dist && sha256sum Field-Coach-Android-${APP_VERSION}-debug.apk Field-Coach-Android-${APP_VERSION}-unsigned.aab apk-badging.txt mobile-build.json mobile-release-doctor.json approved-logo-source-evidence.json icon-source-evidence.jsonl generated-launcher-evidence.jsonl apk-launcher-evidence.jsonl > SHA256SUMS.txt)
+          test -s "${apk}"
+          test -s "${aab}"
+          cat > dist/internal-signing.json <<JSON
+          {
+            "schema_version": 1,
+            "product": "Field Coach",
+            "version": "${APP_VERSION}",
+            "application_id": "com.mccoyplatform.app",
+            "key_alias": "${FIELD_COACH_KEY_ALIAS}",
+            "certificate_sha256": "${EXPECTED_SIGNER_SHA256}",
+            "keystore_sha256": "${FIELD_COACH_KEYSTORE_SHA256}",
+            "custody": "Supabase Vault; service_role-only retrieval in protected GitHub production environment",
+            "beta3_update_compatible": false,
+            "clean_install_required": true
+          }
+          JSON
 
-          cp "$apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
-          sha256sum "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" > "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
+          (cd dist && sha256sum \
+            "Field-Coach-Android-${APP_VERSION}-internal.apk" \
+            "Field-Coach-Android-${APP_VERSION}-internal.aab" \
+            apk-badging.txt \
+            apk-signing.txt \
+            aab-signing.txt \
+            mobile-build.json \
+            mobile-release-doctor.json \
+            approved-logo-source-evidence.json \
+            icon-source-evidence.jsonl \
+            generated-launcher-evidence.jsonl \
+            apk-launcher-evidence.jsonl \
+            internal-signing.json \
+            > SHA256SUMS.txt)
 
-      - name: Publish approved icons and stable Android beta download into the correction branch
-        if: github.event_name == 'push' && github.ref_name == 'fix/approved-official-logo-beta4-20260901'
+          cp "${apk}" "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk"
+          sha256sum "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk" \
+            > "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk.sha256"
+
+          # Keep the previously announced beta 4 path as a byte-identical compatibility alias.
+          cp "${apk}" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
+          sha256sum "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" \
+            > "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
+          cmp \
+            "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk" \
+            "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk"
+
+      - name: Publish approved icons and signed beta 4 into the correction branch
         shell: bash
         run: |
           set -euo pipefail
@@ -177,18 +421,31 @@ jobs:
           git config user.email 'phillip.beatty@gmail.com'
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
           git add assets/*.png *.html
-          git add -f "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
+          git add -f \
+            "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk" \
+            "downloads/Field-Coach-Android-${APP_VERSION}-internal.apk.sha256" \
+            "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk" \
+            "downloads/Field-Coach-Android-${APP_VERSION}-debug.apk.sha256"
           if git diff --cached --quiet; then
-            echo 'Generated approved icons and Android download files are already current.'
+            echo 'Signed Android beta and approved icons are already current.'
             exit 0
           fi
-          git commit -m 'Publish verified Field Coach Android beta 4 [android-beta4-generated]'
+          git commit -m 'Publish persistently signed Field Coach beta 4 [android-beta4-generated]'
           git push origin HEAD:${GITHUB_REF_NAME}
 
-      - name: Upload Field Coach Android internal beta
+      - name: Upload signed Field Coach Android internal beta
         uses: actions/upload-artifact@v4
         with:
-          name: Field-Coach-Android-1.0.0-beta.4
+          name: Field-Coach-Android-1.0.0-beta.4-signed
           path: dist/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/field-coach-internal.p12
+          rm -f /tmp/field-coach-signing-cert.der
+          rm -f /tmp/field-coach-jarsigner.txt
+          rm -f /tmp/field-coach-signing.json
