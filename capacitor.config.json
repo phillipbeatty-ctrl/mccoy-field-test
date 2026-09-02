@@ -19,7 +19,7 @@
     "captureInput": true,
     "webContentsDebuggingEnabled": false,
     "minWebViewVersion": 60,
-    "appendUserAgent": " FieldCoachNative/1.0.0-beta.4",
+    "appendUserAgent": " FieldCoachNative/1.0.0-beta.5",
     "buildOptions": {
       "releaseType": "AAB",
       "signingType": "apksigner"
@@ -28,7 +28,7 @@
   "ios": {
     "backgroundColor": "#050505",
     "contentInset": "automatic",
-    "appendUserAgent": " FieldCoachNative/1.0.0-beta.4"
+    "appendUserAgent": " FieldCoachNative/1.0.0-beta.5"
   },
   "plugins": {
     "SplashScreen": {
