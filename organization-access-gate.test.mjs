@@ -4,12 +4,13 @@ import test from 'node:test'
 
 const read=path=>readFile(new URL(path,import.meta.url),'utf8')
 
-const [migration,permissionMigration,client,indexHtml,edge]=await Promise.all([
+const [migration,permissionMigration,client,indexHtml,edge,serviceWorker]=await Promise.all([
   read('./supabase/migrations/20260901033000_organization_access_paywall_gate.sql'),
   read('./supabase/migrations/20260901033100_organization_access_policy_execute_permission.sql'),
   read('./app-organization-access-gate.js'),
   read('./index.html'),
-  read('./supabase/functions/organization-access/index.ts')
+  read('./supabase/functions/organization-access/index.ts'),
+  read('./service-worker.js')
 ])
 
 test('database gate combines organization, billing, entitlement, period, grace, and seat state',()=>{
@@ -39,13 +40,33 @@ test('RLS receives a restrictive organization subscription gate',()=>{
   assert.match(permissionMigration,/grant execute on function private\.organization_access_allowed\(uuid,text\) to authenticated/)
 })
 
-test('client blocks the original access-ready event until verified',()=>{
+test('client blocks the first access-ready event until verified',()=>{
   assert.match(client,/event\.stopImmediatePropagation\(\)/)
   assert.match(client,/window\.MCCOY_ACCESS=\{user:current\.user,access:null\}/)
   assert.match(client,/sb\.functions\.invoke\('organization-access'/)
   assert.match(client,/organization_access_verified/)
   assert.match(client,/purchase_action_available:false/)
   assert.doesNotMatch(client,/stripe|checkout|subscribe now|buy now/i)
+})
+
+test('successful verification is reused for repeated auth refresh events from the same user',()=>{
+  assert.match(client,/let verifiedUserKey=null/)
+  assert.match(client,/function userKey\(user\)/)
+  assert.match(client,/function hasVerifiedAccessFor\(current\)/)
+  assert.match(client,/verifiedUserKey=userKey\(accessSnapshot\?\.user\)/)
+  assert.match(client,/organizationState\?\.access_allowed===true/)
+
+  const reuse=client.indexOf('if(hasVerifiedAccessFor(current))')
+  const firstInterceptionAfterReuse=client.indexOf('event.stopImmediatePropagation()',reuse)
+  assert.ok(reuse>=0,'same-user verified-access reuse guard is missing')
+  assert.ok(firstInterceptionAfterReuse>reuse,'reuse guard must run before event interception')
+  assert.match(client.slice(reuse,firstInterceptionAfterReuse),/hideGate\(\);\s*return;/)
+})
+
+test('denial and a different signed-in user invalidate the page verification cache',()=>{
+  assert.match(client,/function showDenied\(state\)\{\s*verifiedUserKey=null;/)
+  assert.match(client,/if\(verifiedUserKey&&verifiedUserKey!==currentUserKey\)/)
+  assert.match(client,/organizationState=null;\s*window\.FIELD_COACH_ORGANIZATION_ACCESS=null;/)
 })
 
 test('organization gate loads before application modules',()=>{
@@ -55,6 +76,11 @@ test('organization gate loads before application modules',()=>{
   assert.ok(gate>=0,'organization gate script missing')
   assert.ok(gate<firstApp,'organization gate must load before app-part1')
   assert.ok(gate<auth,'organization gate must load before app-auth')
+})
+
+test('service worker rotates the app shell for the stable organization-access gate',()=>{
+  assert.match(serviceWorker,/field-coach-app-shell-v6-20260902-stable-organization-access/)
+  assert.match(serviceWorker,/'\/app-organization-access-gate\.js'/)
 })
 
 test('Edge endpoint validates JWT and restricts entitlement names',()=>{
