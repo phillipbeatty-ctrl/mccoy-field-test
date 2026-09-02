@@ -70,6 +70,7 @@ async function collect(directory,prefix=''){
 }
 await collect(output)
 
+const androidBetaUrl=`${productionOrigin}/downloads/Field-Coach-Android-${version}-internal.apk`
 const release={
   schema_version:1,
   product:'Field Coach',
@@ -81,11 +82,13 @@ const release={
   launch_url:`${productionOrigin}/`,
   installation_center_url:`${productionOrigin}/download.html`,
   ios_install_guide_url:`${productionOrigin}/install-ios.html`,
-  android_beta_url:`${productionOrigin}/downloads/Field-Coach-Android-${version}-debug.apk`,
+  android_beta_url:androidBetaUrl,
+  android_beta_install_mode:'clean_install_required_from_beta3; in_place_updates_supported_from_beta4_forward',
+  android_signing_certificate_sha256:'a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935',
   distribution_model:'organization_managed_web_app_and_internal_android_beta',
   archive_role:'release_verification_and_controlled_hosting',
   ios_install_method:'Safari Add to Home Screen from the production origin',
-  android_install_method:'Download the official-domain APK and approve the Android package installer',
+  android_install_method:'Uninstall beta 3, then download the persistently signed official-domain APK and approve the Android package installer',
   file_count:files.length,
   files
 }
@@ -99,12 +102,14 @@ await writeFile(path.join(output,'README.txt'),[
   `Production: ${productionOrigin}/`,
   `Installation center: ${productionOrigin}/download.html`,
   `iPhone/iPad guide: ${productionOrigin}/install-ios.html`,
-  `Android internal beta: ${productionOrigin}/downloads/Field-Coach-Android-${version}-debug.apk`,
+  `Android internal beta: ${androidBetaUrl}`,
   '',
   'This archive is generated for release verification and controlled hosting.',
   'Do not unzip this archive on an iPhone, iPad, or Android phone to install the app.',
   'Install iOS from Safari. Install the Android native beta from the official APK link.',
-  'Both retain the server-authoritative organization access requirements.',
+  'Beta 3 used an unrecoverable one-time debug signer; uninstall beta 3 before installing beta 4.',
+  'Future internal beta updates can install over beta 4 when signed with the locked beta 4 key.',
+  'Both release paths retain the server-authoritative organization access requirements.',
   ''
 ].join('\n'))
 
