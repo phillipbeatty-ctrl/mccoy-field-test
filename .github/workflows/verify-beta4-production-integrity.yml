@@ -27,103 +27,169 @@ jobs:
       - name: Check out the published release branch
         uses: actions/checkout@v5
 
-      - name: Download and compare production beta 4
+      - name: Download, diagnose, and compare production beta 4
+        id: verify
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p production-integrity
+          result='production-integrity/result.txt'
+          : > "${result}"
+          failures=0
+
+          record() {
+            printf '%s\n' "$*" | tee -a "${result}"
+          }
+          fail() {
+            failures=$((failures+1))
+            record "FAIL: $*"
+          }
+          pass() {
+            record "PASS: $*"
+          }
+          equal_or_fail() {
+            local label="$1" actual="$2" expected="$3"
+            if [[ "${actual}" == "${expected}" ]]; then
+              pass "${label}: ${actual}"
+            else
+              fail "${label}: actual=${actual} expected=${expected}"
+            fi
+          }
 
           repository_apk="downloads/${APK_NAME}"
           repository_sha_file="downloads/${APK_NAME}.sha256"
           production_apk="production-integrity/${APK_NAME}"
           production_debug="production-integrity/Field-Coach-Android-1.0.0-beta.4-debug.apk"
 
-          test -s "${repository_apk}"
-          test -s "${repository_sha_file}"
+          record 'Field Coach beta 4 production integrity diagnostics'
+          record "Verifier commit: ${GITHUB_SHA}"
+          record "Production URL: ${APK_URL}"
 
-          repository_declared_sha="$(awk 'NR==1 {print tolower($1)}' "${repository_sha_file}")"
-          repository_actual_sha="$(sha256sum "${repository_apk}" | awk '{print tolower($1)}')"
-          test "${repository_declared_sha}" = "${EXPECTED_SHA256}"
-          test "${repository_actual_sha}" = "${EXPECTED_SHA256}"
+          if [[ ! -s "${repository_apk}" ]]; then fail "repository APK missing or empty: ${repository_apk}"; fi
+          if [[ ! -s "${repository_sha_file}" ]]; then fail "repository checksum missing or empty: ${repository_sha_file}"; fi
 
-          curl --fail --silent --show-error --location --retry 3 \
+          repository_declared_sha="$(awk 'NR==1 {print tolower($1)}' "${repository_sha_file}" 2>/dev/null || true)"
+          repository_actual_sha="$(sha256sum "${repository_apk}" 2>/dev/null | awk '{print tolower($1)}' || true)"
+          repository_bytes="$(wc -c < "${repository_apk}" 2>/dev/null | tr -d ' ' || true)"
+          equal_or_fail 'repository declared SHA-256' "${repository_declared_sha}" "${EXPECTED_SHA256}"
+          equal_or_fail 'repository actual SHA-256' "${repository_actual_sha}" "${EXPECTED_SHA256}"
+          record "Repository bytes: ${repository_bytes:-unavailable}"
+
+          if curl --fail --silent --show-error --location --retry 3 \
             --header 'Accept-Encoding: identity' \
             --dump-header production-integrity/apk-headers.txt \
             --output "${production_apk}" \
-            "${APK_URL}"
-          test -s "${production_apk}"
+            --write-out 'http_code=%{http_code}\nsize_download=%{size_download}\nurl_effective=%{url_effective}\n' \
+            "${APK_URL}" > production-integrity/apk-transfer.txt; then
+            pass 'production internal APK download completed'
+          else
+            fail 'production internal APK download failed'
+          fi
 
-          production_sha="$(sha256sum "${production_apk}" | awk '{print tolower($1)}')"
-          test "${production_sha}" = "${EXPECTED_SHA256}"
-          cmp --silent "${repository_apk}" "${production_apk}"
+          production_sha="$(sha256sum "${production_apk}" 2>/dev/null | awk '{print tolower($1)}' || true)"
+          production_bytes="$(wc -c < "${production_apk}" 2>/dev/null | tr -d ' ' || true)"
+          production_file_type="$(file -b "${production_apk}" 2>/dev/null || true)"
+          record "Production SHA-256: ${production_sha:-unavailable}"
+          record "Production bytes: ${production_bytes:-unavailable}"
+          record "Production file type: ${production_file_type:-unavailable}"
+          equal_or_fail 'production internal APK SHA-256' "${production_sha}" "${EXPECTED_SHA256}"
+          equal_or_fail 'production byte count' "${production_bytes}" "${repository_bytes}"
+          if cmp --silent "${repository_apk}" "${production_apk}" 2>/dev/null; then
+            pass 'production internal APK is byte-identical to repository APK'
+          else
+            fail 'production internal APK differs from repository APK'
+            cmp -l "${repository_apk}" "${production_apk}" 2>/dev/null | head -n 5 | sed 's/^/First byte difference: /' | tee -a "${result}" || true
+          fi
 
-          repository_bytes="$(wc -c < "${repository_apk}" | tr -d ' ')"
-          production_bytes="$(wc -c < "${production_apk}" | tr -d ' ')"
-          test "${repository_bytes}" = "${production_bytes}"
-
-          curl --fail --silent --show-error --location --retry 3 \
+          if curl --fail --silent --show-error --location --retry 3 \
             --header 'Accept-Encoding: identity' \
             --output production-integrity/production.sha256 \
-            "${APK_SHA_URL}"
-          production_declared_sha="$(awk 'NR==1 {print tolower($1)}' production-integrity/production.sha256)"
-          test "${production_declared_sha}" = "${EXPECTED_SHA256}"
+            "${APK_SHA_URL}"; then
+            pass 'production checksum download completed'
+          else
+            fail 'production checksum download failed'
+          fi
+          production_declared_sha="$(awk 'NR==1 {print tolower($1)}' production-integrity/production.sha256 2>/dev/null || true)"
+          equal_or_fail 'production declared SHA-256' "${production_declared_sha}" "${EXPECTED_SHA256}"
 
-          curl --fail --silent --show-error --location --retry 3 \
+          if curl --fail --silent --show-error --location --retry 3 \
             --header 'Accept-Encoding: identity' \
+            --dump-header production-integrity/debug-headers.txt \
             --output "${production_debug}" \
-            "${DEBUG_URL}"
-          test "$(sha256sum "${production_debug}" | awk '{print tolower($1)}')" = "${EXPECTED_SHA256}"
-          cmp --silent "${repository_apk}" "${production_debug}"
+            "${DEBUG_URL}"; then
+            pass 'production debug compatibility alias download completed'
+          else
+            fail 'production debug compatibility alias download failed'
+          fi
+          debug_sha="$(sha256sum "${production_debug}" 2>/dev/null | awk '{print tolower($1)}' || true)"
+          debug_bytes="$(wc -c < "${production_debug}" 2>/dev/null | tr -d ' ' || true)"
+          equal_or_fail 'debug compatibility alias SHA-256' "${debug_sha}" "${EXPECTED_SHA256}"
+          equal_or_fail 'debug compatibility alias byte count' "${debug_bytes}" "${repository_bytes}"
+          if cmp --silent "${repository_apk}" "${production_debug}" 2>/dev/null; then
+            pass 'debug compatibility alias is byte-identical to repository APK'
+          else
+            fail 'debug compatibility alias differs from repository APK'
+          fi
 
-          curl --fail --silent --show-error --location --retry 3 \
+          if curl --fail --silent --show-error --location --retry 3 \
             --output production-integrity/download.html \
-            "${DOWNLOAD_PAGE_URL}"
-          grep -q 'Field Coach 1.0.0-beta.4' production-integrity/download.html
-          grep -q 'Field-Coach-Android-1.0.0-beta.4-internal.apk' production-integrity/download.html
-          grep -qi 'uninstall beta 3' production-integrity/download.html
-          grep -qi 'clean install' production-integrity/download.html
+            "${DOWNLOAD_PAGE_URL}"; then
+            pass 'production installation page download completed'
+          else
+            fail 'production installation page download failed'
+          fi
+          grep -q 'Field Coach 1.0.0-beta.4' production-integrity/download.html 2>/dev/null && pass 'installation page identifies beta 4' || fail 'installation page does not identify beta 4'
+          grep -q 'Field-Coach-Android-1.0.0-beta.4-internal.apk' production-integrity/download.html 2>/dev/null && pass 'installation page links the internal APK' || fail 'installation page does not link the internal APK'
+          grep -qi 'uninstall beta 3' production-integrity/download.html 2>/dev/null && pass 'installation page states beta 3 uninstall boundary' || fail 'installation page lacks beta 3 uninstall boundary'
+          grep -qi 'clean install' production-integrity/download.html 2>/dev/null && pass 'installation page states clean-install requirement' || fail 'installation page lacks clean-install requirement'
 
-          content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/\r$/,""); value=$0} END{sub(/^[^:]+:[[:space:]]*/,"",value); print value}' production-integrity/apk-headers.txt)"
+          content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/\r$/,""); value=$0} END{sub(/^[^:]+:[[:space:]]*/,"",value); print value}' production-integrity/apk-headers.txt 2>/dev/null || true)"
+          record "Production Content-Type: ${content_type:-unavailable}"
           case "${content_type}" in
-            application/vnd.android.package-archive*) ;;
-            application/octet-stream*) ;;
-            *) echo "Unexpected APK Content-Type: ${content_type}" >&2; exit 1 ;;
+            application/vnd.android.package-archive*) pass 'production Content-Type is Android APK' ;;
+            application/octet-stream*) pass 'production Content-Type is binary download' ;;
+            *) fail "unexpected APK Content-Type: ${content_type:-missing}" ;;
           esac
 
-          cat > production-integrity/result.txt <<EOF
-          Field Coach beta 4 production integrity: PASS
-          Production URL: ${APK_URL}
-          SHA-256: ${production_sha}
-          Repository bytes: ${repository_bytes}
-          Production bytes: ${production_bytes}
-          Content-Type: ${content_type}
-          Internal APK matches repository: yes
-          Debug compatibility alias matches repository: yes
-          Production checksum matches: yes
-          Download page identifies beta 4 and clean-install boundary: yes
-          Verified commit: ${GITHUB_SHA}
-          EOF
-          cat production-integrity/result.txt
+          record "Failure count: ${failures}"
+          if [[ "${failures}" -eq 0 ]]; then
+            record 'Field Coach beta 4 production integrity: PASS'
+            {
+              echo '## Field Coach beta 4 production integrity: PASS'
+              echo
+              echo "- SHA-256: \`${production_sha}\`"
+              echo "- Byte count: \`${production_bytes}\`"
+              echo "- Content-Type: \`${content_type}\`"
+              echo '- Production internal APK and debug alias are byte-identical to the repository artifact.'
+              echo '- Production checksum and installation page are correct.'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            record 'Field Coach beta 4 production integrity: FAIL'
+            {
+              echo '## Field Coach beta 4 production integrity: FAIL'
+              echo
+              echo "- Failure count: \`${failures}\`"
+              echo "- Repository SHA-256: \`${repository_actual_sha}\`"
+              echo "- Production SHA-256: \`${production_sha}\`"
+              echo "- Repository bytes: \`${repository_bytes}\`"
+              echo "- Production bytes: \`${production_bytes}\`"
+              echo '- See the uploaded diagnostic evidence for the exact mismatch.'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
-          {
-            echo '## Field Coach beta 4 production integrity: PASS'
-            echo
-            echo "- SHA-256: \`${production_sha}\`"
-            echo "- Byte count: \`${production_bytes}\`"
-            echo "- Content-Type: \`${content_type}\`"
-            echo '- Production internal APK is byte-identical to the verified repository artifact.'
-            echo '- Debug compatibility alias is byte-identical to the verified repository artifact.'
-            echo '- Production checksum and installation page are correct.'
-          } >> "${GITHUB_STEP_SUMMARY}"
+          exit "${failures}"
 
       - name: Upload production-integrity evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Field-Coach-beta4-production-integrity
           path: |
             production-integrity/result.txt
             production-integrity/apk-headers.txt
+            production-integrity/apk-transfer.txt
+            production-integrity/debug-headers.txt
             production-integrity/production.sha256
             production-integrity/download.html
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
