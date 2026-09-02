@@ -7,8 +7,27 @@
   let accessSnapshot=null;
   let checkPromise=null;
   let organizationState=null;
+  let verifiedUserKey=null;
 
   window.FIELD_COACH_ORGANIZATION_ACCESS=null;
+
+  function userKey(user){
+    return String(user?.id||user?.email||'').trim().toLowerCase();
+  }
+
+  function hasVerifiedAccessFor(current){
+    const key=userKey(current?.user);
+    return Boolean(
+      key&&
+      verifiedUserKey===key&&
+      organizationState?.access_allowed===true
+    );
+  }
+
+  function hideGate(){
+    document.body.classList.remove('organization-access-blocked');
+    document.getElementById('organizationAccessGate')?.classList.remove('show');
+  }
 
   function ensureGate(){
     let gate=document.getElementById('organizationAccessGate');
@@ -90,6 +109,7 @@
   }
 
   function showDenied(state){
+    verifiedUserKey=null;
     const gate=ensureGate();
     const reason=String(state?.denial_reason||'access_check_unavailable');
     const organization=state?.organization_name||'Your organization';
@@ -108,10 +128,10 @@
 
   function releaseApplication(state){
     organizationState=state;
+    verifiedUserKey=userKey(accessSnapshot?.user);
     window.FIELD_COACH_ORGANIZATION_ACCESS=state;
     window.MCCOY_ACCESS=accessSnapshot;
-    document.body.classList.remove('organization-access-blocked');
-    document.getElementById('organizationAccessGate')?.classList.remove('show');
+    hideGate();
     window.dispatchEvent(new CustomEvent('mccoy-access-ready',{
       detail:{
         [VERIFIED_EVENT]:true,
@@ -182,11 +202,29 @@
     const current=window.MCCOY_ACCESS;
     if(!current?.user||!current?.access?.active)return;
 
-    // This listener is loaded before all business modules. Stop the original
-    // event, remove effective access synchronously, verify server state, then
-    // replay the event only after the organization gate passes.
-    event.stopImmediatePropagation();
+    const currentUserKey=userKey(current.user);
+    if(verifiedUserKey&&verifiedUserKey!==currentUserKey){
+      verifiedUserKey=null;
+      organizationState=null;
+      window.FIELD_COACH_ORGANIZATION_ACCESS=null;
+    }
+
     accessSnapshot={user:current.user,access:current.access};
+
+    // Supabase may emit repeated SIGNED_IN or TOKEN_REFRESHED events while the
+    // same user remains signed in. app-auth replays mccoy-access-ready for those
+    // events. Once this page has verified that user, let the replay continue
+    // without blocking the app or showing the full-screen checking gate again.
+    if(hasVerifiedAccessFor(current)){
+      window.FIELD_COACH_ORGANIZATION_ACCESS=organizationState;
+      hideGate();
+      return;
+    }
+
+    // This listener is loaded before all business modules. Stop the first
+    // access event for a user, remove effective access synchronously, verify
+    // server state, then replay the event only after the organization gate passes.
+    event.stopImmediatePropagation();
     window.MCCOY_ACCESS={user:current.user,access:null};
     showChecking();
     verifyAndRelease(false);
