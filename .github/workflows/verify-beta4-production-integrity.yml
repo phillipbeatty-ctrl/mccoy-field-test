@@ -138,10 +138,10 @@ jobs:
           else
             fail 'production installation page download failed'
           fi
-          grep -q 'Field Coach 1.0.0-beta.4' production-integrity/download.html 2>/dev/null && pass 'installation page identifies beta 4' || fail 'installation page does not identify beta 4'
+          grep -q 'Field Coach Android 1.0.0-beta.4' production-integrity/download.html 2>/dev/null && pass 'installation page identifies Field Coach Android beta 4' || fail 'installation page does not identify Field Coach Android beta 4'
           grep -q 'Field-Coach-Android-1.0.0-beta.4-internal.apk' production-integrity/download.html 2>/dev/null && pass 'installation page links the internal APK' || fail 'installation page does not link the internal APK'
           grep -qi 'uninstall beta 3' production-integrity/download.html 2>/dev/null && pass 'installation page states beta 3 uninstall boundary' || fail 'installation page lacks beta 3 uninstall boundary'
-          grep -qi 'clean install' production-integrity/download.html 2>/dev/null && pass 'installation page states clean-install requirement' || fail 'installation page lacks clean-install requirement'
+          grep -qi 'Clean beta 4 installation required' production-integrity/download.html 2>/dev/null && pass 'installation page states clean beta 4 installation requirement' || fail 'installation page lacks clean beta 4 installation requirement'
 
           content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/\r$/,""); value=$0} END{sub(/^[^:]+:[[:space:]]*/,"",value); print value}' production-integrity/apk-headers.txt 2>/dev/null || true)"
           record "Production Content-Type: ${content_type:-unavailable}"
