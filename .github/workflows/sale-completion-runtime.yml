@@ -1,0 +1,82 @@
+name: Sale completion runtime
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - app-supabase-client.js
+      - app-sale-lifecycle.js
+      - app-sale-photo-staging.js
+      - app-sales.js
+      - app-sales-products.js
+      - app-customer-list-credit-ranking-refresh.js
+      - app-page-layout.js
+      - index.html
+      - service-worker.js
+      - sale-completion-runtime.test.mjs
+      - sale-button-provider-capture.test.mjs
+      - sales-hub-production-photo-closest.test.mjs
+      - capture-only-sale-outcome.test.mjs
+      - app-update-recovery.test.mjs
+      - supabase/functions/sale-submit/index.ts
+      - supabase/functions/provider-sale-capture/index.ts
+      - supabase/tests/sale-completion-production-canary.sql
+      - .github/workflows/sale-completion-runtime.yml
+  pull_request:
+    paths:
+      - app-supabase-client.js
+      - app-sale-lifecycle.js
+      - app-sale-photo-staging.js
+      - app-sales.js
+      - app-sales-products.js
+      - app-customer-list-credit-ranking-refresh.js
+      - app-page-layout.js
+      - index.html
+      - service-worker.js
+      - sale-completion-runtime.test.mjs
+      - sale-button-provider-capture.test.mjs
+      - sales-hub-production-photo-closest.test.mjs
+      - capture-only-sale-outcome.test.mjs
+      - app-update-recovery.test.mjs
+      - supabase/functions/sale-submit/index.ts
+      - supabase/functions/provider-sale-capture/index.ts
+      - supabase/tests/sale-completion-production-canary.sql
+      - .github/workflows/sale-completion-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-and-contract-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check sale runtime
+        run: |
+          node --check app-supabase-client.js
+          node --check app-sale-lifecycle.js
+          node --check app-sale-photo-staging.js
+          node --check app-sales.js
+          node --check app-sales-products.js
+          node --check app-customer-list-credit-ranking-refresh.js
+          node --check app-page-layout.js
+          node --check service-worker.js
+      - name: Execute sale completion runtime and compatibility tests
+        run: |
+          node --test \
+            sale-completion-runtime.test.mjs \
+            sale-button-provider-capture.test.mjs \
+            sales-hub-production-photo-closest.test.mjs \
+            capture-only-sale-outcome.test.mjs \
+            app-update-recovery.test.mjs
+      - name: Require rollback-only production canary
+        run: |
+          grep -q '^begin;' supabase/tests/sale-completion-production-canary.sql
+          grep -q '^rollback;' supabase/tests/sale-completion-production-canary.sql
+          grep -q "admin_all_sales_feed" supabase/tests/sale-completion-production-canary.sql
+          grep -q "ranking_eligible" supabase/tests/sale-completion-production-canary.sql
