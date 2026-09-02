@@ -73,7 +73,9 @@ That policy is combined with the table's existing organization, role, assignment
 
 ## Client behavior
 
-`app-organization-access-gate.js` loads before the business modules. It intercepts the original `mccoy-access-ready` event, removes effective access, calls the protected `organization-access` Edge Function, and replays the event only after the server returns `access_allowed=true`.
+`app-organization-access-gate.js` loads before the business modules. It intercepts the first `mccoy-access-ready` event for a signed-in user, removes effective access, calls the protected `organization-access` Edge Function, and replays the event only after the server returns `access_allowed=true`.
+
+After that successful verification, repeated Supabase `SIGNED_IN` or `TOKEN_REFRESHED` activity for the same user may cause the authentication shell to replay `mccoy-access-ready`. The gate reuses the successful in-memory verification for the current page lifetime, leaves the application visible, and does not display the full-screen checking dialog again. A different signed-in user or a fresh page load requires a new server verification. Database RLS and service-role entitlement assertions remain authoritative for every business-data operation.
 
 Denied users see a full-screen organization-access message with only:
 
