@@ -79,6 +79,8 @@ test('Sales Hub loads the shared client before sale modules and cache-busts chan
   assert.match(html, /app-supabase-client\.js\?v=2026090201/)
   assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026082417'))
   assert.match(html, /app-sales\.js\?v=2026082417/)
+  assert.match(html, /app-sale-lifecycle\.js\?v=2026090201/)
+  assert.match(html, /app-sale-photo-staging\.js\?v=2026090201/)
   assert.match(html, /app-sales-products\.js\?v=2026090201/)
   assert.match(html, /app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
 })
