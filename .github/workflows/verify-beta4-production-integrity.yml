@@ -1,0 +1,129 @@
+name: Verify Field Coach beta 4 production integrity
+
+on:
+  push:
+    branches:
+      - fix/approved-official-logo-beta4-20260901
+    paths:
+      - '.github/workflows/verify-beta4-production-integrity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_SHA256: 1f8a4dc706531ea1bd8a4bc78b1c73c207736a7938ea292376637494d65d2766
+  APK_NAME: Field-Coach-Android-1.0.0-beta.4-internal.apk
+  APK_URL: https://www.mccoyplatform.com/downloads/Field-Coach-Android-1.0.0-beta.4-internal.apk
+  APK_SHA_URL: https://www.mccoyplatform.com/downloads/Field-Coach-Android-1.0.0-beta.4-internal.apk.sha256
+  DEBUG_URL: https://www.mccoyplatform.com/downloads/Field-Coach-Android-1.0.0-beta.4-debug.apk
+  DOWNLOAD_PAGE_URL: https://www.mccoyplatform.com/download.html
+
+jobs:
+  verify-production-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the published release branch
+        uses: actions/checkout@v5
+
+      - name: Download and compare production beta 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p production-integrity
+
+          repository_apk="downloads/${APK_NAME}"
+          repository_sha_file="downloads/${APK_NAME}.sha256"
+          production_apk="production-integrity/${APK_NAME}"
+          production_debug="production-integrity/Field-Coach-Android-1.0.0-beta.4-debug.apk"
+
+          test -s "${repository_apk}"
+          test -s "${repository_sha_file}"
+
+          repository_declared_sha="$(awk 'NR==1 {print tolower($1)}' "${repository_sha_file}")"
+          repository_actual_sha="$(sha256sum "${repository_apk}" | awk '{print tolower($1)}')"
+          test "${repository_declared_sha}" = "${EXPECTED_SHA256}"
+          test "${repository_actual_sha}" = "${EXPECTED_SHA256}"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --header 'Accept-Encoding: identity' \
+            --dump-header production-integrity/apk-headers.txt \
+            --output "${production_apk}" \
+            "${APK_URL}"
+          test -s "${production_apk}"
+
+          production_sha="$(sha256sum "${production_apk}" | awk '{print tolower($1)}')"
+          test "${production_sha}" = "${EXPECTED_SHA256}"
+          cmp --silent "${repository_apk}" "${production_apk}"
+
+          repository_bytes="$(wc -c < "${repository_apk}" | tr -d ' ')"
+          production_bytes="$(wc -c < "${production_apk}" | tr -d ' ')"
+          test "${repository_bytes}" = "${production_bytes}"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --header 'Accept-Encoding: identity' \
+            --output production-integrity/production.sha256 \
+            "${APK_SHA_URL}"
+          production_declared_sha="$(awk 'NR==1 {print tolower($1)}' production-integrity/production.sha256)"
+          test "${production_declared_sha}" = "${EXPECTED_SHA256}"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --header 'Accept-Encoding: identity' \
+            --output "${production_debug}" \
+            "${DEBUG_URL}"
+          test "$(sha256sum "${production_debug}" | awk '{print tolower($1)}')" = "${EXPECTED_SHA256}"
+          cmp --silent "${repository_apk}" "${production_debug}"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --output production-integrity/download.html \
+            "${DOWNLOAD_PAGE_URL}"
+          grep -q 'Field Coach 1.0.0-beta.4' production-integrity/download.html
+          grep -q 'Field-Coach-Android-1.0.0-beta.4-internal.apk' production-integrity/download.html
+          grep -qi 'uninstall beta 3' production-integrity/download.html
+          grep -qi 'clean install' production-integrity/download.html
+
+          content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/\r$/,""); value=$0} END{sub(/^[^:]+:[[:space:]]*/,"",value); print value}' production-integrity/apk-headers.txt)"
+          case "${content_type}" in
+            application/vnd.android.package-archive*) ;;
+            application/octet-stream*) ;;
+            *) echo "Unexpected APK Content-Type: ${content_type}" >&2; exit 1 ;;
+          esac
+
+          cat > production-integrity/result.txt <<EOF
+          Field Coach beta 4 production integrity: PASS
+          Production URL: ${APK_URL}
+          SHA-256: ${production_sha}
+          Repository bytes: ${repository_bytes}
+          Production bytes: ${production_bytes}
+          Content-Type: ${content_type}
+          Internal APK matches repository: yes
+          Debug compatibility alias matches repository: yes
+          Production checksum matches: yes
+          Download page identifies beta 4 and clean-install boundary: yes
+          Verified commit: ${GITHUB_SHA}
+          EOF
+          cat production-integrity/result.txt
+
+          {
+            echo '## Field Coach beta 4 production integrity: PASS'
+            echo
+            echo "- SHA-256: \`${production_sha}\`"
+            echo "- Byte count: \`${production_bytes}\`"
+            echo "- Content-Type: \`${content_type}\`"
+            echo '- Production internal APK is byte-identical to the verified repository artifact.'
+            echo '- Debug compatibility alias is byte-identical to the verified repository artifact.'
+            echo '- Production checksum and installation page are correct.'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload production-integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Field-Coach-beta4-production-integrity
+          path: |
+            production-integrity/result.txt
+            production-integrity/apk-headers.txt
+            production-integrity/production.sha256
+            production-integrity/download.html
+          if-no-files-found: error
+          retention-days: 30
