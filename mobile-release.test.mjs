@@ -14,11 +14,12 @@ const approvedSourceVerifier=await read('./scripts/verify-approved-logo-source.p
 const iconVerifier=await read('./scripts/verify-png-content.mjs');
 const logoUsage=await read('./assets/brand/logo-usage.md');
 const nativeBridge=await read('./mobile/mobile-native-bridge.js');
-const androidWorkflow=await read('./.github/workflows/field-coach-android-internal.yml');
+const androidContractWorkflow=await read('./.github/workflows/field-coach-android-internal.yml');
+const beta5Workflow=await read('./.github/workflows/field-coach-android-beta5-sale-runtime.yml');
 const releaseDoc=await read('./APP_RELEASE.md');
 
 test('Capacitor 8 release toolchain is pinned and keeps the existing McCoy Platform bundle ID',()=>{
-  assert.equal(packageJson.version,'1.0.0-beta.4');
+  assert.equal(packageJson.version,'1.0.0-beta.5');
   assert.equal(packageJson.engines.node,'>=22');
   assert.equal(packageJson.dependencies['@capacitor/core'],'8.5.0');
   assert.equal(packageJson.dependencies['@capacitor/android'],'8.5.0');
@@ -70,15 +71,21 @@ test('store build uses bundled web assets rather than a remote production WebVie
   assert.match(webBuilder,/mobile-native-bridge\.js/);
   assert.match(webBuilder,/injectNativeBridge/);
   assert.match(webBuilder,/app_name:'Field Coach'/);
-  assert.match(webBuilder,/1\.0\.0-beta\.4/);
+  assert.match(webBuilder,/1\.0\.0-beta\.5/);
+  assert.match(webBuilder,/app-supabase-client\.js/);
+  assert.match(webBuilder,/app-sale-lifecycle\.js/);
+  assert.match(webBuilder,/app-sale-photo-staging\.js/);
   assert.match(releaseDoctor,/server\.url is not allowed/);
   assert.match(releaseDoctor,/allowNavigation is not allowed/);
   assert.match(releaseDoctor,/official-logo-source\.sha256/);
+  assert.match(releaseDoctor,/shared Supabase client resolver is missing/);
+  assert.match(releaseDoctor,/repaired sale lifecycle is missing/);
+  assert.match(releaseDoctor,/repaired photo staging is missing/);
 });
 
-test('Android release enforces API 36, build 4, Field Coach label, foreground location, camera, and no cleartext traffic',()=>{
-  assert.match(nativeConfigurator,/versionName='1\.0\.0-beta\.4'/);
-  assert.match(nativeConfigurator,/versionCode='4'/);
+test('Android release enforces API 36, build 5, Field Coach label, foreground location, camera, and no cleartext traffic',()=>{
+  assert.match(nativeConfigurator,/versionName='1\.0\.0-beta\.5'/);
+  assert.match(nativeConfigurator,/versionCode='5'/);
   assert.match(nativeConfigurator,/targetSdkVersion/);
   assert.match(nativeConfigurator,/Capacitor Android must target API 36/);
   assert.match(nativeConfigurator,/android\.permission\.ACCESS_COARSE_LOCATION/);
@@ -87,15 +94,15 @@ test('Android release enforces API 36, build 4, Field Coach label, foreground lo
   assert.match(nativeConfigurator,/android:usesCleartextTraffic="false"/);
   assert.match(nativeConfigurator,/android:scheme="mccoy"/);
   assert.match(nativeConfigurator,/<string name="app_name">Field Coach<\/string>/);
-  assert.match(androidWorkflow,/application-label:'Field Coach'/);
+  assert.match(beta5Workflow,/application-label:'Field Coach'/);
 });
 
-test('iOS release config explicitly identifies the shell as Field Coach beta 4',()=>{
+test('iOS release config explicitly identifies the shell as Field Coach beta 5',()=>{
   assert.match(nativeConfigurator,/CFBundleDisplayName/);
   assert.match(nativeConfigurator,/CFBundleName/);
-  assert.match(nativeConfigurator,/CURRENT_PROJECT_VERSION = 4/);
+  assert.match(nativeConfigurator,/CURRENT_PROJECT_VERSION = 5/);
   assert.match(nativeConfigurator,/Field Coach uses your location/);
-  assert.match(capacitorConfig.ios.appendUserAgent,/FieldCoachNative\/1\.0\.0-beta\.4/);
+  assert.match(capacitorConfig.ios.appendUserAgent,/FieldCoachNative\/1\.0\.0-beta\.5/);
 });
 
 test('native bridge handles lifecycle without unattended reloads or polling',()=>{
@@ -107,50 +114,61 @@ test('native bridge handles lifecycle without unattended reloads or polling',()=
   assert.doesNotMatch(nativeBridge,/setInterval/);
 });
 
-test('Android CI builds a release package and signs it with the persistent Vault-backed internal key',()=>{
-  assert.match(androidWorkflow,/actions\/checkout@v5/);
-  assert.match(androidWorkflow,/actions\/setup-node@v5/);
-  assert.match(androidWorkflow,/actions\/setup-java@v5/);
-  assert.match(androidWorkflow,/android-actions\/setup-android@v4/);
-  assert.match(androidWorkflow,/node-version:\s*['"]22['"]/);
-  assert.match(androidWorkflow,/java-version:\s*['"]21['"]/);
-  assert.match(androidWorkflow,/APP_VERSION: 1\.0\.0-beta\.4/);
-  assert.match(androidWorkflow,/fix\/approved-official-logo-beta4-20260901/);
-  assert.match(androidWorkflow,/environment: production/);
-  assert.match(androidWorkflow,/get_field_coach_android_internal_signing_v1/);
-  assert.match(androidWorkflow,/SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(androidWorkflow,/a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935/);
-  assert.match(androidWorkflow,/icons:source:verify/);
-  assert.match(androidWorkflow,/platforms;android-36/);
-  assert.match(androidWorkflow,/build-tools;36\.0\.0/);
-  assert.match(androidWorkflow,/assembleRelease/);
-  assert.match(androidWorkflow,/bundleRelease/);
-  assert.doesNotMatch(androidWorkflow,/assembleDebug/);
-  assert.match(androidWorkflow,/apksigner[^\n]*sign/s);
-  assert.match(androidWorkflow,/apksigner[^\n]*verify/s);
-  assert.match(androidWorkflow,/jarsigner/);
-  assert.match(androidWorkflow,/zipalign/);
-  assert.match(androidWorkflow,/verify-png-content\.mjs/);
-  assert.match(androidWorkflow,/aapt2[^\n]*dump resources/s);
-  assert.match(androidWorkflow,/field-coach-apk-launcher-entries/);
-  assert.match(androidWorkflow,/unzip -p/);
-  assert.match(androidWorkflow,/packaged_entries/);
-  assert.match(androidWorkflow,/launchers = \{'ic_launcher', 'ic_launcher_foreground', 'ic_launcher_round'\}/);
-  assert.doesNotMatch(androidWorkflow,/ic_launcher_background/);
-  assert.match(androidWorkflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-internal\.apk/);
-  assert.match(androidWorkflow,/byte-identical compatibility alias/i);
-  assert.match(androidWorkflow,/clean_install_required/);
-  assert.match(androidWorkflow,/git add -f/);
-  assert.match(androidWorkflow,/upload-artifact@v4/);
-  assert.doesNotMatch(androidWorkflow,/McCoy-Android-/);
+test('the existing Android workflow still supplies the pull-request compilation contract',()=>{
+  assert.match(androidContractWorkflow,/pull_request:/);
+  assert.match(androidContractWorkflow,/npm run test:mobile/);
+  assert.match(androidContractWorkflow,/mobile:android:prepare/);
+  assert.match(androidContractWorkflow,/assembleRelease/);
+  assert.match(androidContractWorkflow,/bundleRelease/);
 });
 
-test('release documentation describes a signed internal beta and the beta 3 clean-install boundary',()=>{
-  assert.match(releaseDoc,/1\.0\.0-beta\.4/);
+test('protected beta 5 workflow builds, signs, verifies, and publishes the repaired native package',()=>{
+  assert.match(beta5Workflow,/name: Field Coach Android Beta 5 Sale Runtime/);
+  assert.match(beta5Workflow,/actions\/checkout@v5/);
+  assert.match(beta5Workflow,/actions\/setup-node@v5/);
+  assert.match(beta5Workflow,/actions\/setup-java@v5/);
+  assert.match(beta5Workflow,/android-actions\/setup-android@v4/);
+  assert.match(beta5Workflow,/node-version:\s*['"]22['"]/);
+  assert.match(beta5Workflow,/java-version:\s*['"]21['"]/);
+  assert.match(beta5Workflow,/APP_VERSION: 1\.0\.0-beta\.5/);
+  assert.match(beta5Workflow,/fix\/sale-completion-runtime-20260902/);
+  assert.match(beta5Workflow,/environment: production/);
+  assert.match(beta5Workflow,/get_field_coach_android_internal_signing_v1/);
+  assert.match(beta5Workflow,/SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(beta5Workflow,/a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935/);
+  assert.match(beta5Workflow,/icons:source:verify/);
+  assert.match(beta5Workflow,/platforms;android-36/);
+  assert.match(beta5Workflow,/build-tools;36\.0\.0/);
+  assert.match(beta5Workflow,/assembleRelease/);
+  assert.match(beta5Workflow,/bundleRelease/);
+  assert.doesNotMatch(beta5Workflow,/assembleDebug/);
+  assert.match(beta5Workflow,/apksigner[^\n]*sign/s);
+  assert.match(beta5Workflow,/apksigner[^\n]*verify/s);
+  assert.match(beta5Workflow,/jarsigner/);
+  assert.match(beta5Workflow,/zipalign/);
+  assert.match(beta5Workflow,/verify-png-content\.mjs/);
+  assert.match(beta5Workflow,/app-supabase-client\.js/);
+  assert.match(beta5Workflow,/app-sale-lifecycle\.js/);
+  assert.match(beta5Workflow,/app-sale-photo-staging\.js/);
+  assert.match(beta5Workflow,/versionCode='5'/);
+  assert.match(beta5Workflow,/versionName='1\.0\.0-beta\.5'/);
+  assert.match(beta5Workflow,/beta4_update_compatible/);
+  assert.match(beta5Workflow,/clean_install_required_from_beta3/);
+  assert.match(beta5Workflow,/downloads\/Field-Coach-Android-\$\{APP_VERSION\}-internal\.apk/);
+  assert.match(beta5Workflow,/byte-identical compatibility alias/i);
+  assert.match(beta5Workflow,/android-beta5-sale-runtime-generated/);
+  assert.match(beta5Workflow,/git add -f/);
+  assert.match(beta5Workflow,/upload-artifact@v4/);
+  assert.doesNotMatch(beta5Workflow,/McCoy-Android-/);
+});
+
+test('release documentation describes beta 5, the persistent signer, and the beta 3 boundary',()=>{
+  assert.match(releaseDoc,/1\.0\.0-beta\.5/);
   assert.match(releaseDoc,/approved uploaded artwork/i);
   assert.match(releaseDoc,/persistently signed internal APK/i);
   assert.match(releaseDoc,/Supabase Vault/i);
-  assert.match(releaseDoc,/clean installation/i);
+  assert.match(releaseDoc,/Beta 4 can update to beta 5 in place/i);
+  assert.match(releaseDoc,/Beta 3 must be uninstalled/i);
   assert.match(releaseDoc,/not a public Play Store release/i);
   assert.match(releaseDoc,/Apple Developer/i);
 });
