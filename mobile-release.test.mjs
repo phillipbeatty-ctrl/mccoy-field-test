@@ -124,6 +124,8 @@ test('the existing Android workflow still supplies the pull-request compilation 
 
 test('protected beta 5 workflow builds, signs, verifies, and publishes the repaired native package',()=>{
   assert.match(beta5Workflow,/name: Field Coach Android Beta 5 Sale Runtime/);
+  assert.match(beta5Workflow,/workflow_dispatch:/);
+  assert.doesNotMatch(beta5Workflow,/\n\s*push:/);
   assert.match(beta5Workflow,/actions\/checkout@v5/);
   assert.match(beta5Workflow,/actions\/setup-node@v5/);
   assert.match(beta5Workflow,/actions\/setup-java@v5/);
@@ -131,7 +133,6 @@ test('protected beta 5 workflow builds, signs, verifies, and publishes the repai
   assert.match(beta5Workflow,/node-version:\s*['"]22['"]/);
   assert.match(beta5Workflow,/java-version:\s*['"]21['"]/);
   assert.match(beta5Workflow,/APP_VERSION: 1\.0\.0-beta\.5/);
-  assert.match(beta5Workflow,/fix\/sale-completion-runtime-20260902/);
   assert.match(beta5Workflow,/environment: production/);
   assert.match(beta5Workflow,/get_field_coach_android_internal_signing_v1/);
   assert.match(beta5Workflow,/SUPABASE_SERVICE_ROLE_KEY/);
