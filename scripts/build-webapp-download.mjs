@@ -88,7 +88,7 @@ const release={
   distribution_model:'organization_managed_web_app_and_internal_android_beta',
   archive_role:'release_verification_and_controlled_hosting',
   ios_install_method:'Safari Add to Home Screen from the production origin',
-  android_install_method:'Uninstall beta 3, then download the persistently signed official-domain APK and approve the Android package installer',
+  android_install_method:'Uninstall beta 3, or update beta 4 in place, then install the persistently signed official-domain beta 5 APK',
   file_count:files.length,
   files
 }
@@ -107,8 +107,8 @@ await writeFile(path.join(output,'README.txt'),[
   'This archive is generated for release verification and controlled hosting.',
   'Do not unzip this archive on an iPhone, iPad, or Android phone to install the app.',
   'Install iOS from Safari. Install the Android native beta from the official APK link.',
-  'Beta 3 used an unrecoverable one-time debug signer; uninstall beta 3 before installing beta 4.',
-  'Future internal beta updates can install over beta 4 when signed with the locked beta 4 key.',
+  'Beta 3 used an unrecoverable one-time debug signer; uninstall beta 3 before installing beta 5.',
+  'Beta 5 uses the same persistent internal signer as beta 4 and can update beta 4 in place.',
   'Both release paths retain the server-authoritative organization access requirements.',
   ''
 ].join('\n'))
