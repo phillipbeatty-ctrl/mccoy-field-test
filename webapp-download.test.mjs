@@ -21,9 +21,11 @@ test('iPhone and iPad guide describes the real Safari installation flow',()=>{
   assert.doesNotMatch(iosGuide,/stripe\.com|checkout-session|subscribe now|buy now|in-app purchase/i)
 })
 
-test('installation center separates native Android beta 4 from browser web-app installation',()=>{
+test('installation center separates persistently signed Android beta 4 from browser web-app installation',()=>{
   assert.match(downloadCenter,/\/install-ios\.html/)
-  assert.match(downloadCenter,/Field-Coach-Android-1\.0\.0-beta\.4-debug\.apk/)
+  assert.match(downloadCenter,/Field-Coach-Android-1\.0\.0-beta\.4-internal\.apk/)
+  assert.match(downloadCenter,/persistently signed/i)
+  assert.match(downloadCenter,/beta 3 must be uninstalled/i)
   assert.match(downloadCenter,/DOWNLOAD ANDROID BETA \(\.APK\)/)
   assert.match(downloadCenter,/INSTALL FIELD COACH WEB APP/)
   assert.match(installer,/beforeinstallprompt/)
@@ -82,7 +84,9 @@ test('builder produces an integrity manifest containing approved source and requ
   assert.equal(release.version,'1.0.0-beta.4')
   assert.equal(release.build_sha,'test-build')
   assert.equal(release.production_origin,'https://mccoyplatform.com')
-  assert.match(release.android_beta_url,/Field-Coach-Android-1\.0\.0-beta\.4-debug\.apk$/)
+  assert.match(release.android_beta_url,/Field-Coach-Android-1\.0\.0-beta\.4-internal\.apk$/)
+  assert.equal(release.android_beta_install_mode,'clean_install_required_from_beta3; in_place_updates_supported_from_beta4_forward')
+  assert.equal(release.android_signing_certificate_sha256,'a3e8ca1f490053c2b38f1fc85c629fbefce2e8782e0dd4b03f55eb942f6df935')
   assert.ok(release.files.every(file=>/^[a-f0-9]{64}$/.test(file.sha256)))
   assert.ok(release.files.every(file=>!/(^|\/)(api|supabase|scripts|docs|downloads|\.github)(\/|$)/.test(file.path)))
   assert.ok((await stat(new URL('./dist/field-coach-web-app/README.txt',import.meta.url))).size>0)
