@@ -1,2 +1,0 @@
-Third connector-origin release trigger after the system-Python source materializer.
-No runtime behavior.

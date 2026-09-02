@@ -1,1 +1,0 @@
-The source-verification workflow must pass before derivative generation. The Android workflow must inspect both generated launcher PNGs and packaged launcher PNGs extracted from the APK. The web workflow must package the approved source and checksum. Any failure blocks merge.

@@ -1,1 +1,0 @@
-Approved-source surfaces: main sidebar, Auth card, install pages, download center, favicon, PWA any icon, PWA maskable icon, Apple touch icon, Android adaptive foreground/background, Android launcher, and splash screen.
