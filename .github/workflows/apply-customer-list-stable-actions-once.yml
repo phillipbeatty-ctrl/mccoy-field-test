@@ -57,6 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git checkout -- .github/workflows/field-coach-android-beta5-sale-runtime.yml
           rm .github/scripts/apply-customer-list-stable-actions.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -68,7 +69,6 @@ jobs:
             service-worker.js \
             organization-access-gate.test.mjs \
             sale-completion-runtime.test.mjs \
-            .github/workflows/field-coach-android-beta5-sale-runtime.yml \
             customer-list-stable-actions.test.mjs \
             .github/scripts/apply-customer-list-stable-actions.py
           git diff --cached --check
