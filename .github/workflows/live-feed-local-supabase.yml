@@ -39,8 +39,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Verify the free-test harness contract
-        run: node --test --test-reporter=spec live-feed-local-harness.test.mjs
+      - name: Verify the Live Feed feature and free-test harness contracts
+        run: npm run test:live-feed:local:contract -- --test-reporter=spec
 
       - name: Run isolated local Supabase Docker canary
         env:
