@@ -2,9 +2,6 @@ export const edgePaywallTargets=new Map([
   ['accounting-records','accounting'],
   ['accounting-sales','accounting'],
   ['admin-session-history','analytics'],
-  ['address-validation-admin-review','lead_management'],
-  ['address-validation-pilot','lead_management'],
-  ['address-validation-repair','lead_management'],
   ['company-leaders','analytics'],
   ['compensation-settings','admin_controls'],
   ['field-analytics','analytics'],
@@ -47,13 +44,16 @@ export const edgePaywallTargets=new Map([
   ['spotio-unit-check','lead_management']
 ])
 
-// These endpoints deliberately keep their narrower infrastructure or signed-
-// webhook controls. Gating them behind organization billing would strand account
-// confirmation/recovery or reject provider callbacks before their signatures can
-// be verified. apple-notes-sync is retained as a separately signed integration
-// until it can resolve an organization from its signed payload without trusting a
-// caller-supplied user or organization identifier.
+// These endpoints deliberately keep their narrower infrastructure, tombstone, or
+// signed-webhook controls. Gating them behind organization billing would strand
+// account confirmation/recovery, reject provider callbacks before signature
+// verification, or change the stable 410 contract of a deliberately retired API.
+// apple-notes-sync remains a separately signed integration until it can resolve an
+// organization from its signed payload without trusting caller-supplied identity.
 export const edgePaywallExemptions=new Map([
+  ['address-validation-admin-review','retired_endpoint_returns_410_no_business_data'],
+  ['address-validation-pilot','retired_endpoint_returns_410_no_business_data'],
+  ['address-validation-repair','retired_endpoint_returns_410_no_business_data'],
   ['apple-notes-sync','custom_signed_integration_requires_separate_org_resolution'],
   ['auth-email-confirmed','account_confirmation_infrastructure'],
   ['auth-email-delivery-webhook','signed_provider_webhook'],
