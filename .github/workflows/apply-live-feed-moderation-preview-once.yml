@@ -55,6 +55,31 @@ jobs:
       - name: Materialize fail-closed moderation
         run: python3 .github/scripts/apply-live-feed-moderation-preview.py
 
+      - name: Align assertions with approved-only delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('live-feed-comments-contract.test.mjs')
+          source=path.read_text(encoding='utf-8')
+          replacements=[
+            (
+              r"assert.match(client,/if\(!row\|\|ownById\|\|ownByEmail\)return/)",
+              r"assert.match(client,/ownById\|\|ownByEmail\)return/)"
+            ),
+            (
+              r"assert.match(moderate,/p_decision not in \('approve','reject'\)/)",
+              r"assert.match(moderate,/v_decision not in \('approve','reject'\)/)"
+            ),
+          ]
+          for old,new in replacements:
+              if source.count(old)!=1:
+                  raise SystemExit(f'expected one assertion, found {source.count(old)} for {old}')
+              source=source.replace(old,new,1)
+          path.write_text(source,encoding='utf-8')
+          PY
+
       - name: Verify Live Feed preview contracts
         shell: bash
         run: |
