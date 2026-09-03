@@ -71,7 +71,8 @@ async function loadPendingAccounts(admin,caller){
   if(caller.organization_id)accessQuery=accessQuery.eq('organization_id',caller.organization_id)
 
   const requestsPromise=admin.from('rep_access_requests')
-    .select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at')
+    .select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at,organization_id')
+    .eq('organization_id',caller.organization_id)
     .order('created_at',{ascending:false})
 
   const membershipsPromise=authIds.length

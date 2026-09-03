@@ -258,20 +258,48 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         if (!['staged', 'attaching', 'failed'].includes(row.status)) continue
 
         const salePhotoId = row.attached_sale_photo_id || crypto.randomUUID()
-        const targetPath = `${organizationId}/${saleId}/${salePhotoId}.${ext(row.mime_type)}`
-        await admin.from('provider_sale_capture_photos').update({
+        const claimTime = new Date().toISOString()
+        const staleBefore = new Date(Date.now() - 5 * 60_000).toISOString()
+        let claimQuery = admin.from('provider_sale_capture_photos').update({
           status: 'attaching',
           attached_sale_id: saleId,
           attached_sale_photo_id: salePhotoId,
           attachment_error: null,
-          updated_at: new Date().toISOString()
-        }).eq('id', row.id).eq('uploaded_by', user.id)
+          updated_at: claimTime
+        })
+          .eq('id', row.id)
+          .eq('organization_id', organizationId)
+          .eq('uploaded_by', user.id)
+          .eq('provider_capture_id', capture.id)
+        if (row.status === 'attaching') claimQuery = claimQuery.eq('status', 'attaching').lt('updated_at', staleBefore)
+        else claimQuery = claimQuery.in('status', ['staged', 'failed'])
+        const { data: claimed, error: claimError } = await claimQuery.select('*').maybeSingle()
+        if (claimError) throw claimError
 
+        if (!claimed) {
+          const { data: current, error: currentError } = await admin
+            .from('provider_sale_capture_photos')
+            .select('status,attached_sale_id,attached_sale_photo_id')
+            .eq('id', row.id)
+            .eq('organization_id', organizationId)
+            .eq('uploaded_by', user.id)
+            .eq('provider_capture_id', capture.id)
+            .maybeSingle()
+          if (currentError) throw currentError
+          if (current?.status === 'attached' && current.attached_sale_id === saleId && current.attached_sale_photo_id) {
+            salePhotoIds.push(current.attached_sale_photo_id)
+            continue
+          }
+          failures.push(`${row.id}:photo_attachment_in_progress`)
+          continue
+        }
+
+        const targetPath = `${organizationId}/${saleId}/${salePhotoId}.${ext(claimed.mime_type)}`
         try {
-          const { data: file, error: downloadError } = await admin.storage.from(STAGING_BUCKET).download(row.storage_path)
+          const { data: file, error: downloadError } = await admin.storage.from(STAGING_BUCKET).download(claimed.storage_path)
           if (downloadError || !file) throw downloadError || new Error('staged_photo_download_failed')
           const { error: uploadError } = await admin.storage.from(SALE_BUCKET).upload(targetPath, file, {
-            contentType: row.mime_type,
+            contentType: claimed.mime_type,
             upsert: true,
             cacheControl: '0'
           })
@@ -284,28 +312,35 @@ serveWithOrganizationAccess('provider_integrations',async request => {
             uploaded_by: user.id,
             uploaded_by_email: email,
             storage_path: targetPath,
-            mime_type: row.mime_type,
-            file_size_bytes: row.file_size_bytes,
+            mime_type: claimed.mime_type,
+            file_size_bytes: claimed.file_size_bytes,
             extraction_status: 'uploaded',
             extracted_fields: {}
           }, { onConflict: 'id' })
           if (photoInsertError) throw photoInsertError
 
           const now = new Date().toISOString()
-          const { error: attachedError } = await admin.from('provider_sale_capture_photos').update({
+          const { data: attached, error: attachedError } = await admin.from('provider_sale_capture_photos').update({
             status: 'attached',
             attached_sale_id: saleId,
             attached_sale_photo_id: salePhotoId,
             attached_at: now,
             updated_at: now,
             attachment_error: null
-          }).eq('id', row.id).eq('uploaded_by', user.id)
+          })
+            .eq('id', row.id)
+            .eq('organization_id', organizationId)
+            .eq('uploaded_by', user.id)
+            .eq('provider_capture_id', capture.id)
+            .eq('status', 'attaching')
+            .eq('attached_sale_id', saleId)
+            .eq('attached_sale_photo_id', salePhotoId)
+            .select('id')
+            .maybeSingle()
           if (attachedError) throw attachedError
+          if (!attached) throw new Error('photo_attachment_claim_lost')
 
-          // Mark the database attachment first. If object cleanup fails, the
-          // completed sale still owns the evidence and the operation remains
-          // idempotent on retry.
-          const { error: removeError } = await admin.storage.from(STAGING_BUCKET).remove([row.storage_path])
+          const { error: removeError } = await admin.storage.from(STAGING_BUCKET).remove([claimed.storage_path])
           if (removeError) console.error('provider-sale-photo-stage staged object cleanup', removeError)
           salePhotoIds.push(salePhotoId)
         } catch (attachError) {
@@ -317,7 +352,14 @@ serveWithOrganizationAccess('provider_integrations',async request => {
             attached_sale_photo_id: salePhotoId,
             attachment_error: detail,
             updated_at: new Date().toISOString()
-          }).eq('id', row.id).eq('uploaded_by', user.id)
+          })
+            .eq('id', row.id)
+            .eq('organization_id', organizationId)
+            .eq('uploaded_by', user.id)
+            .eq('provider_capture_id', capture.id)
+            .eq('status', 'attaching')
+            .eq('attached_sale_id', saleId)
+            .eq('attached_sale_photo_id', salePhotoId)
         }
       }
 
