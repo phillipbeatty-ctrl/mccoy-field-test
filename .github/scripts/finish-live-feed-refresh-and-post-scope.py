@@ -157,8 +157,8 @@ replace_once(
 
 replace_once(
     TEST,
-    "  assert.match(client,/live-feed-scope-select/)\n  assert.match(client,/state\\.scopes=/)",
-    "  assert.match(client,/live-feed-scope-select/)\n  assert.match(client,/select\\.disabled=!state\\.context\\|\\|!state\\.authorizationReady\\|\\|state\\.authorizationRefreshing\\|\\|state\\.loading\\|\\|state\\.posting/)\n  assert.match(client,/if\\(state\\.posting\\|\\|state\\.authorizationRefreshing\\|\\|!state\\.authorizationReady\\)return/)\n  assert.match(client,/state\\.scopes=/)",
+    "  assert.match(client,/scope:'team'/)\n  assert.match(client,/state\\.scopes\\.find\\(item=>item\\.scope==='team'&&item\\.can_post\\)/)",
+    "  assert.match(client,/scope:'team'/)\n  assert.match(client,/select\\.disabled=!state\\.context\\|\\|!state\\.authorizationReady\\|\\|state\\.authorizationRefreshing\\|\\|state\\.loading\\|\\|state\\.posting/)\n  assert.match(client,/if\\(state\\.posting\\|\\|state\\.authorizationRefreshing\\|\\|!state\\.authorizationReady\\)return/)\n  assert.match(client,/state\\.scopes\\.find\\(item=>item\\.scope==='team'&&item\\.can_post\\)/)",
 )
 
 replace_once(
