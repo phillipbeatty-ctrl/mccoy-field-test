@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 
 const migration=readFileSync(new URL('./supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql',import.meta.url),'utf8')
+const helperPermissions=readFileSync(new URL('./supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql',import.meta.url),'utf8')
 const pendingFunction=readFileSync(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8')
 const pendingController=readFileSync(new URL('./pending-access.js',import.meta.url),'utf8')
 const pendingPage=readFileSync(new URL('./pending-access.html',import.meta.url),'utf8')
@@ -23,6 +24,13 @@ test('all app access writes and removals keep identity records synchronized',()=
   assert.match(migration,/perform private\.sync_app_access_identity\([\s\S]*new\.organization_id/)
   assert.match(migration,/perform private\.sync_app_access_identity\([\s\S]*old\.organization_id/)
   assert.match(migration,/set email=v_auth_email,[\s\S]*active=false,[\s\S]*is_default=false/)
+})
+
+test('SECURITY DEFINER identity helpers are callable only by their owner',()=>{
+  assert.match(helperPermissions,/revoke all on function private\.sync_app_access_identity\(uuid,uuid,text,text,boolean,text,text\)/)
+  assert.match(helperPermissions,/revoke all on function private\.sync_app_user_access_identity_trigger\(\)/)
+  assert.match(helperPermissions,/from public, anon, authenticated, service_role/)
+  assert.doesNotMatch(helperPermissions,/grant execute on function private\.sync_app_access_identity/)
 })
 
 test('repair RPC is service-only and scoped to the Admin organization',()=>{
