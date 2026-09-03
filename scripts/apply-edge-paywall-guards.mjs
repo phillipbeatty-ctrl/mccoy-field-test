@@ -9,6 +9,7 @@ const functionsRoot=path.join(root,'supabase','functions')
 const importLine="import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'"
 const writeMode=process.argv.includes('--write')
 
+// Fail with the complete source-drift inventory before attempting any wrapper edits.
 const functionDirectories=(await readdir(functionsRoot,{withFileTypes:true}))
   .filter(entry=>entry.isDirectory()&&entry.name!=='_shared')
   .map(entry=>entry.name)
