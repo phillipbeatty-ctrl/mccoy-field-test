@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v7-20260902-sale-completion-runtime';
+const VERSION='field-coach-app-shell-v8-20260903-customer-list-stable-actions';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -19,6 +19,8 @@ const SHELL=[
   '/app-supabase-client.js?v=2026090201',
   '/app-sales.js?v=2026082417',
   '/app-sales-products.js?v=2026090201',
+  '/app-accounting-records.js?v=2026090301',
+  '/app-customer-list-approval-refresh.js?v=2026090301',
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
   '/app-page-layout.js',
   '/app-sale-lifecycle.js?v=2026090201',

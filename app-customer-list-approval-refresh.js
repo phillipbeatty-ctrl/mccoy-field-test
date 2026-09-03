@@ -79,6 +79,8 @@
   }
 
   function findSaleForRow(row){
+    const directId=String(row?.dataset?.saleId||row?.querySelector('button.customer-remove')?.dataset?.saleId||'').trim();
+    if(directId)return state.records.find(item=>String(item.id)===directId)||{id:directId};
     const cells=[...row.querySelectorAll('td')].slice(0,6).map(cell=>normalized(cell.textContent));
     const joined=cells.join(' | ');
     let match=state.records.find(item=>item.provider_order_number&&joined.includes(normalized(item.provider_order_number)));
