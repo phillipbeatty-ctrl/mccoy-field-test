@@ -1,7 +1,8 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
-Deno.serve(async(req)=>{
+serveWithOrganizationAccess('provider_integrations',async(req)=>{
  if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders})
  try{
   const token=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,''); if(!token) return json({error:'unauthorized'},401)

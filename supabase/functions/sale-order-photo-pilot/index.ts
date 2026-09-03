@@ -113,7 +113,7 @@ function buildSummary(rows:any[]){
   }
 }
 
-serveWithOrganizationAccess('admin_controls',async(req:Request)=>{
+serveWithOrganizationAccess('provider_integrations',async(req:Request)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     if(req.method!=='POST')return json({error:'method_not_allowed'},405)

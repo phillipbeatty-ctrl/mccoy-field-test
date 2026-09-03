@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
@@ -12,7 +13,7 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 const text = (value: unknown) => String(value ?? '').trim()
 const ext = (mime: string) => mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
 
-Deno.serve(async request => {
+serveWithOrganizationAccess('provider_integrations',async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 
