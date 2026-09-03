@@ -39,6 +39,33 @@ jobs:
           python3 -m py_compile .github/scripts/harden-onboarding-review-findings.py
           python3 .github/scripts/harden-onboarding-review-findings.py
 
+      - name: Retire generator transforms superseded by whole-action security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/apply-edge-paywall-guards.mjs')
+          source=path.read_text()
+          superseded=(
+            "'pending account access rows'",
+            "'pending account requests'",
+            "'grant request scope'",
+            "'grant access organization'",
+            "'grant request update scope'",
+            "'pending password access scope'",
+          )
+          lines=source.splitlines()
+          filtered=[line for line in lines if not any(label in line for label in superseded)]
+          source='\n'.join(filtered)+'\n'
+          before="  source=replaceRequired(source,grantLookup,grantGuard,'rep-onboarding grant cross-organization guard')"
+          after="  if(!source.includes(\"if(!request&&!existingAccess)return json({error:'pending_account_not_found'},404)\"))source=replaceRequired(source,grantLookup,grantGuard,'rep-onboarding grant cross-organization guard')"
+          if after not in source:
+            if source.count(before)!=1:raise SystemExit('grant guard generator marker missing')
+            source=source.replace(before,after,1)
+          path.write_text(source)
+          PY
+
       - name: Verify source generation, TypeScript, and security contracts
         shell: bash
         run: |
