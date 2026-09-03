@@ -28,12 +28,6 @@ Deno.serve(async(req)=>{
       if(!organization?.id)throw new Error('request_organization_not_configured')
       return organization.id
     }
-    async function requireOrganizationAccess(entitlement:string){
-      const {error}=await admin.rpc('service_assert_organization_access',{p_auth_user_id:user.id,p_entitlement:entitlement})
-      if(!error)return null
-      const reason=String(error.message||'').match(/organization_access_denied:([a-z0-9_]+)/i)?.[1]||'organization_access_denied'
-      return json({error:'organization_access_denied',reason,organization_access:{access_allowed:false,denial_reason:reason,entitlement_key:entitlement,purchase_model:'organization_managed_external',purchase_action_available:false}},403)
-    }
     if(action==='status'){
       const requestOrganizationId=await resolveRequestOrganizationId()
       const {data:reqRow}=await admin.from('rep_access_requests').select('*').eq('organization_id',requestOrganizationId).eq('user_id',user.id).order('created_at',{ascending:false}).limit(1).maybeSingle()
