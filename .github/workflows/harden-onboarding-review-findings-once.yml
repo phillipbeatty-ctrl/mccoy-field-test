@@ -92,16 +92,22 @@ jobs:
             paywall-phase2.test.mjs \
             paywall-deployment.test.mjs
 
-      - name: Commit verified hardening and remove temporary automation
+      - name: Commit verified hardening without modifying workflow files
         shell: bash
         run: |
           set -euo pipefail
           rm .github/scripts/harden-onboarding-review-findings.py
-          rm .github/workflows/harden-onboarding-review-findings-once.yml
           rm -rf .github/scripts/__pycache__
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            supabase/functions/rep-onboarding/index.ts \
+            supabase/functions/spotio-admin/index.ts \
+            scripts/apply-edge-paywall-guards.mjs \
+            onboarding-tenant-boundary.test.mjs \
+            onboarding-membership-integrity.test.mjs \
+            paywall-phase2.test.mjs \
+            .github/scripts/harden-onboarding-review-findings.py
           git diff --cached --check
           git commit -m "Harden onboarding tenant boundaries"
           git push origin HEAD:fix/atomic-onboarding-membership-20260902
