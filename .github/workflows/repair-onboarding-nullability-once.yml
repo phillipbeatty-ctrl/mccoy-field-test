@@ -133,29 +133,39 @@ jobs:
               generator = replace_once(generator, before, after, label)
           generator_path.write_text(generator)
 
-          test_path = Path('onboarding-tenant-boundary.test.mjs')
-          test = test_path.read_text()
-          test = replace_once(
-              test,
+          tenant_test_path = Path('onboarding-tenant-boundary.test.mjs')
+          tenant_test = tenant_test_path.read_text()
+          tenant_test = replace_once(
+              tenant_test,
               "assert.match(repOnboarding,/\\.from\\('teams'\\)\\.select\\('id'\\)\\.eq\\('organization_id',callerAccess\\.organization_id\\)/)",
               "assert.match(repOnboarding,/\\.from\\('teams'\\)\\.select\\('id'\\)\\.eq\\('organization_id',callerOrganizationId\\)/)",
               'tenant test profile team stable organization capture',
           )
-          test = replace_once(
-              test,
+          tenant_test = replace_once(
+              tenant_test,
               "assert.match(repOnboarding,/\\.from\\('users'\\)\\.upsert\\(\\{id:account\\.id,auth_user_id:account\\.id,organization_id:callerAccess\\.organization_id/)",
               "assert.match(repOnboarding,/\\.from\\('users'\\)\\.upsert\\(\\{id:account\\.id,auth_user_id:account\\.id,organization_id:callerOrganizationId/)",
               'tenant test profile stable organization capture',
           )
           assertion_marker = "  assert.match(repOnboarding,/requireOrganizationAccess\\('admin_controls'\\)/)"
           assertion_block = "  assert.match(repOnboarding,/requireOrganizationAccess\\('admin_controls'\\)/)\n  assert.match(repOnboarding,/const authUserId=user\\.id/)\n  assert.match(repOnboarding,/p_auth_user_id:authUserId/)\n  assert.match(repOnboarding,/const callerOrganizationId=callerAccess\\.organization_id/)"
-          test = replace_once(
-              test,
+          tenant_test = replace_once(
+              tenant_test,
               assertion_marker,
               assertion_block,
               'tenant test stable narrowing assertions',
           )
-          test_path.write_text(test)
+          tenant_test_path.write_text(tenant_test)
+
+          paywall_test_path = Path('paywall-phase2.test.mjs')
+          paywall_test = paywall_test_path.read_text()
+          paywall_test = replace_once(
+              paywall_test,
+              "assert.match(repOnboarding,/organization_id:callerAccess\\.organization_id,email:targetEmail\\.toLowerCase\\(\\)/)",
+              "assert.match(repOnboarding,/organization_id:callerOrganizationId,email:targetEmail\\.toLowerCase\\(\\)/)",
+              'paywall test profile stable organization capture',
+          )
+          paywall_test_path.write_text(paywall_test)
           PY
 
       - name: Verify only the proven mismatch was corrected
@@ -171,11 +181,10 @@ jobs:
             paywall-phase2.test.mjs \
             paywall-deployment.test.mjs
 
-      - name: Commit the repair and remove this temporary workflow
+      - name: Commit the verified repair
         shell: bash
         run: |
           set -euo pipefail
-          rm .github/workflows/repair-onboarding-nullability-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
