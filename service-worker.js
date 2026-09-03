@@ -1,4 +1,5 @@
-const VERSION='field-coach-app-shell-v8-20260903-customer-list-stable-actions';
+// Preview cache includes the server-scoped COMPANY/TEAM client and the reviewed auth, permission, post-scope, deletion-delivery, and authenticated-RLS-canary guards.
+const VERSION='field-coach-app-shell-v11-20260903-live-feed-company-team-preview';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -25,6 +26,8 @@ const SHELL=[
   '/app-page-layout.js',
   '/app-sale-lifecycle.js?v=2026090201',
   '/app-sale-photo-staging.js?v=2026090201',
+  '/app-live-wins.js',
+  '/app-live-feed.js?v=2026090303',
   '/confirm-email.html',
   '/pending-access.html'
 ];

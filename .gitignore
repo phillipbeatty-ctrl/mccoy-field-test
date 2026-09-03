@@ -3,6 +3,7 @@ mobile-web/
 android/
 ios/
 dist/
+.tmp/
 mobile-release-doctor.json
 *.keystore
 *.jks

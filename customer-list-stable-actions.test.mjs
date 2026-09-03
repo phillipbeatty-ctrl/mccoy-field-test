@@ -31,7 +31,7 @@ test('final NOT A SALE records cannot remain frozen in Customer List',()=>{
 test('production app and service worker request the repaired Customer List files',()=>{
   assert.match(indexSource,/app-accounting-records\.js\?v=2026090301/)
   assert.match(indexSource,/app-customer-list-approval-refresh\.js\?v=2026090301/)
-  assert.match(workerSource,/field-coach-app-shell-v8-20260903-customer-list-stable-actions/)
+  assert.match(workerSource,/field-coach-app-shell-v11-20260903-live-feed-company-team-preview/)
   assert.match(workerSource,/'\/app-accounting-records\.js\?v=2026090301'/)
   assert.match(workerSource,/'\/app-customer-list-approval-refresh\.js\?v=2026090301'/)
 })

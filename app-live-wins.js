@@ -1,4 +1,4 @@
-// One authenticated Realtime subscription drives rankings, Live Wins, and sale celebrations.
+// One authenticated Realtime subscription drives rankings, verified-sale Live Feed events, and sale celebrations.
 (()=>{
   let channel=null,started=false,running=false;
   const queue=[];
@@ -66,4 +66,34 @@
   window.addEventListener('mccoy-access-ready',start);
   const poll=setInterval(()=>{if(window.MCCOY_ACCESS?.access){clearInterval(poll);start()}},300);
   window.addEventListener('beforeunload',()=>{if(channel)sb.removeChannel(channel)});
+})();
+
+// Preview branch only: load the scoped mixed sale-and-comment Live Feed after
+// verified-sale celebration authority is installed, so sales retain priority.
+// This browser guard is deliberately separate from the future server rollout flag.
+(()=>{
+  const PREVIEW_QUERY='mccoy-live-feed-preview';
+  const PREVIEW_SESSION_KEY='mccoy-live-feed-preview-enabled';
+
+  function isExplicitNonProductionPreview(){
+    const host=String(location.hostname||'').trim().toLowerCase();
+    const localHost=host==='localhost'||host==='127.0.0.1'||host==='::1';
+    const vercelPreview=host.endsWith('.vercel.app')&&host.includes('-git-');
+    if(!localHost&&!vercelPreview)return false;
+
+    const requested=new URLSearchParams(location.search).get(PREVIEW_QUERY)==='1';
+    try{
+      if(requested)sessionStorage.setItem(PREVIEW_SESSION_KEY,'1');
+      return requested||sessionStorage.getItem(PREVIEW_SESSION_KEY)==='1';
+    }catch(_){
+      return requested;
+    }
+  }
+
+  if(!isExplicitNonProductionPreview())return;
+  if(document.querySelector('script[data-mccoy-live-feed-preview]'))return;
+  const script=document.createElement('script');
+  script.src='app-live-feed.js?v=2026090303';
+  script.dataset.mccoyLiveFeedPreview='1';
+  document.head.appendChild(script);
 })();

@@ -1,0 +1,111 @@
+name: Live Feed local Supabase preview
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - app-live-feed.js
+      - app-live-wins.js
+      - service-worker.js
+      - live-feed-comments-contract.test.mjs
+      - live-feed-free-validation.test.mjs
+      - docs/live-feed-comments-preview.md
+      - docs/live-feed-free-test-plan.md
+      - scripts/live-feed-local-supabase-validate.sh
+      - supabase/config.toml
+      - supabase/migrations/**
+      - supabase/preview-migrations/**
+      - supabase/tests/live-feed-comments-preview-canary.sql
+      - .github/workflows/live-feed-local-supabase-preview.yml
+  pull_request:
+    paths:
+      - app-live-feed.js
+      - app-live-wins.js
+      - service-worker.js
+      - live-feed-comments-contract.test.mjs
+      - live-feed-free-validation.test.mjs
+      - docs/live-feed-comments-preview.md
+      - docs/live-feed-free-test-plan.md
+      - scripts/live-feed-local-supabase-validate.sh
+      - supabase/config.toml
+      - supabase/migrations/**
+      - supabase/preview-migrations/**
+      - supabase/tests/live-feed-comments-preview-canary.sql
+      - .github/workflows/live-feed-local-supabase-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-feed-local-supabase-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: free-local-docker-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run focused source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          node --test --test-reporter=spec live-feed-comments-contract.test.mjs
+          node --test --test-reporter=spec live-feed-free-validation.test.mjs
+          node --test --test-reporter=spec sale-completion-runtime.test.mjs
+          node --test --test-reporter=spec customer-list-stable-actions.test.mjs
+          node --test --test-reporter=spec organization-access-gate.test.mjs
+          node --test --test-reporter=spec app-update-recovery.test.mjs
+
+      - name: Start disposable local Supabase stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start
+          supabase db reset
+
+      - name: Apply preview migration and run rollback canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/live-feed-local-supabase-validate.sh
+
+      - name: Upload sanitized validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-feed-local-supabase-${{ github.sha }}
+          path: .artifacts/live-feed-local
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop disposable local Supabase stack
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
