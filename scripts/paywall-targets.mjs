@@ -17,7 +17,6 @@ export const edgePaywallTargets=new Map([
   ['provider-sale-capture','sales_tracking'],
   ['provider-sale-photo-stage','provider_integrations'],
   ['rep-coach-summary','analytics'],
-  ['rep-onboarding','admin_controls'],
   ['sale-approvals','sales_tracking'],
   ['sale-order-photo','sales_tracking'],
   ['sale-order-photo-pilot','provider_integrations'],
@@ -27,11 +26,11 @@ export const edgePaywallTargets=new Map([
   ['spotio-import','lead_management']
 ])
 
-// These endpoints deliberately keep narrower infrastructure, signed-token, or
-// tombstone controls. Gating them behind an interactive organization bearer token
-// would strand account recovery, reject provider callbacks before signature
-// verification, break native background delivery, or change the stable 410
-// contract of an intentionally retired operation.
+// These endpoints deliberately keep narrower infrastructure, signed-token,
+// pre-membership, or tombstone controls. Gating them all behind an interactive
+// organization bearer token would strand account recovery and first-access
+// requests, reject provider callbacks before signature verification, break native
+// background delivery, or change the stable 410 contract of a retired operation.
 export const edgePaywallExemptions=new Map([
   ['address-validation-admin-review','retired_endpoint_returns_410_no_business_data'],
   ['address-validation-pilot','retired_endpoint_returns_410_no_business_data'],
@@ -45,6 +44,7 @@ export const edgePaywallExemptions=new Map([
   ['lead-map-all-visible','retired_one_time_endpoint_returns_410'],
   ['native-location-ingest','signed_background_location_token'],
   ['organization-access','organization_gate_endpoint'],
+  ['rep-onboarding','mixed_pre_membership_and_admin_endpoint'],
   ['spotio-composite-check','retired_verification_endpoint_returns_410'],
   ['spotio-controlled-recovery','retired_recovery_endpoint_returns_410'],
   ['spotio-count-check','retired_verification_endpoint_returns_410'],
