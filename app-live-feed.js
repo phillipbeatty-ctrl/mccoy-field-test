@@ -35,6 +35,7 @@
     toastRunning:false,
     collapsedToasts:0
   };
+  let authTransitionSubscription=null;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -82,6 +83,22 @@
     const role=normalizedRole(access?.role);
     const active=access?.active===true?'1':'0';
     return {userId,email,organizationId,role,active,key:userId||email?`${userId}|${email}|${organizationId}|${role}|${active}`:''};
+  }
+
+  function installAuthTransitionGuard(){
+    const client=resolveClient();
+    if(authTransitionSubscription||!client?.auth?.onAuthStateChange)return;
+    const {data}=client.auth.onAuthStateChange((_event,session)=>{
+      const nextUserId=String(session?.user?.id||'').trim();
+      const nextEmail=String(session?.user?.email||'').trim().toLowerCase();
+      const nextPrefix=nextUserId&&nextEmail?`${nextUserId}|${nextEmail}|`:'';
+      if(!nextPrefix){
+        if(state.identityKey||state.context||state.events.length)resetForIdentity('');
+        return;
+      }
+      if(state.identityKey&&!state.identityKey.startsWith(nextPrefix))resetForIdentity('');
+    });
+    authTransitionSubscription=data?.subscription||null;
   }
 
   // Empty scope IDs round-trip COMPANY as `company:`; the word `company` is never treated as a UUID.
@@ -612,8 +629,8 @@
   window.addEventListener('mccoy-logout',()=>resetForIdentity(''));
   window.addEventListener('online',()=>{setComposerStatus('Back online. Press RETRY to submit any preserved draft.','ok');syncComposers();});
   window.addEventListener('offline',()=>setComposerStatus('Offline — drafts remain on this device until you explicitly retry.','offline'));
-  window.addEventListener('beforeunload',()=>{if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);});
+  window.addEventListener('beforeunload',()=>{if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);if(authTransitionSubscription)authTransitionSubscription.unsubscribe();});
 
-  const poll=setInterval(()=>{findMounts();if(currentAccess()?.active&&resolveClient()){clearInterval(poll);initialize();}},300);
+  const poll=setInterval(()=>{findMounts();if(resolveClient())installAuthTransitionGuard();if(currentAccess()?.active&&resolveClient()){clearInterval(poll);initialize();}},300);
   setTimeout(()=>clearInterval(poll),20000);
 })();

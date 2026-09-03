@@ -25,7 +25,9 @@ test('server derives identity and enforces exact role authority',()=>{
   assert.match(migration,/v_email <> v_jwt_email[\s\S]*auth_email_mismatch/)
   assert.match(migration,/lower\(access\.email\) = v_email/)
   assert.match(migration,/lower\(membership\.email\) = v_email/)
-  assert.match(migration,/lower\(membership\.role\) = lower\(access\.role\)/)
+  assert.match(migration,/private\.live_feed_normalized_role/);
+  assert.match(migration,/when lower\(btrim\(coalesce\(p_role, ''\)\)\) = 'tester' then 'rep'/);
+  assert.match(migration,/live_feed_normalized_role\(membership\.role\) = private\.live_feed_normalized_role\(access\.role\)/)
   assert.match(migration,/v_role = 'admin'/)
   assert.match(migration,/v_role in \('manager', 'trainer'\)[\s\S]*team\.manager_user_id = v_profile_user_id/)
   assert.match(migration,/team\.id = v_primary_team_id/)
@@ -98,6 +100,8 @@ test('account changes and snapshot-to-Realtime gaps are handled explicitly',()=>
   assert.match(client,/if\(state\.loading\)\{state\.reloadQueued=true;return;\}/)
   assert.match(client,/mccoy-account-switch-start/)
   assert.match(client,/mccoy-logout/)
+  assert.match(client,/auth\.onAuthStateChange/)
+  assert.match(client,/state\.identityKey&&!state\.identityKey\.startsWith\(nextPrefix\)/)
 })
 
 test('offline retry preserves normalized body, scope, and request identity',()=>{
@@ -116,6 +120,7 @@ test('canary covers Admin, Manager, Trainer, Rep, team isolation, and cross-orga
   assert.match(canary,/Admin cross-organization team post was accepted/)
   assert.match(canary,/Team A2 comment leaked into Team A1 feed/)
   assert.match(canary,/cross-team read was accepted/)
+  assert.match(canary,/tester role was not normalized to Rep Live Feed authority/)
   assert.match(canary,/organization A data leaked to organization B/)
   assert.match(canary,/mismatched login email retained Live Feed access/)
   assert.match(canary,/stale JWT retained Live Feed access after auth\.users email changed/)

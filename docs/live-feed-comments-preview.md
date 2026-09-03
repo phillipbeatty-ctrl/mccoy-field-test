@@ -18,7 +18,7 @@ Comments remain completely separate from `sales_feed`, `sales_records`, rankings
 | Admin | All company events | Yes | Every team in the organization, including historical inactive-team comments | Any active team | Every company/team comment |
 | Manager | Yes | No | Active primary team and active teams managed by that user | Same authorized teams | No |
 | Trainer | Yes | No | Active primary team and active teams managed by that user | Same authorized teams | No |
-| Rep | Yes | No | Active primary team only | Active primary team only | No |
+| Rep / Tester | Yes | No | Active primary team only | Active primary team only | No |
 
 Managers and Trainers do not receive moderation authority in this preview. That remains a separate product decision.
 
@@ -83,7 +83,7 @@ Realtime subscribes at the organization row boundary and relies on the same RLS 
 
 The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority, so reassignment cannot leave an old team selected.
+The client also listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority, so reassignment cannot leave an old team selected.
 
 ## Private moderation evidence
 
@@ -110,7 +110,7 @@ The canary must roll back all test data and prove:
 
 - Admin can post COMPANY or any active organization TEAM.
 - Manager and Trainer can post only their authorized TEAM scopes and cannot moderate.
-- Rep can post only the assigned TEAM.
+- Rep can post only the assigned TEAM. A legacy `tester` access role is normalized to Rep authority while the profile remains `rep`.
 - Every role can read COMPANY.
 - Team A cannot read Team B comments.
 - Organization A cannot read Organization B comments.

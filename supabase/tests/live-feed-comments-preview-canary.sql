@@ -74,7 +74,7 @@ union all select 'live-feed-manager-a@preview.invalid','manager',true,'Preview M
 union all select 'live-feed-trainer-a@preview.invalid','trainer',true,'Preview Trainer A',organization_a from live_feed_canary_ids
 union all select 'live-feed-rep-a1@preview.invalid','rep',true,'Preview Rep A1',organization_a from live_feed_canary_ids
 union all select 'live-feed-rep-a2@preview.invalid','rep',true,'Preview Rep A2',organization_a from live_feed_canary_ids
-union all select 'live-feed-rep-b@preview.invalid','rep',true,'Preview Rep B',organization_b from live_feed_canary_ids
+union all select 'live-feed-rep-b@preview.invalid','tester',true,'Preview Tester B',organization_b from live_feed_canary_ids
 on conflict (email) do update set role=excluded.role,active=true,display_name=excluded.display_name,organization_id=excluded.organization_id;
 
 insert into public.organization_memberships(organization_id,auth_user_id,email,role,active,is_default)
@@ -83,7 +83,7 @@ union all select organization_a,manager_a_auth,'live-feed-manager-a@preview.inva
 union all select organization_a,trainer_a_auth,'live-feed-trainer-a@preview.invalid','trainer',true,true from live_feed_canary_ids
 union all select organization_a,rep_a1_auth,'live-feed-rep-a1@preview.invalid','rep',true,true from live_feed_canary_ids
 union all select organization_a,rep_a2_auth,'live-feed-rep-a2@preview.invalid','rep',true,true from live_feed_canary_ids
-union all select organization_b,rep_b_auth,'live-feed-rep-b@preview.invalid','rep',true,true from live_feed_canary_ids
+union all select organization_b,rep_b_auth,'live-feed-rep-b@preview.invalid','tester',true,true from live_feed_canary_ids
 on conflict (organization_id,auth_user_id) do update set email=excluded.email,role=excluded.role,active=true,is_default=true,updated_at=now();
 
 insert into public.users(id,auth_user_id,email,role,active,organization_id)
@@ -317,12 +317,15 @@ begin
 end;
 $$;
 
--- Cross-organization users receive neither Company nor Team A data.
+-- Tester access is normalized to Rep authority and remains cross-organization isolated.
 select pg_temp.live_feed_login((select rep_b_auth from live_feed_canary_ids),'live-feed-rep-b@preview.invalid');
 do $$
 declare feed jsonb;
 begin
   feed:=public.get_live_feed_v2('company',null,100,null);
+  if feed->'context'->>'role' <> 'rep' then
+    raise exception 'tester role was not normalized to Rep Live Feed authority';
+  end if;
   if exists (
     select 1 from jsonb_array_elements(feed->'events') event
     where event->>'message' in ('Company announcement','Rep A1 team update','Team A2 Admin update')

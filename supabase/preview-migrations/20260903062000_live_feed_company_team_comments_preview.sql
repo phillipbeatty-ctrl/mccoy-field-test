@@ -114,6 +114,20 @@ comment on table private.live_feed_comment_deletions is
 revoke all on table private.live_feed_comment_deletions from public, anon, authenticated;
 grant select, insert on table private.live_feed_comment_deletions to service_role;
 
+create or replace function private.live_feed_normalized_role(p_role text)
+returns text
+language sql
+immutable
+set search_path = pg_catalog
+as $$
+  select case
+    when lower(btrim(coalesce(p_role, ''))) = 'tester' then 'rep'
+    else lower(btrim(coalesce(p_role, '')))
+  end
+$$;
+
+revoke all on function private.live_feed_normalized_role(text) from public, anon, authenticated;
+
 create or replace function private.live_feed_actor_context()
 returns table (
   organization_id uuid,
@@ -164,7 +178,7 @@ begin
 
   select
     coalesce(nullif(btrim(access.display_name), ''), nullif(btrim(membership.email), ''), v_email),
-    lower(btrim(access.role)),
+    private.live_feed_normalized_role(access.role),
     profile.id,
     profile.team_id
   into
@@ -187,8 +201,8 @@ begin
     and lower(access.email) = v_email
     and lower(membership.email) = v_email
     and (profile.email is null or lower(profile.email) = v_email)
-    and lower(membership.role) = lower(access.role)
-    and lower(profile.role) = lower(access.role)
+    and private.live_feed_normalized_role(membership.role) = private.live_feed_normalized_role(access.role)
+    and private.live_feed_normalized_role(profile.role) = private.live_feed_normalized_role(access.role)
   limit 1;
 
   if v_display_name is null or v_role is null or v_profile_user_id is null then
