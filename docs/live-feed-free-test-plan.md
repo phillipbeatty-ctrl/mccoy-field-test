@@ -56,7 +56,7 @@ The same command runs in `.github/workflows/live-feed-local-supabase.yml`. The C
 
 ### Local safety boundary
 
-The local stack must remain bound to the local machine. Do not expose its Postgres, Auth, Realtime, or API ports to the public internet. Never use real customer data in the local harness.
+The script creates or verifies a Docker bridge whose published ports are bound to `127.0.0.1`, then passes that network to `supabase start --network-id`. Do not replace it with a network that binds to `0.0.0.0`, and do not expose its Postgres, Auth, Realtime, or API ports to the public internet. Never import production data into the local harness.
 
 ## Stage 2 — Optional free Supabase staging project
 

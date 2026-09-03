@@ -96,7 +96,7 @@ npm run test:live-feed:local
 
 The Docker harness:
 
-- starts a reduced local Supabase stack with Postgres 17, Auth, API, and Realtime;
+- starts a reduced local Supabase stack with Postgres 17, Auth, API, and Realtime on a Docker network whose published ports are bound to `127.0.0.1`;
 - uses a pinned Supabase CLI version;
 - copies only a synthetic McCoy schema contract, the preview migration, and the rollback canary into `.tmp/live-feed-local`;
 - never links a hosted project or uses a hosted project reference;

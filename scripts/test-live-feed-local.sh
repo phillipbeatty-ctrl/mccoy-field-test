@@ -11,6 +11,8 @@ CONTRACT_SOURCE="${ROOT_DIR}/tests/live-feed-local/supabase/migrations/000000000
 PREVIEW_SOURCE="${ROOT_DIR}/supabase/preview-migrations/20260903062000_live_feed_company_team_comments_preview.sql"
 CANARY_SOURCE="${ROOT_DIR}/supabase/tests/live-feed-comments-preview-canary.sql"
 DB_CONTAINER=""
+DOCKER_NETWORK="${MCCOY_LIVE_FEED_DOCKER_NETWORK:-mccoy-live-feed-local-network}"
+DOCKER_NETWORK_CREATED=0
 
 fail() {
   printf 'Live Feed local validation failed: %s\n' "$*" >&2
@@ -22,6 +24,16 @@ for command_name in docker node npx; do
 done
 
 docker info >/dev/null 2>&1 || fail "Docker is not running"
+
+if docker network inspect "${DOCKER_NETWORK}" >/dev/null 2>&1; then
+  binding_ip="$(docker network inspect --format '{{ index .Options "com.docker.network.bridge.host_binding_ipv4" }}' "${DOCKER_NETWORK}")"
+  [[ "${binding_ip}" == "127.0.0.1" ]] || fail "existing Docker network ${DOCKER_NETWORK} is not loopback-bound"
+else
+  docker network create \
+    --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 \
+    "${DOCKER_NETWORK}" >/dev/null
+  DOCKER_NETWORK_CREATED=1
+fi
 
 for required_file in "${CONFIG_SOURCE}" "${CONTRACT_SOURCE}" "${PREVIEW_SOURCE}" "${CANARY_SOURCE}"; do
   [[ -f "${required_file}" ]] || fail "missing ${required_file#${ROOT_DIR}/}"
@@ -38,6 +50,9 @@ cleanup() {
       cd "${HARNESS_DIR}" || exit 0
       "${SUPABASE[@]}" stop --no-backup >/dev/null 2>&1
     )
+  fi
+  if [[ "${DOCKER_NETWORK_CREATED}" == "1" ]]; then
+    docker network rm "${DOCKER_NETWORK}" >/dev/null 2>&1 || true
   fi
   if [[ "${MCCOY_KEEP_LIVE_FEED_LOCAL_FILES:-0}" != "1" ]]; then
     rm -rf "${WORK_ROOT}"
@@ -57,6 +72,7 @@ printf 'Starting isolated local Supabase stack with CLI %s...\n' "${CLI_VERSION}
 (
   cd "${HARNESS_DIR}"
   "${SUPABASE[@]}" start \
+    --network-id "${DOCKER_NETWORK}" \
     --exclude studio,imgproxy,storage-api,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
 )
 
@@ -102,4 +118,5 @@ printf '  - COMPANY/TEAM preview migration applied\n'
 printf '  - rollback canary passed under authenticated RLS\n'
 printf '  - no synthetic comment rows persisted\n'
 printf '  - Realtime publication and v2-only contract verified\n'
+printf '  - local service ports were bound through a 127.0.0.1-only Docker network\n'
 printf '  - no hosted Supabase project was linked or changed\n'

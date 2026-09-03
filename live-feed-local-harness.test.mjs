@@ -25,6 +25,8 @@ test('local harness cannot link, push, reset, or address a hosted project',()=>{
   assert.doesNotMatch(script,/supabase\s+link|db\s+push|db\s+reset\s+--linked|--project-ref|athxxrfqxwlfnuvbqadp/i)
   assert.match(script,/no hosted Supabase project was linked or changed/)
   assert.match(script,/supabase@\$\{CLI_VERSION\}/)
+  assert.match(script,/host_binding_ipv4=127\.0\.0\.1/)
+  assert.match(script,/--network-id/)
 })
 
 test('local Supabase stack matches the production Postgres major and keeps Realtime enabled',()=>{
