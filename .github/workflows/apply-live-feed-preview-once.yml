@@ -1,0 +1,59 @@
+name: Apply Live Feed comments preview once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/workflows/apply-live-feed-preview-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-preview:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out preview branch
+        uses: actions/checkout@v5
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Materialize the isolated Live Feed preview
+        run: python3 .github/scripts/apply-live-feed-preview.py
+
+      - name: Verify JavaScript and preview contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          node --test live-feed-comments-contract.test.mjs
+          git diff --check
+
+      - name: Commit verified preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app-live-feed.js \
+            app-live-wins.js \
+            service-worker.js \
+            live-feed-comments-contract.test.mjs \
+            docs/live-feed-comments-preview.md \
+            supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql \
+            supabase/tests/live-feed-comments-preview-canary.sql
+          git diff --cached --check
+          git commit -m "Build preview-only Live Feed comments vertical slice"
+          git push origin HEAD:preview/live-feed-comments-20260903
