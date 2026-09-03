@@ -121,6 +121,12 @@ The canary must roll back all test data and prove:
 - direct authenticated table writes remain denied.
 - moderation metadata remains private.
 
+## Branch implementation checkpoint
+
+The preview source now uses one consolidated, independently fail-closed migration and scoped v2 RPCs. Source-level checks cover explicit COMPANY/TEAM authority, null COMPANY scope IDs, current `auth.users.email` validation, stale-async generation invalidation, foreground permission revalidation after team reassignment, account switching, scoped offline idempotency, moderation quarantine, Realtime recovery, and strict comment separation from sales authority.
+
+This checkpoint is intentionally a branch-only validation marker. It does not replace the isolated Supabase canary, cross-user Realtime testing, security/performance advisors, or physical mobile acceptance required below.
+
 ## Promotion gate
 
 Do not promote until:
