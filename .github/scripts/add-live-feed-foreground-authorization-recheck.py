@@ -99,13 +99,13 @@ test_path.write_text(test_source.replace(anchor, anchor + additions, 1), encodin
 
 replace_once(
     DOCS,
-    "Returning the app to the foreground also revalidates current team authority.",
-    "Returning the app to the foreground also revalidates current team authority. While the app remains continuously foregrounded, a two-minute server authorization timer repeats the same fail-closed check; it defers during an active post and retries after fifteen seconds.",
+    "During permission revalidation, the client hides the prior feed and draft, disables the composer, restarts Realtime, and performs a new selected-scope snapshot after subscription.",
+    "During permission revalidation, the client hides the prior feed and draft, disables the composer, restarts Realtime, and performs a new selected-scope snapshot after subscription. While the app remains continuously foregrounded, a two-minute server authorization timer repeats the same fail-closed check; it defers during an active post and retries after fifteen seconds.",
 )
 replace_once(
     FREE_DOCS,
-    "The client resets on real Supabase authentication changes and revalidates on foreground/focus.",
-    "The client resets on real Supabase authentication changes, revalidates on foreground/focus, and repeats a fail-closed server authorization check every two minutes while continuously foregrounded.",
+    "Also verify launcher, splash, login logo, update behavior, background/foreground permission refresh, deletion propagation, and verified-sale celebration priority.",
+    "Also verify launcher, splash, login logo, update behavior, background/foreground permission refresh, deletion propagation, and verified-sale celebration priority. While the app remains continuously foregrounded, verify that the two-minute fail-closed authorization check runs and defers an active post for a fifteen-second retry rather than interrupting it.",
 )
 
 print("Added continuous foreground authorization revalidation and locked it into contracts.")
