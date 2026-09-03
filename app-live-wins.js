@@ -68,7 +68,7 @@
   window.addEventListener('beforeunload',()=>{if(channel)sb.removeChannel(channel)});
 })();
 
-// Preview branch only: load the COMPANY and TEAM comment feed after the
+// Preview branch only: load the scoped mixed sale-and-comment Live Feed after
 // verified-sale celebration authority is installed, so sales retain priority.
 (()=>{
   if(document.querySelector('script[data-mccoy-live-feed-preview]'))return;

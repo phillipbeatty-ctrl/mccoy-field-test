@@ -1,84 +1,93 @@
-# COMPANY and TEAM Live Feed comments preview
+# Live Feed COMPANY and TEAM comments preview
 
-This branch is a **preview-only vertical slice**. It is not approved for production merge or production database deployment.
+This branch is a preview-only vertical slice. **Do not merge it and do not deploy its migration to the production Supabase project.** A database-backed preview still requires explicit approval for an isolated Supabase branch.
 
-## Scope
+## Product objective
 
-The preview contains three product pieces:
+Extend the existing verified-sale Live Feed with lightweight operational comments while preserving sale authority and adding two explicit server-enforced scopes:
 
-1. A separate, organization-bound comment table with explicit server-enforced `company` and `team` scopes.
-2. A chronological Live Feed that combines verified sale events with comments for the selected authorized scope without mixing comment storage into sale or ranking authority.
-3. A subdued, nonblocking comment notification that drifts downward and expires automatically.
+- **COMPANY** — verified sale events plus approved company comments.
+- **TEAM** — approved comments for one authorized team. Verified sales remain in COMPANY and are not copied into team-comment feeds.
+
+Comments remain completely separate from `sales_feed`, `sales_records`, rankings, compensation, provider verification, Customer List, Sales Bank, and accounting authority.
 
 ## Authority matrix
 
 | Role | COMPANY read | COMPANY post | TEAM read | TEAM post | Moderate |
 |---|---:|---:|---:|---:|---:|
-| Admin | All company events | Yes | Every active team | Yes | Every pending comment |
-| Manager | Yes | No | Profile team and teams they manage | Yes | No in version one |
-| Trainer | Yes | No | Profile team and teams they manage | Yes | No in version one |
-| Rep / Tester | Yes | No | Current assigned profile team | Yes | No |
+| Admin | All company events | Yes | Every team in the organization, including historical inactive-team comments | Any active team | Every company/team comment |
+| Manager | Yes | No | Active primary team and active teams managed by that user | Same authorized teams | No |
+| Trainer | Yes | No | Active primary team and active teams managed by that user | Same authorized teams | No |
+| Rep | Yes | No | Active primary team only | Active primary team only | No |
 
-Every permission is derived from the signed-in Auth UUID, current JWT email, active organization membership, active app access, active user profile, role, and current team assignment. Browser-provided author, role, organization, and team identity are never authoritative.
+Managers and Trainers do not receive moderation authority in this preview. That remains a separate product decision.
 
-## Feed behavior
+All authority is enforced by database functions and Row Level Security. The browser receives only the scopes the server says the signed-in user may read or post.
 
-- **COMPANY** contains organization-wide verified sale events and approved COMPANY comments.
-- **TEAM** contains verified sale events for that team plus approved comments for that exact team.
-- Admin defaults to COMPANY and can select any active team.
-- Manager, Trainer, Rep, and Tester default to their first server-authorized team when available; COMPANY remains readable but read-only.
-- A user reassigned away from a team loses new read, post, and Realtime access to that team.
-- Managers and Trainers may moderate only after a separate product and authorization decision; version one remains Admin-only.
+## Server-derived identity and team authority
+
+The server derives the following from the authenticated Supabase identity and current McCoy organization:
+
+- Auth user UUID
+- current login email
+- organization ID
+- display name
+- role
+- `users.id`
+- primary `users.team_id`
+- active teams managed through `teams.manager_user_id`
+
+The login email must match the active `organization_memberships`, `app_user_access`, and user-profile identity. A changed or mismatched login fails closed.
+
+For TEAM comments, `(scope_id, organization_id)` has a composite foreign key to `teams(id, organization_id)`. A team ID from another organization cannot be stored even if application code is bypassed.
+
+## Comment lifecycle
+
+1. An authorized user selects COMPANY or TEAM from the server-provided scope list.
+2. The user submits up to 280 Unicode code points.
+3. Obvious customer information patterns are rejected immediately.
+4. Every free-form comment is inserted as `pending`.
+5. Pending text is visible only to its author and organization Admins.
+6. An Admin may approve only after affirmatively certifying that no customer data is present.
+7. Approved text is published to the exact COMPANY or TEAM scope and may generate an in-app notification.
+8. A rejection remains visible only to the author and Admin as audit state.
+
+This initial migration is fail-closed by itself; moderation is not deferred to a second migration.
 
 ## Version-one decisions
 
 | Question | Preview behavior |
 |---|---|
+| Scopes | Explicit COMPANY and TEAM |
+| Company content | Verified sales plus approved COMPANY comments |
+| Team content | Approved comments for one authorized team; no copied sale events |
+| Default view | Admin defaults to COMPANY; Manager, Trainer, and Rep default to the first postable TEAM when available |
 | Comment relationship | Standalone chronological comments; no sale threads |
-| Persistence | Comments remain in the selected Live Feed; only the floating notification expires |
-| Posting | COMPANY is Admin-only; TEAM is restricted to server-authorized team membership/management |
-| Author notification | Immediate pending feed confirmation; no floating notification on the posting device |
+| Posting | Admin: COMPANY/TEAM. Manager/Trainer/Rep: authorized TEAM only |
+| Moderation | Admin only |
+| Persistence | Comments remain in their feed; only the floating notification expires |
 | Editing | Not supported |
-| Deletion | Author within five minutes; Admin anytime with a reason for another member's comment |
+| Author deletion | Allowed within five minutes |
+| Admin deletion | Allowed at any time; another user's comment requires a reason |
 | Images and files | Not supported |
-| Customer information | Explicitly prohibited; obvious patterns are rejected and every free-form submission stays quarantined until Admin approval |
-| Feed window | Last 30 days, capped at the most recent 100 events in the selected scope |
-| Offline behavior | Draft and idempotency key are preserved per user and per scope; retry is explicit |
-| Mentions | Not supported; `@` text has no mention behavior |
+| Customer information | Prohibited; every free-form comment remains quarantined until Admin approval |
+| Feed window | Last 30 days, capped at 100 events per selected scope |
+| Offline behavior | Draft and normalized idempotency request remain on device; retry is explicit |
+| Mentions | No `@mention` behavior |
 | Notifications | In-app only; no push notifications |
+| Sale priority | Verified-sale celebration remains visually dominant and delays comment notifications |
 
-## Security boundary
+## Realtime and account-switch boundaries
 
-Verified sales continue to use `public.sales_feed`. Comments use `public.live_feed_comments`. Comment operations never write to `sales_records`, `sales_feed`, rankings, compensation, provider reconciliation, Sales Bank, Customer List, or sale verification.
+Realtime subscribes at the organization row boundary and relies on the same RLS policy used by direct reads. TEAM rows are delivered only to users with current server-side authority for that team.
 
-The initial migration is atomic and fail-closed. It creates moderation state, scope enforcement, Row Level Security, private audit records, RPCs, and Realtime publication in one transaction. There is no intermediate migration that can broadcast unreviewed text.
+The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-Authenticated clients receive RLS-scoped `SELECT` access for Realtime but no direct `INSERT`, `UPDATE`, or `DELETE` privilege. The RLS policy verifies the current JWT email against the active membership, access record, and user profile before applying COMPANY or TEAM visibility.
+When the authenticated user changes without a page reload, the client removes the old channel and clears the previous user's events, organization, role, scopes, draft pointer, moderation controls, and notification queue before initializing the new account.
 
-The public comment row does not expose moderation reasons, deletion reasons, moderator IDs, or deleting-user IDs. Those values remain only in immutable private audit tables.
+## Private moderation evidence
 
-## Moderation quarantine
-
-Every free-form comment is inserted as `pending`.
-
-- The author sees immediate pending confirmation.
-- Organization Admins can review pending comments across COMPANY and all TEAM scopes.
-- Ordinary users do not receive pending text through reads or Realtime.
-- Approval publishes the comment only to its original scope.
-- Rejection preserves private immutable evidence and never broadcasts the text.
-- A pending comment older than 30 days cannot be approved.
-
-## Client integrity
-
-The preview also addresses the review findings discovered during the original vertical slice:
-
-- normalized drafts retain one idempotency key after ambiguous network failures;
-- Unicode code-point counting matches the 280-character server limit;
-- author deletion controls expire after five minutes;
-- initial snapshot and Realtime events are merged without a synchronization gap;
-- the feed resets and unsubscribes when the authenticated account changes;
-- the composer stays disabled until organization and scope are resolved, preventing typed input from being overwritten;
-- drafts are stored separately for COMPANY and each TEAM feed.
+Moderation reasons, moderator IDs, deletion reasons, and deleting-user IDs are stored only in private audit tables. They are not columns on the Realtime-readable comment row.
 
 ## Preview verification
 
@@ -91,36 +100,38 @@ node --check service-worker.js
 node --test live-feed-comments-contract.test.mjs
 ```
 
-After explicit approval and creation of an isolated Supabase branch, apply only:
-
-```text
-supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql
-```
-
-Then run:
+After an isolated Supabase branch is explicitly approved and created, apply only the consolidated migration and run:
 
 ```text
 supabase/tests/live-feed-comments-preview-canary.sql
 ```
 
-The canary runs in one transaction and rolls back test organizations, teams, identities, comments, moderation events, and synthetic sale events.
+The canary must roll back all test data and prove:
+
+- Admin can post COMPANY or any active organization TEAM.
+- Manager and Trainer can post only their authorized TEAM scopes and cannot moderate.
+- Rep can post only the assigned TEAM.
+- Every role can read COMPANY.
+- Team A cannot read Team B comments.
+- Organization A cannot read Organization B comments.
+- Pending comments are author/Admin-only.
+- Approved comments publish only to the selected scope.
+- verified sales appear in COMPANY and never become team comments.
+- current-login email mismatches fail closed.
+- direct authenticated table writes remain denied.
+- moderation metadata remains private.
 
 ## Promotion gate
 
-Do not promote until all of the following pass on an isolated Supabase branch:
+Do not promote until:
 
-- Admin can read and post COMPANY and every TEAM scope.
-- Manager and Trainer can post only to assigned/managed teams and cannot moderate.
-- Rep can post only to the current assigned team.
-- Every active authorized member can read COMPANY.
-- A user in Team A cannot read or receive Team B comments.
-- A user in another organization cannot read or receive either scope.
-- Pending text remains visible only to its author and Admin until approval.
-- A newly approved comment is delivered only to the authorized scope.
-- Reassignment removes old-team access and changes available scopes after refresh/reconnect.
-- Account switching clears the former user's feed, draft, role, team scope, and Realtime channel.
-- Verified sale celebrations retain priority over comment notifications.
-- Offline draft and explicit retry work on installed iPhone/iPad and Android builds.
-- No comment changes any sale or ranking result.
+1. An isolated Supabase preview branch passes the SQL canary.
+2. Security and performance advisors pass or every finding is explicitly resolved.
+3. A Vercel preview points only to that isolated branch.
+4. Two same-team users, one different-team user, one Admin, and one cross-organization user pass desktop and mobile tests.
+5. Team reassignment removes future Realtime/read authority for the old team.
+6. Account switching in one browser cannot expose the former user's feed or draft.
+7. Offline retry remains idempotent.
+8. No comment changes a sale, ranking, compensation, provider, Customer List, Sales Bank, or accounting record.
 
-No production migration, production Realtime publication change, or production comment data is authorized by this preview PR.
+No production merge, production migration, production Realtime publication change, or production comment data is authorized by this document.

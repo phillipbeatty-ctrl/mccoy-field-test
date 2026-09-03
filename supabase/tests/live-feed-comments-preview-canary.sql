@@ -1,83 +1,124 @@
--- Live Feed comments preview canary with fail-closed Admin moderation.
--- Run only against an isolated Supabase preview branch after applying both
--- Live Feed migrations. Every test row is rolled back.
+-- COMPANY/TEAM Live Feed preview canary.
+-- Run only on an isolated Supabase preview branch after applying the consolidated migration.
+-- Every synthetic organization, identity, comment, and sale is rolled back.
 
 begin;
 
 create temporary table live_feed_canary_ids (
   organization_a uuid not null,
   organization_b uuid not null,
-  rep_a uuid not null,
-  rep_c uuid not null,
-  admin_a uuid not null,
-  rep_b uuid not null,
+  admin_a_auth uuid not null,
+  manager_a_auth uuid not null,
+  trainer_a_auth uuid not null,
+  rep_a1_auth uuid not null,
+  rep_a2_auth uuid not null,
+  rep_b_auth uuid not null,
+  admin_a_profile uuid not null,
+  manager_a_profile uuid not null,
+  trainer_a_profile uuid not null,
+  rep_a1_profile uuid not null,
+  rep_a2_profile uuid not null,
+  rep_b_profile uuid not null,
+  team_a1 uuid not null,
+  team_a2 uuid not null,
+  team_b uuid not null,
   sale_id uuid not null,
-  request_a uuid not null,
-  comment_a uuid,
-  comment_c uuid,
-  comment_rejected uuid,
-  comment_b uuid,
-  feed_rep_a_pending jsonb,
-  feed_rep_c_before jsonb,
-  feed_admin_pending jsonb,
-  feed_rep_c_after jsonb
+  rep_a1_comment uuid,
+  manager_comment uuid,
+  trainer_comment uuid,
+  company_comment uuid,
+  team_a2_comment uuid
 ) on commit drop;
 
-insert into live_feed_canary_ids(
-  organization_a,organization_b,rep_a,rep_c,admin_a,rep_b,sale_id,request_a
-) values (
+insert into live_feed_canary_ids values (
+  gen_random_uuid(),gen_random_uuid(),
+  gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),
+  gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),
   gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),
-  gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid()
+  null,null,null,null,null
 );
 
+create or replace function pg_temp.live_feed_login(p_user_id uuid,p_email text)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('request.jwt.claim.sub',p_user_id::text,true);
+  perform set_config('request.jwt.claims',jsonb_build_object(
+    'sub',p_user_id::text,
+    'email',lower(p_email),
+    'role','authenticated'
+  )::text,true);
+end;
+$$;
+
 insert into public.organizations(id,slug,legal_name,display_name,billing_status,active)
-select organization_a,'live-feed-preview-a-'||left(organization_a::text,8),'Live Feed Preview A LLC','Live Feed Preview A','internal_unlimited',true
-from live_feed_canary_ids
+select organization_a,'live-feed-scope-a-'||left(organization_a::text,8),'Live Feed Scope A LLC','Live Feed Scope A','internal_unlimited',true from live_feed_canary_ids
 union all
-select organization_b,'live-feed-preview-b-'||left(organization_b::text,8),'Live Feed Preview B LLC','Live Feed Preview B','internal_unlimited',true
-from live_feed_canary_ids;
+select organization_b,'live-feed-scope-b-'||left(organization_b::text,8),'Live Feed Scope B LLC','Live Feed Scope B','internal_unlimited',true from live_feed_canary_ids;
 
 insert into auth.users(
   id,aud,role,email,encrypted_password,email_confirmed_at,
   raw_app_meta_data,raw_user_meta_data,created_at,updated_at
 )
-select rep_a,'authenticated','authenticated','live-feed-rep-a@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
-union all
-select rep_c,'authenticated','authenticated','live-feed-rep-c@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
-union all
-select admin_a,'authenticated','authenticated','live-feed-admin-a@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
-union all
-select rep_b,'authenticated','authenticated','live-feed-rep-b@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids;
+select admin_a_auth,'authenticated','authenticated','live-feed-admin-a@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
+union all select manager_a_auth,'authenticated','authenticated','live-feed-manager-a@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
+union all select trainer_a_auth,'authenticated','authenticated','live-feed-trainer-a@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
+union all select rep_a1_auth,'authenticated','authenticated','live-feed-rep-a1@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
+union all select rep_a2_auth,'authenticated','authenticated','live-feed-rep-a2@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids
+union all select rep_b_auth,'authenticated','authenticated','live-feed-rep-b@preview.invalid','',now(),'{}'::jsonb,'{}'::jsonb,now(),now() from live_feed_canary_ids;
 
 insert into public.app_user_access(email,role,active,display_name,organization_id)
-select 'live-feed-rep-a@preview.invalid','rep',true,'Preview Rep A',organization_a from live_feed_canary_ids
-union all
-select 'live-feed-rep-c@preview.invalid','rep',true,'Preview Rep C',organization_a from live_feed_canary_ids
-union all
 select 'live-feed-admin-a@preview.invalid','admin',true,'Preview Admin A',organization_a from live_feed_canary_ids
-union all
-select 'live-feed-rep-b@preview.invalid','rep',true,'Preview Rep B',organization_b from live_feed_canary_ids
-on conflict (email) do update
-set role=excluded.role,active=true,display_name=excluded.display_name,organization_id=excluded.organization_id;
+union all select 'live-feed-manager-a@preview.invalid','manager',true,'Preview Manager A',organization_a from live_feed_canary_ids
+union all select 'live-feed-trainer-a@preview.invalid','trainer',true,'Preview Trainer A',organization_a from live_feed_canary_ids
+union all select 'live-feed-rep-a1@preview.invalid','rep',true,'Preview Rep A1',organization_a from live_feed_canary_ids
+union all select 'live-feed-rep-a2@preview.invalid','rep',true,'Preview Rep A2',organization_a from live_feed_canary_ids
+union all select 'live-feed-rep-b@preview.invalid','rep',true,'Preview Rep B',organization_b from live_feed_canary_ids
+on conflict (email) do update set role=excluded.role,active=true,display_name=excluded.display_name,organization_id=excluded.organization_id;
 
-insert into public.organization_memberships(
-  organization_id,auth_user_id,email,role,active,is_default
-)
-select organization_a,rep_a,'live-feed-rep-a@preview.invalid','rep',true,true from live_feed_canary_ids
-union all
-select organization_a,rep_c,'live-feed-rep-c@preview.invalid','rep',true,true from live_feed_canary_ids
-union all
-select organization_a,admin_a,'live-feed-admin-a@preview.invalid','admin',true,true from live_feed_canary_ids
-union all
-select organization_b,rep_b,'live-feed-rep-b@preview.invalid','rep',true,true from live_feed_canary_ids
-on conflict (organization_id,auth_user_id) do update
-set email=excluded.email,role=excluded.role,active=true,is_default=true,updated_at=now();
+insert into public.organization_memberships(organization_id,auth_user_id,email,role,active,is_default)
+select organization_a,admin_a_auth,'live-feed-admin-a@preview.invalid','admin',true,true from live_feed_canary_ids
+union all select organization_a,manager_a_auth,'live-feed-manager-a@preview.invalid','manager',true,true from live_feed_canary_ids
+union all select organization_a,trainer_a_auth,'live-feed-trainer-a@preview.invalid','trainer',true,true from live_feed_canary_ids
+union all select organization_a,rep_a1_auth,'live-feed-rep-a1@preview.invalid','rep',true,true from live_feed_canary_ids
+union all select organization_a,rep_a2_auth,'live-feed-rep-a2@preview.invalid','rep',true,true from live_feed_canary_ids
+union all select organization_b,rep_b_auth,'live-feed-rep-b@preview.invalid','rep',true,true from live_feed_canary_ids
+on conflict (organization_id,auth_user_id) do update set email=excluded.email,role=excluded.role,active=true,is_default=true,updated_at=now();
+
+insert into public.users(id,auth_user_id,email,role,active,organization_id)
+select admin_a_profile,admin_a_auth,'live-feed-admin-a@preview.invalid','admin',true,organization_a from live_feed_canary_ids
+union all select manager_a_profile,manager_a_auth,'live-feed-manager-a@preview.invalid','manager',true,organization_a from live_feed_canary_ids
+union all select trainer_a_profile,trainer_a_auth,'live-feed-trainer-a@preview.invalid','trainer',true,organization_a from live_feed_canary_ids
+union all select rep_a1_profile,rep_a1_auth,'live-feed-rep-a1@preview.invalid','rep',true,organization_a from live_feed_canary_ids
+union all select rep_a2_profile,rep_a2_auth,'live-feed-rep-a2@preview.invalid','rep',true,organization_a from live_feed_canary_ids
+union all select rep_b_profile,rep_b_auth,'live-feed-rep-b@preview.invalid','rep',true,organization_b from live_feed_canary_ids;
+
+insert into public.teams(id,name,active,manager_user_id,organization_id)
+select team_a1,'Preview Team A1',true,manager_a_profile,organization_a from live_feed_canary_ids
+union all select team_a2,'Preview Team A2',true,admin_a_profile,organization_a from live_feed_canary_ids
+union all select team_b,'Preview Team B',true,rep_b_profile,organization_b from live_feed_canary_ids;
+
+update public.users profile
+set team_id=case
+  when profile.id in ((select manager_a_profile from live_feed_canary_ids),(select trainer_a_profile from live_feed_canary_ids),(select rep_a1_profile from live_feed_canary_ids)) then (select team_a1 from live_feed_canary_ids)
+  when profile.id=(select rep_a2_profile from live_feed_canary_ids) then (select team_a2 from live_feed_canary_ids)
+  when profile.id=(select rep_b_profile from live_feed_canary_ids) then (select team_b from live_feed_canary_ids)
+  else null
+end
+where profile.id in (
+  (select manager_a_profile from live_feed_canary_ids),
+  (select trainer_a_profile from live_feed_canary_ids),
+  (select rep_a1_profile from live_feed_canary_ids),
+  (select rep_a2_profile from live_feed_canary_ids),
+  (select rep_b_profile from live_feed_canary_ids)
+);
 
 insert into public.sales_records(
   id,organization_id,rep_user_id,rep_email,rep_name,isp,sale_status,
   verification_status,ranking_eligible,compensation_snapshot
 )
-select sale_id,organization_a,rep_a,'live-feed-rep-a@preview.invalid','Preview Rep A','Quantum',
+select sale_id,organization_a,rep_a1_profile,'live-feed-rep-a1@preview.invalid','Preview Rep A1','Quantum',
        'reported','pending_verification',false,'{}'::jsonb
 from live_feed_canary_ids;
 
@@ -86,323 +127,237 @@ insert into public.sales_feed(
   celebration_types,celebration_messages,celebration_version,
   animation_enabled,ranking_eligible_at_event
 )
-select sale_id,organization_a,rep_a,'Preview Rep A','Quantum',
-       'Preview Rep A closed a verified Quantum sale.',
-       array['sale']::text[],
-       jsonb_build_array('Preview Rep A closed a verified Quantum sale.','First sale of the preview day.'),
+select sale_id,organization_a,rep_a1_profile,'Preview Rep A1','Quantum',
+       'Preview Rep A1 closed a verified Quantum sale.',
+       array['sale']::text[],jsonb_build_array('Preview Rep A1 closed a verified Quantum sale.'),
        1,false,true
 from live_feed_canary_ids;
 
--- Rep A submits one free-form comment. It must remain pending and visible only
--- to Rep A plus organization Admins until approval.
-select set_config('request.jwt.claim.sub',(select rep_a::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select rep_a::text from live_feed_canary_ids),
-  'email','live-feed-rep-a@preview.invalid',
-  'role','authenticated'
-)::text,true);
-
+-- Rep: TEAM only, and only the assigned team.
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
 with posted as (
-  select public.post_live_feed_comment_v1(
-    'Great work, team!',
-    (select request_a from live_feed_canary_ids)
-  ) as result
+  select public.post_live_feed_comment_v2('team',(select team_a1 from live_feed_canary_ids),'Rep A1 team update',gen_random_uuid()) as result
 )
-update live_feed_canary_ids
-set comment_a=(select (result->'event'->>'comment_id')::uuid from posted);
+update live_feed_canary_ids set rep_a1_comment=(select (result->'event'->>'comment_id')::uuid from posted);
 
-do $$
-declare result jsonb;
-begin
-  select public.post_live_feed_comment_v1(
-    'Great work, team!',
-    (select request_a from live_feed_canary_ids)
-  ) into result;
-  if coalesce((result->>'idempotent')::boolean,false) is not true then
-    raise exception 'idempotent retry did not return the existing comment';
-  end if;
-  if result->'event'->>'moderation_status' <> 'pending' then
-    raise exception 'idempotent retry did not preserve pending moderation';
-  end if;
-  if (result->'event'->>'comment_id')::uuid <> (select comment_a from live_feed_canary_ids) then
-    raise exception 'idempotent retry returned a different comment';
-  end if;
-end;
-$$;
-
-update live_feed_canary_ids set feed_rep_a_pending=public.get_live_feed_v1(100,null);
-
-do $$
-begin
-  if not exists (
-    select 1 from jsonb_array_elements((select feed_rep_a_pending->'events' from live_feed_canary_ids)) event
-    where event->>'comment_id'=(select comment_a::text from live_feed_canary_ids)
-      and event->>'moderation_status'='pending'
-      and (event->>'is_own')::boolean
-  ) then
-    raise exception 'author could not see their pending comment';
-  end if;
-end;
-$$;
-
--- Explicit customer-name context and phone data are rejected even before
--- quarantine. Other free-form text remains pending until human review.
 do $$
 begin
   begin
-    perform public.post_live_feed_comment_v1('Customer Jane Doe',gen_random_uuid());
-    raise exception 'explicit customer name context was accepted';
-  exception
-    when sqlstate '22023' then
-      if sqlerrm <> 'customer_information_not_allowed:customer_name_context' then raise; end if;
+    perform public.post_live_feed_comment_v2('company',null,'Rep company attempt',gen_random_uuid());
+    raise exception 'rep company post was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'company_post_admin_required' then raise; end if;
   end;
   begin
-    perform public.post_live_feed_comment_v1('Call 503-555-0199',gen_random_uuid());
-    raise exception 'customer phone was accepted';
-  exception
-    when sqlstate '22023' then
-      if sqlerrm not like 'customer_information_not_allowed:%' then raise; end if;
+    perform public.post_live_feed_comment_v2('team',(select team_a2 from live_feed_canary_ids),'Wrong team attempt',gen_random_uuid());
+    raise exception 'rep cross-team post was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'team_scope_forbidden' then raise; end if;
   end;
 end;
 $$;
 
--- Rep C belongs to the same organization but must not see Rep A's pending text.
-select set_config('request.jwt.claim.sub',(select rep_c::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select rep_c::text from live_feed_canary_ids),
-  'email','live-feed-rep-c@preview.invalid',
-  'role','authenticated'
-)::text,true);
-update live_feed_canary_ids set feed_rep_c_before=public.get_live_feed_v1(100,null);
+-- Manager: TEAM only for an assigned/managed team; no moderation authority.
+select pg_temp.live_feed_login((select manager_a_auth from live_feed_canary_ids),'live-feed-manager-a@preview.invalid');
+with posted as (
+  select public.post_live_feed_comment_v2('team',(select team_a1 from live_feed_canary_ids),'Manager team update',gen_random_uuid()) as result
+)
+update live_feed_canary_ids set manager_comment=(select (result->'event'->>'comment_id')::uuid from posted);
 
+do $$
+begin
+  begin
+    perform public.post_live_feed_comment_v2('company',null,'Manager company attempt',gen_random_uuid());
+    raise exception 'manager company post was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'company_post_admin_required' then raise; end if;
+  end;
+  begin
+    perform public.moderate_live_feed_comment_v2((select rep_a1_comment from live_feed_canary_ids),'approve','Manager moderation attempt',true);
+    raise exception 'manager moderation was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'admin_required' then raise; end if;
+  end;
+end;
+$$;
+
+-- Trainer: TEAM only for the assigned team; no moderation authority.
+select pg_temp.live_feed_login((select trainer_a_auth from live_feed_canary_ids),'live-feed-trainer-a@preview.invalid');
+with posted as (
+  select public.post_live_feed_comment_v2('team',(select team_a1 from live_feed_canary_ids),'Trainer team update',gen_random_uuid()) as result
+)
+update live_feed_canary_ids set trainer_comment=(select (result->'event'->>'comment_id')::uuid from posted);
+
+do $$
+begin
+  begin
+    perform public.moderate_live_feed_comment_v2((select rep_a1_comment from live_feed_canary_ids),'approve','Trainer moderation attempt',true);
+    raise exception 'trainer moderation was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'admin_required' then raise; end if;
+  end;
+end;
+$$;
+
+-- Admin: COMPANY or any team in the organization; never another organization.
+select pg_temp.live_feed_login((select admin_a_auth from live_feed_canary_ids),'live-feed-admin-a@preview.invalid');
+with posted as (
+  select public.post_live_feed_comment_v2('company',null,'Company announcement',gen_random_uuid()) as result
+)
+update live_feed_canary_ids set company_comment=(select (result->'event'->>'comment_id')::uuid from posted);
+update public.live_feed_comments set created_at=created_at-interval '10 seconds' where id=(select company_comment from live_feed_canary_ids);
+with posted as (
+  select public.post_live_feed_comment_v2('team',(select team_a2 from live_feed_canary_ids),'Team A2 Admin update',gen_random_uuid()) as result
+)
+update live_feed_canary_ids set team_a2_comment=(select (result->'event'->>'comment_id')::uuid from posted);
+
+do $$
+begin
+  begin
+    perform public.post_live_feed_comment_v2('team',(select team_b from live_feed_canary_ids),'Cross-org Admin attempt',gen_random_uuid());
+    raise exception 'Admin cross-organization team post was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'team_scope_forbidden' then raise; end if;
+  end;
+end;
+$$;
+
+-- Pending TEAM text is visible to its author and Admin, but not another member in that team.
+select pg_temp.live_feed_login((select trainer_a_auth from live_feed_canary_ids),'live-feed-trainer-a@preview.invalid');
 do $$
 begin
   if exists (
-    select 1 from jsonb_array_elements((select feed_rep_c_before->'events' from live_feed_canary_ids)) event
-    where event->>'comment_id'=(select comment_a::text from live_feed_canary_ids)
+    select 1 from jsonb_array_elements(public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null)->'events') event
+    where event->>'comment_id'=(select rep_a1_comment::text from live_feed_canary_ids)
   ) then
-    raise exception 'pending comment leaked to an ordinary organization member';
+    raise exception 'pending team comment leaked to another team member';
   end if;
 end;
 $$;
 
--- The Admin sees the pending item, certifies the review, and publishes it.
-select set_config('request.jwt.claim.sub',(select admin_a::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select admin_a::text from live_feed_canary_ids),
-  'email','live-feed-admin-a@preview.invalid',
-  'role','authenticated'
-)::text,true);
-update live_feed_canary_ids set feed_admin_pending=public.get_live_feed_v1(100,null);
-
+select pg_temp.live_feed_login((select admin_a_auth from live_feed_canary_ids),'live-feed-admin-a@preview.invalid');
 do $$
+declare feed jsonb;
 begin
+  feed:=public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null);
   if not exists (
-    select 1 from jsonb_array_elements((select feed_admin_pending->'events' from live_feed_canary_ids)) event
-    where event->>'comment_id'=(select comment_a::text from live_feed_canary_ids)
+    select 1 from jsonb_array_elements(feed->'events') event
+    where event->>'comment_id'=(select rep_a1_comment::text from live_feed_canary_ids)
       and event->>'moderation_status'='pending'
       and (event->>'can_moderate')::boolean
   ) then
-    raise exception 'Admin could not see and moderate the pending comment';
+    raise exception 'Admin could not read/moderate a pending team comment';
   end if;
 end;
 $$;
 
-select public.moderate_live_feed_comment_v1(
-  (select comment_a from live_feed_canary_ids),
-  'approve',
-  'Reviewed: no customer data observed'
+select public.moderate_live_feed_comment_v2(
+  (select rep_a1_comment from live_feed_canary_ids),'approve','Reviewed: no customer data observed',true
+);
+select public.moderate_live_feed_comment_v2(
+  (select company_comment from live_feed_canary_ids),'approve','Reviewed: no customer data observed',true
+);
+select public.moderate_live_feed_comment_v2(
+  (select team_a2_comment from live_feed_canary_ids),'approve','Reviewed: no customer data observed',true
 );
 
--- Rep C now sees the approved comment and the existing verified sale.
-select set_config('request.jwt.claim.sub',(select rep_c::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select rep_c::text from live_feed_canary_ids),
-  'email','live-feed-rep-c@preview.invalid',
-  'role','authenticated'
-)::text,true);
-update live_feed_canary_ids set feed_rep_c_after=public.get_live_feed_v1(100,null);
+-- Team A1 member sees approved Team A1 comments and not Team A2 comments.
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
+do $$
+declare team_feed jsonb;company_feed jsonb;
+begin
+  team_feed:=public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null);
+  if not exists (
+    select 1 from jsonb_array_elements(team_feed->'events') event
+    where event->>'comment_id'=(select rep_a1_comment::text from live_feed_canary_ids)
+      and event->>'scope'='team'
+      and event->>'scope_id'=(select team_a1::text from live_feed_canary_ids)
+      and event->>'moderation_status'='approved'
+  ) then raise exception 'approved Team A1 comment missing for assigned rep'; end if;
+  if exists (
+    select 1 from jsonb_array_elements(team_feed->'events') event
+    where event->>'comment_id'=(select team_a2_comment::text from live_feed_canary_ids)
+  ) then raise exception 'Team A2 comment leaked into Team A1 feed'; end if;
+  if exists (
+    select 1 from jsonb_array_elements(team_feed->'events') event
+    where event->>'event_type'='sale'
+  ) then raise exception 'company sale event leaked into team-comment feed'; end if;
 
+  company_feed:=public.get_live_feed_v2('company',null,100,null);
+  if not exists (
+    select 1 from jsonb_array_elements(company_feed->'events') event
+    where event->>'comment_id'=(select company_comment::text from live_feed_canary_ids)
+      and event->>'scope'='company'
+  ) then raise exception 'approved Company comment missing for rep'; end if;
+  if not exists (
+    select 1 from jsonb_array_elements(company_feed->'events') event
+    where event->>'event_type'='sale'
+      and event->>'message'='Preview Rep A1 closed a verified Quantum sale.'
+  ) then raise exception 'verified sale missing from Company feed'; end if;
+  if (company_feed->'context'->>'can_post_company')::boolean then
+    raise exception 'rep received Company posting authority';
+  end if;
+end;
+$$;
+
+-- Team A2 rep cannot read Team A1; Company remains readable.
+select pg_temp.live_feed_login((select rep_a2_auth from live_feed_canary_ids),'live-feed-rep-a2@preview.invalid');
 do $$
 begin
+  begin
+    perform public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null);
+    raise exception 'cross-team read was accepted';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'team_scope_forbidden' then raise; end if;
+  end;
   if not exists (
-    select 1 from jsonb_array_elements((select feed_rep_c_after->'events' from live_feed_canary_ids)) event
-    where event->>'comment_id'=(select comment_a::text from live_feed_canary_ids)
-      and event->>'moderation_status'='approved'
-      and event->>'message'='Great work, team!'
-  ) then
-    raise exception 'approved comment was not published to the organization';
-  end if;
-  if not exists (
-    select 1 from jsonb_array_elements((select feed_rep_c_after->'events' from live_feed_canary_ids)) event
-    where event->>'event_type'='sale'
-      and event->>'message'='Preview Rep A closed a verified Quantum sale.'
-  ) then
-    raise exception 'verified sale was missing from mixed feed';
-  end if;
+    select 1 from jsonb_array_elements(public.get_live_feed_v2('company',null,100,null)->'events') event
+    where event->>'comment_id'=(select company_comment::text from live_feed_canary_ids)
+  ) then raise exception 'Company feed was not readable by Team A2 rep'; end if;
 end;
 $$;
 
--- Rep C creates a second pending item; Admin rejects it and preserves a private
--- immutable moderation record without broadcasting it.
-with posted as (
-  select public.post_live_feed_comment_v1('Please review this message',gen_random_uuid()) as result
-)
-update live_feed_canary_ids
-set comment_rejected=(select (result->'event'->>'comment_id')::uuid from posted);
+-- Cross-organization users receive neither Company nor Team A data.
+select pg_temp.live_feed_login((select rep_b_auth from live_feed_canary_ids),'live-feed-rep-b@preview.invalid');
+do $$
+declare feed jsonb;
+begin
+  feed:=public.get_live_feed_v2('company',null,100,null);
+  if exists (
+    select 1 from jsonb_array_elements(feed->'events') event
+    where event->>'message' in ('Company announcement','Rep A1 team update','Team A2 Admin update')
+  ) then raise exception 'organization A data leaked to organization B'; end if;
+end;
+$$;
 
-select set_config('request.jwt.claim.sub',(select admin_a::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select admin_a::text from live_feed_canary_ids),
-  'email','live-feed-admin-a@preview.invalid',
-  'role','authenticated'
-)::text,true);
-select public.moderate_live_feed_comment_v1(
-  (select comment_rejected from live_feed_canary_ids),
-  'reject',
-  'Preview moderation rejection'
-);
+-- Current login email is part of the read boundary.
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'changed-email@preview.invalid');
+do $$
+begin
+  begin
+    perform public.get_live_feed_v2('company',null,100,null);
+    raise exception 'mismatched login email retained Live Feed access';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'active_organization_profile_required' then raise; end if;
+  end;
+end;
+$$;
 
--- Organization B posts independently. The pending body and any future approved
--- body remain isolated from organization A.
-select set_config('request.jwt.claim.sub',(select rep_b::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select rep_b::text from live_feed_canary_ids),
-  'email','live-feed-rep-b@preview.invalid',
-  'role','authenticated'
-)::text,true);
-with posted as (
-  select public.post_live_feed_comment_v1('Organization B only',gen_random_uuid()) as result
-)
-update live_feed_canary_ids
-set comment_b=(select (result->'event'->>'comment_id')::uuid from posted);
-
--- Add one already-approved old comment for deletion-authority tests.
-with inserted as (
-  insert into public.live_feed_comments(
-    organization_id,author_user_id,author_display_name,author_role,body,
-    client_request_id,created_at,moderation_status,published_at,moderated_at,
-    moderated_by_user_id,moderation_reason
-  )
-  select organization_a,rep_c,'Preview Rep C','rep','Admin-removal canary',
-         gen_random_uuid(),now()-interval '10 minutes','approved',now()-interval '9 minutes',
-         now()-interval '9 minutes',admin_a,'Preview setup approval'
-  from live_feed_canary_ids
-  returning id
-)
-update live_feed_canary_ids set comment_c=(select id from inserted);
-
--- Rep A cannot see organization B, cannot moderate, and cannot delete Rep C's
--- old comment. Rep A can remove their own approved comment within five minutes.
-select set_config('request.jwt.claim.sub',(select rep_a::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select rep_a::text from live_feed_canary_ids),
-  'email','live-feed-rep-a@preview.invalid',
-  'role','authenticated'
-)::text,true);
-
+-- Public Realtime rows contain no moderation/deletion reasons or moderator identities.
 do $$
 begin
   if exists (
-    select 1 from jsonb_array_elements(public.get_live_feed_v1(100,null)->'events') event
-    where event->>'message'='Organization B only'
-  ) then
-    raise exception 'cross-organization comment leaked into organization A';
-  end if;
-  begin
-    perform public.moderate_live_feed_comment_v1(
-      (select comment_b from live_feed_canary_ids),'approve','Unauthorized attempt'
-    );
-    raise exception 'non-admin moderation was accepted';
-  exception
-    when sqlstate '42501' then
-      if sqlerrm <> 'admin_required' then raise; end if;
-  end;
-  begin
-    perform public.delete_live_feed_comment_v1((select comment_c from live_feed_canary_ids),null);
-    raise exception 'non-author non-admin deletion was accepted';
-  exception
-    when sqlstate '42501' then
-      if sqlerrm <> 'comment_delete_forbidden' then raise; end if;
-  end;
-end;
-$$;
-
-select public.delete_live_feed_comment_v1((select comment_a from live_feed_canary_ids),null);
-
--- Admin can remove any approved organization comment with a reason, but cannot
--- find or moderate a comment belonging to organization B.
-select set_config('request.jwt.claim.sub',(select admin_a::text from live_feed_canary_ids),true);
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub',(select admin_a::text from live_feed_canary_ids),
-  'email','live-feed-admin-a@preview.invalid',
-  'role','authenticated'
-)::text,true);
-select public.delete_live_feed_comment_v1(
-  (select comment_c from live_feed_canary_ids),
-  'Preview removal canary'
-);
-
-do $$
-begin
-  begin
-    perform public.moderate_live_feed_comment_v1(
-      (select comment_b from live_feed_canary_ids),'approve','Cross organization attempt'
-    );
-    raise exception 'Admin moderated another organization comment';
-  exception
-    when sqlstate 'P0002' then
-      if sqlerrm <> 'comment_not_found' then raise; end if;
-  end;
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='live_feed_comments'
+      and column_name in ('moderation_reason','moderated_by_user_id','deletion_reason','deleted_by_user_id')
+  ) then raise exception 'private moderation metadata exists on Realtime-readable comment rows'; end if;
 
   if has_table_privilege('authenticated','public.live_feed_comments','INSERT')
      or has_table_privilege('authenticated','public.live_feed_comments','UPDATE')
      or has_table_privilege('authenticated','public.live_feed_comments','DELETE') then
-    raise exception 'authenticated role received a direct comment write privilege';
-  end if;
-  if not has_table_privilege('authenticated','public.live_feed_comments','SELECT') then
-    raise exception 'authenticated role cannot receive RLS-scoped Realtime rows';
-  end if;
-  if has_function_privilege('anon','public.post_live_feed_comment_v1(text,uuid)','EXECUTE')
-     or has_function_privilege('anon','public.moderate_live_feed_comment_v1(uuid,text,text)','EXECUTE') then
-    raise exception 'anon can execute a Live Feed write RPC';
-  end if;
-  if not has_function_privilege('authenticated','public.post_live_feed_comment_v1(text,uuid)','EXECUTE')
-     or not has_function_privilege('authenticated','public.moderate_live_feed_comment_v1(uuid,text,text)','EXECUTE') then
-    raise exception 'authenticated role is missing required RPC execution';
-  end if;
-  if (select count(*) from public.sales_records where id=(select sale_id from live_feed_canary_ids)) <> 1 then
-    raise exception 'comment activity changed the sale record';
-  end if;
-  if (select count(*) from public.sales_feed where sale_id=(select sale_id from live_feed_canary_ids)) <> 1 then
-    raise exception 'comment activity changed the verified sale event';
-  end if;
-  if (select count(*) from private.live_feed_comment_deletions where comment_id in (
-    (select comment_a from live_feed_canary_ids),(select comment_c from live_feed_canary_ids)
-  )) <> 2 then
-    raise exception 'comment deletion audit was incomplete';
-  end if;
-  if (select count(*) from private.live_feed_comment_moderation_events where comment_id in (
-    (select comment_a from live_feed_canary_ids),(select comment_rejected from live_feed_canary_ids)
-  )) <> 2 then
-    raise exception 'comment moderation audit was incomplete';
+    raise exception 'authenticated role received direct comment write privileges';
   end if;
 end;
 $$;
-
-select jsonb_build_object(
-  'post_idempotency',true,
-  'explicit_customer_data_rejected',true,
-  'pending_body_quarantined',true,
-  'admin_approval_required_before_broadcast',true,
-  'admin_rejection_audited',true,
-  'organization_isolation',true,
-  'mixed_sale_and_approved_comment_feed',true,
-  'author_delete_window',true,
-  'admin_delete',true,
-  'direct_writes_revoked',true,
-  'sale_and_ranking_boundary_preserved',true,
-  'rolled_back',true
-) as live_feed_preview_canary;
 
 rollback;

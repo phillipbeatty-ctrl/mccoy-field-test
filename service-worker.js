@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v11-20260903-company-team-live-feed-preview';
+const VERSION='field-coach-app-shell-v11-20260903-live-feed-company-team-preview';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
