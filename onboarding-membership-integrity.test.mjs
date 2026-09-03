@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs'
 
 const migration=readFileSync(new URL('./supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql',import.meta.url),'utf8')
 const helperPermissions=readFileSync(new URL('./supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql',import.meta.url),'utf8')
+const requestScope=readFileSync(new URL('./supabase/migrations/20260903015716_scope_rep_access_requests_to_organization.sql',import.meta.url),'utf8')
 const pendingFunction=readFileSync(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8')
 const pendingController=readFileSync(new URL('./pending-access.js',import.meta.url),'utf8')
 const pendingPage=readFileSync(new URL('./pending-access.html',import.meta.url),'utf8')
@@ -34,6 +35,16 @@ test('SECURITY DEFINER identity helpers are callable only by their owner',()=>{
   assert.doesNotMatch(helperPermissions,/grant execute on function private\.sync_app_access_identity/)
 })
 
+test('access requests are durably scoped to an organization',()=>{
+  assert.match(requestScope,/alter table public\.rep_access_requests\s+add column if not exists organization_id uuid/)
+  assert.match(requestScope,/update public\.rep_access_requests request[\s\S]*set organization_id=coalesce/)
+  assert.match(requestScope,/alter column organization_id set default private\.mccoy_organization_id\(\)/)
+  assert.match(requestScope,/alter column organization_id set not null/)
+  assert.match(requestScope,/rep_access_requests_organization_id_fkey/)
+  assert.match(requestScope,/foreign key\(organization_id\)[\s\S]*references public\.organizations\(id\)/)
+  assert.match(requestScope,/rep_access_requests_org_status_created_idx/)
+})
+
 test('repair RPC is service-only and scoped to the Admin organization',()=>{
   assert.match(migration,/create or replace function public\.service_repair_user_organization_access/)
   assert.match(migration,/where a\.organization_id=p_organization_id/)
@@ -50,6 +61,7 @@ test('pending account API keeps incomplete active users visible and repairs them
   assert.match(pendingFunction,/service_repair_user_organization_access/)
   assert.match(pendingFunction,/p_organization_id:caller\.organization_id/)
   assert.match(pendingFunction,/repair\?\.access_allowed!==true/)
+  assert.match(pendingFunction,/\.from\('rep_access_requests'\)[\s\S]*\.eq\('organization_id',caller\.organization_id\)/)
 })
 
 test('Admin UI exposes an explicit organization access repair action',()=>{
