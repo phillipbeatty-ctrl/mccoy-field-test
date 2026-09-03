@@ -7,6 +7,8 @@ const read=path=>readFile(new URL(path,import.meta.url),'utf8')
 const sharedGuard=await read('./supabase/functions/_shared/organization-paywall.ts')
 const accountingMigration=await read('./supabase/migrations/20260901073000_paywall_phase2_accounting_entitlement.sql')
 const workflow=await read('./.github/workflows/apply-edge-paywall-guards.yml')
+const repOnboarding=await read('./supabase/functions/rep-onboarding/index.ts')
+const providerPhotoStage=await read('./supabase/functions/provider-sale-photo-stage/index.ts')
 const functionsRoot=new URL('./supabase/functions/',import.meta.url)
 const retiredAddressValidationSlugs=[
   'address-validation-admin-review',
@@ -44,8 +46,9 @@ test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('metrics-visibility'),'analytics')
   assert.equal(edgePaywallTargets.get('accounting-records'),'accounting')
   assert.equal(edgePaywallTargets.get('accounting-sales'),'accounting')
-  assert.equal(edgePaywallTargets.get('rep-onboarding'),'admin_controls')
   assert.equal(edgePaywallTargets.get('session-control'),'native_background_location')
+  assert.equal(edgePaywallTargets.has('rep-onboarding'),false)
+  assert.equal(edgePaywallExemptions.get('rep-onboarding'),'mixed_pre_membership_and_admin_endpoint')
 })
 
 test('every protected Edge Function has exactly one shared organization guard',async()=>{
@@ -57,6 +60,28 @@ test('every protected Edge Function has exactly one shared organization guard',a
     assert.match(source,/\.\.\/_shared\/organization-paywall\.ts/)
     assert.doesNotMatch(source,/Deno\.serve\s*\(/)
   }
+})
+
+test('mixed onboarding keeps first-access actions reachable and gates business actions internally',()=>{
+  assert.match(repOnboarding,/Deno\.serve\(async\(req\)=>\{/)
+  assert.doesNotMatch(repOnboarding,/serveWithOrganizationAccess\(/)
+  const statusIndex=repOnboarding.indexOf("if(action==='status')")
+  const requestIndex=repOnboarding.indexOf("if(action==='request_access')")
+  const rosterIndex=repOnboarding.indexOf("if(action==='team_rosters')")
+  const adminGateIndex=repOnboarding.indexOf("requireOrganizationAccess('admin_controls')")
+  assert.ok(statusIndex>=0&&requestIndex>statusIndex)
+  assert.ok(rosterIndex>requestIndex,'team roster must run only after the pre-membership actions')
+  assert.ok(adminGateIndex>rosterIndex,'Admin entitlement assertion must not precede status or request_access')
+  assert.match(repOnboarding,/requireOrganizationAccess\('field_coach_access'\)/)
+  assert.match(repOnboarding,/requireOrganizationAccess\('admin_controls'\)/)
+  assert.match(repOnboarding,/service_assert_organization_access/)
+  assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:targetEmail/)
+  assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:target,role:'rep'/)
+  assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:targetEmail\.toLowerCase\(\)/)
+})
+
+test('provider photo capture lookup is scoped to organization and signed-in user',()=>{
+  assert.match(providerPhotoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('id', id\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', user\.id\)/)
 })
 
 test('every Edge Function is protected or has a documented narrow exemption',async()=>{
