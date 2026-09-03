@@ -1,0 +1,53 @@
+name: Apply Live Feed COMPANY and TEAM preview once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/workflows/apply-live-feed-company-team-once.yml
+      - .github/payloads/live-feed-company-team-v2.tar.gz.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Materialize and verify scoped Live Feed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/payloads/live-feed-company-team-v2.tar.gz.b64 > /tmp/live-feed-company-team-v2.tar.gz
+          echo '85c001adde43bfd415744d91fb0eeb7e8eb0eb974cf8176f0e983d915c9a3281  /tmp/live-feed-company-team-v2.tar.gz' | sha256sum --check --strict
+          tar -xzf /tmp/live-feed-company-team-v2.tar.gz
+          rm -f supabase/migrations/20260903063000_live_feed_comment_moderation_quarantine.sql
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          node --test --test-reporter=spec live-feed-comments-contract.test.mjs
+          echo 'eb3cefcb4dcc3b32e3370b87944bd9908e78e2675a466f743ad69278ad508c01  supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql' | sha256sum --check --strict
+          echo '7e6e25865e9a96fada57eb86329a20025c5dc4baa0c6146c393faa4d836562d8  app-live-feed.js' | sha256sum --check --strict
+          echo 'c43c2767ba4a0a120f7376777529b6222c9f0c1b5148477470869a905f0ee44a  live-feed-comments-contract.test.mjs' | sha256sum --check --strict
+          echo 'd09a230264445d906eff4f147b6ded8f71d27cb0daa6cc1123e0949a0301f542  supabase/tests/live-feed-comments-preview-canary.sql' | sha256sum --check --strict
+
+      - name: Commit verified preview update and remove one-time scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/payloads/live-feed-company-team-v2.tar.gz.b64
+          rm -f .github/workflows/apply-live-feed-company-team-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Add server-enforced COMPANY and TEAM Live Feed scopes'
+          git push origin HEAD:preview/live-feed-comments-20260903
