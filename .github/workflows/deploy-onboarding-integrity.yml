@@ -55,6 +55,7 @@ jobs:
           node scripts/apply-edge-paywall-guards.mjs
           node --test \
             onboarding-membership-integrity.test.mjs \
+            onboarding-tenant-boundary.test.mjs \
             import-pending-access-fix.test.mjs \
             paywall-phase2.test.mjs \
             paywall-deployment.test.mjs
