@@ -1,0 +1,44 @@
+name: Normalize Onboarding Source Once
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/onboarding-source-normalize-once.yml'
+      - 'supabase/functions/rep-onboarding/**'
+      - 'scripts/normalize-onboarding-generated-source.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: github.actor == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Normalize generated source and remove one-time trigger
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs --write
+          node scripts/normalize-onboarding-generated-source.mjs --write
+          rm -f supabase/functions/rep-onboarding/.normalize-trigger
+          rm -f .github/workflows/onboarding-source-normalize-once.yml
+      - name: Commit normalized source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No normalization was required.'
+            exit 0
+          fi
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
+          git add -A
+          git commit -m 'Normalize generated onboarding source'
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
