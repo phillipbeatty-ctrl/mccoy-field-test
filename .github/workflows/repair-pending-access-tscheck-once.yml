@@ -1,0 +1,79 @@
+name: Repair pending access TypeScript check once
+
+on:
+  push:
+    branches:
+      - fix/atomic-onboarding-membership-20260902
+    paths:
+      - .github/workflows/repair-pending-access-tscheck-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out onboarding branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/atomic-onboarding-membership-20260902
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Move the existing TypeScript directive to the effective position
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/pending-account-access/index.ts')
+          source = path.read_text()
+          before = "import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'\n// @ts-nocheck\nimport { createClient } from 'npm:@supabase/supabase-js@2.95.0'"
+          after = "// @ts-nocheck\nimport { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'\nimport { createClient } from 'npm:@supabase/supabase-js@2.95.0'"
+          if after not in source:
+              count = source.count(before)
+              if count != 1:
+                  raise SystemExit(f'pending access TypeScript directive: expected one marker, found {count}')
+              source = source.replace(before, after, 1)
+          path.write_text(source)
+          PY
+
+      - name: Verify the exact source and onboarding contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/apply-edge-paywall-guards.mjs
+          test "$(head -n 1 supabase/functions/pending-account-access/index.ts)" = "// @ts-nocheck"
+          deno check --node-modules-dir=auto supabase/functions/rep-onboarding/index.ts
+          deno check --node-modules-dir=auto supabase/functions/pending-account-access/index.ts
+          deno check --node-modules-dir=auto supabase/functions/provider-sale-photo-stage/index.ts
+          node --test \
+            onboarding-membership-integrity.test.mjs \
+            onboarding-tenant-boundary.test.mjs \
+            import-pending-access-fix.test.mjs \
+            paywall-phase2.test.mjs \
+            paywall-deployment.test.mjs
+
+      - name: Commit the verified repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/functions/pending-account-access/index.ts
+          git diff --cached --check
+          git commit -m "Make pending access TypeScript directive effective"
+          git push origin HEAD:fix/atomic-onboarding-membership-20260902
