@@ -16,7 +16,7 @@
     "mobile:android:prepare": "npm run icons:generate && npm run icons:verify && npm run mobile:web && rm -rf android && npx cap add android && npx cap sync android && npx @capacitor/assets generate --android --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs android",
     "mobile:ios:prepare": "npm run icons:generate && npm run icons:verify && npm run mobile:web && rm -rf ios && npx cap add ios && npx cap sync ios && npx @capacitor/assets generate --ios --assetPath assets --iconBackgroundColor '#050505' --iconBackgroundColorDark '#050505' --splashBackgroundColor '#050505' --splashBackgroundColorDark '#050505' && node scripts/configure-native-project.mjs ios",
     "test:mobile": "node --test mobile-release.test.mjs",
-    "test:live-feed:local:contract": "node --test live-feed-local-harness.test.mjs",
+    "test:live-feed:local:contract": "node --test live-feed-comments-contract.test.mjs live-feed-local-harness.test.mjs",
     "test:live-feed:local": "bash scripts/test-live-feed-local.sh"
   },
   "dependencies": {

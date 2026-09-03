@@ -15,6 +15,7 @@
     generation:0,
     initialized:false,
     initializing:false,
+    initializationRetryTimer:null,
     authorizationRefreshing:false,
     authorizationReady:false,
     loading:false,
@@ -548,12 +549,27 @@
     return state.realtimeReady;
   }
 
+  function clearInitializationRetry(){
+    if(!state.initializationRetryTimer)return;
+    clearTimeout(state.initializationRetryTimer);
+    state.initializationRetryTimer=null;
+  }
+
+  function scheduleInitializationRetry(delay=3000){
+    if(state.initialized||state.initializing||state.initializationRetryTimer||!currentAccess()?.active||navigator.onLine===false)return;
+    state.initializationRetryTimer=setTimeout(()=>{
+      state.initializationRetryTimer=null;
+      if(!state.initialized&&!state.initializing&&currentAccess()?.active)initialize();
+    },delay);
+  }
+
   function resetForIdentity(nextIdentityKey=''){
     saveDraftState();
+    clearInitializationRetry();
     state.generation+=1;
     const client=resolveClient();if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
     if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
-    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.authorizationRefreshing=false;state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
+    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.initializationRetryTimer=null;state.authorizationRefreshing=false;state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
     setComposerStatus('');syncComposers();scheduleRender();
   }
 
@@ -629,6 +645,7 @@
     if(!access?.active||!identity.key)return;
     if(state.identityKey&&state.identityKey!==identity.key)resetForIdentity(identity.key);
     if(state.initialized||state.initializing)return;
+    clearInitializationRetry();
     state.identityKey=identity.key;state.initializing=true;const generation=state.generation;findMounts();syncComposers();
     try{
       const bootstrap=await invoke('get_live_feed_v2',{p_scope:'company',p_scope_id:null,p_limit:FEED_LIMIT,p_before:null});
@@ -644,8 +661,15 @@
       const loaded=await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId});
       if(generation!==state.generation)return;
       if(!loaded)throw new Error('live_feed_initial_snapshot_failed');
-      state.authorizationReady=true;state.initialized=true;
-    }catch(error){if(generation===state.generation){console.error('Live Feed initialization failed',error);setComposerStatus(error?.message||'Unable to initialize Live Feed.','error');}}
+      state.authorizationReady=true;state.initialized=true;clearInitializationRetry();
+    }catch(error){
+      if(generation===state.generation){
+        const message=String(error?.message||'Unable to initialize Live Feed.');
+        console.error('Live Feed initialization failed',error);
+        setComposerStatus(message,'error');
+        if(navigator.onLine!==false&&!/authentication_required|auth_email_mismatch|organization_membership_required|active_organization_profile_required|field_coach_access_required|live_feed_role_not_supported|team_scope_forbidden/.test(message))scheduleInitializationRetry();
+      }
+    }
     finally{if(generation===state.generation){state.initializing=false;syncComposers();}}
   }
 
@@ -653,7 +677,9 @@
     const moderate=event.target?.closest?.('.live-feed-moderate');if(moderate){event.preventDefault();moderateComment(moderate);return;}
     const remove=event.target?.closest?.('.live-feed-delete');if(remove){event.preventDefault();deleteComment(remove);}
   });
-  window.addEventListener('mccoy-live-sales-changed',()=>{if(state.selectedScope==='company')loadFeed({quiet:true});});
+  window.addEventListener('mccoy-live-sales-changed',()=>{
+    if(state.initialized&&state.authorizationReady&&!state.initializing&&!state.authorizationRefreshing&&state.selectedScope==='company')loadFeed({quiet:true});
+  });
   window.addEventListener('mccoy-access-ready',()=>{
     const identity=identitySnapshot();
     if(!currentAccess()?.active){resetForIdentity('');return;}
@@ -661,14 +687,27 @@
     if(state.initialized){refreshAuthorization();return;}
     initialize();
   });
-  window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.initialized)refreshAuthorization();});
-  window.addEventListener('focus',()=>{if(state.initialized)refreshAuthorization();});
+  window.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState!=='visible')return;
+    if(state.initialized)refreshAuthorization();else initialize();
+  });
+  window.addEventListener('focus',()=>{if(state.initialized)refreshAuthorization();else initialize();});
   window.addEventListener('mccoy-account-switch-start',()=>resetForIdentity(''));
   window.addEventListener('mccoy-logout',()=>resetForIdentity(''));
-  window.addEventListener('online',()=>{setComposerStatus('Back online. Press RETRY to submit any preserved draft.','ok');syncComposers();});
+  window.addEventListener('online',()=>{
+    setComposerStatus('Back online. Press RETRY to submit any preserved draft.','ok');syncComposers();
+    if(state.initialized)refreshAuthorization();else initialize();
+  });
   window.addEventListener('offline',()=>setComposerStatus('Offline — drafts remain on this device until you explicitly retry.','offline'));
-  window.addEventListener('beforeunload',()=>{if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);if(authTransitionSubscription)authTransitionSubscription.unsubscribe();});
+  window.addEventListener('beforeunload',()=>{clearInitializationRetry();if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);if(authTransitionSubscription)authTransitionSubscription.unsubscribe();});
 
-  const poll=setInterval(()=>{findMounts();if(resolveClient())installAuthTransitionGuard();if(currentAccess()?.active&&resolveClient()){clearInterval(poll);initialize();}},300);
+  const poll=setInterval(()=>{
+    findMounts();
+    if(resolveClient())installAuthTransitionGuard();
+    if(currentAccess()?.active&&resolveClient()){
+      if(!state.initialized&&!state.initializing&&!state.initializationRetryTimer)initialize();
+      if(state.initialized)clearInterval(poll);
+    }
+  },300);
   setTimeout(()=>clearInterval(poll),20000);
 })();

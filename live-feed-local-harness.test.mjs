@@ -31,6 +31,7 @@ test('local harness cannot link, push, reset, or address a hosted project',()=>{
   assert.match(script,/--network-id/)
   assert.match(script,/PUBLISHED_HOST_IPS/)
   assert.match(script,/unsafe local port binding detected/)
+  assert.doesNotMatch(script,/MCCOY_LIVE_FEED_LOCAL_DIR/)
 })
 
 test('local Supabase stack matches the production Postgres major and keeps Realtime enabled',()=>{
@@ -55,6 +56,7 @@ test('CI runs the same no-cost Docker path and no remote deployment command',()=
   assert.match(workflow,/Live Feed local Supabase Docker validation/)
   assert.match(workflow,/ubuntu-24\.04/)
   assert.match(workflow,/SUPABASE_CLI_VERSION: 2\.116\.0/)
+  assert.match(workflow,/npm run test:live-feed:local:contract/)
   assert.match(workflow,/bash scripts\/test-live-feed-local\.sh/)
   assert.doesNotMatch(workflow,/supabase\s+link|db\s+push|create_branch|project-ref/i)
   assert.doesNotMatch(workflow,/\n  push:/)
@@ -83,6 +85,6 @@ test('documented promotion order is local, optional free staging, one-team pilot
 })
 
 test('package scripts expose source-contract and Docker validation commands',()=>{
-  assert.equal(packageJson.scripts['test:live-feed:local:contract'],'node --test live-feed-local-harness.test.mjs')
+  assert.equal(packageJson.scripts['test:live-feed:local:contract'],'node --test live-feed-comments-contract.test.mjs live-feed-local-harness.test.mjs')
   assert.equal(packageJson.scripts['test:live-feed:local'],'bash scripts/test-live-feed-local.sh')
 })

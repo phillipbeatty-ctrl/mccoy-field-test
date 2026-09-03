@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI_VERSION="${SUPABASE_CLI_VERSION:-2.116.0}"
 PROJECT_ID="mccoy-live-feed-local"
-WORK_ROOT="${MCCOY_LIVE_FEED_LOCAL_DIR:-${ROOT_DIR}/.tmp/live-feed-local}"
+WORK_ROOT="${ROOT_DIR}/.tmp/live-feed-local"
 HARNESS_DIR="${WORK_ROOT}/project"
 CONFIG_SOURCE="${ROOT_DIR}/tests/live-feed-local/supabase/config.toml"
 CONTRACT_SOURCE="${ROOT_DIR}/tests/live-feed-local/supabase/migrations/00000000000000_mccoy_live_feed_contract.sql"

@@ -53,7 +53,7 @@ The canary runs setup as the local database owner and switches direct policy ass
 
 The script additionally verifies that RLS is enabled, `live_feed_comments` is in the local Realtime publication, legacy organization-wide v1 RPCs are absent, and no canary comment row survives.
 
-The same command runs once per pull-request update in `.github/workflows/live-feed-local-supabase.yml`, checking out the exact pull-request head. The CI job is a second execution environment, not a replacement for running the command on a controlled developer machine.
+The same command runs both the Company/Team feature contract and the free-test harness contract once per pull-request update in `.github/workflows/live-feed-local-supabase.yml`, checking out the exact pull-request head. The CI job is a second execution environment, not a replacement for running the command on a controlled developer machine.
 
 ### Local safety boundary
 

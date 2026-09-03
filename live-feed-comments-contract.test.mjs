@@ -117,6 +117,10 @@ test('account changes and snapshot-to-Realtime gaps are handled explicitly',()=>
   assert.match(client,/mccoy-logout/)
   assert.match(client,/auth\.onAuthStateChange/)
   assert.match(client,/state\.identityKey&&!state\.identityKey\.startsWith\(nextPrefix\)/)
+  assert.match(client,/function scheduleInitializationRetry/)
+  assert.match(client,/state\.initializationRetryTimer=setTimeout/)
+  assert.match(client,/state\.initialized&&state\.authorizationReady&&!state\.initializing&&!state\.authorizationRefreshing/)
+  assert.match(client,/window\.addEventListener\('online',[\s\S]*if\(state\.initialized\)refreshAuthorization\(\);else initialize\(\)/)
 })
 
 test('offline retry preserves normalized body, scope, and request identity',()=>{
