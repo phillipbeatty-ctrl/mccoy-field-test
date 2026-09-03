@@ -282,10 +282,6 @@ as $$
 declare
   v_actor record;
 begin
-  if p_deleted_at is not null then
-    return false;
-  end if;
-
   begin
     select * into v_actor from private.live_feed_actor_context();
   exception when others then
@@ -775,7 +771,8 @@ begin
   );
 
   update public.live_feed_comments
-  set deleted_at = v_now
+  set body = 'Comment removed.',
+      deleted_at = v_now
   where id = v_comment.id;
 
   return jsonb_build_object('ok', true, 'comment_id', v_comment.id);

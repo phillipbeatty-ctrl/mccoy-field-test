@@ -83,11 +83,11 @@ Realtime subscribes at the organization row boundary and relies on the same RLS 
 
 The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-The client also listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority, so reassignment cannot leave an old team selected.
+The client also listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority. Applying that permission snapshot increments the client generation, discards every older in-flight feed/post/moderation response, restarts Realtime, and changes the draft storage namespace before restoring any draft when the server organization changes.
 
 ## Private moderation evidence
 
-Moderation reasons, moderator IDs, deletion reasons, and deleting-user IDs are stored only in private audit tables. They are not columns on the Realtime-readable comment row.
+Moderation reasons, moderator IDs, deletion reasons, and deleting-user IDs are stored only in private audit tables. They are not columns on the Realtime-readable comment row. A soft deletion replaces the public body with `Comment removed.` before setting `deleted_at`; the redacted tombstone remains scope-authorized long enough for Postgres Changes to tell already-open clients to remove the event, while feed snapshots continue excluding deleted rows.
 
 ## Preview verification
 

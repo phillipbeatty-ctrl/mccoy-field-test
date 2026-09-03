@@ -300,6 +300,25 @@ begin
 end;
 $$;
 
+-- Approved soft deletion is delivered as a redacted RLS-visible tombstone and disappears from snapshots.
+select pg_temp.live_feed_login((select admin_a_auth from live_feed_canary_ids),'live-feed-admin-a@preview.invalid');
+select public.delete_live_feed_comment_v2((select rep_a1_comment from live_feed_canary_ids),'Preview tombstone verification');
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
+do $$
+begin
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+      and deleted_at is not null
+      and body='Comment removed.'
+  ) then raise exception 'approved deletion tombstone was not RLS-readable and redacted'; end if;
+  if exists (
+    select 1 from jsonb_array_elements(public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null)->'events') event
+    where event->>'comment_id'=(select rep_a1_comment::text from live_feed_canary_ids)
+  ) then raise exception 'soft-deleted comment remained in Team snapshot'; end if;
+end;
+$$;
+
 -- Team A2 rep cannot read Team A1; Company remains readable.
 select pg_temp.live_feed_login((select rep_a2_auth from live_feed_canary_ids),'live-feed-rep-a2@preview.invalid');
 do $$
@@ -341,7 +360,7 @@ begin
     perform public.get_live_feed_v2('company',null,100,null);
     raise exception 'mismatched login email retained Live Feed access';
   exception when sqlstate '42501' then
-    if sqlerrm <> 'active_organization_profile_required' then raise; end if;
+    if sqlerrm <> 'auth_email_mismatch' then raise; end if;
   end;
 end;
 $$;

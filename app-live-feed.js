@@ -518,6 +518,11 @@
   function rowMatchesSelected(row){return row?.scope===state.selectedScope&&String(row?.scope_id||'')===String(state.selectedScopeId||'');}
   function onRealtimeChange(payload){
     const row=payload?.new||payload?.old||null;if(!row)return;
+    if(row.deleted_at){
+      state.events=state.events.filter(item=>String(item.comment_id||'')!==String(row.id||''));
+      scheduleRender();
+      return;
+    }
     if((payload.eventType==='INSERT'||payload.eventType==='UPDATE')&&row.moderation_status==='approved')queueToast(row);
     if(rowMatchesSelected(row))loadFeed({quiet:true});
   }
@@ -548,42 +553,71 @@
     setComposerStatus('');syncComposers();scheduleRender();
   }
 
+  function invalidateForAuthorizationChange(){
+    const client=resolveClient();
+    state.generation+=1;
+    if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
+    if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
+    state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];
+    state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;
+    state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
+    return state.generation;
+  }
+
   async function refreshAuthorization(){
     if(!state.initialized||state.initializing||state.authorizationRefreshing)return;
     const identity=identitySnapshot(),access=currentAccess();
     if(!access?.active||!identity.key){resetForIdentity('');return;}
     if(identity.key!==state.identityKey){resetForIdentity(identity.key);initialize();return;}
-    const generation=state.generation;
+    let activeGeneration=state.generation;
     state.authorizationRefreshing=true;
     try{
       const data=await invoke('get_live_feed_v2',{p_scope:'company',p_scope_id:null,p_limit:FEED_LIMIT,p_before:null});
-      if(generation!==state.generation)return;
+      if(activeGeneration!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'live_feed_authorization_refresh_failed');
+
+      const previousOrganizationId=String(state.context?.organization_id||'');
       const previousScope=state.selectedScope,previousScopeId=state.selectedScopeId;
       saveDraftState();
+
+      // This permission snapshot supersedes every request begun under the earlier team map.
+      activeGeneration=invalidateForAuthorizationChange();
+      state.authorizationRefreshing=true;
+      state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;
+      state.draft='';state.pendingRequest=null;
       normalizeContext(data.context||{});
-      const next=availableScope(previousScope,previousScopeId)||roleDefaultScope()||availableScope('company',null);
+
+      const nextOrganizationId=String(state.context?.organization_id||'');
+      const organizationChanged=!!previousOrganizationId&&previousOrganizationId!==nextOrganizationId;
+      const next=(!organizationChanged&&availableScope(previousScope,previousScopeId))||roleDefaultScope()||availableScope('company',null);
       if(!next)throw new Error('No authorized Live Feed scope is available.');
-      const scopeChanged=next.scope!==previousScope||String(next.scope_id||'')!==String(previousScopeId||'');
-      state.selectedScope=next.scope;state.selectedScopeId=next.scope_id||null;writeLocal(selectedScopeKey(),selectedKey());
-      if(scopeChanged){state.draft='';state.pendingRequest=null;state.events=[];loadDraftState();}
+
+      state.selectedScope=next.scope;state.selectedScopeId=next.scope_id||null;
+      writeLocal(selectedScopeKey(),selectedKey());
+      loadDraftState();
+      syncComposers();scheduleRender();
+
       await startRealtime();
-      if(generation!==state.generation)return;
+      if(activeGeneration!==state.generation)return;
       if(state.selectedScope==='company'){
-        state.events=Array.isArray(data.events)?data.events:[];scheduleRender();
+        state.events=Array.isArray(data.events)?data.events:[];
+        setComposerStatus('');scheduleRender();
       }else{
         await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId,quiet:true});
       }
     }catch(error){
-      if(generation!==state.generation)return;
+      if(activeGeneration!==state.generation)return;
       const message=String(error?.message||'Unable to revalidate Live Feed access.');
       console.error('Live Feed authorization refresh failed',error);
       if(/authentication_required|auth_email_mismatch|organization_membership_required|active_organization_profile_required|field_coach_access_required|live_feed_role_not_supported/.test(message)){
-        saveDraftState();state.events=[];state.context=null;state.scopes=[];state.draft='';state.pendingRequest=null;scheduleRender();
+        resetForIdentity('');
         setComposerStatus('Live Feed access changed. Sign in again or press RECHECK ACCESS.','error');
-      }else setComposerStatus('Unable to refresh Live Feed permissions. Existing content was not expanded.','error');
+      }else{
+        state.events=[];scheduleRender();
+        setComposerStatus('Unable to refresh Live Feed permissions. Existing content was hidden until access can be revalidated.','error');
+      }
     }finally{
-      if(generation===state.generation){state.authorizationRefreshing=false;syncComposers();}
+      if(activeGeneration===state.generation){state.authorizationRefreshing=false;syncComposers();}
     }
   }
 
