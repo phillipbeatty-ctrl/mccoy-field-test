@@ -12,8 +12,10 @@
   const state={
     client:null,
     identityKey:null,
+    generation:0,
     initialized:false,
     initializing:false,
+    authorizationRefreshing:false,
     loading:false,
     reloadQueued:false,
     posting:false,
@@ -76,10 +78,14 @@
     const access=currentAccess(),user=currentUser();
     const userId=String(user?.id||access?.auth_user_id||'').trim();
     const email=String(user?.email||access?.email||'').trim().toLowerCase();
-    return {userId,email,key:userId||email?`${userId}|${email}`:''};
+    const organizationId=String(access?.organization_id||'').trim();
+    const role=normalizedRole(access?.role);
+    const active=access?.active===true?'1':'0';
+    return {userId,email,organizationId,role,active,key:userId||email?`${userId}|${email}|${organizationId}|${role}|${active}`:''};
   }
 
-  function selectedKey(scope=state.selectedScope,scopeId=state.selectedScopeId){return `${scope}:${scopeId||'company'}`;}
+  // Empty scope IDs round-trip COMPANY as `company:`; the word `company` is never treated as a UUID.
+  function selectedKey(scope=state.selectedScope,scopeId=state.selectedScopeId){return `${scope}:${scopeId||''}`;}
   function storagePrefix(){return `mccoy-live-feed-v2:${state.context?.organization_id||'organization'}:${state.context?.user_id||state.identityKey||'user'}`;}
   function draftKey(){return `${storagePrefix()}:draft:${selectedKey()}`;}
   function pendingKey(){return `${storagePrefix()}:pending:${selectedKey()}`;}
@@ -345,10 +351,12 @@
   }
 
   async function loadFeed({scope=state.selectedScope,scopeId=state.selectedScopeId,quiet=false}={}){
+    const generation=state.generation;
     if(state.loading){state.reloadQueued=true;return;}
     state.loading=true;if(!quiet)setComposerStatus('Loading Live Feed…');syncComposers();scheduleRender();
     try{
       const data=await invoke('get_live_feed_v2',{p_scope:scope,p_scope_id:scopeId||null,p_limit:FEED_LIMIT,p_before:null});
+      if(generation!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'live_feed_load_failed');
       normalizeContext(data.context||{});
       const selected=availableScope(scope,scopeId);
@@ -363,9 +371,16 @@
       state.events=Array.isArray(data.events)?data.events:[];
       if(!quiet)setComposerStatus('');
     }catch(error){
+      if(generation!==state.generation)return;
       console.error('Live Feed load failed',error);
-      setComposerStatus(error?.message||'Unable to load Live Feed.','error');
+      const message=String(error?.message||'Unable to load Live Feed.');
+      if(/team_scope_forbidden|auth_email_mismatch|organization_membership_required|active_organization_profile_required|field_coach_access_required|live_feed_role_not_supported/.test(message)){
+        state.events=[];scheduleRender();
+        if(message.includes('team_scope_forbidden'))setTimeout(refreshAuthorization,0);
+      }
+      setComposerStatus(message,'error');
     }finally{
+      if(generation!==state.generation)return;
       state.loading=false;syncComposers();scheduleRender();
       if(state.reloadQueued){state.reloadQueued=false;setTimeout(()=>loadFeed({quiet:true}),0);}
     }
@@ -388,6 +403,7 @@
   }
 
   async function postComment(){
+    const generation=state.generation;
     const selected=selectedScope(),body=bodyText(state.draft);
     if(state.posting||!selected?.can_post)return;
     if(!body){setComposerStatus('Write a comment before posting.','error');return;}
@@ -397,18 +413,21 @@
     state.posting=true;syncComposers();setComposerStatus(`Submitting to ${scopeLabel(selected)} for Admin review…`);
     try{
       const data=await invoke('post_live_feed_comment_v2',{p_scope:selected.scope,p_scope_id:selected.scope_id||null,p_body:body,p_client_request_id:requestId});
+      if(generation!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'comment_post_failed');
       mergeEvent(data.event);
       state.draft='';state.pendingRequest=null;saveDraftState();
       setComposerStatus(`Submitted to ${scopeLabel(selected)}. It remains visible only to you and Admin until approved.`,'ok');
       await loadFeed({quiet:true});
     }catch(error){
+      if(generation!==state.generation)return;
       console.error('Live Feed comment failed',error);
       setComposerStatus(error?.message||'Unable to post. Your draft and request ID were preserved; press RETRY.','error');
-    }finally{state.posting=false;syncComposers();}
+    }finally{if(generation===state.generation){state.posting=false;syncComposers();}}
   }
 
   async function moderateComment(button){
+    const generation=state.generation;
     if(button.dataset.busy==='1'||!isAdmin())return;
     const commentId=button.dataset.commentId,decision=button.dataset.decision;
     if(!commentId||!['approve','reject'].includes(decision))return;
@@ -423,14 +442,16 @@
     button.dataset.busy='1';button.disabled=true;button.textContent=decision==='approve'?'APPROVING…':'REJECTING…';
     try{
       const data=await invoke('moderate_live_feed_comment_v2',{p_comment_id:commentId,p_decision:decision,p_reason:reason.trim(),p_certify_no_customer_data:decision==='approve'});
+      if(generation!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'comment_moderation_failed');
       mergeEvent(data.event);setComposerStatus(decision==='approve'?'Comment approved for its server-enforced scope.':'Comment rejected and kept out of shared feeds.','ok');
       await loadFeed({quiet:true});
-    }catch(error){console.error('Live Feed moderation failed',error);setComposerStatus(error?.message||'Unable to moderate this comment.','error');}
-    finally{delete button.dataset.busy;button.disabled=false;button.textContent=decision==='approve'?'APPROVE':'REJECT';}
+    }catch(error){if(generation===state.generation){console.error('Live Feed moderation failed',error);setComposerStatus(error?.message||'Unable to moderate this comment.','error');}}
+    finally{if(generation===state.generation){delete button.dataset.busy;button.disabled=false;button.textContent=decision==='approve'?'APPROVE':'REJECT';}}
   }
 
   async function deleteComment(button){
+    const generation=state.generation;
     if(button.dataset.busy==='1')return;
     const commentId=button.dataset.commentId,event=state.events.find(item=>String(item.comment_id||'')===String(commentId||''));if(!commentId)return;
     let reason=null;
@@ -439,10 +460,11 @@
     button.dataset.busy='1';button.disabled=true;button.textContent='REMOVING…';
     try{
       const data=await invoke('delete_live_feed_comment_v2',{p_comment_id:commentId,p_reason:reason?.trim()||null});
+      if(generation!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'comment_delete_failed');
       state.events=state.events.filter(item=>String(item.comment_id||'')!==String(commentId));scheduleRender();setComposerStatus('Comment removed. Audit evidence was preserved.','ok');
-    }catch(error){console.error('Live Feed deletion failed',error);setComposerStatus(error?.message||'Unable to remove this comment.','error');}
-    finally{delete button.dataset.busy;button.disabled=false;button.textContent=event?.is_own?'Remove comment':'Remove as Admin';}
+    }catch(error){if(generation===state.generation){console.error('Live Feed deletion failed',error);setComposerStatus(error?.message||'Unable to remove this comment.','error');}}
+    finally{if(generation===state.generation){delete button.dataset.busy;button.disabled=false;button.textContent=event?.is_own?'Remove comment':'Remove as Admin';}}
   }
 
   function toastSeenKey(row){return `mccoy-live-feed-v2-toast:${row.id}:${row.published_at||''}`;}
@@ -484,6 +506,7 @@
   }
 
   function startRealtime(){
+    const generation=state.generation;
     const client=resolveClient(),organizationId=String(state.context?.organization_id||'');
     if(!client||!organizationId)return Promise.resolve(false);
     if(state.channel&&state.channelOrganizationId===organizationId)return state.realtimeReady||Promise.resolve(true);
@@ -492,8 +515,8 @@
     state.realtimeReady=new Promise(resolve=>{
       let settled=false;const finish=value=>{if(settled)return;settled=true;resolve(value);};
       state.channel=client.channel(`mccoy-live-feed-v2:${organizationId}:${state.context?.user_id||'user'}`)
-        .on('postgres_changes',{event:'*',schema:'public',table:'live_feed_comments',filter:`organization_id=eq.${organizationId}`},onRealtimeChange)
-        .subscribe(status=>{if(status==='SUBSCRIBED')finish(true);else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status))finish(false);});
+        .on('postgres_changes',{event:'*',schema:'public',table:'live_feed_comments',filter:`organization_id=eq.${organizationId}`},payload=>{if(generation===state.generation)onRealtimeChange(payload);})
+        .subscribe(status=>{if(generation!==state.generation){finish(false);return;}if(status==='SUBSCRIBED')finish(true);else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status))finish(false);});
       setTimeout(()=>finish(false),5000);
     });
     return state.realtimeReady;
@@ -501,10 +524,50 @@
 
   function resetForIdentity(nextIdentityKey=''){
     saveDraftState();
+    state.generation+=1;
     const client=resolveClient();if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
     if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
-    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
+    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.authorizationRefreshing=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
     setComposerStatus('');syncComposers();scheduleRender();
+  }
+
+  async function refreshAuthorization(){
+    if(!state.initialized||state.initializing||state.authorizationRefreshing)return;
+    const identity=identitySnapshot(),access=currentAccess();
+    if(!access?.active||!identity.key){resetForIdentity('');return;}
+    if(identity.key!==state.identityKey){resetForIdentity(identity.key);initialize();return;}
+    const generation=state.generation;
+    state.authorizationRefreshing=true;
+    try{
+      const data=await invoke('get_live_feed_v2',{p_scope:'company',p_scope_id:null,p_limit:FEED_LIMIT,p_before:null});
+      if(generation!==state.generation)return;
+      if(!data?.ok)throw new Error(data?.error||'live_feed_authorization_refresh_failed');
+      const previousScope=state.selectedScope,previousScopeId=state.selectedScopeId;
+      saveDraftState();
+      normalizeContext(data.context||{});
+      const next=availableScope(previousScope,previousScopeId)||roleDefaultScope()||availableScope('company',null);
+      if(!next)throw new Error('No authorized Live Feed scope is available.');
+      const scopeChanged=next.scope!==previousScope||String(next.scope_id||'')!==String(previousScopeId||'');
+      state.selectedScope=next.scope;state.selectedScopeId=next.scope_id||null;writeLocal(selectedScopeKey(),selectedKey());
+      if(scopeChanged){state.draft='';state.pendingRequest=null;state.events=[];loadDraftState();}
+      await startRealtime();
+      if(generation!==state.generation)return;
+      if(state.selectedScope==='company'){
+        state.events=Array.isArray(data.events)?data.events:[];scheduleRender();
+      }else{
+        await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId,quiet:true});
+      }
+    }catch(error){
+      if(generation!==state.generation)return;
+      const message=String(error?.message||'Unable to revalidate Live Feed access.');
+      console.error('Live Feed authorization refresh failed',error);
+      if(/authentication_required|auth_email_mismatch|organization_membership_required|active_organization_profile_required|field_coach_access_required|live_feed_role_not_supported/.test(message)){
+        saveDraftState();state.events=[];state.context=null;state.scopes=[];state.draft='';state.pendingRequest=null;scheduleRender();
+        setComposerStatus('Live Feed access changed. Sign in again or press RECHECK ACCESS.','error');
+      }else setComposerStatus('Unable to refresh Live Feed permissions. Existing content was not expanded.','error');
+    }finally{
+      if(generation===state.generation){state.authorizationRefreshing=false;syncComposers();}
+    }
   }
 
   async function initialize(){
@@ -512,9 +575,10 @@
     if(!access?.active||!identity.key)return;
     if(state.identityKey&&state.identityKey!==identity.key)resetForIdentity(identity.key);
     if(state.initialized||state.initializing)return;
-    state.identityKey=identity.key;state.initializing=true;findMounts();syncComposers();
+    state.identityKey=identity.key;state.initializing=true;const generation=state.generation;findMounts();syncComposers();
     try{
       const bootstrap=await invoke('get_live_feed_v2',{p_scope:'company',p_scope_id:null,p_limit:FEED_LIMIT,p_before:null});
+      if(generation!==state.generation)return;
       if(!bootstrap?.ok)throw new Error(bootstrap?.error||'live_feed_bootstrap_failed');
       normalizeContext(bootstrap.context||{});
       const initial=roleDefaultScope()||availableScope('company',null);
@@ -522,10 +586,12 @@
       state.selectedScope=initial.scope;state.selectedScopeId=initial.scope_id||null;writeLocal(selectedScopeKey(),selectedKey());
       loadDraftState();state.events=[];syncComposers();scheduleRender();
       await startRealtime();
+      if(generation!==state.generation)return;
       await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId});
+      if(generation!==state.generation)return;
       state.initialized=true;
-    }catch(error){console.error('Live Feed initialization failed',error);setComposerStatus(error?.message||'Unable to initialize Live Feed.','error');}
-    finally{state.initializing=false;syncComposers();}
+    }catch(error){if(generation===state.generation){console.error('Live Feed initialization failed',error);setComposerStatus(error?.message||'Unable to initialize Live Feed.','error');}}
+    finally{if(generation===state.generation){state.initializing=false;syncComposers();}}
   }
 
   document.addEventListener('click',event=>{
@@ -535,9 +601,13 @@
   window.addEventListener('mccoy-live-sales-changed',()=>{if(state.selectedScope==='company')loadFeed({quiet:true});});
   window.addEventListener('mccoy-access-ready',()=>{
     const identity=identitySnapshot();
-    if(state.identityKey&&identity.key&&state.identityKey!==identity.key)resetForIdentity(identity.key);
+    if(!currentAccess()?.active){resetForIdentity('');return;}
+    if(state.identityKey&&identity.key&&state.identityKey!==identity.key){resetForIdentity(identity.key);initialize();return;}
+    if(state.initialized){refreshAuthorization();return;}
     initialize();
   });
+  window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.initialized)refreshAuthorization();});
+  window.addEventListener('focus',()=>{if(state.initialized)refreshAuthorization();});
   window.addEventListener('mccoy-account-switch-start',()=>resetForIdentity(''));
   window.addEventListener('mccoy-logout',()=>resetForIdentity(''));
   window.addEventListener('online',()=>{setComposerStatus('Back online. Press RETRY to submit any preserved draft.','ok');syncComposers();});

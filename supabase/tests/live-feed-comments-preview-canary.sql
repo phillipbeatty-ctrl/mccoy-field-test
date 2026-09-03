@@ -343,6 +343,22 @@ begin
 end;
 $$;
 
+-- A stale JWT cannot retain access after auth.users email changes.
+update auth.users
+set email='live-feed-rep-a1-current@preview.invalid',updated_at=now()
+where id=(select rep_a1_auth from live_feed_canary_ids);
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
+do $$
+begin
+  begin
+    perform public.get_live_feed_v2('company',null,100,null);
+    raise exception 'stale JWT retained Live Feed access after auth.users email changed';
+  exception when sqlstate '42501' then
+    if sqlerrm <> 'auth_email_mismatch' then raise; end if;
+  end;
+end;
+$$;
+
 -- Public Realtime rows contain no moderation/deletion reasons or moderator identities.
 do $$
 begin

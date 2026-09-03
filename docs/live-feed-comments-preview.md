@@ -37,7 +37,7 @@ The server derives the following from the authenticated Supabase identity and cu
 - primary `users.team_id`
 - active teams managed through `teams.manager_user_id`
 
-The login email must match the active `organization_memberships`, `app_user_access`, and user-profile identity. A changed or mismatched login fails closed.
+The current `auth.users.email`, JWT email, active `organization_memberships`, `app_user_access`, and user-profile identity must all match. An email change invalidates a stale token immediately rather than waiting for token expiry.
 
 For TEAM comments, `(scope_id, organization_id)` has a composite foreign key to `teams(id, organization_id)`. A team ID from another organization cannot be stored even if application code is bypassed.
 
@@ -83,7 +83,7 @@ Realtime subscribes at the organization row boundary and relies on the same RLS 
 
 The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-When the authenticated user changes without a page reload, the client removes the old channel and clears the previous user's events, organization, role, scopes, draft pointer, moderation controls, and notification queue before initializing the new account.
+When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority, so reassignment cannot leave an old team selected.
 
 ## Private moderation evidence
 

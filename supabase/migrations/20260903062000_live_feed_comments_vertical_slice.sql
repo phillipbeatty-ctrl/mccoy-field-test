@@ -22,7 +22,7 @@ create table public.live_feed_comments (
   created_at timestamptz not null default now(),
   deleted_at timestamptz,
   constraint live_feed_comments_body_length
-    check (char_length(btrim(body)) between 1 and 280),
+    check (char_length(btrim(body, E' \t\r\n')) between 1 and 280),
   constraint live_feed_comments_scope_v2
     check (
       (scope = 'company' and scope_id is null)
@@ -134,7 +134,8 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_organization_id uuid;
-  v_email text := lower(btrim(coalesce(auth.jwt()->>'email', '')));
+  v_jwt_email text := lower(btrim(coalesce(auth.jwt()->>'email', '')));
+  v_email text;
   v_display_name text;
   v_role text;
   v_profile_user_id uuid;
@@ -142,8 +143,18 @@ declare
   v_readable_team_ids uuid[] := array[]::uuid[];
   v_postable_team_ids uuid[] := array[]::uuid[];
 begin
-  if v_user_id is null or v_email = '' then
+  if v_user_id is null or v_jwt_email = '' then
     raise exception 'authentication_required' using errcode = '42501';
+  end if;
+
+  select lower(btrim(auth_user.email))
+  into v_email
+  from auth.users auth_user
+  where auth_user.id = v_user_id
+    and auth_user.deleted_at is null;
+
+  if v_email is null or v_email = '' or v_email <> v_jwt_email then
+    raise exception 'auth_email_mismatch' using errcode = '42501';
   end if;
 
   v_organization_id := private.current_organization_id();
@@ -429,7 +440,7 @@ begin
     raise exception 'client_request_id_required' using errcode = '22023';
   end if;
 
-  v_body := replace(replace(btrim(coalesce(p_body, '')), E'\r\n', E'\n'), E'\r', E'\n');
+  v_body := replace(replace(btrim(coalesce(p_body, ''), E' \t\r\n'), E'\r\n', E'\n'), E'\r', E'\n');
   v_body := regexp_replace(v_body, '[[:blank:]]+', ' ', 'g');
   v_body := regexp_replace(v_body, E'\n{3,}', E'\n\n', 'g');
   if char_length(v_body) < 1 then

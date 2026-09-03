@@ -21,6 +21,8 @@ test('one consolidated migration makes COMPANY and TEAM scope fail closed',()=>{
 })
 
 test('server derives identity and enforces exact role authority',()=>{
+  assert.match(migration,/from auth\.users auth_user/)
+  assert.match(migration,/v_email <> v_jwt_email[\s\S]*auth_email_mismatch/)
   assert.match(migration,/lower\(access\.email\) = v_email/)
   assert.match(migration,/lower\(membership\.email\) = v_email/)
   assert.match(migration,/lower\(membership\.role\) = lower\(access\.role\)/)
@@ -65,6 +67,8 @@ test('v2 RPCs require explicit scope and retire the organization-wide v1 contrac
 
 test('client exposes COMPANY and TEAM choices without using browser-only authorization',()=>{
   assert.match(client,/Choose Company or Team Live Feed/)
+  assert.match(client,/function selectedKey[\s\S]*scopeId\|\|''/)
+  assert.doesNotMatch(client,/scopeId\|\|'company'/)
   assert.match(client,/scope:'company'/)
   assert.match(client,/scope:'team'/)
   assert.match(client,/state\.scopes\.find\(item=>item\.scope==='team'&&item\.can_post\)/)
@@ -83,6 +87,12 @@ test('Company feed owns verified sales while Team feed remains comment scoped',(
 
 test('account changes and snapshot-to-Realtime gaps are handled explicitly',()=>{
   assert.match(client,/function resetForIdentity/)
+  assert.match(client,/state\.generation\+=1/)
+  assert.match(client,/generation!==state\.generation/)
+  assert.match(client,/organizationId=String\(access\?\.organization_id/)
+  assert.match(client,/`\$\{userId\}\|\$\{email\}\|\$\{organizationId\}\|\$\{role\}\|\$\{active\}`/)
+  assert.match(client,/function refreshAuthorization/)
+  assert.match(client,/visibilitychange/)
   assert.match(client,/state\.identityKey&&identity\.key&&state\.identityKey!==identity\.key/)
   assert.match(client,/await startRealtime\(\);[\s\S]*await loadFeed/)
   assert.match(client,/if\(state\.loading\)\{state\.reloadQueued=true;return;\}/)
@@ -108,6 +118,7 @@ test('canary covers Admin, Manager, Trainer, Rep, team isolation, and cross-orga
   assert.match(canary,/cross-team read was accepted/)
   assert.match(canary,/organization A data leaked to organization B/)
   assert.match(canary,/mismatched login email retained Live Feed access/)
+  assert.match(canary,/stale JWT retained Live Feed access after auth\.users email changed/)
   assert.match(canary,/^rollback;$/m)
 })
 
