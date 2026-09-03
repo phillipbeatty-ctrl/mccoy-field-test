@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Repair exact cache-key assertion target
+      - name: Repair exact cache-key assertion targets
         shell: bash
         run: |
           set -euo pipefail
@@ -35,11 +35,21 @@ jobs:
           from pathlib import Path
           path=Path('.github/scripts/apply-live-feed-moderation-preview.py')
           source=path.read_text(encoding='utf-8')
-          old='test = replace_once(test, "app-live-feed\\\\.js\\\\?v=2026090301", "app-live-feed\\\\.js\\\\?v=2026090302", "test client cache key")'
-          new='test = replace_once(test, "assert.match(liveWins,/app-live-feed\\\\.js\\\\?v=2026090301/)", "assert.match(liveWins,/app-live-feed\\\\.js\\\\?v=2026090302/)", "test client cache key")'
-          if source.count(old)!=1:
-              raise SystemExit(f'expected one cache-key applicator line, found {source.count(old)}')
-          path.write_text(source.replace(old,new,1),encoding='utf-8')
+          replacements=[
+            (
+              'test = replace_once(test, "app-live-feed\\\\.js\\\\?v=2026090301", "app-live-feed\\\\.js\\\\?v=2026090302", "test client cache key")',
+              'test = replace_once(test, "assert.match(liveWins,/app-live-feed\\\\.js\\\\?v=2026090301/)", "assert.match(liveWins,/app-live-feed\\\\.js\\\\?v=2026090302/)", "test client cache key")'
+            ),
+            (
+              'test = replace_once(test, "\'/app-live-feed\\\\.js\\\\?v=2026090301\'", "\'/app-live-feed\\\\.js\\\\?v=2026090302\'", "test worker cache key")',
+              'test = replace_once(test, "assert.match(worker,/\'\\\\/app-live-feed\\\\.js\\\\?v=2026090301\'/)", "assert.match(worker,/\'\\\\/app-live-feed\\\\.js\\\\?v=2026090302\'/)", "test worker cache key")'
+            ),
+          ]
+          for old,new in replacements:
+              if source.count(old)!=1:
+                  raise SystemExit(f'expected one cache-key applicator line, found {source.count(old)} for {old}')
+              source=source.replace(old,new,1)
+          path.write_text(source,encoding='utf-8')
           PY
 
       - name: Materialize fail-closed moderation
