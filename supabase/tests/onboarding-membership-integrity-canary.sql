@@ -5,6 +5,24 @@ declare
   target record;
   state jsonb;
 begin
+  if has_function_privilege('anon','private.sync_app_access_identity(uuid,uuid,text,text,boolean,text,text)','EXECUTE')
+     or has_function_privilege('authenticated','private.sync_app_access_identity(uuid,uuid,text,text,boolean,text,text)','EXECUTE')
+     or has_function_privilege('service_role','private.sync_app_access_identity(uuid,uuid,text,text,boolean,text,text)','EXECUTE') then
+    raise exception 'identity_sync_helper_direct_execution_exposed';
+  end if;
+
+  if has_function_privilege('anon','private.sync_app_user_access_identity_trigger()','EXECUTE')
+     or has_function_privilege('authenticated','private.sync_app_user_access_identity_trigger()','EXECUTE')
+     or has_function_privilege('service_role','private.sync_app_user_access_identity_trigger()','EXECUTE') then
+    raise exception 'identity_trigger_helper_direct_execution_exposed';
+  end if;
+
+  if not has_function_privilege('service_role','public.service_repair_user_organization_access(uuid,text)','EXECUTE')
+     or has_function_privilege('anon','public.service_repair_user_organization_access(uuid,text)','EXECUTE')
+     or has_function_privilege('authenticated','public.service_repair_user_organization_access(uuid,text)','EXECUTE') then
+    raise exception 'service_repair_rpc_privilege_contract_failed';
+  end if;
+
   select
     a.email,
     a.organization_id,
