@@ -86,8 +86,9 @@ test('legacy normalize action is transparently converted to chunked normalizatio
   assert.deepEqual(actions,['prepare_normalization','normalize_chunk','normalize_chunk','complete_normalization']);
 });
 
-test('pending access includes active accounts until email confirmation is complete',()=>{
-  assert.match(pendingFunction,/emailConfirmedAt&&accessActive&&!requestPending/);
+test('pending access includes active accounts until email confirmation and membership integrity are complete',()=>{
+  assert.match(pendingFunction,/emailConfirmedAt&&accessActive&&membershipActive&&!requestPending/);
+  assert.match(pendingFunction,/requiresMembershipRepair=accessActive&&!membershipActive/);
   assert.match(pendingFunction,/waiting_for_email_confirmation:!emailConfirmedAt/);
   assert.match(pendingFunction,/requires_access_grant:!accessActive/);
   assert.match(pendingFunction,/resend_confirmation/);
@@ -113,10 +114,11 @@ test('Admin pending-access refresh is view-scoped, idempotent, and guarded',()=>
 
 test('direct pending access page uses the authoritative endpoint without unattended refreshes',()=>{
   assert.match(pendingPage,/Pending Account Access/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026090201/);
   assert.match(pendingController,/pending-account-access/);
   assert.match(pendingController,/action:'list'/);
   assert.match(pendingController,/grant_pending_account_access/);
+  assert.match(pendingController,/repair_organization_access/);
   assert.match(pendingController,/reset_user_password/);
   assert.match(pendingController,/waiting_for_email_confirmation/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
