@@ -1,0 +1,54 @@
+name: Finish Live Feed scope correctness once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/scripts/finish-live-feed-scope-correctness.py
+      - .github/workflows/finish-live-feed-scope-correctness-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Apply and verify final correctness fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/finish-live-feed-scope-correctness.py
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          node --test --test-reporter=spec live-feed-comments-contract.test.mjs
+          node --test --test-reporter=spec sale-completion-runtime.test.mjs
+          node --test --test-reporter=spec customer-list-stable-actions.test.mjs
+          node --test --test-reporter=spec organization-access-gate.test.mjs
+          node --test --test-reporter=spec app-update-recovery.test.mjs
+          grep -q 'activeGeneration=invalidateForAuthorizationChange()' app-live-feed.js
+          grep -q "set body = 'Comment removed.'" supabase/preview-migrations/20260903062000_live_feed_company_team_comments_preview.sql
+          grep -q 'approved deletion tombstone was not RLS-readable and redacted' supabase/tests/live-feed-comments-preview-canary.sql
+          grep -q "if sqlerrm <> 'auth_email_mismatch'" supabase/tests/live-feed-comments-preview-canary.sql
+
+      - name: Commit verified fixes and remove one-time scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/scripts/finish-live-feed-scope-correctness.py
+          rm -f .github/workflows/finish-live-feed-scope-correctness-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Finish Live Feed authority refresh and deletion delivery'
+          git push origin HEAD:preview/live-feed-comments-20260903
