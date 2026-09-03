@@ -11,7 +11,10 @@ on:
       - 'pending-access.html'
       - 'pending-access.js'
       - 'supabase/functions/pending-account-access/**'
+      - 'supabase/migrations/20260903004500_atomic_onboarding_organization_membership_integrity.sql'
+      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
+      - 'onboarding-membership-integrity.test.mjs'
       - '.github/workflows/import-pending-access-fix.yml'
   push:
     branches: [main]
@@ -23,7 +26,10 @@ on:
       - 'pending-access.html'
       - 'pending-access.js'
       - 'supabase/functions/pending-account-access/**'
+      - 'supabase/migrations/20260903004500_atomic_onboarding_organization_membership_integrity.sql'
+      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
+      - 'onboarding-membership-integrity.test.mjs'
       - '.github/workflows/import-pending-access-fix.yml'
 
 jobs:
@@ -43,4 +49,7 @@ jobs:
           cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
           node --check /tmp/pending-account-access.mjs
       - name: Run importer and pending account regression tests
-        run: node --test import-pending-access-fix.test.mjs
+        run: |
+          node --test \
+            import-pending-access-fix.test.mjs \
+            onboarding-membership-integrity.test.mjs
