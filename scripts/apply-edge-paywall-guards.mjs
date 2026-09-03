@@ -106,11 +106,11 @@ await applyDeterministicTransform('rep-onboarding','mixed_pre_membership_admin',
   return source
 })
 
-// The service-role client bypasses RLS. Bind every provider capture lookup to the
-// verified organization as well as the signed-in user before exposing or mutating it.
+// The service-role client bypasses RLS. Bind the captureFor lookup specifically to
+// the verified organization as well as the signed-in user before exposing or mutating it.
 await applyDeterministicTransform('provider-sale-photo-stage','organization_capture_scope',source=>{
-  const before="        .eq('id', id)\n        .eq('rep_user_id', user.id)"
-  const after="        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)"
+  const before="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('rep_user_id', user.id)"
+  const after="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)"
   return replaceRequired(source,before,after,'provider-sale-photo-stage capture tenant scope')
 })
 
