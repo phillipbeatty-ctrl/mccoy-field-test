@@ -9,6 +9,15 @@ const functionsRoot=path.join(root,'supabase','functions')
 const importLine="import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'"
 const writeMode=process.argv.includes('--write')
 
+const functionDirectories=(await readdir(functionsRoot,{withFileTypes:true}))
+  .filter(entry=>entry.isDirectory()&&entry.name!=='_shared')
+  .map(entry=>entry.name)
+  .sort()
+const missingTargets=[...edgePaywallTargets.keys()].filter(slug=>!functionDirectories.includes(slug))
+const missingExemptions=[...edgePaywallExemptions.keys()].filter(slug=>!functionDirectories.includes(slug))
+if(missingTargets.length)throw new Error(`missing protected Edge Functions: ${missingTargets.join(', ')}`)
+if(missingExemptions.length)throw new Error(`missing exempt Edge Functions: ${missingExemptions.join(', ')}`)
+
 const changed=[]
 const unchanged=[]
 const drift=[]
@@ -55,17 +64,8 @@ for(const [slug,entitlement] of edgePaywallTargets){
   }
 }
 
-const functionDirectories=(await readdir(functionsRoot,{withFileTypes:true}))
-  .filter(entry=>entry.isDirectory()&&entry.name!=='_shared')
-  .map(entry=>entry.name)
-  .sort()
 const uncategorized=functionDirectories.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
-const missingTargets=[...edgePaywallTargets.keys()].filter(slug=>!functionDirectories.includes(slug))
-const missingExemptions=[...edgePaywallExemptions.keys()].filter(slug=>!functionDirectories.includes(slug))
-
 if(uncategorized.length)throw new Error(`uncategorized Edge Functions: ${uncategorized.join(', ')}`)
-if(missingTargets.length)throw new Error(`missing protected Edge Functions: ${missingTargets.join(', ')}`)
-if(missingExemptions.length)throw new Error(`missing exempt Edge Functions: ${missingExemptions.join(', ')}`)
 
 const report={
   mode:writeMode?'write':'check',
