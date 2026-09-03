@@ -38,6 +38,10 @@ insert into live_feed_canary_ids values (
   null,null,null,null,null
 );
 
+-- Policy assertions below switch to the actual authenticated database role.
+-- Grant only SELECT on this transaction-local ID table so those assertions can resolve fixtures.
+grant select on live_feed_canary_ids to authenticated;
+
 create or replace function pg_temp.live_feed_login(p_user_id uuid,p_email text)
 returns void
 language plpgsql
@@ -234,6 +238,16 @@ begin
   end if;
 end;
 $$;
+set local role authenticated;
+do $$
+begin
+  if exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+  ) then raise exception 'pending team comment bypassed RLS for another team member'; end if;
+end;
+$$;
+reset role;
 
 select pg_temp.live_feed_login((select admin_a_auth from live_feed_canary_ids),'live-feed-admin-a@preview.invalid');
 do $$
@@ -250,6 +264,17 @@ begin
   end if;
 end;
 $$;
+set local role authenticated;
+do $$
+begin
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+      and moderation_status='pending'
+  ) then raise exception 'Admin could not read pending team comment through RLS'; end if;
+end;
+$$;
+reset role;
 
 select public.moderate_live_feed_comment_v2(
   (select rep_a1_comment from live_feed_canary_ids),'approve','Reviewed: no customer data observed',true
@@ -299,11 +324,32 @@ begin
   end if;
 end;
 $$;
+set local role authenticated;
+do $$
+begin
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+      and moderation_status='approved'
+  ) then raise exception 'assigned Team A1 comment missing through authenticated RLS'; end if;
+  if exists (
+    select 1 from public.live_feed_comments
+    where id=(select team_a2_comment from live_feed_canary_ids)
+  ) then raise exception 'Team A2 comment leaked to Team A1 rep through authenticated RLS'; end if;
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select company_comment from live_feed_canary_ids)
+      and moderation_status='approved'
+  ) then raise exception 'Company comment missing through authenticated RLS'; end if;
+end;
+$$;
+reset role;
 
 -- Approved soft deletion is delivered as a redacted RLS-visible tombstone and disappears from snapshots.
 select pg_temp.live_feed_login((select admin_a_auth from live_feed_canary_ids),'live-feed-admin-a@preview.invalid');
 select public.delete_live_feed_comment_v2((select rep_a1_comment from live_feed_canary_ids),'Preview tombstone verification');
 select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
+set local role authenticated;
 do $$
 begin
   if not exists (
@@ -318,9 +364,25 @@ begin
   ) then raise exception 'soft-deleted comment remained in Team snapshot'; end if;
 end;
 $$;
+reset role;
 
 -- Team A2 rep cannot read Team A1; Company remains readable.
 select pg_temp.live_feed_login((select rep_a2_auth from live_feed_canary_ids),'live-feed-rep-a2@preview.invalid');
+set local role authenticated;
+do $$
+begin
+  if exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+  ) then raise exception 'Team A1 tombstone leaked to Team A2 through authenticated RLS'; end if;
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select team_a2_comment from live_feed_canary_ids)
+      and moderation_status='approved'
+  ) then raise exception 'assigned Team A2 comment missing through authenticated RLS'; end if;
+end;
+$$;
+reset role;
 do $$
 begin
   begin
@@ -338,6 +400,16 @@ $$;
 
 -- Tester access is normalized to Rep authority and remains cross-organization isolated.
 select pg_temp.live_feed_login((select rep_b_auth from live_feed_canary_ids),'live-feed-rep-b@preview.invalid');
+set local role authenticated;
+do $$
+begin
+  if exists (
+    select 1 from public.live_feed_comments
+    where organization_id=(select organization_a from live_feed_canary_ids)
+  ) then raise exception 'organization A comment rows leaked to organization B through authenticated RLS'; end if;
+end;
+$$;
+reset role;
 do $$
 declare feed jsonb;
 begin

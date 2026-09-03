@@ -106,7 +106,7 @@ After an isolated Supabase branch is explicitly approved and created, apply only
 supabase/tests/live-feed-comments-preview-canary.sql
 ```
 
-The canary must roll back all test data and prove:
+The canary switches to `SET LOCAL ROLE authenticated` for direct-table policy assertions, then restores the privileged migration role for setup and teardown. It must roll back all test data and prove:
 
 - Admin can post COMPANY or any active organization TEAM.
 - Manager and Trainer can post only their authorized TEAM scopes and cannot moderate.
