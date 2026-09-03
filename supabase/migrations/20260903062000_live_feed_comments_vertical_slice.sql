@@ -242,7 +242,7 @@ begin
         'secondary_messages', '[]'::jsonb,
         'scope', v_existing.scope,
         'is_own', true,
-        'can_delete', true,
+        'can_delete', v_actor.role = 'admin' or v_existing.created_at >= v_now - interval '5 minutes',
         'delete_deadline', v_existing.created_at + interval '5 minutes'
       )
     );

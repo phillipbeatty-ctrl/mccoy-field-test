@@ -22,6 +22,8 @@
     email:null,
     channel:null,
     channelOrganizationId:null,
+    realtimeReady:null,
+    deleteExpiryTimer:null,
     draft:'',
     pendingRequest:null,
     renderScheduled:false,
@@ -78,7 +80,7 @@
   function loadDraftState(){
     state.draft=readLocal(draftKey(),'');
     try{const parsed=JSON.parse(readLocal(pendingKey(),'null'));state.pendingRequest=parsed&&parsed.id&&typeof parsed.body==='string'?parsed:null;}catch(_){state.pendingRequest=null;}
-    if(state.pendingRequest&&state.pendingRequest.body!==state.draft){state.pendingRequest=null;writeLocal(pendingKey(),'');}
+    if(state.pendingRequest&&state.pendingRequest.body!==bodyText(state.draft)){state.pendingRequest=null;writeLocal(pendingKey(),'');}
   }
   function saveDraft(){writeLocal(draftKey(),state.draft);}
   function savePending(){writeLocal(pendingKey(),state.pendingRequest?JSON.stringify(state.pendingRequest):'');}
@@ -103,8 +105,10 @@
   }
 
   function handleDraftInput(input){
+    const characters=Array.from(input.value);
+    if(characters.length>MAX_COMMENT_LENGTH)input.value=characters.slice(0,MAX_COMMENT_LENGTH).join('');
     state.draft=input.value;
-    if(state.pendingRequest&&state.pendingRequest.body!==state.draft){state.pendingRequest=null;savePending();}
+    if(state.pendingRequest&&state.pendingRequest.body!==bodyText(state.draft)){state.pendingRequest=null;savePending();}
     saveDraft();
     syncComposers({focus:input});
     if(navigator.onLine===false)setComposerStatus('Offline — draft saved on this device. Reconnect, then press RETRY.','offline');
@@ -129,7 +133,7 @@
     composer.className='live-feed-composer';
     composer.dataset.liveFeedComposerFor=root.id;
     const row=document.createElement('div');row.className='live-feed-compose-row';
-    const input=document.createElement('textarea');input.className='live-feed-compose-input';input.maxLength=MAX_COMMENT_LENGTH;input.rows=2;input.placeholder='Write a comment…';input.setAttribute('aria-label','Write a Live Feed comment');input.value=state.draft;
+    const input=document.createElement('textarea');input.className='live-feed-compose-input';input.rows=2;input.placeholder='Write a comment…';input.setAttribute('aria-label','Write a Live Feed comment');input.value=state.draft;
     const post=document.createElement('button');post.type='button';post.className='primary live-feed-post';post.textContent='POST';
     row.append(input,post);
     const meta=document.createElement('div');meta.className='live-feed-compose-meta';
@@ -191,7 +195,9 @@
     article.append(head,message);
     const extra=secondaryMessages(event);
     if(type==='sale'&&extra.length){const list=document.createElement('div');list.className='live-feed-secondary';for(const text of extra){const line=document.createElement('div');line.textContent=text;list.appendChild(line);}article.appendChild(list);}
-    if(type==='comment'&&event.can_delete){
+    const deleteDeadline=parseTime(event?.delete_deadline);
+    const deleteAllowed=type==='comment'&&event.can_delete&&(isAdmin()||(event.is_own&&deleteDeadline>Date.now()));
+    if(deleteAllowed){
       const actions=document.createElement('div');actions.className='live-feed-event-actions';
       const remove=document.createElement('button');remove.type='button';remove.className='live-feed-delete';remove.dataset.commentId=String(event.comment_id||'');remove.textContent=event.is_own?'Remove comment':'Remove as Admin';remove.setAttribute('aria-label',remove.textContent);
       actions.appendChild(remove);article.appendChild(actions);
@@ -210,6 +216,17 @@
       const retention=document.createElement('div');retention.className='live-feed-retention';retention.textContent='Showing up to 100 organization events from the last 30 days. Verified sales remain separate from comments and continue to control rankings.';wrapper.appendChild(retention);
       root.replaceChildren(wrapper);root.scrollTop=scrollTop;
       updateHeading(root);
+    }
+    if(state.deleteExpiryTimer){clearTimeout(state.deleteExpiryTimer);state.deleteExpiryTimer=null;}
+    if(!isAdmin()){
+      const deadlines=state.events
+        .filter(event=>event?.event_type==='comment'&&event.is_own&&event.can_delete)
+        .map(event=>parseTime(event.delete_deadline))
+        .filter(deadline=>deadline>Date.now());
+      if(deadlines.length){
+        const nextDeadline=Math.min(...deadlines);
+        state.deleteExpiryTimer=setTimeout(()=>scheduleRender(),Math.max(25,nextDeadline-Date.now()+25));
+      }
     }
     syncComposers();
   }
@@ -294,6 +311,11 @@
 
   async function deleteComment(commentId,event){
     if(!commentId)return;
+    if(event?.is_own&&!isAdmin()&&parseTime(event.delete_deadline)<=Date.now()){
+      setComposerStatus('The five-minute window to remove this comment has expired.','error');
+      scheduleRender();
+      return;
+    }
     const client=resolveClient();if(!client)return;
     let reason=null;
     if(!event?.is_own&&isAdmin()){
@@ -378,13 +400,22 @@
 
   async function startRealtime(){
     const client=resolveClient(),organizationId=state.organizationId||currentAccess()?.organization_id||null;
-    if(!client?.channel||!organizationId)return;
-    if(state.channel&&state.channelOrganizationId===organizationId)return;
-    if(state.channel){try{await client.removeChannel(state.channel);}catch(_){}state.channel=null;}
+    if(!client?.channel||!organizationId)return null;
+    if(state.channel&&state.channelOrganizationId===organizationId)return state.realtimeReady;
+    if(state.channel){try{await client.removeChannel(state.channel);}catch(_){}state.channel=null;state.realtimeReady=null;}
     state.channelOrganizationId=organizationId;
-    state.channel=client.channel(`mccoy-live-feed-comments-${organizationId}`)
-      .on('postgres_changes',{event:'*',schema:'public',table:'live_feed_comments',filter:`organization_id=eq.${organizationId}`},onCommentRealtime)
-      .subscribe(status=>window.dispatchEvent(new CustomEvent('mccoy-live-feed-status',{detail:{status}})));
+    state.realtimeReady=new Promise(resolve=>{
+      let settled=false;
+      const settle=status=>{if(settled)return;settled=true;resolve(status);};
+      state.channel=client.channel(`mccoy-live-feed-comments-${organizationId}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'live_feed_comments',filter:`organization_id=eq.${organizationId}`},onCommentRealtime)
+        .subscribe(status=>{
+          window.dispatchEvent(new CustomEvent('mccoy-live-feed-status',{detail:{status}}));
+          if(['SUBSCRIBED','CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status))settle(status);
+        });
+      setTimeout(()=>settle('SUBSCRIBE_WAIT_EXPIRED'),2500);
+    });
+    return state.realtimeReady;
   }
 
   async function initialize(){
@@ -392,7 +423,7 @@
     state.initialized=true;state.organizationId=access.organization_id||null;state.role=access.role||null;state.email=String(currentUser()?.email||access.email||'').toLowerCase();state.userId=currentUser()?.id||access.auth_user_id||null;
     const client=resolveClient();
     if(client&&!state.userId){try{const {data}=await client.auth.getSession();state.userId=data?.session?.user?.id||null;state.email=state.email||String(data?.session?.user?.email||'').toLowerCase();}catch(_){}}
-    loadDraftState();findMounts();syncComposers();await loadFeed();
+    loadDraftState();findMounts();syncComposers();await startRealtime();await loadFeed();
   }
 
   document.addEventListener('click',event=>{

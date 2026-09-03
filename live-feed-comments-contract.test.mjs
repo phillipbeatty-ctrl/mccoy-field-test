@@ -78,6 +78,9 @@ test('comment deletion is soft, audited, and limited to author five minutes or A
   assert.doesNotMatch(remove,/delete from public\.live_feed_comments/)
   assert.doesNotMatch(migration,/create or replace function public\.(edit|update)_live_feed_comment/i)
   assert.match(migration,/live_feed_comment_deletions_immutable/)
+  assert.match(client,/deleteDeadline>Date\.now\(\)/)
+  assert.match(client,/deleteExpiryTimer=setTimeout/)
+  assert.match(client,/five-minute window to remove this comment has expired/)
 })
 
 test('version one reserves organization scope and contains no messaging-platform expansion',()=>{
@@ -93,6 +96,9 @@ test('version one reserves organization scope and contains no messaging-platform
 test('client renders plain text, preserves explicit offline retry, and suppresses own toasts',()=>{
   assert.match(client,/MAX_COMMENT_LENGTH=280/)
   assert.match(client,/localStorage\.setItem/)
+  assert.match(client,/pendingRequest\.body!==bodyText\(state\.draft\)/)
+  assert.match(client,/Array\.from\(input\.value\)/)
+  assert.doesNotMatch(client,/input\.maxLength=MAX_COMMENT_LENGTH/)
   assert.match(client,/Offline — draft saved on this device\. Reconnect, then press RETRY/)
   assert.match(client,/window\.addEventListener\('online',[\s\S]*press RETRY/)
   assert.doesNotMatch(client,/window\.addEventListener\('online',[\s\S]{0,220}postComment\(/)
@@ -131,4 +137,6 @@ test('comments participate in Realtime but authenticated clients receive SELECT 
   assert.match(migration,/alter table public\.live_feed_comments replica identity full/)
   assert.match(client,/table:'live_feed_comments'/)
   assert.match(client,/filter:`organization_id=eq\.\$\{organizationId\}`/)
+  assert.match(client,/await startRealtime\(\);await loadFeed\(\)/)
+  assert.match(client,/SUBSCRIBE_WAIT_EXPIRED/)
 })
