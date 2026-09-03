@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v10-20260903-live-feed-moderation-preview';
+const VERSION='field-coach-app-shell-v11-20260903-company-team-live-feed-preview';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -26,7 +26,7 @@ const SHELL=[
   '/app-sale-lifecycle.js?v=2026090201',
   '/app-sale-photo-staging.js?v=2026090201',
   '/app-live-wins.js',
-  '/app-live-feed.js?v=2026090302',
+  '/app-live-feed.js?v=2026090303',
   '/confirm-email.html',
   '/pending-access.html'
 ];
