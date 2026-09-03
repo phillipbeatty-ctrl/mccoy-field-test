@@ -16,6 +16,7 @@ on:
       - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
       - 'onboarding-membership-integrity.test.mjs'
+      - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
   push:
     branches: [main]
@@ -32,6 +33,7 @@ on:
       - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
       - 'onboarding-membership-integrity.test.mjs'
+      - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
 
 jobs:
@@ -50,6 +52,8 @@ jobs:
           node --check pending-access.js
           cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
           node --check /tmp/pending-account-access.mjs
+      - name: Validate guarded deployment workflow YAML
+        run: ruby -e "require 'yaml'; YAML.parse_file('.github/workflows/deploy-onboarding-integrity.yml'); puts 'onboarding deployment workflow YAML parsed'"
       - name: Run importer and pending account regression tests
         run: |
           node --test \
