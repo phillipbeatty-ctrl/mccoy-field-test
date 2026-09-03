@@ -34,7 +34,7 @@ create index if not exists lead_pin_move_audit_lead_created_idx
 
 revoke all on private.lead_pin_move_audit from public, anon, authenticated;
 
-create or replace function private.move_lead_pin(
+create or replace function public.move_lead_pin(
   p_lead_id uuid,
   p_actor_user_id uuid,
   p_actor_email text,
@@ -220,5 +220,5 @@ begin
 end;
 $$;
 
-revoke all on function private.move_lead_pin(uuid,uuid,text,timestamptz,double precision,double precision,double precision,double precision,double precision,double precision,double precision,timestamptz,uuid,jsonb) from public, anon, authenticated;
-grant execute on function private.move_lead_pin(uuid,uuid,text,timestamptz,double precision,double precision,double precision,double precision,double precision,double precision,double precision,timestamptz,uuid,jsonb) to service_role;
+revoke all on function public.move_lead_pin(uuid,uuid,text,timestamptz,double precision,double precision,double precision,double precision,double precision,double precision,double precision,timestamptz,uuid,jsonb) from public, anon, authenticated;
+grant execute on function public.move_lead_pin(uuid,uuid,text,timestamptz,double precision,double precision,double precision,double precision,double precision,double precision,double precision,timestamptz,uuid,jsonb) to service_role;
