@@ -6,7 +6,10 @@ on:
       - preview/live-feed-comments-20260903
     paths:
       - .github/workflows/apply-live-feed-company-team-once.yml
-      - .github/payloads/live-feed-company-team-v2.tar.gz.b64
+      - .github/payloads/live-feed-company-team-v2.part00
+      - .github/payloads/live-feed-company-team-v2.part01
+      - .github/payloads/live-feed-company-team-v2.part02
+      - .github/payloads/live-feed-company-team-v2.part03
 
 permissions:
   contents: write
@@ -26,7 +29,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode .github/payloads/live-feed-company-team-v2.tar.gz.b64 > /tmp/live-feed-company-team-v2.tar.gz
+          echo '7ad49c11cfdb0a60b66af08619c1861318bb1a1b22254a073048c68ac1fb904e  .github/payloads/live-feed-company-team-v2.part00' | sha256sum --check --strict
+          echo '29f29bbc67b070e25caa34a8cbb9341ce72374c17aac2ae477a9c621e7b8b552  .github/payloads/live-feed-company-team-v2.part01' | sha256sum --check --strict
+          echo 'deb1be99eeb3c373f1ae7892b23185e25f55abef8d373cd64d9878bdc8aa3056  .github/payloads/live-feed-company-team-v2.part02' | sha256sum --check --strict
+          echo '058a51e28c865c2ae680e2790e8076d2fcf41726dddb4c21eaed96058aa2a9bd  .github/payloads/live-feed-company-team-v2.part03' | sha256sum --check --strict
+          cat .github/payloads/live-feed-company-team-v2.part00 \
+              .github/payloads/live-feed-company-team-v2.part01 \
+              .github/payloads/live-feed-company-team-v2.part02 \
+              .github/payloads/live-feed-company-team-v2.part03 \
+              > /tmp/live-feed-company-team-v2.tar.gz.b64
+          base64 --decode /tmp/live-feed-company-team-v2.tar.gz.b64 > /tmp/live-feed-company-team-v2.tar.gz
           echo '85c001adde43bfd415744d91fb0eeb7e8eb0eb974cf8176f0e983d915c9a3281  /tmp/live-feed-company-team-v2.tar.gz' | sha256sum --check --strict
           tar -xzf /tmp/live-feed-company-team-v2.tar.gz
           rm -f supabase/migrations/20260903063000_live_feed_comment_moderation_quarantine.sql
@@ -44,6 +56,10 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/payloads/live-feed-company-team-v2.tar.gz.b64
+          rm -f .github/payloads/live-feed-company-team-v2.part00
+          rm -f .github/payloads/live-feed-company-team-v2.part01
+          rm -f .github/payloads/live-feed-company-team-v2.part02
+          rm -f .github/payloads/live-feed-company-team-v2.part03
           rm -f .github/workflows/apply-live-feed-company-team-once.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
