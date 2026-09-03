@@ -8,6 +8,7 @@ on:
     paths:
       - 'scripts/paywall-targets.mjs'
       - 'scripts/apply-edge-paywall-guards.mjs'
+      - 'scripts/normalize-onboarding-generated-source.mjs'
       - '.github/workflows/generate-paywall-phase2.yml'
   workflow_dispatch:
 
@@ -33,6 +34,8 @@ jobs:
           node-version: '22'
       - name: Generate exact entitlement wrappers
         run: node scripts/apply-edge-paywall-guards.mjs --write
+      - name: Normalize mixed onboarding helpers
+        run: node scripts/normalize-onboarding-generated-source.mjs --write
       - name: Commit generated source
         shell: bash
         run: |
