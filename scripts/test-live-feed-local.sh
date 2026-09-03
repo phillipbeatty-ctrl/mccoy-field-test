@@ -95,6 +95,19 @@ fi
 
 [[ -n "${DB_CONTAINER}" ]] || fail "could not locate the local Supabase Postgres container"
 
+mapfile -t PROJECT_CONTAINERS < <(
+  docker ps --format '{{.Names}}' | grep -F "_${PROJECT_ID}" || true
+)
+[[ "${#PROJECT_CONTAINERS[@]}" -gt 0 ]] || fail "could not locate local Supabase containers for binding verification"
+
+mapfile -t PUBLISHED_HOST_IPS < <(
+  for container_name in "${PROJECT_CONTAINERS[@]}"; do
+    docker inspect --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp}}{{end}}{{end}}' "${container_name}"
+  done | sed '/^[[:space:]]*$/d' | sort -u
+)
+[[ "${#PUBLISHED_HOST_IPS[@]}" -gt 0 ]] || fail "local Supabase published no ports to verify"
+[[ "${#PUBLISHED_HOST_IPS[@]}" -eq 1 && "${PUBLISHED_HOST_IPS[0]}" == "127.0.0.1" ]] || fail "unsafe local port binding detected: ${PUBLISHED_HOST_IPS[*]}"
+
 printf 'Running rollback canary as privileged setup plus authenticated RLS assertions...\n'
 docker exec -i "${DB_CONTAINER}" \
   psql --username postgres --dbname postgres --no-psqlrc --set ON_ERROR_STOP=on \
