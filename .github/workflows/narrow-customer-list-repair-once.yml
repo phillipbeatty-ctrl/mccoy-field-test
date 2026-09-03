@@ -1,0 +1,67 @@
+name: Narrow Customer List repair once
+
+on:
+  push:
+    branches:
+      - fix/customer-list-stable-sale-actions-20260902
+    paths:
+      - .github/workflows/narrow-customer-list-repair-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  narrow:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v5
+        with:
+          ref: fix/customer-list-stable-sale-actions-20260902
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Keep this repair on the client action surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout origin/main -- supabase/functions/accounting-records/index.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('customer-list-stable-actions.test.mjs')
+          source=path.read_text()
+          source=source.replace("const accountingEdge=readFileSync(new URL('./supabase/functions/accounting-records/index.ts',import.meta.url),'utf8')\n",'')
+          source=source.replace("  assert.match(accountingEdge,/function isFinalNotASale\\(row:any\\)/)\n",'')
+          source=source.replace("  assert.match(accountingEdge,/isAdminApproved\\(row\\)&&!isFinalNotASale\\(row\\)&&!row\\.removed_to_bank_at/)\n",'')
+          path.write_text(source)
+          PY
+
+      - name: Verify focused Customer List and cache contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app-accounting-records.js
+          node --check app-customer-list-approval-refresh.js
+          node --test \
+            customer-list-stable-actions.test.mjs \
+            customer-list-admin-edit.test.mjs \
+            app-update-recovery.test.mjs \
+            organization-access-gate.test.mjs \
+            sale-completion-runtime.test.mjs
+
+      - name: Commit narrowed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/functions/accounting-records/index.ts customer-list-stable-actions.test.mjs
+          git diff --cached --check
+          git commit -m "Keep Customer List repair on the stable client identity path"
+          git push origin HEAD:fix/customer-list-stable-sale-actions-20260902
