@@ -20,7 +20,7 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation == 'DEPLOY') ||
+      (github.event_name == 'workflow_dispatch' && github.actor == 'phillipbeatty-ctrl' && github.event.inputs.confirmation == 'DEPLOY') ||
       (github.event_name == 'issue_comment' && github.event.issue.number == 116 && github.event.comment.user.login == 'phillipbeatty-ctrl' && github.event.comment.body == 'DEPLOY_ONBOARDING_INTEGRITY_PR116')
     runs-on: ubuntu-latest
     timeout-minutes: 30
