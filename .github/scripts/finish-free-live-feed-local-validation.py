@@ -4,7 +4,6 @@ CANARY = Path('supabase/tests/live-feed-comments-preview-canary.sql')
 CONTRACT = Path('live-feed-comments-contract.test.mjs')
 SCRIPT = Path('scripts/test-live-feed-local.sh')
 HARNESS = Path('live-feed-local-harness.test.mjs')
-WORKFLOW = Path('.github/workflows/live-feed-local-supabase.yml')
 DOCS = Path('docs/live-feed-free-test-plan.md')
 PREVIEW_DOCS = Path('docs/live-feed-comments-preview.md')
 
@@ -128,20 +127,6 @@ replace_once(
     "  assert.doesNotMatch(workflow,/\\n  push:/)\n"
     "  assert.match(workflow,/github\\.event_name == 'pull_request'[\\s\\S]*github\\.event\\.pull_request\\.head\\.sha/)\n",
 )
-
-workflow_source = WORKFLOW.read_text(encoding='utf-8')
-push_start = workflow_source.index('  push:\n')
-push_end = workflow_source.index('  workflow_dispatch:\n', push_start)
-workflow_source = workflow_source[:push_start] + workflow_source[push_end:]
-workflow_source = workflow_source.replace(
-    "      - name: Check out exact source\n        uses: actions/checkout@v4\n",
-    "      - name: Check out exact source\n"
-    "        uses: actions/checkout@v4\n"
-    "        with:\n"
-    "          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}\n",
-    1,
-)
-WORKFLOW.write_text(workflow_source, encoding='utf-8')
 
 replace_once(
     DOCS,

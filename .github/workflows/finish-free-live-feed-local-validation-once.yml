@@ -32,11 +32,10 @@ jobs:
           node --test --test-reporter=spec live-feed-local-harness.test.mjs
           SUPABASE_CLI_VERSION=2.116.0 bash scripts/test-live-feed-local.sh
 
-      - name: Commit verified corrections and remove one-time scaffolding
+      - name: Commit verified corrections
         run: |
           set -euo pipefail
           rm -f .github/scripts/finish-free-live-feed-local-validation.py
-          rm -f .github/workflows/finish-free-live-feed-local-validation-once.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
