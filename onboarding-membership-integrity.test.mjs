@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 
-const migration=readFileSync(new URL('./supabase/migrations/20260903004500_atomic_onboarding_organization_membership_integrity.sql',import.meta.url),'utf8')
+const migration=readFileSync(new URL('./supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql',import.meta.url),'utf8')
 const pendingFunction=readFileSync(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8')
 const pendingController=readFileSync(new URL('./pending-access.js',import.meta.url),'utf8')
 const pendingPage=readFileSync(new URL('./pending-access.html',import.meta.url),'utf8')
