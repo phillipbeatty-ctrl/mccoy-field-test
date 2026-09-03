@@ -148,15 +148,25 @@ jobs:
           )
           generator_path.write_text(generator)
 
-          test_path = Path('onboarding-tenant-boundary.test.mjs')
-          test = test_path.read_text()
-          test = replace_once(
-              test,
+          tenant_test_path = Path('onboarding-tenant-boundary.test.mjs')
+          tenant_test = tenant_test_path.read_text()
+          tenant_test = replace_once(
+              tenant_test,
               "  assert.match(photoStage,/\\.from\\('provider_sale_captures'\\)[\\s\\S]*?\\.eq\\('organization_id', organizationId\\)[\\s\\S]*?\\.eq\\('rep_user_id', user\\.id\\)/)",
               "  assert.match(photoStage,/const authUserId = user\\.id/)\n  assert.match(photoStage,/\\.from\\('provider_sale_captures'\\)[\\s\\S]*?\\.eq\\('organization_id', organizationId\\)[\\s\\S]*?\\.eq\\('rep_user_id', authUserId\\)/)",
               'provider tenant test stable identity',
           )
-          test_path.write_text(test)
+          tenant_test_path.write_text(tenant_test)
+
+          paywall_test_path = Path('paywall-phase2.test.mjs')
+          paywall_test = paywall_test_path.read_text()
+          paywall_test = replace_once(
+              paywall_test,
+              "  assert.match(photoStage,/\\.from\\('provider_sale_captures'\\)[\\s\\S]*?\\.eq\\('id', id\\)[\\s\\S]*?\\.eq\\('organization_id', organizationId\\)[\\s\\S]*?\\.eq\\('rep_user_id', user\\.id\\)/)",
+              "  assert.match(photoStage,/const authUserId = user\\.id/)\n  assert.match(photoStage,/\\.from\\('provider_sale_captures'\\)[\\s\\S]*?\\.eq\\('id', id\\)[\\s\\S]*?\\.eq\\('organization_id', organizationId\\)[\\s\\S]*?\\.eq\\('rep_user_id', authUserId\\)/)",
+              'paywall provider photo stable identity assertion',
+          )
+          paywall_test_path.write_text(paywall_test)
           PY
 
       - name: Verify exact source, generator, and onboarding contracts
@@ -185,7 +195,8 @@ jobs:
             supabase/functions/pending-account-access/index.ts \
             supabase/functions/provider-sale-photo-stage/index.ts \
             scripts/apply-edge-paywall-guards.mjs \
-            onboarding-tenant-boundary.test.mjs
+            onboarding-tenant-boundary.test.mjs \
+            paywall-phase2.test.mjs
           git diff --cached --check
           git commit -m "Fix onboarding Edge TypeScript checks"
           git push origin HEAD:fix/atomic-onboarding-membership-20260902
