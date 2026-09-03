@@ -8,6 +8,7 @@ const pendingFunction=readFileSync(new URL('./supabase/functions/pending-account
 const pendingController=readFileSync(new URL('./pending-access.js',import.meta.url),'utf8')
 const pendingPage=readFileSync(new URL('./pending-access.html',import.meta.url),'utf8')
 const canary=readFileSync(new URL('./supabase/tests/onboarding-membership-integrity-canary.sql',import.meta.url),'utf8')
+const deploymentWorkflow=readFileSync(new URL('./.github/workflows/deploy-onboarding-integrity.yml',import.meta.url),'utf8')
 
 test('one database transaction synchronizes access, profile, and organization membership',()=>{
   assert.match(migration,/create or replace function private\.sync_app_access_identity\(/)
@@ -72,4 +73,17 @@ test('rollback-only database canary proves privilege, repair, and deactivate beh
   assert.match(canary,/update public\.app_user_access\s+set active=false/)
   assert.match(canary,/organization_membership_deactivation_failed/)
   assert.match(canary,/^rollback;/m)
+})
+
+test('production Edge deployment is explicit, owner-gated, and limited to reviewed functions',()=>{
+  assert.match(deploymentWorkflow,/github\.event\.issue\.number == 116/)
+  assert.match(deploymentWorkflow,/github\.event\.comment\.user\.login == 'phillipbeatty-ctrl'/)
+  assert.match(deploymentWorkflow,/github\.event\.comment\.body == 'DEPLOY_ONBOARDING_INTEGRITY_PR116'/)
+  assert.match(deploymentWorkflow,/environment: production/)
+  assert.match(deploymentWorkflow,/ref: main/)
+  assert.match(deploymentWorkflow,/for function_name in rep-onboarding pending-account-access provider-sale-photo-stage/)
+  assert.match(deploymentWorkflow,/functions deploy \"\$function_name\"/)
+  assert.match(deploymentWorkflow,/node scripts\/apply-edge-paywall-guards\.mjs/)
+  assert.match(deploymentWorkflow,/deno check --node-modules-dir=auto supabase\/functions\/rep-onboarding\/index\.ts/)
+  assert.doesNotMatch(deploymentWorkflow,/echo.*SUPABASE_ACCESS_TOKEN/i)
 })
