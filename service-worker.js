@@ -1,4 +1,4 @@
-// Preview cache includes the server-scoped COMPANY/TEAM client, auth-transition, permission-refresh, and deletion-delivery guards.
+// Preview cache includes the server-scoped COMPANY/TEAM client, auth-transition, permission-refresh, post-scope-lock, and deletion-delivery guards.
 const VERSION='field-coach-app-shell-v11-20260903-live-feed-company-team-preview';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
