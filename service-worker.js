@@ -1,3 +1,4 @@
+// Preview cache includes the server-scoped COMPANY and TEAM Live Feed client.
 const VERSION='field-coach-app-shell-v11-20260903-live-feed-company-team-preview';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
