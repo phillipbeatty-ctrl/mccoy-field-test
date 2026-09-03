@@ -90,25 +90,36 @@ Deno.serve(async(req)=>{
         const {data:accountPage,error:accountError}=await admin.auth.admin.listUsers({page,perPage:1000});if(accountError)throw accountError
         const pageUsers=accountPage?.users||[];authUsers.push(...pageUsers);if(pageUsers.length<1000)break
       }
-      const [{data:accessRows,error:accessError},{data:requestRows,error:requestError}]=await Promise.all([
-        admin.from('app_user_access').select('email,display_name,role,active,created_at').eq('organization_id',callerAccess.organization_id),
-        admin.from('rep_access_requests').select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at,organization_id').eq('organization_id',callerAccess.organization_id).order('created_at',{ascending:false})
+      const [{data:accessRows,error:accessError},{data:requestRows,error:requestError},{data:membershipRows,error:membershipError}]=await Promise.all([
+        admin.from('app_user_access').select('email,display_name,role,active,created_at,organization_id').eq('organization_id',callerOrganizationId),
+        admin.from('rep_access_requests').select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at,organization_id').eq('organization_id',callerOrganizationId).order('created_at',{ascending:false}),
+        admin.from('organization_memberships').select('auth_user_id,role,active,is_default,updated_at').eq('organization_id',callerOrganizationId)
       ])
-      if(accessError)throw accessError;if(requestError)throw requestError
+      if(accessError)throw accessError;if(requestError)throw requestError;if(membershipError)throw membershipError
       const accessByEmail=new Map((accessRows||[]).map((row:any)=>[String(row.email||'').toLowerCase(),row]))
       const latestRequestByUser=new Map<string,any>()
       for(const row of requestRows||[]){const key=String(row.user_id||'');if(key&&!latestRequestByUser.has(key))latestRequestByUser.set(key,row)}
+      const membershipByUser=new Map<string,any>()
+      for(const row of membershipRows||[]){const key=String(row.auth_user_id||'');if(key&&!membershipByUser.has(key))membershipByUser.set(key,row)}
+      const eligibleAuthUserIds=new Set<string>([
+        ...(requestRows||[]).map((row:any)=>String(row.user_id||'')),
+        ...(membershipRows||[]).map((row:any)=>String(row.auth_user_id||''))
+      ].filter(Boolean))
+      const eligibleEmails=new Set<string>((accessRows||[]).map((row:any)=>String(row.email||'').trim().toLowerCase()).filter(Boolean))
       const accounts=authUsers.filter((account:any)=>{
         const accountEmail=String(account.email||'').trim().toLowerCase();if(!accountEmail||account.is_anonymous||account.deleted_at)return false
-        return !accessByEmail.get(accountEmail)?.active
+        return eligibleAuthUserIds.has(String(account.id))||eligibleEmails.has(accountEmail)
       }).map((account:any)=>{
-        const accountEmail=String(account.email||'').trim().toLowerCase(),access=accessByEmail.get(accountEmail) as any,request=latestRequestByUser.get(String(account.id)) as any
+        const accountEmail=String(account.email||'').trim().toLowerCase(),access=accessByEmail.get(accountEmail) as any,request=latestRequestByUser.get(String(account.id)) as any,membership=membershipByUser.get(String(account.id)) as any
         const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
         const displayName=String(request?.display_name||access?.display_name||metadataName||accountEmail).trim()
         const emailConfirmedAt=account.email_confirmed_at||account.confirmed_at||null
-        const accessState=!emailConfirmedAt?'email_unconfirmed':request?.status==='pending'?'approval_requested':access?'access_inactive':'no_access_record'
-        return {email:accountEmail,display_name:displayName,account_created_at:account.created_at||null,email_confirmed_at:emailConfirmedAt,last_sign_in_at:account.last_sign_in_at||null,access_state:accessState,access_active:!!access?.active,request:request?{id:request.id,status:request.status,requested_role:request.requested_role,requested_team:request.requested_team,created_at:request.created_at,reviewed_at:request.reviewed_at}:null}
-      }).sort((left:any,right:any)=>String(right.account_created_at||'').localeCompare(String(left.account_created_at||'')))
+        const accessActive=access?.active===true,membershipActive=membership?.active===true,requestPending=request?.status==='pending'
+        if(emailConfirmedAt&&accessActive&&membershipActive&&!requestPending)return null
+        const requiresMembershipRepair=accessActive&&!membershipActive
+        const accessState=requiresMembershipRepair?'access_incomplete':!emailConfirmedAt?'email_unconfirmed':requestPending?'approval_requested':access?'access_inactive':'no_access_record'
+        return {email:accountEmail,display_name:displayName,account_created_at:account.created_at||null,email_confirmed_at:emailConfirmedAt,last_sign_in_at:account.last_sign_in_at||null,access_state:accessState,access_active:accessActive,membership_active:membershipActive,requires_membership_repair:requiresMembershipRepair,auth_user_id:String(account.id),request:request?{id:request.id,status:request.status,requested_role:request.requested_role,requested_team:request.requested_team,created_at:request.created_at,reviewed_at:request.reviewed_at}:null}
+      }).filter(Boolean).sort((left:any,right:any)=>String(right.account_created_at||'').localeCompare(String(left.account_created_at||'')))
       return json({ok:true,accounts})
     }
     if(action==='list_regions'){
@@ -202,17 +213,21 @@ Deno.serve(async(req)=>{
     if(action==='grant_pending_account_access'){
       const target=String(body.email||'').trim().toLowerCase();if(!target)return json({error:'email_required'},400)
       const account=await findAuthAccountByEmail(target);if(!account?.id)return json({error:'user_not_found'},404)
-      const {data:existingAccess,error:accessLookupError}=await admin.from('app_user_access').select('email,display_name,active,organization_id').eq('email',target).maybeSingle();if(accessLookupError)throw accessLookupError
-      if(existingAccess&&existingAccess.organization_id!==callerAccess.organization_id)return json({error:'account_belongs_to_another_organization'},409)
+      const [{data:existingAccess,error:accessLookupError},{data:request,error:requestError}]=await Promise.all([
+        admin.from('app_user_access').select('email,display_name,active,organization_id').eq('email',target).maybeSingle(),
+        admin.from('rep_access_requests').select('*').eq('organization_id',callerOrganizationId).eq('user_id',account.id).in('status',['pending','approved']).order('created_at',{ascending:false}).limit(1).maybeSingle()
+      ])
+      if(accessLookupError)throw accessLookupError;if(requestError)throw requestError
+      if(existingAccess&&existingAccess.organization_id!==callerOrganizationId)return json({error:'account_belongs_to_another_organization'},409)
       if(existingAccess?.active)return json({error:'account_already_active'},409)
-      const {data:request,error:requestError}=await admin.from('rep_access_requests').select('*').eq('organization_id',callerAccess.organization_id).eq('user_id',account.id).order('created_at',{ascending:false}).limit(1).maybeSingle();if(requestError)throw requestError
+      if(!request&&!existingAccess)return json({error:'pending_account_not_found'},404)
       const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
       const displayName=String(request?.display_name||body.display_name||existingAccess?.display_name||metadataName||target).trim().slice(0,120)
       const team=String(request?.requested_team||'').trim().slice(0,120)||null
-      const {error:accessError}=await admin.from('app_user_access').upsert({organization_id:callerAccess.organization_id,email:target,role:'rep',active:true,display_name:displayName,sales_classification:'trainee',team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
+      const {error:accessError}=await admin.from('app_user_access').upsert({organization_id:callerOrganizationId,email:target,role:'rep',active:true,display_name:displayName,sales_classification:'trainee',team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
       await syncAppUserProfile(target,'rep',team,displayName,true)
       if(request?.status==='pending'){
-        const {error:reviewError}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:'Access granted from Pending Account Access.'}).eq('organization_id',callerAccess.organization_id).eq('id',request.id).eq('status','pending');if(reviewError)throw reviewError
+        const {error:reviewError}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:'Access granted from Pending Account Access.'}).eq('organization_id',callerOrganizationId).eq('id',request.id).eq('status','pending');if(reviewError)throw reviewError
       }
       return json({ok:true,email:target,role:'rep',sales_classification:'trainee',team_name:team,access_granted:true})
     }
@@ -221,9 +236,16 @@ Deno.serve(async(req)=>{
       if(!target)return json({error:'email_required'},400)
       if(password.length<8)return json({error:'password_must_be_at_least_8_characters'},400)
       if(password.length>128)return json({error:'password_too_long'},400)
-      const {data:targetAccess,error:targetError}=await admin.from('app_user_access').select('email,active').eq('organization_id',callerAccess.organization_id).eq('email',target).maybeSingle();if(targetError)throw targetError
-      if(targetAccess?.active)return json({error:'account_is_already_active'},409)
+      const [{data:globalAccess,error:globalAccessError},{data:targetRequest,error:requestError}]=await Promise.all([
+        admin.from('app_user_access').select('email,active,organization_id').eq('email',target).maybeSingle(),
+        admin.from('rep_access_requests').select('id,user_id,status').eq('organization_id',callerOrganizationId).eq('email',target).in('status',['pending','approved']).order('created_at',{ascending:false}).limit(1).maybeSingle()
+      ])
+      if(globalAccessError)throw globalAccessError;if(requestError)throw requestError
+      if(globalAccess&&globalAccess.organization_id!==callerOrganizationId)return json({error:'pending_account_not_found'},404)
+      if(globalAccess?.active)return json({error:'account_is_already_active'},409)
+      if(!globalAccess&&!targetRequest)return json({error:'pending_account_not_found'},404)
       const account=await findAuthAccountByEmail(target);if(!account?.id)return json({error:'user_not_found'},404)
+      if(targetRequest?.user_id&&String(targetRequest.user_id)!==String(account.id))return json({error:'pending_account_identity_mismatch'},409)
       const {error:passwordError}=await admin.auth.admin.updateUserById(account.id,{password})
       if(passwordError)return json({error:'password_update_failed',detail:passwordError.message||'Unable to update this password.'},400)
       return json({ok:true,email:target,password_updated:true,access_granted:false})

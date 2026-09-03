@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs'
 const repOnboarding=readFileSync(new URL('./supabase/functions/rep-onboarding/index.ts',import.meta.url),'utf8')
 const pendingAccess=readFileSync(new URL('./supabase/functions/pending-account-access/index.ts',import.meta.url),'utf8')
 const photoStage=readFileSync(new URL('./supabase/functions/provider-sale-photo-stage/index.ts',import.meta.url),'utf8')
+const spotioAdmin=readFileSync(new URL('./supabase/functions/spotio-admin/index.ts',import.meta.url),'utf8')
 const requestScope=readFileSync(new URL('./supabase/migrations/20260903015716_scope_rep_access_requests_to_organization.sql',import.meta.url),'utf8')
 
 test('mixed onboarding has one authorization helper and preserves pre-membership status/request access',()=>{
@@ -55,4 +56,21 @@ test('photo finalization uses an organization-scoped conditional claim',()=>{
   assert.match(photoStage,/photo_attachment_in_progress/)
   assert.match(photoStage,/photo_attachment_claim_lost/)
   assert.match(photoStage,/\.eq\('status', 'attaching'\)[\s\S]*?\.eq\('attached_sale_id', saleId\)[\s\S]*?\.eq\('attached_sale_photo_id', salePhotoId\)/)
+})
+
+
+test('legacy pending-account actions require an existing caller-organization relationship',()=>{
+  assert.match(repOnboarding,/const eligibleAuthUserIds=new Set<string>/)
+  assert.match(repOnboarding,/\.from\('organization_memberships'\)\.select\('auth_user_id,role,active,is_default,updated_at'\)\.eq\('organization_id',callerOrganizationId\)/)
+  assert.match(repOnboarding,/eligibleAuthUserIds\.has\(String\(account\.id\)\)\|\|eligibleEmails\.has\(accountEmail\)/)
+  assert.match(repOnboarding,/if\(!request&&!existingAccess\)return json\(\{error:'pending_account_not_found'\},404\)/)
+  assert.match(repOnboarding,/if\(!globalAccess&&!targetRequest\)return json\(\{error:'pending_account_not_found'\},404\)/)
+  assert.match(repOnboarding,/pending_account_identity_mismatch/)
+})
+
+test('SPOTIO credentials require the default McCoy membership and matching Admin access',()=>{
+  assert.match(spotioAdmin,/\.from\('organization_memberships'\)[\s\S]*\.eq\('auth_user_id',authUserId\)[\s\S]*\.eq\('is_default',true\)/)
+  assert.match(spotioAdmin,/\.from\('organizations'\)[\s\S]*\.eq\('slug','mccoy-platform-llc'\)/)
+  assert.match(spotioAdmin,/\.from\('app_user_access'\)[\s\S]*\.eq\('organization_id',membership\.organization_id\)[\s\S]*\.eq\('email',email\)/)
+  assert.match(spotioAdmin,/!access\?\.active\|\|access\.role!=='admin'/)
 })

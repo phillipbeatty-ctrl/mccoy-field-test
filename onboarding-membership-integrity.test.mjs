@@ -91,6 +91,7 @@ test('production Edge deployment is explicit, owner-gated, and limited to review
   assert.match(deploymentWorkflow,/github\.event\.issue\.number == 116/)
   assert.match(deploymentWorkflow,/github\.event\.comment\.user\.login == 'phillipbeatty-ctrl'/)
   assert.match(deploymentWorkflow,/github\.event\.comment\.body == 'DEPLOY_ONBOARDING_INTEGRITY_PR116'/)
+  assert.match(deploymentWorkflow,/github\.event_name == 'workflow_dispatch' && github\.actor == 'phillipbeatty-ctrl'/)
   assert.match(deploymentWorkflow,/environment: production/)
   assert.match(deploymentWorkflow,/ref: main/)
   assert.match(deploymentWorkflow,/for function_name in rep-onboarding pending-account-access provider-sale-photo-stage/)
