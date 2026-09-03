@@ -46,15 +46,16 @@ jobs:
           bash scripts/test-live-feed-local.sh
           git diff --check
 
-      - name: Commit verified fixes and remove one-time scaffolding
+      - name: Commit verified non-workflow fixes
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/scripts/finish-free-live-feed-review-fixes.py
-          rm -f .github/workflows/finish-free-live-feed-review-fixes-once.yml
+          # GitHub's per-run token may not modify workflow files. Restore that one
+          # reviewed change here; the connected owner session applies it separately.
+          git restore .github/workflows/live-feed-local-supabase.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add app-live-feed.js docs/live-feed-free-test-plan.md live-feed-comments-contract.test.mjs live-feed-local-harness.test.mjs package.json scripts/test-live-feed-local.sh
           git diff --cached --check
           git commit -m 'Harden free Live Feed initialization and validation'
           git push origin HEAD:preview/live-feed-comments-20260903
