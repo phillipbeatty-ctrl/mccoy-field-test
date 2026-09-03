@@ -1,4 +1,4 @@
-// One authenticated Realtime subscription drives rankings, Live Wins, and sale celebrations.
+// One authenticated Realtime subscription drives rankings, verified-sale Live Feed events, and sale celebrations.
 (()=>{
   let channel=null,started=false,running=false;
   const queue=[];
@@ -66,4 +66,14 @@
   window.addEventListener('mccoy-access-ready',start);
   const poll=setInterval(()=>{if(window.MCCOY_ACCESS?.access){clearInterval(poll);start()}},300);
   window.addEventListener('beforeunload',()=>{if(channel)sb.removeChannel(channel)});
+})();
+
+// Preview branch only: load the mixed sale-and-comment Live Feed after the
+// verified-sale celebration authority is installed, so sales retain priority.
+(()=>{
+  if(document.querySelector('script[data-mccoy-live-feed-preview]'))return;
+  const script=document.createElement('script');
+  script.src='app-live-feed.js?v=2026090301';
+  script.dataset.mccoyLiveFeedPreview='1';
+  document.head.appendChild(script);
 })();
