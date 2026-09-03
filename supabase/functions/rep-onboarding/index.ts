@@ -1,4 +1,3 @@
-import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
@@ -7,7 +6,7 @@ const PAY_LEVELS=['trainee','experienced','active_manager_trainer'] as const
 const payLevel=(value:any)=>PAY_LEVELS.includes(String(value||'') as any)?String(value):null
 const displayName=(value:any)=>String(value??'').trim().replace(/\s+/g,' ')
 const isTeamLeaderRole=(role:any)=>role==='manager'||role==='trainer'
-serveWithOrganizationAccess('admin_controls',async(req)=>{
+Deno.serve(async(req)=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders})
   try{
     const auth=req.headers.get('Authorization')||''; const jwt=auth.replace(/^Bearer\s+/,''); if(!jwt) return json({error:'unauthorized'},401)
@@ -15,7 +14,13 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
     const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}})
     const {data:{user},error:uerr}=await admin.auth.getUser(jwt); if(uerr||!user?.email) return json({error:'unauthorized'},401)
     const email=user.email.toLowerCase(); const body=await req.json().catch(()=>({})); const action=String(body.action||'status')
-    const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name').eq('email',email).maybeSingle()
+    const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name,organization_id').eq('email',email).maybeSingle()
+    async function requireOrganizationAccess(entitlement:string){
+      const {error}=await admin.rpc('service_assert_organization_access',{p_auth_user_id:user.id,p_entitlement:entitlement})
+      if(!error)return null
+      const reason=String(error.message||'').match(/organization_access_denied:([a-z0-9_]+)/i)?.[1]||'organization_access_denied'
+      return json({error:'organization_access_denied',reason,organization_access:{access_allowed:false,denial_reason:reason,entitlement_key:entitlement,purchase_model:'organization_managed_external',purchase_action_available:false}},403)
+    }
     if(action==='status'){
       const {data:reqRow}=await admin.from('rep_access_requests').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).limit(1).maybeSingle()
       return json({ok:true,access:callerAccess?.active?callerAccess:null,request:reqRow||null,email})
@@ -31,6 +36,8 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
     }
     if(action==='team_rosters'){
       if(!callerAccess?.active)return json({error:'forbidden'},403)
+      const teamAccessDenied=await requireOrganizationAccess('field_coach_access')
+      if(teamAccessDenied)return teamAccessDenied
       const [{data:accounts,error:accountError},{data:profiles,error:profileError},{data:teamRows,error:teamError}]=await Promise.all([
         admin.from('app_user_access').select('email,display_name,role,sales_classification,team_name,assigned_manager_email,assigned_manager_name').eq('active',true).order('display_name'),
         admin.from('users').select('id,email').eq('active',true).not('email','is',null),
@@ -53,6 +60,8 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
       return json({ok:true,rosters,unassigned_reps:unassigned_reps,visibility:'active_users_no_emails'})
     }
     if(!callerAccess?.active||callerAccess.role!=='admin') return json({error:'admin_only'},403)
+    const adminAccessDenied=await requireOrganizationAccess('admin_controls')
+    if(adminAccessDenied)return adminAccessDenied
     if(action==='list_pending'){
       const {data,error}=await admin.from('rep_access_requests').select('*').eq('status','pending').order('created_at',{ascending:true}); if(error) throw error
       const {data:managerCandidates}=await admin.from('app_user_access').select('email,display_name,team_name,role,assigned_admin_email').eq('active',true).in('role',['manager','trainer','admin']).order('display_name')
@@ -132,9 +141,9 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
     }
     async function syncAppUserProfile(targetEmail:string,role:string,team:string|null,displayName:string,active=true){
       const account=await findAuthAccountByEmail(targetEmail);if(!account?.id)throw new Error('user_profile_account_not_found')
-      let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
+      let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('organization_id',callerAccess.organization_id).eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
       const parts=String(displayName||'').trim().split(/\s+/).filter(Boolean);const firstName=parts.shift()||null,lastName=parts.join(' ')||null
-      const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
+      const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,organization_id:callerAccess.organization_id,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
     }
     if(action==='set_secondary_admin'){
       if(user.id!=='f9053207-1af1-4ed1-be43-28f4bf5d7732'||email!=='phillip.beatty@gmail.com')return json({error:'original_owner_only'},403)
@@ -171,7 +180,7 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
       const requestedClassification=payLevel(body.sales_classification)
       if(body.sales_classification!==undefined&&body.sales_classification!==null&&String(body.sales_classification)!==''&&!requestedClassification)return json({error:'invalid_sales_classification',allowed:PAY_LEVELS},400)
       const classification=requestedClassification||(role==='rep'?'trainee':null)
-      const {error:aerr}=await admin.from('app_user_access').upsert({email:targetEmail,role,active:true,display_name:displayName,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:isTeamLeaderRole(role)?owner.email:null,assigned_manager_name:role==='rep'?mgr.name:isTeamLeaderRole(role)?owner.name:null,assigned_admin_email:isTeamLeaderRole(role)?owner.email:null,assigned_admin_name:isTeamLeaderRole(role)?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
+      const {error:aerr}=await admin.from('app_user_access').upsert({organization_id:callerAccess.organization_id,email:targetEmail,role,active:true,display_name:displayName,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:isTeamLeaderRole(role)?owner.email:null,assigned_manager_name:role==='rep'?mgr.name:isTeamLeaderRole(role)?owner.name:null,assigned_admin_email:isTeamLeaderRole(role)?owner.email:null,assigned_admin_name:isTeamLeaderRole(role)?owner.name:null},{onConflict:'email'});if(aerr)throw aerr
       await syncAppUserProfile(targetEmail,role,team,displayName,true)
       const {error:rerr}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:String(body.notes||'').slice(0,1000)}).eq('id',requestId);if(rerr)throw rerr
       return json({ok:true,approved_email:r.email,role,sales_classification:classification,team_name:team,assigned_manager_email:role==='rep'?mgr.email:isTeamLeaderRole(role)?owner.email:null,assigned_admin_email:isTeamLeaderRole(role)?owner.email:null})
@@ -185,7 +194,7 @@ serveWithOrganizationAccess('admin_controls',async(req)=>{
       const metadata=account.user_metadata||{},metadataName=String(metadata.full_name||metadata.name||[metadata.first_name,metadata.last_name].filter(Boolean).join(' ')||'').trim()
       const displayName=String(request?.display_name||body.display_name||existingAccess?.display_name||metadataName||target).trim().slice(0,120)
       const team=String(request?.requested_team||'').trim().slice(0,120)||null
-      const {error:accessError}=await admin.from('app_user_access').upsert({email:target,role:'rep',active:true,display_name:displayName,sales_classification:'trainee',team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
+      const {error:accessError}=await admin.from('app_user_access').upsert({organization_id:callerAccess.organization_id,email:target,role:'rep',active:true,display_name:displayName,sales_classification:'trainee',team_name:team,assigned_manager_email:null,assigned_manager_name:null,assigned_admin_email:null,assigned_admin_name:null},{onConflict:'email'});if(accessError)throw accessError
       await syncAppUserProfile(target,'rep',team,displayName,true)
       if(request?.status==='pending'){
         const {error:reviewError}=await admin.from('rep_access_requests').update({status:'approved',reviewed_at:new Date().toISOString(),reviewed_by:email,notes:'Access granted from Pending Account Access.'}).eq('id',request.id).eq('status','pending');if(reviewError)throw reviewError
