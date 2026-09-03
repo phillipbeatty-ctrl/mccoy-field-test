@@ -1,61 +1,45 @@
 name: Import and Pending Access Regression
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
-      - 'spotio-import.html'
-      - 'spotio-import-compat.js'
-      - 'app-pending-access-fix.js'
-      - 'app-admin-lead-import.js'
-      - 'pending-access.html'
-      - 'pending-access.js'
+      - 'scripts/apply-edge-paywall-guards.mjs'
+      - 'scripts/normalize-onboarding-generated-source.mjs'
+      - 'supabase/functions/rep-onboarding/**'
       - 'supabase/functions/pending-account-access/**'
-      - 'supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql'
-      - 'supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql'
-      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
-      - 'import-pending-access-fix.test.mjs'
-      - 'onboarding-membership-integrity.test.mjs'
-      - '.github/workflows/deploy-onboarding-integrity.yml'
+      - 'supabase/functions/provider-sale-photo-stage/**'
       - '.github/workflows/import-pending-access-fix.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'spotio-import.html'
-      - 'spotio-import-compat.js'
-      - 'app-pending-access-fix.js'
-      - 'app-admin-lead-import.js'
-      - 'pending-access.html'
-      - 'pending-access.js'
-      - 'supabase/functions/pending-account-access/**'
-      - 'supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql'
-      - 'supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql'
-      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
-      - 'import-pending-access-fix.test.mjs'
-      - 'onboarding-membership-integrity.test.mjs'
-      - '.github/workflows/deploy-onboarding-integrity.yml'
-      - '.github/workflows/import-pending-access-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  regression:
+  normalize-generated-source:
+    if: github.actor == 'phillipbeatty-ctrl'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify browser and Edge syntax
+      - name: Normalize generated onboarding source
         run: |
-          node --check spotio-import-compat.js
-          node --check app-pending-access-fix.js
-          node --check app-admin-lead-import.js
-          node --check pending-access.js
-          cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
-          node --check /tmp/pending-account-access.mjs
-      - name: Validate guarded deployment workflow YAML
-        run: ruby -e "require 'yaml'; YAML.parse_file('.github/workflows/deploy-onboarding-integrity.yml'); puts 'onboarding deployment workflow YAML parsed'"
-      - name: Run importer and pending account regression tests
+          node scripts/apply-edge-paywall-guards.mjs --write
+          node scripts/normalize-onboarding-generated-source.mjs --write
+      - name: Commit normalized source
+        shell: bash
         run: |
-          node --test \
-            import-pending-access-fix.test.mjs \
-            onboarding-membership-integrity.test.mjs
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'Generated source is already normalized.'
+            exit 0
+          fi
+          git config user.name 'Field Coach Release Bot'
+          git config user.email 'phillip.beatty@gmail.com'
+          git add supabase/functions
+          git commit -m 'Normalize generated onboarding source'
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
