@@ -1,0 +1,1 @@
+Deno.serve(()=>new Response(JSON.stringify({error:'address_validation_removed'}),{status:410,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}}))

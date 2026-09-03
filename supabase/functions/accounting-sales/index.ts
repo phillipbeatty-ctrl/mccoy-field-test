@@ -12,7 +12,7 @@ function auditValue(row:any,column:string){
  if(column==='commission_rule_source')return snapshot.source
  return row[column]
 }
-serveWithOrganizationAccess('admin_controls',async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
+serveWithOrganizationAccess('accounting',async(req)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders});try{
  const auth=req.headers.get('Authorization')||'',jwt=auth.replace(/^Bearer\s+/,'');if(!jwt)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});
  const url=Deno.env.get('SUPABASE_URL')!,service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:{user},error:uerr}=await admin.auth.getUser(jwt);if(uerr||!user?.email)return Response.json({error:'unauthorized'},{status:401,headers:corsHeaders});

@@ -10,8 +10,18 @@ on:
       - 'app-admin-lead-import.js'
       - 'pending-access.html'
       - 'pending-access.js'
+      - 'supabase/functions/rep-onboarding/**'
       - 'supabase/functions/pending-account-access/**'
+      - 'supabase/functions/provider-sale-photo-stage/**'
+      - 'supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql'
+      - 'supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql'
+      - 'supabase/migrations/20260903015716_scope_rep_access_requests_to_organization.sql'
+      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
+      - 'onboarding-membership-integrity.test.mjs'
+      - 'onboarding-tenant-boundary.test.mjs'
+      - 'paywall-phase2.test.mjs'
+      - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
   push:
     branches: [main]
@@ -22,9 +32,22 @@ on:
       - 'app-admin-lead-import.js'
       - 'pending-access.html'
       - 'pending-access.js'
+      - 'supabase/functions/rep-onboarding/**'
       - 'supabase/functions/pending-account-access/**'
+      - 'supabase/functions/provider-sale-photo-stage/**'
+      - 'supabase/migrations/20260903004737_atomic_onboarding_organization_membership_integrity.sql'
+      - 'supabase/migrations/20260903012549_restrict_onboarding_identity_helper_execution.sql'
+      - 'supabase/migrations/20260903015716_scope_rep_access_requests_to_organization.sql'
+      - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
+      - 'onboarding-membership-integrity.test.mjs'
+      - 'onboarding-tenant-boundary.test.mjs'
+      - 'paywall-phase2.test.mjs'
+      - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
+
+permissions:
+  contents: read
 
 jobs:
   regression:
@@ -34,13 +57,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
       - name: Verify browser and Edge syntax
         run: |
           node --check spotio-import-compat.js
           node --check app-pending-access-fix.js
           node --check app-admin-lead-import.js
           node --check pending-access.js
-          cp supabase/functions/pending-account-access/index.ts /tmp/pending-account-access.mjs
-          node --check /tmp/pending-account-access.mjs
-      - name: Run importer and pending account regression tests
-        run: node --test import-pending-access-fix.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/rep-onboarding/index.ts
+          deno check --node-modules-dir=auto supabase/functions/pending-account-access/index.ts
+          deno check --node-modules-dir=auto supabase/functions/provider-sale-photo-stage/index.ts
+      - name: Validate guarded deployment workflow YAML
+        run: ruby -e "require 'yaml'; YAML.parse_file('.github/workflows/deploy-onboarding-integrity.yml'); puts 'onboarding deployment workflow YAML parsed'"
+      - name: Run importer, onboarding, and tenant-boundary regressions
+        run: |
+          node --test \
+            import-pending-access-fix.test.mjs \
+            onboarding-membership-integrity.test.mjs \
+            onboarding-tenant-boundary.test.mjs \
+            paywall-phase2.test.mjs

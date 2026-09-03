@@ -81,12 +81,14 @@ test('signup fails closed until public production-mail readiness is true',()=>{
   assert.match(status,/fully_observable/);
 });
 
-test('Pending Account Access shows provider readiness without unattended refreshes',()=>{
+test('Pending Account Access shows provider readiness and organization repair without unattended refreshes',()=>{
   assert.match(pendingPage,/pendingMailStatus/);
-  assert.match(pendingPage,/pending-access\.js\?v=2026083104/);
+  assert.match(pendingPage,/pending-access\.js\?v=2026090201/);
   assert.match(pendingController,/RESEND CONFIRMATION/);
   assert.match(pendingController,/pendingDeliveryLabel/);
   assert.match(pendingController,/production_ready/);
+  assert.match(pendingController,/ACCESS INCOMPLETE — REPAIR ORGANIZATION ACCESS/);
+  assert.match(pendingController,/repair_organization_access/);
   assert.match(pendingController,/pendingLoadPromise/);
   assert.match(pendingController,/pendingRefresh.*addEventListener\('click'/s);
   assert.doesNotMatch(pendingController,/setInterval\(/);

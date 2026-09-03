@@ -26,6 +26,7 @@ function pendingDate(value){
   return Number.isNaN(date.getTime())?'Unknown':date.toLocaleString();
 }
 function pendingStatus(account){
+  if(account.requires_membership_repair)return'ACCESS INCOMPLETE — REPAIR ORGANIZATION ACCESS';
   if(account.waiting_for_email_confirmation&&account.access_active)return'Email not confirmed · access pre-granted';
   if(account.waiting_for_email_confirmation)return'Email not confirmed';
   if(account.request?.status==='pending')return'Approval requested';
@@ -113,9 +114,11 @@ async function pendingRunAction(action){
   finally{pendingActionBusy=false;}
 }
 function pendingRenderAccount(account){
+  const repair=account.requires_membership_repair===true;
   const card=pendingElement('article',null,'card');
   card.style.margin='0';
-  card.style.borderColor=account.waiting_for_email_confirmation?'#f3d28b':'#dbeafe';
+  card.style.borderColor=repair?'#fca5a5':account.waiting_for_email_confirmation?'#f3d28b':'#dbeafe';
+  if(repair)card.style.background='#fff7f7';
 
   const heading=pendingElement('div');
   heading.style.cssText='display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap';
@@ -123,8 +126,8 @@ function pendingRenderAccount(account){
   identity.appendChild(pendingElement('strong',account.display_name||account.email));
   identity.appendChild(pendingElement('div',account.email,'muted small'));
   const badge=pendingElement('span',pendingStatus(account),'badge');
-  badge.style.background=account.waiting_for_email_confirmation?'#fef3c7':'#dbeafe';
-  badge.style.color=account.waiting_for_email_confirmation?'#92400e':'#1e40af';
+  badge.style.background=repair?'#fee2e2':account.waiting_for_email_confirmation?'#fef3c7':'#dbeafe';
+  badge.style.color=repair?'#991b1b':account.waiting_for_email_confirmation?'#92400e':'#1e40af';
   heading.append(identity,badge);
   card.appendChild(heading);
 
@@ -135,12 +138,20 @@ function pendingRenderAccount(account){
   details.appendChild(pendingElement('span',`Email confirmed: ${account.email_confirmed_at?pendingDate(account.email_confirmed_at):'No'}`));
   details.appendChild(pendingElement('span',`Last authentication: ${pendingDate(account.last_sign_in_at)}`));
   details.appendChild(pendingElement('span',`Access request: ${account.request?.status||'Not submitted'}`));
-  details.appendChild(pendingElement('span',`McCoy access: ${account.access_active?'Already granted':'Not active'}`));
+  details.appendChild(pendingElement('span',`McCoy access: ${account.access_active?'Active':'Not active'}`));
+  const membershipLine=pendingElement('strong',`Organization membership: ${account.membership_active?'Active':'Missing or inactive'}`);
+  membershipLine.style.color=account.membership_active?'#166534':'#991b1b';
+  details.appendChild(membershipLine);
+  if(account.membership_role)details.appendChild(pendingElement('span',`Membership role: ${account.membership_role}`));
   const deliveryLine=pendingElement('strong',`Delivery: ${pendingDeliveryLabel(account.delivery)}`);
   deliveryLine.style.color=['bounced','failed','complained','suppressed'].includes(account.delivery?.status)?'#991b1b':'#374151';
   details.appendChild(deliveryLine);
   if(account.delivery?.created_at)details.appendChild(pendingElement('span',`Delivery event time: ${pendingDate(account.delivery.created_at)}`));
-  if(account.waiting_for_email_confirmation){
+  if(repair){
+    const warning=pendingElement('strong','The login and McCoy access records exist, but the organization membership is incomplete. Repair it before asking the user to sign in again.');
+    warning.style.color='#991b1b';
+    details.appendChild(warning);
+  }else if(account.waiting_for_email_confirmation){
     const warning=pendingElement('strong','This user must confirm ownership of the email address before normal sign-in.');
     warning.style.color='#92400e';
     details.appendChild(warning);
@@ -149,8 +160,9 @@ function pendingRenderAccount(account){
 
   const actions=pendingElement('div');
   actions.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:12px';
-  const grant=pendingActionButton(account.access_active?'ACCESS ALREADY GRANTED':'GRANT ACCESS',account.access_active?'assign-btn':'primary');
-  grant.disabled=Boolean(account.access_active);
+  const grantText=repair?'REPAIR ORGANIZATION ACCESS':account.access_active?'ACCESS ALREADY GRANTED':'GRANT ACCESS';
+  const grant=pendingActionButton(grantText,repair||!account.access_active?'primary':'assign-btn');
+  grant.disabled=Boolean(account.access_active&&!repair);
   const reset=pendingActionButton('RESET PASSWORD');
   actions.appendChild(grant);
 
@@ -202,19 +214,25 @@ function pendingRenderAccount(account){
   card.appendChild(message);
 
   grant.addEventListener('click',()=>pendingRunAction(async()=>{
-    if(account.access_active)return;
+    if(account.access_active&&!repair)return;
     grant.disabled=true;
     reset.disabled=true;
-    grant.textContent='GRANTING…';
+    grant.textContent=repair?'REPAIRING…':'GRANTING…';
     try{
-      await pendingInvoke('rep-onboarding',{action:'grant_pending_account_access',email:account.email,display_name:account.display_name});
-      await pendingLoad();
-      pendingSetMessage(pendingAccessMessage,`Access granted to ${account.display_name||account.email}.`,true);
+      if(repair){
+        await pendingInvoke('pending-account-access',{action:'repair_organization_access',email:account.email});
+        await pendingLoad();
+        pendingSetMessage(pendingAccessMessage,`Organization access repaired for ${account.display_name||account.email}.`,true);
+      }else{
+        await pendingInvoke('rep-onboarding',{action:'grant_pending_account_access',email:account.email,display_name:account.display_name});
+        await pendingLoad();
+        pendingSetMessage(pendingAccessMessage,`Access granted to ${account.display_name||account.email}.`,true);
+      }
     }catch(error){
       grant.disabled=false;
       reset.disabled=false;
-      grant.textContent='GRANT ACCESS';
-      pendingSetMessage(message,error?.message||'Unable to grant access.');
+      grant.textContent=repair?'REPAIR ORGANIZATION ACCESS':'GRANT ACCESS';
+      pendingSetMessage(message,error?.message||'Unable to complete this access action.');
     }
   }));
   reset.addEventListener('click',()=>{
@@ -251,7 +269,7 @@ function pendingRenderAccount(account){
       pendingSetMessage(message,error?.message||'Unable to update this password.');
     }finally{
       apply.disabled=false;
-      grant.disabled=Boolean(account.access_active);
+      grant.disabled=Boolean(account.access_active&&!repair);
       cancel.disabled=false;
       apply.textContent='UPDATE PASSWORD';
     }
@@ -263,7 +281,7 @@ function pendingLoad(){
   pendingLoadPromise=(async()=>{
     const refresh=pendingById('pendingRefresh');
     if(refresh){refresh.disabled=true;refresh.textContent='REFRESHING…';}
-    pendingSetMessage(pendingAccessMessage,'Loading authoritative pending-account and email-delivery data…',true);
+    pendingSetMessage(pendingAccessMessage,'Loading authoritative pending-account and organization-access data…',true);
     try{
       const {access}=await pendingVerifyAdmin();
       const data=await pendingInvoke('pending-account-access',{action:'list'});

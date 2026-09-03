@@ -1,0 +1,88 @@
+name: Finalize onboarding race fixes once
+
+on:
+  push:
+    branches:
+      - fix/atomic-onboarding-membership-20260902
+    paths:
+      - .github/workflows/finalize-onboarding-race-fixes-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out onboarding branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/atomic-onboarding-membership-20260902
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Apply the reviewed race-condition repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/finalize-onboarding-race-fixes.py
+          python3 .github/scripts/finalize-onboarding-race-fixes.py
+
+      - name: Retire generator transforms superseded by atomic action blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/apply-edge-paywall-guards.mjs')
+          source=path.read_text()
+          superseded=("'approval request scope'","'approval update scope'")
+          source='\n'.join(line for line in source.splitlines() if not any(label in line for label in superseded))+'\n'
+          path.write_text(source)
+          PY
+
+      - name: Verify source generation, TypeScript, and onboarding contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/apply-edge-paywall-guards.mjs
+          deno check --node-modules-dir=auto supabase/functions/rep-onboarding/index.ts
+          deno check --node-modules-dir=auto supabase/functions/pending-account-access/index.ts
+          deno check --node-modules-dir=auto supabase/functions/provider-sale-photo-stage/index.ts
+          deno check --node-modules-dir=auto supabase/functions/spotio-admin/index.ts
+          node --test \
+            onboarding-membership-integrity.test.mjs \
+            onboarding-tenant-boundary.test.mjs \
+            import-pending-access-fix.test.mjs \
+            paywall-phase2.test.mjs \
+            paywall-deployment.test.mjs
+
+      - name: Commit verified repairs without modifying workflow files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/scripts/finalize-onboarding-race-fixes.py
+          rm -rf .github/scripts/__pycache__
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            supabase/functions/rep-onboarding/index.ts \
+            scripts/apply-edge-paywall-guards.mjs \
+            onboarding-tenant-boundary.test.mjs \
+            onboarding-membership-integrity.test.mjs \
+            paywall-phase2.test.mjs \
+            .github/scripts/finalize-onboarding-race-fixes.py
+          git diff --cached --check
+          git commit -m "Make onboarding account claims atomic"
+          git push origin HEAD:fix/atomic-onboarding-membership-20260902

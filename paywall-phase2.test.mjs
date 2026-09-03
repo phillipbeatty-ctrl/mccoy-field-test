@@ -7,7 +7,32 @@ const read=path=>readFile(new URL(path,import.meta.url),'utf8')
 const sharedGuard=await read('./supabase/functions/_shared/organization-paywall.ts')
 const accountingMigration=await read('./supabase/migrations/20260901073000_paywall_phase2_accounting_entitlement.sql')
 const workflow=await read('./.github/workflows/apply-edge-paywall-guards.yml')
+const repOnboarding=await read('./supabase/functions/rep-onboarding/index.ts')
+const providerPhotoStage=await read('./supabase/functions/provider-sale-photo-stage/index.ts')
 const functionsRoot=new URL('./supabase/functions/',import.meta.url)
+const retiredAddressValidationSlugs=[
+  'address-validation-admin-review',
+  'address-validation-pilot',
+  'address-validation-repair'
+]
+const retiredRecoverySlugs=[
+  'spotio-controlled-recovery',
+  'spotio-dom-geocode',
+  'spotio-dom-recovery',
+  'spotio-recovery-decode',
+  'spotio-recovery-decrypt',
+  'spotio-recovery-exact',
+  'spotio-recovery-load',
+  'spotio-recovery-prepare',
+  'spotio-recovery-stream',
+  'spotio-recovery-upload'
+]
+const retiredVerificationSlugs=[
+  'spotio-composite-check',
+  'spotio-count-check',
+  'spotio-live-verification',
+  'spotio-unit-check'
+]
 
 test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('lead-admin'),'lead_management')
@@ -21,9 +46,9 @@ test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('metrics-visibility'),'analytics')
   assert.equal(edgePaywallTargets.get('accounting-records'),'accounting')
   assert.equal(edgePaywallTargets.get('accounting-sales'),'accounting')
-  assert.equal(edgePaywallTargets.get('rep-onboarding'),'admin_controls')
-  assert.equal(edgePaywallTargets.get('native-location-ingest'),'native_background_location')
   assert.equal(edgePaywallTargets.get('session-control'),'native_background_location')
+  assert.equal(edgePaywallTargets.has('rep-onboarding'),false)
+  assert.equal(edgePaywallExemptions.get('rep-onboarding'),'mixed_pre_membership_and_admin_endpoint')
 })
 
 test('every protected Edge Function has exactly one shared organization guard',async()=>{
@@ -37,12 +62,89 @@ test('every protected Edge Function has exactly one shared organization guard',a
   }
 })
 
+test('mixed onboarding keeps first-access actions reachable and gates business actions internally',()=>{
+  assert.match(repOnboarding,/Deno\.serve\(async\(req\)=>\{/)
+  assert.doesNotMatch(repOnboarding,/serveWithOrganizationAccess\(/)
+  const statusIndex=repOnboarding.indexOf("if(action==='status')")
+  const requestIndex=repOnboarding.indexOf("if(action==='request_access')")
+  const rosterIndex=repOnboarding.indexOf("if(action==='team_rosters')")
+  const adminGateIndex=repOnboarding.indexOf("requireOrganizationAccess('admin_controls')")
+  assert.ok(statusIndex>=0&&requestIndex>statusIndex)
+  assert.ok(rosterIndex>requestIndex,'team roster must run only after the pre-membership actions')
+  assert.ok(adminGateIndex>rosterIndex,'Admin entitlement assertion must not precede status or request_access')
+  assert.match(repOnboarding,/requireOrganizationAccess\('field_coach_access'\)/)
+  assert.match(repOnboarding,/requireOrganizationAccess\('admin_controls'\)/)
+  assert.match(repOnboarding,/service_assert_organization_access/)
+  assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:targetEmail/)
+  assert.match(repOnboarding,/organization_id:callerOrganizationId,email:target,role:'rep'/)
+  assert.match(repOnboarding,/organization_id:callerOrganizationId,email:targetEmail\.toLowerCase\(\)/)
+})
+
+test('provider photo capture lookup is scoped to organization and signed-in user',()=>{
+  assert.match(providerPhotoStage,/const authUserId = user\.id/)
+  assert.match(providerPhotoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('id', id\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', authUserId\)/)
+})
+
 test('every Edge Function is protected or has a documented narrow exemption',async()=>{
   const entries=await readdir(functionsRoot,{withFileTypes:true})
   const slugs=entries.filter(entry=>entry.isDirectory()&&entry.name!=='_shared').map(entry=>entry.name)
   const uncategorized=slugs.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
   assert.deepEqual(uncategorized,[])
-  assert.ok(edgePaywallTargets.size>=40,'Phase 2 must cover the full business-function surface')
+  assert.ok(edgePaywallTargets.size>=25,'Phase 2 must protect every active bearer-authenticated business function')
+  assert.equal(edgePaywallTargets.size+edgePaywallExemptions.size,slugs.length)
+})
+
+test('retired address-validation endpoints preserve the deployed 410 tombstone contract',async()=>{
+  for(const slug of retiredAddressValidationSlugs){
+    assert.equal(edgePaywallTargets.has(slug),false)
+    assert.equal(edgePaywallExemptions.get(slug),'retired_endpoint_returns_410_no_business_data')
+    const source=await read(`./supabase/functions/${slug}/index.ts`)
+    assert.equal(
+      source,
+      "Deno.serve(()=>new Response(JSON.stringify({error:'address_validation_removed'}),{status:410,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}}))"
+    )
+  }
+})
+
+test('retired SPOTIO recovery and verification endpoints preserve deployed 410 contracts',async()=>{
+  for(const slug of retiredRecoverySlugs){
+    assert.equal(edgePaywallTargets.has(slug),false)
+    assert.equal(edgePaywallExemptions.get(slug),'retired_recovery_endpoint_returns_410')
+    assert.equal(
+      await read(`./supabase/functions/${slug}/index.ts`),
+      "Deno.serve(()=>Response.json({error:'recovery_endpoint_retired'},{status:410,headers:{'Cache-Control':'no-store'}}))\n"
+    )
+  }
+  for(const slug of retiredVerificationSlugs){
+    assert.equal(edgePaywallTargets.has(slug),false)
+    assert.equal(edgePaywallExemptions.get(slug),'retired_verification_endpoint_returns_410')
+    assert.equal(
+      await read(`./supabase/functions/${slug}/index.ts`),
+      "Deno.serve(()=>Response.json({error:'verification_endpoint_retired'},{status:410,headers:{'Cache-Control':'no-store'}}))\n"
+    )
+  }
+  assert.equal(edgePaywallExemptions.get('lead-map-all-visible'),'retired_one_time_endpoint_returns_410')
+  assert.equal(
+    await read('./supabase/functions/lead-map-all-visible/index.ts'),
+    "Deno.serve(()=>Response.json({error:'one_time_operation_retired'},{status:410,headers:{'Cache-Control':'no-store'}}))\n"
+  )
+  const forceLoad=await read('./supabase/functions/spotio-direct-force-load/index.ts')
+  assert.equal(edgePaywallExemptions.get('spotio-direct-force-load'),'retired_recovery_endpoint_returns_410')
+  assert.match(forceLoad,/recovery_endpoint_disabled/)
+  assert.match(forceLoad,/one-time attached SPOTIO recovery has completed/)
+  assert.match(forceLoad,/status: 410/)
+})
+
+test('signed native background ingest remains independently authenticated',async()=>{
+  assert.equal(edgePaywallTargets.has('native-location-ingest'),false)
+  assert.equal(edgePaywallExemptions.get('native-location-ingest'),'signed_background_location_token')
+  const source=await read('./supabase/functions/native-location-ingest/index.ts')
+  assert.match(source,/x-mccoy-location-token/)
+  assert.match(source,/crypto\.subtle\.digest\('SHA-256'/)
+  assert.match(source,/token_sha256/)
+  assert.match(source,/session\.tester_user_id!==grant\.user_id/)
+  assert.match(source,/session\.organization_id!==grant\.organization_id/)
+  assert.match(source,/session_not_open/)
 })
 
 test('account recovery and signed provider callbacks are not blanket paywall gated',()=>{
