@@ -38,6 +38,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           def replace_once(text: str, before: str, after: str, label: str) -> str:
               if after in text:
@@ -108,10 +109,10 @@ jobs:
           )
 
           photo_open = "await applyDeterministicTransform('provider-sale-photo-stage','organization_capture_scope_and_atomic_finalize',source=>{"
-          photo_open_after = photo_open + r'''
-  const authBefore="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n\n    const email = user.email.toLowerCase()"
-  const authAfter="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n    const authUserId = user.id\n\n    const email = user.email.toLowerCase()"
-  source=replaceRequired(source,authBefore,authAfter,'provider-sale-photo-stage stable Auth identity capture')'''
+          photo_open_after = photo_open + dedent(r'''
+            const authBefore="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n\n    const email = user.email.toLowerCase()"
+            const authAfter="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n    const authUserId = user.id\n\n    const email = user.email.toLowerCase()"
+            source=replaceRequired(source,authBefore,authAfter,'provider-sale-photo-stage stable Auth identity capture')''')
           generator = replace_once(
               generator,
               photo_open,
@@ -130,15 +131,15 @@ jobs:
           )
 
           old_block_marker = "\n  const oldBlock=`        if (!['staged', 'attaching', 'failed'].includes(row.status)) continue"
-          nested_block = r'''
+          nested_block = dedent(r'''
 
-  const nestedIdentityReplacements=[
-    ["        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .in('status', ['uploading', 'staged', 'failed'])","        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .in('status', ['uploading', 'staged', 'failed'])",'expired query identity'],
-    ["          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', user.id)","          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', authUserId)",'expired delete identity'],
-    ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .maybeSingle()","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .maybeSingle()",'staged photo identity'],
-    ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)\n        .eq('provider_capture_id', captureId)","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', authUserId)\n        .eq('provider_capture_id', captureId)",'completed sale identity']
-  ]
-  for(const [before,after,label] of nestedIdentityReplacements)source=replaceRequired(source,before,after,`provider-sale-photo-stage ${label}`)'''
+            const nestedIdentityReplacements=[
+              ["        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .in('status', ['uploading', 'staged', 'failed'])","        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .in('status', ['uploading', 'staged', 'failed'])",'expired query identity'],
+              ["          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', user.id)","          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', authUserId)",'expired delete identity'],
+              ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .maybeSingle()","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .maybeSingle()",'staged photo identity'],
+              ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)\n        .eq('provider_capture_id', captureId)","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', authUserId)\n        .eq('provider_capture_id', captureId)",'completed sale identity']
+            ]
+            for(const [before,after,label] of nestedIdentityReplacements)source=replaceRequired(source,before,after,`provider-sale-photo-stage ${label}`)''')
           generator = replace_once(
               generator,
               old_block_marker,
