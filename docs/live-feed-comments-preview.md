@@ -22,7 +22,7 @@ Comments remain completely separate from `sales_feed`, `sales_records`, rankings
 
 Managers and Trainers do not receive moderation authority in this preview. That remains a separate product decision.
 
-All authority is enforced by database functions and Row Level Security. The browser receives only the scopes the server says the signed-in user may read or post.
+All authority is enforced by database functions and Row Level Security. The browser receives only the scopes the server says the signed-in user may read or post. The scope selector is disabled during posting or permission revalidation, so a pending post cannot clear or enter another scope's draft or feed.
 
 ## Server-derived identity and team authority
 
@@ -83,7 +83,7 @@ Realtime subscribes at the organization row boundary and relies on the same RLS 
 
 The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-The client also listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority. Applying that permission snapshot increments the client generation, discards every older in-flight feed/post/moderation response, restarts Realtime, and changes the draft storage namespace before restoring any draft when the server organization changes.
+The client also listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. When the authenticated user, organization, role, or active-access signature changes without a page reload, the client increments an identity generation, removes the old channel, and clears the previous state before initializing again. Every asynchronous response and Realtime callback carries that generation and is discarded after a reset. Returning the app to the foreground also revalidates current team authority. The client synchronously hides the prior feed and draft and disables the composer before awaiting the permission snapshot. Applying the successful snapshot increments the client generation, discards every older in-flight feed/post/moderation response, restarts Realtime, changes the draft storage namespace before restoring any draft when the server organization changes, and then re-queries the selected COMPANY or TEAM feed after subscription so no event can fall between authorization and Realtime.
 
 ## Private moderation evidence
 

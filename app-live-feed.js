@@ -16,6 +16,7 @@
     initialized:false,
     initializing:false,
     authorizationRefreshing:false,
+    authorizationReady:false,
     loading:false,
     reloadQueued:false,
     posting:false,
@@ -176,9 +177,9 @@
           select.dataset.scopeSignature=signature;
         }
         select.value=selectedKey();
-        select.disabled=!state.context||state.loading;
+        select.disabled=!state.context||!state.authorizationReady||state.authorizationRefreshing||state.loading||state.posting;
       }
-      const canPost=!!selected?.can_post;
+      const canPost=!!selected?.can_post&&state.authorizationReady&&!state.authorizationRefreshing;
       if(input&&input!==focus&&input.value!==state.draft)input.value=state.draft;
       if(input){
         input.disabled=!canPost||state.posting;
@@ -187,7 +188,7 @@
       const length=Array.from(state.draft).length;
       if(count){count.textContent=`${length}/${MAX_COMMENT_LENGTH}`;count.classList.toggle('over',length>MAX_COMMENT_LENGTH);}
       if(button){button.disabled=!canPost||state.posting||!state.draft.trim()||length>MAX_COMMENT_LENGTH;button.textContent=state.posting?'POSTING…':state.pendingRequest?'RETRY':'POST';}
-      if(scopeStatus)scopeStatus.textContent=!state.context?'Resolving server permissions…':canPost?'Posting allowed in this scope.':'Read access only in this scope.';
+      if(scopeStatus)scopeStatus.textContent=state.authorizationRefreshing?'Revalidating server permissions…':!state.context?'Resolving server permissions…':canPost?'Posting allowed in this scope.':'Read access only in this scope.';
       if(safety){
         const destination=selected?.scope==='team'?`the ${selected.name} team`:'the company';
         safety.textContent=`Do not post customer names, phone numbers, addresses, account numbers, order information, or other customer data. Free-form comments are text-only, cannot be edited, and remain visible only to you and Admin until an Admin approves them for ${destination}.`;
@@ -369,11 +370,11 @@
 
   async function loadFeed({scope=state.selectedScope,scopeId=state.selectedScopeId,quiet=false}={}){
     const generation=state.generation;
-    if(state.loading){state.reloadQueued=true;return;}
+    if(state.loading){state.reloadQueued=true;return false;}
     state.loading=true;if(!quiet)setComposerStatus('Loading Live Feed…');syncComposers();scheduleRender();
     try{
       const data=await invoke('get_live_feed_v2',{p_scope:scope,p_scope_id:scopeId||null,p_limit:FEED_LIMIT,p_before:null});
-      if(generation!==state.generation)return;
+      if(generation!==state.generation)return false;
       if(!data?.ok)throw new Error(data?.error||'live_feed_load_failed');
       normalizeContext(data.context||{});
       const selected=availableScope(scope,scopeId);
@@ -387,6 +388,7 @@
       state.selectedScope=selected.scope;state.selectedScopeId=selected.scope_id||null;
       state.events=Array.isArray(data.events)?data.events:[];
       if(!quiet)setComposerStatus('');
+      return true;
     }catch(error){
       if(generation!==state.generation)return;
       console.error('Live Feed load failed',error);
@@ -396,6 +398,7 @@
         if(message.includes('team_scope_forbidden'))setTimeout(refreshAuthorization,0);
       }
       setComposerStatus(message,'error');
+      return false;
     }finally{
       if(generation!==state.generation)return;
       state.loading=false;syncComposers();scheduleRender();
@@ -404,6 +407,7 @@
   }
 
   async function changeScope(value){
+    if(state.posting||state.authorizationRefreshing||!state.authorizationReady)return;
     const [scope,id='']=String(value||'').split(':');
     const next=availableScope(scope,id||null);if(!next)return;
     saveDraftState();
@@ -549,7 +553,7 @@
     state.generation+=1;
     const client=resolveClient();if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
     if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
-    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.authorizationRefreshing=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
+    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.authorizationRefreshing=false;state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
     setComposerStatus('');syncComposers();scheduleRender();
   }
 
@@ -558,7 +562,7 @@
     state.generation+=1;
     if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
     if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
-    state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];
+    state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];
     state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;
     state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
     return state.generation;
@@ -569,24 +573,24 @@
     const identity=identitySnapshot(),access=currentAccess();
     if(!access?.active||!identity.key){resetForIdentity('');return;}
     if(identity.key!==state.identityKey){resetForIdentity(identity.key);initialize();return;}
-    let activeGeneration=state.generation;
-    state.authorizationRefreshing=true;
+
+    const previousOrganizationId=String(state.context?.organization_id||'');
+    const previousScope=state.selectedScope,previousScopeId=state.selectedScopeId;
+    if(state.authorizationReady)saveDraftState();
+
+    // Hide all previously authorized content before waiting on the new permission snapshot.
+    let activeGeneration=invalidateForAuthorizationChange();
+    state.authorizationRefreshing=true;state.authorizationReady=false;
+    state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;
+    state.draft='';state.pendingRequest=null;
+    setComposerStatus('Revalidating Live Feed access…');syncComposers();scheduleRender();
+
     try{
       const data=await invoke('get_live_feed_v2',{p_scope:'company',p_scope_id:null,p_limit:FEED_LIMIT,p_before:null});
       if(activeGeneration!==state.generation)return;
       if(!data?.ok)throw new Error(data?.error||'live_feed_authorization_refresh_failed');
 
-      const previousOrganizationId=String(state.context?.organization_id||'');
-      const previousScope=state.selectedScope,previousScopeId=state.selectedScopeId;
-      saveDraftState();
-
-      // This permission snapshot supersedes every request begun under the earlier team map.
-      activeGeneration=invalidateForAuthorizationChange();
-      state.authorizationRefreshing=true;
-      state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;
-      state.draft='';state.pendingRequest=null;
       normalizeContext(data.context||{});
-
       const nextOrganizationId=String(state.context?.organization_id||'');
       const organizationChanged=!!previousOrganizationId&&previousOrganizationId!==nextOrganizationId;
       const next=(!organizationChanged&&availableScope(previousScope,previousScopeId))||roleDefaultScope()||availableScope('company',null);
@@ -599,12 +603,11 @@
 
       await startRealtime();
       if(activeGeneration!==state.generation)return;
-      if(state.selectedScope==='company'){
-        state.events=Array.isArray(data.events)?data.events:[];
-        setComposerStatus('');scheduleRender();
-      }else{
-        await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId,quiet:true});
-      }
+      const loaded=await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId,quiet:true});
+      if(activeGeneration!==state.generation)return;
+      if(!loaded)throw new Error('live_feed_authorization_snapshot_failed');
+      state.authorizationReady=true;
+      setComposerStatus('');syncComposers();scheduleRender();
     }catch(error){
       if(activeGeneration!==state.generation)return;
       const message=String(error?.message||'Unable to revalidate Live Feed access.');
@@ -613,8 +616,8 @@
         resetForIdentity('');
         setComposerStatus('Live Feed access changed. Sign in again or press RECHECK ACCESS.','error');
       }else{
-        state.events=[];scheduleRender();
-        setComposerStatus('Unable to refresh Live Feed permissions. Existing content was hidden until access can be revalidated.','error');
+        state.events=[];state.context=null;state.scopes=[];state.draft='';state.pendingRequest=null;scheduleRender();
+        setComposerStatus('Unable to refresh Live Feed permissions. Existing content and drafts remain hidden until access can be revalidated.','error');
       }
     }finally{
       if(activeGeneration===state.generation){state.authorizationRefreshing=false;syncComposers();}
@@ -638,9 +641,10 @@
       loadDraftState();state.events=[];syncComposers();scheduleRender();
       await startRealtime();
       if(generation!==state.generation)return;
-      await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId});
+      const loaded=await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId});
       if(generation!==state.generation)return;
-      state.initialized=true;
+      if(!loaded)throw new Error('live_feed_initial_snapshot_failed');
+      state.authorizationReady=true;state.initialized=true;
     }catch(error){if(generation===state.generation){console.error('Live Feed initialization failed',error);setComposerStatus(error?.message||'Unable to initialize Live Feed.','error');}}
     finally{if(generation===state.generation){state.initializing=false;syncComposers();}}
   }
