@@ -166,7 +166,7 @@ serveWithOrganizationAccess('lead_management',async(req)=>{if(req.method==='OPTI
    const nullableNumber=(value:any)=>value===null||value===undefined||value===''?null:Number(value);
    const originalLat=nullableNumber(body.original_latitude),originalLng=nullableNumber(body.original_longitude),actorLat=nullableNumber(body.actor_latitude),actorLng=nullableNumber(body.actor_longitude),accuracy=nullableNumber(body.actor_accuracy_meters);
    if([originalLat,originalLng,actorLat,actorLng,accuracy].some(value=>value!==null&&!Number.isFinite(value)))return json({error:'invalid_numeric_input'},400);
-   const {data,error}=await admin.schema('private').rpc('move_lead_pin',{
+   const {data,error}=await admin.rpc('move_lead_pin',{
      p_lead_id:leadId,p_actor_user_id:user.id,p_actor_email:user.email.toLowerCase(),
      p_expected_updated_at:body.expected_updated_at||null,p_original_latitude:originalLat,p_original_longitude:originalLng,
      p_proposed_latitude:proposedLat,p_proposed_longitude:proposedLng,
