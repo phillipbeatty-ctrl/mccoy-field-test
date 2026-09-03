@@ -169,8 +169,8 @@ replace_once(
 
 replace_once(
     DOCS,
-    "- The scope selector is populated only from server-returned authority.",
-    "- The scope selector is populated only from server-returned authority and is disabled during posting or permission revalidation, so a pending post cannot clear or enter another scope's draft/feed.",
+    "All authority is enforced by database functions and Row Level Security. The browser receives only the scopes the server says the signed-in user may read or post.",
+    "All authority is enforced by database functions and Row Level Security. The browser receives only the scopes the server says the signed-in user may read or post. The scope selector is disabled during posting or permission revalidation, so a pending post cannot clear or enter another scope's draft or feed.",
 )
 
 print('Applied synchronous permission hiding, post-bound scope locking, and post-subscription COMPANY refresh.')
