@@ -1,0 +1,45 @@
+name: Finish free Live Feed local validation once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/scripts/finish-free-live-feed-local-validation.py
+      - .github/workflows/finish-free-live-feed-local-validation-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Apply final local-test corrections
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/finish-free-live-feed-local-validation.py
+          bash -n scripts/test-live-feed-local.sh
+          node --test --test-reporter=spec live-feed-comments-contract.test.mjs
+          node --test --test-reporter=spec live-feed-local-harness.test.mjs
+          SUPABASE_CLI_VERSION=2.116.0 bash scripts/test-live-feed-local.sh
+
+      - name: Commit verified corrections and remove one-time scaffolding
+        run: |
+          set -euo pipefail
+          rm -f .github/scripts/finish-free-live-feed-local-validation.py
+          rm -f .github/workflows/finish-free-live-feed-local-validation-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Finish free Live Feed local validation'
+          git push origin HEAD:preview/live-feed-comments-20260903
