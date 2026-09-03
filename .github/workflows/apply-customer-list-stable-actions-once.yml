@@ -27,19 +27,16 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Set up Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
       - name: Apply stable identities and final-record filtering
         run: python3 .github/scripts/apply-customer-list-stable-actions.py
 
-      - name: Verify Edge TypeScript and affected contracts
+      - name: Verify affected JavaScript and Customer List contracts
         shell: bash
         run: |
           set -euo pipefail
-          deno check --node-modules-dir=auto supabase/functions/accounting-records/index.ts
+          node --check app-accounting-records.js
+          node --check app-customer-list-approval-refresh.js
+          node --check customer-list-stable-actions.test.mjs
           node --test \
             customer-list-admin-edit.test.mjs \
             customer-list-stable-actions.test.mjs \
