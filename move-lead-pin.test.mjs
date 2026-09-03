@@ -11,7 +11,9 @@ const deselect=fs.readFileSync(new URL('./app-lead-map-deselect.js',import.meta.
 test('server exposes only the narrow move action to field roles',()=>{
   assert.match(edge,/allFieldActions=\[[^\]]*'move_lead_pin'/);
   assert.match(edge,/action==='move_lead_pin'/);
-  assert.match(edge,/schema\('private'\)\.rpc\('move_lead_pin'/);
+  assert.match(edge,/admin\.rpc\('move_lead_pin'/);
+  assert.match(migration,/revoke all on function public\.move_lead_pin\([^)]+\) from public, anon, authenticated/);
+  assert.match(migration,/grant execute on function public\.move_lead_pin\([^)]+\) to service_role/);
   assert.match(edge,/p_actor_user_id:user\.id/);
   assert.doesNotMatch(map,/action:'update_lead'[^\n]*proposed_latitude/);
 });
