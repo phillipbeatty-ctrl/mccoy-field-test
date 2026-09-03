@@ -4,6 +4,7 @@ import test from 'node:test'
 import {edgePaywallExemptions,edgePaywallTargets} from './scripts/paywall-targets.mjs'
 
 const workflow=await readFile(new URL('./.github/workflows/deploy-paywall-phase2.yml',import.meta.url),'utf8')
+const nativeIngest=await readFile(new URL('./supabase/functions/native-location-ingest/index.ts',import.meta.url),'utf8')
 
 test('production deployment requires an explicit owner action on issue 105 or DEPLOY input',()=>{
   assert.match(workflow,/github\.event\.issue\.number == 105/)
@@ -30,10 +31,14 @@ test('only the protected map is deployed and recovery/webhook exemptions remain 
   }
 })
 
-test('custom-gateway native ingestion keeps gateway JWT verification disabled while enforcing the in-function guard',()=>{
-  assert.equal(edgePaywallTargets.get('native-location-ingest'),'native_background_location')
-  assert.match(workflow,/\[ "\$function_name" = 'native-location-ingest' \]/)
-  assert.match(workflow,/--no-verify-jwt/)
+test('custom-token native ingestion remains outside the bearer-token paywall deployment loop',()=>{
+  assert.equal(edgePaywallTargets.has('native-location-ingest'),false)
+  assert.equal(edgePaywallExemptions.get('native-location-ingest'),'signed_background_location_token')
+  assert.match(nativeIngest,/x-mccoy-location-token/)
+  assert.match(nativeIngest,/crypto\.subtle\.digest\('SHA-256'/)
+  assert.match(nativeIngest,/token_sha256/)
+  assert.match(nativeIngest,/session\.tester_user_id!==grant\.user_id/)
+  assert.match(nativeIngest,/session\.organization_id!==grant\.organization_id/)
 })
 
 test('deployment publishes non-secret evidence instead of credentials',()=>{
