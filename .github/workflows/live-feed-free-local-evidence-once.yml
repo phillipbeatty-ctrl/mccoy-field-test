@@ -1,0 +1,109 @@
+name: Validate free local Live Feed path once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/workflows/live-feed-free-local-evidence-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out exact preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run source and regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          node --test --test-reporter=spec live-feed-comments-contract.test.mjs
+          node --test --test-reporter=spec live-feed-free-validation.test.mjs
+          node --test --test-reporter=spec sale-completion-runtime.test.mjs
+          node --test --test-reporter=spec customer-list-stable-actions.test.mjs
+          node --test --test-reporter=spec organization-access-gate.test.mjs
+          node --test --test-reporter=spec app-update-recovery.test.mjs
+
+      - name: Start and reset disposable local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start
+          supabase db reset
+
+      - name: Run local COMPANY and TEAM database canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/live-feed-local-supabase-validate.sh
+
+      - name: Record passing evidence and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cat > docs/live-feed-free-local-validation-result.md <<EOF
+          # Live Feed free local validation result
+
+          Status: **PASS**
+
+          Validated source commit: \`${source_sha}\`
+
+          Validated at: \`${validated_at}\`
+
+          The GitHub-hosted runner used a disposable Supabase CLI and Docker stack. The run:
+
+          - applied ordinary repository migrations to a local database;
+          - applied only the COMPANY/TEAM preview migration;
+          - verified Row Level Security and all four scoped v2 RPCs;
+          - executed the authenticated-role, multi-team, cross-organization canary;
+          - required the canary to end in \`ROLLBACK\`;
+          - confirmed no synthetic Live Feed comments or Auth identities remained;
+          - used no Supabase cloud access token or production database URL;
+          - made no production Supabase, Vercel, sale, ranking, provider, Customer List, Sales Bank, or accounting change.
+
+          This PASS authorizes only the next free-preview stage. It does not authorize merging PR #118 or enabling production comments.
+          EOF
+          rm -f .github/workflows/live-feed-free-local-evidence-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/live-feed-free-local-validation-result.md .github/workflows/live-feed-free-local-evidence-once.yml
+          git diff --cached --check
+          git commit -m 'Record free local Live Feed validation pass'
+          git push origin HEAD:preview/live-feed-comments-20260903
+
+      - name: Stop disposable local Supabase
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
