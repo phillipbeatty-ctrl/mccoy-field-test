@@ -71,6 +71,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         .from('provider_sale_captures')
         .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')
         .eq('id', id)
+        .eq('organization_id', organizationId)
         .eq('rep_user_id', user.id)
         .maybeSingle()
       if (error) throw error
