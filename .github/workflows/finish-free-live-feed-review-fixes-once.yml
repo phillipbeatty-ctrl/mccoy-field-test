@@ -1,0 +1,60 @@
+name: Finish free Live Feed review fixes once
+
+on:
+  push:
+    branches:
+      - preview/live-feed-comments-20260903
+    paths:
+      - .github/scripts/finish-free-live-feed-review-fixes.py
+      - .github/workflows/finish-free-live-feed-review-fixes-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: preview/live-feed-comments-20260903
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply and verify final review fixes
+        shell: bash
+        env:
+          SUPABASE_CLI_VERSION: 2.116.0
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/finish-free-live-feed-review-fixes.py
+          node --check app-live-feed.js
+          node --check app-live-wins.js
+          node --check service-worker.js
+          npm run test:live-feed:local:contract -- --test-reporter=spec
+          node --test --test-reporter=spec sale-completion-runtime.test.mjs
+          node --test --test-reporter=spec customer-list-stable-actions.test.mjs
+          node --test --test-reporter=spec organization-access-gate.test.mjs
+          node --test --test-reporter=spec app-update-recovery.test.mjs
+          bash scripts/test-live-feed-local.sh
+          git diff --check
+
+      - name: Commit verified fixes and remove one-time scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/scripts/finish-free-live-feed-review-fixes.py
+          rm -f .github/workflows/finish-free-live-feed-review-fixes-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Harden free Live Feed initialization and validation'
+          git push origin HEAD:preview/live-feed-comments-20260903
