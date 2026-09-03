@@ -1,0 +1,70 @@
+name: Apply Customer List stable actions once
+
+on:
+  push:
+    branches:
+      - fix/customer-list-stable-sale-actions-20260902
+    paths:
+      - .github/workflows/apply-customer-list-stable-actions-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v5
+        with:
+          ref: fix/customer-list-stable-sale-actions-20260902
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Apply stable identities and final-record filtering
+        run: python3 .github/scripts/apply-customer-list-stable-actions.py
+
+      - name: Verify Edge TypeScript and affected contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno check --node-modules-dir=auto supabase/functions/accounting-records/index.ts
+          node --test \
+            customer-list-admin-edit.test.mjs \
+            customer-list-stable-actions.test.mjs \
+            app-update-recovery.test.mjs \
+            organization-access-gate.test.mjs \
+            sale-completion-runtime.test.mjs
+
+      - name: Commit verified repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/scripts/apply-customer-list-stable-actions.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app-accounting-records.js \
+            app-customer-list-approval-refresh.js \
+            supabase/functions/accounting-records/index.ts \
+            index.html \
+            service-worker.js \
+            organization-access-gate.test.mjs \
+            sale-completion-runtime.test.mjs \
+            .github/workflows/field-coach-android-beta5-sale-runtime.yml \
+            customer-list-stable-actions.test.mjs \
+            .github/scripts/apply-customer-list-stable-actions.py
+          git diff --cached --check
+          git commit -m "Restore stable Customer List sale actions"
+          git push origin HEAD:fix/customer-list-stable-sale-actions-20260902
