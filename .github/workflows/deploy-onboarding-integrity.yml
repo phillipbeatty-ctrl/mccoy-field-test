@@ -1,0 +1,98 @@
+name: Deploy Onboarding Integrity
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY to publish the reviewed onboarding integrity functions.
+        required: true
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: field-coach-onboarding-integrity-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation == 'DEPLOY') ||
+      (github.event_name == 'issue_comment' && github.event.issue.number == 116 && github.event.comment.user.login == 'phillipbeatty-ctrl' && github.event.comment.body == 'DEPLOY_ONBOARDING_INTEGRITY_PR116')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: athxxrfqxwlfnuvbqadp
+    steps:
+      - name: Check out reviewed main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify protected production credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN:-}"
+
+      - name: Verify exact onboarding source contract
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs
+          node --test \
+            onboarding-membership-integrity.test.mjs \
+            import-pending-access-fix.test.mjs \
+            paywall-phase2.test.mjs \
+            paywall-deployment.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/rep-onboarding/index.ts
+          deno check --node-modules-dir=auto supabase/functions/pending-account-access/index.ts
+          deno check --node-modules-dir=auto supabase/functions/provider-sale-photo-stage/index.ts
+
+      - name: Deploy reviewed onboarding integrity functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for function_name in rep-onboarding pending-account-access provider-sale-photo-stage; do
+            echo "Deploying ${function_name}"
+            npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF"
+          done
+
+      - name: Capture non-secret deployment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/field-coach-onboarding-integrity
+          npx --yes supabase@2.39.2 functions list --project-ref "$SUPABASE_PROJECT_REF" --output json > /tmp/field-coach-onboarding-integrity/functions.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const evidence={
+            deployed_at:new Date().toISOString(),
+            repository:process.env.GITHUB_REPOSITORY,
+            commit:process.env.GITHUB_SHA,
+            project_ref:process.env.SUPABASE_PROJECT_REF,
+            functions:['rep-onboarding','pending-account-access','provider-sale-photo-stage']
+          };
+          fs.writeFileSync('/tmp/field-coach-onboarding-integrity/deployment.json',JSON.stringify(evidence,null,2)+'\n');
+          NODE
+
+      - name: Publish deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: field-coach-onboarding-integrity-production
+          path: /tmp/field-coach-onboarding-integrity/
+          if-no-files-found: error
+          retention-days: 30
