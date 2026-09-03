@@ -28,6 +28,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
     )
     const { data: { user }, error: userError } = await admin.auth.getUser(jwt)
     if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)
+    const authUserId = user.id
 
     const email = user.email.toLowerCase()
     const { data: access, error: accessError } = await admin
@@ -47,7 +48,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         .from('provider_sale_capture_photos')
         .select('id,storage_path')
         .eq('organization_id', organizationId)
-        .eq('uploaded_by', user.id)
+        .eq('uploaded_by', authUserId)
         .in('status', ['uploading', 'staged', 'failed'])
         .lt('expires_at', new Date().toISOString())
       if (error) throw error
@@ -61,7 +62,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
           .from('provider_sale_capture_photos')
           .delete()
           .in('id', (expired || []).map(row => row.id))
-          .eq('uploaded_by', user.id)
+          .eq('uploaded_by', authUserId)
         if (deleteError) throw deleteError
       }
     }
@@ -72,7 +73,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')
         .eq('id', id)
         .eq('organization_id', organizationId)
-        .eq('rep_user_id', user.id)
+        .eq('rep_user_id', authUserId)
         .maybeSingle()
       if (error) throw error
       if (!data) throw new Error('provider_capture_not_found_for_signed_in_user')
@@ -86,7 +87,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         .select('*')
         .eq('id', id)
         .eq('organization_id', organizationId)
-        .eq('uploaded_by', user.id)
+        .eq('uploaded_by', authUserId)
         .maybeSingle()
       if (error) throw error
       if (!data) throw new Error('staged_photo_not_found')
@@ -99,7 +100,7 @@ serveWithOrganizationAccess('provider_integrations',async request => {
         .select('id,organization_id,rep_user_id,provider_capture_id')
         .eq('id', id)
         .eq('organization_id', organizationId)
-        .eq('rep_user_id', user.id)
+        .eq('rep_user_id', authUserId)
         .eq('provider_capture_id', captureId)
         .maybeSingle()
       if (error) throw error

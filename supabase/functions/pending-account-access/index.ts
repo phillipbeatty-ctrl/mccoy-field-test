@@ -1,5 +1,5 @@
-import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 // @ts-nocheck
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 
 const corsHeaders={

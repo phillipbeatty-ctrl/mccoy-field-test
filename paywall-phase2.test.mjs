@@ -81,7 +81,8 @@ test('mixed onboarding keeps first-access actions reachable and gates business a
 })
 
 test('provider photo capture lookup is scoped to organization and signed-in user',()=>{
-  assert.match(providerPhotoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('id', id\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', user\.id\)/)
+  assert.match(providerPhotoStage,/const authUserId = user\.id/)
+  assert.match(providerPhotoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('id', id\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', authUserId\)/)
 })
 
 test('every Edge Function is protected or has a documented narrow exemption',async()=>{

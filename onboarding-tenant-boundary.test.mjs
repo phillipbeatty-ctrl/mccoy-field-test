@@ -47,7 +47,8 @@ test('Pending Account Access never lists another organization request',()=>{
 })
 
 test('photo finalization uses an organization-scoped conditional claim',()=>{
-  assert.match(photoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', user\.id\)/)
+  assert.match(photoStage,/const authUserId = user\.id/)
+  assert.match(photoStage,/\.from\('provider_sale_captures'\)[\s\S]*?\.eq\('organization_id', organizationId\)[\s\S]*?\.eq\('rep_user_id', authUserId\)/)
   assert.match(photoStage,/\.eq\('provider_capture_id', capture\.id\)/)
   assert.match(photoStage,/claimQuery = claimQuery\.in\('status', \['staged', 'failed'\]\)/)
   assert.match(photoStage,/claimQuery = claimQuery\.eq\('status', 'attaching'\)\.lt\('updated_at', staleBefore\)/)

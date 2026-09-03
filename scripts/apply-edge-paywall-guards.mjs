@@ -157,16 +157,30 @@ await applyDeterministicTransform('rep-onboarding','mixed_pre_membership_admin',
 })
 
 await applyDeterministicTransform('pending-account-access','request_organization_scope',source=>{
+  source=replaceRequired(source,`${importLine}\n// @ts-nocheck\n`,`// @ts-nocheck\n${importLine}\n`,'pending-account-access TypeScript directive position')
   const before="  const requestsPromise=admin.from('rep_access_requests')\n    .select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at')\n    .order('created_at',{ascending:false})"
   const after="  const requestsPromise=admin.from('rep_access_requests')\n    .select('id,user_id,email,display_name,requested_role,requested_team,status,created_at,reviewed_at,organization_id')\n    .eq('organization_id',caller.organization_id)\n    .order('created_at',{ascending:false})"
   return replaceRequired(source,before,after,'pending-account-access request organization scope')
 })
 
 await applyDeterministicTransform('provider-sale-photo-stage','organization_capture_scope_and_atomic_finalize',source=>{
+const authBefore="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n\n    const email = user.email.toLowerCase()"
+const authAfter="    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)\n    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)\n    const authUserId = user.id\n\n    const email = user.email.toLowerCase()"
+source=replaceRequired(source,authBefore,authAfter,'provider-sale-photo-stage stable Auth identity capture')
   const captureBefore="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('rep_user_id', user.id)"
-  const captureAfter="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)"
-  source=replaceRequired(source,captureBefore,captureAfter,'provider-sale-photo-stage capture tenant scope')
+  const captureLegacyAfter="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)"
+  const captureAfter="      const { data, error } = await admin\n        .from('provider_sale_captures')\n        .select('id,client_request_id,rep_user_id,rep_email,provider,status,service_address')\n        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', authUserId)"
+  if(source.includes(captureLegacyAfter))source=replaceRequired(source,captureLegacyAfter,captureAfter,'provider-sale-photo-stage stable capture identity')
+  else source=replaceRequired(source,captureBefore,captureAfter,'provider-sale-photo-stage capture tenant scope')
 
+
+const nestedIdentityReplacements=[
+  ["        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .in('status', ['uploading', 'staged', 'failed'])","        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .in('status', ['uploading', 'staged', 'failed'])",'expired query identity'],
+  ["          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', user.id)","          .delete()\n          .in('id', (expired || []).map(row => row.id))\n          .eq('uploaded_by', authUserId)",'expired delete identity'],
+  ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', user.id)\n        .maybeSingle()","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('uploaded_by', authUserId)\n        .maybeSingle()",'staged photo identity'],
+  ["        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)\n        .eq('provider_capture_id', captureId)","        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', authUserId)\n        .eq('provider_capture_id', captureId)",'completed sale identity']
+]
+for(const [before,after,label] of nestedIdentityReplacements)source=replaceRequired(source,before,after,`provider-sale-photo-stage ${label}`)
   const oldBlock=`        if (!['staged', 'attaching', 'failed'].includes(row.status)) continue
 
         const salePhotoId = row.attached_sale_photo_id || crypto.randomUUID()
