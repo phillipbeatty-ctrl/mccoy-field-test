@@ -60,8 +60,12 @@ test('Admin UI exposes an explicit organization access repair action',()=>{
   assert.match(pendingPage,/pending-access\.js\?v=2026090201/)
 })
 
-test('rollback-only database canary proves create and deactivate behavior without retaining test writes',()=>{
+test('rollback-only database canary proves privilege, repair, and deactivate behavior without retaining test writes',()=>{
   assert.match(canary,/^begin;/)
+  assert.match(canary,/has_function_privilege\('anon','private\.sync_app_access_identity/)
+  assert.match(canary,/has_function_privilege\('authenticated','private\.sync_app_access_identity/)
+  assert.match(canary,/has_function_privilege\('service_role','private\.sync_app_access_identity/)
+  assert.match(canary,/service_repair_rpc_privilege_contract_failed/)
   assert.match(canary,/delete from public\.organization_memberships/)
   assert.match(canary,/update public\.app_user_access\s+set active=active/)
   assert.match(canary,/organization_membership_repair_failed/)
