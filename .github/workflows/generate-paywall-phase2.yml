@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feat/paywall-phase2-webapp-download-20260901
-      - fix/atomic-onboarding-membership-20260902
     paths:
       - 'scripts/paywall-targets.mjs'
       - 'scripts/apply-edge-paywall-guards.mjs'
