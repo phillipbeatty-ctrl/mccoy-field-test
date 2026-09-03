@@ -27,6 +27,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/finish-live-feed-refresh-and-post-scope.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('live-feed-comments-contract.test.mjs')
+          source=path.read_text(encoding='utf-8')
+          old=r"assert.match(client,/if\(state\.loading\)\{state\.reloadQueued=true;return;\}/)"
+          new=r"assert.match(client,/if\(state\.loading\)\{state\.reloadQueued=true;return false;\}/)"
+          if source.count(old)!=1:
+              raise SystemExit(f'expected one queued-load assertion, found {source.count(old)}')
+          path.write_text(source.replace(old,new,1),encoding='utf-8')
+          PY
           node --check app-live-feed.js
           node --check app-live-wins.js
           node --check service-worker.js
