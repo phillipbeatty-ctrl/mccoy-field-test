@@ -18,6 +18,9 @@ test('mixed onboarding has one authorization helper and preserves pre-membership
   assert.ok(status>=0&&request>status&&roster>request&&admin>roster)
   assert.match(repOnboarding,/requireOrganizationAccess\('field_coach_access'\)/)
   assert.match(repOnboarding,/requireOrganizationAccess\('admin_controls'\)/)
+  assert.match(repOnboarding,/const authUserId=user\.id/)
+  assert.match(repOnboarding,/p_auth_user_id:authUserId/)
+  assert.match(repOnboarding,/const callerOrganizationId=callerAccess\.organization_id/)
 })
 
 test('access requests resolve a server-owned organization and stay scoped through approval',()=>{
@@ -34,8 +37,8 @@ test('Admin user, profile, region, and removal operations are caller-organizatio
   assert.match(repOnboarding,/\.from\('app_user_access'\)\.select\('\*'\)\.eq\('organization_id',callerAccess\.organization_id\)\.eq\('email',target\)/)
   assert.match(repOnboarding,/\.from\('app_user_access'\)\.update\([\s\S]*?\.eq\('organization_id',callerAccess\.organization_id\)\.eq\('email',target\)/)
   assert.match(repOnboarding,/account_belongs_to_another_organization/)
-  assert.match(repOnboarding,/\.from\('teams'\)\.select\('id'\)\.eq\('organization_id',callerAccess\.organization_id\)/)
-  assert.match(repOnboarding,/\.from\('users'\)\.upsert\(\{id:account\.id,auth_user_id:account\.id,organization_id:callerAccess\.organization_id/)
+  assert.match(repOnboarding,/\.from\('teams'\)\.select\('id'\)\.eq\('organization_id',callerOrganizationId\)/)
+  assert.match(repOnboarding,/\.from\('users'\)\.upsert\(\{id:account\.id,auth_user_id:account\.id,organization_id:callerOrganizationId/)
   assert.match(repOnboarding,/targetAccessError[\s\S]*\.eq\('organization_id',callerAccess\.organization_id\)\.eq\('email',target\)/)
 })
 

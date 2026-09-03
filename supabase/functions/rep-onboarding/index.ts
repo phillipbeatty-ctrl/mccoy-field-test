@@ -13,10 +13,11 @@ Deno.serve(async(req)=>{
     const url=Deno.env.get('SUPABASE_URL')!; const service=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}})
     const {data:{user},error:uerr}=await admin.auth.getUser(jwt); if(uerr||!user?.email) return json({error:'unauthorized'},401)
+    const authUserId=user.id
     const email=user.email.toLowerCase(); const body=await req.json().catch(()=>({})); const action=String(body.action||'status')
     const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name,organization_id').eq('email',email).maybeSingle()
     async function requireOrganizationAccess(entitlement:string){
-      const {error}=await admin.rpc('service_assert_organization_access',{p_auth_user_id:user.id,p_entitlement:entitlement})
+      const {error}=await admin.rpc('service_assert_organization_access',{p_auth_user_id:authUserId,p_entitlement:entitlement})
       if(!error)return null
       const reason=String(error.message||'').match(/organization_access_denied:([a-z0-9_]+)/i)?.[1]||'organization_access_denied'
       return json({error:'organization_access_denied',reason,organization_access:{access_allowed:false,denial_reason:reason,entitlement_key:entitlement,purchase_model:'organization_managed_external',purchase_action_available:false}},403)
@@ -69,6 +70,7 @@ Deno.serve(async(req)=>{
       return json({ok:true,rosters,unassigned_reps:unassigned_reps,visibility:'active_users_no_emails'})
     }
     if(!callerAccess?.active||callerAccess.role!=='admin') return json({error:'admin_only'},403)
+    const callerOrganizationId=callerAccess.organization_id
     const adminAccessDenied=await requireOrganizationAccess('admin_controls')
     if(adminAccessDenied)return adminAccessDenied
     if(action==='list_pending'){
@@ -122,7 +124,7 @@ Deno.serve(async(req)=>{
     }
     async function validateManager(mgrEmail:string|null){
       if(!mgrEmail) return {email:null,name:null}
-      const {data:m}=await admin.from('app_user_access').select('email,display_name,role,active,assigned_manager_email,assigned_admin_email').eq('organization_id',callerAccess.organization_id).eq('email',mgrEmail).maybeSingle()
+      const {data:m}=await admin.from('app_user_access').select('email,display_name,role,active,assigned_manager_email,assigned_admin_email').eq('organization_id',callerOrganizationId).eq('email',mgrEmail).maybeSingle()
       if(!m?.active||!['manager','trainer','admin'].includes(m.role)) throw new Error('invalid_manager')
       if(isTeamLeaderRole(m.role)){
         const supervisorEmail=String(m.assigned_manager_email||'').trim().toLowerCase()
@@ -133,7 +135,7 @@ Deno.serve(async(req)=>{
     }
     async function validateAdministrator(adminEmail:string|null){
       if(!adminEmail)return {email:null,name:null}
-      const {data:owner}=await admin.from('app_user_access').select('email,display_name,role,active').eq('organization_id',callerAccess.organization_id).eq('email',adminEmail).maybeSingle()
+      const {data:owner}=await admin.from('app_user_access').select('email,display_name,role,active').eq('organization_id',callerOrganizationId).eq('email',adminEmail).maybeSingle()
       if(!owner?.active||owner.role!=='admin')throw new Error('invalid_administrator')
       return {email:owner.email,name:owner.display_name||owner.email}
     }
@@ -150,9 +152,9 @@ Deno.serve(async(req)=>{
     }
     async function syncAppUserProfile(targetEmail:string,role:string,team:string|null,displayName:string,active=true){
       const account=await findAuthAccountByEmail(targetEmail);if(!account?.id)throw new Error('user_profile_account_not_found')
-      let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('organization_id',callerAccess.organization_id).eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
+      let teamId=null;if(team){const {data:teamRow,error:teamError}=await admin.from('teams').select('id').eq('organization_id',callerOrganizationId).eq('name',team).maybeSingle();if(teamError)throw teamError;teamId=teamRow?.id||null}
       const parts=String(displayName||'').trim().split(/\s+/).filter(Boolean);const firstName=parts.shift()||null,lastName=parts.join(' ')||null
-      const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,organization_id:callerAccess.organization_id,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
+      const {error:profileError}=await admin.from('users').upsert({id:account.id,auth_user_id:account.id,organization_id:callerOrganizationId,email:targetEmail.toLowerCase(),first_name:firstName,last_name:lastName,role:role==='tester'?'rep':role,team_id:teamId,active},{onConflict:'auth_user_id'});if(profileError)throw profileError
     }
     if(action==='set_secondary_admin'){
       if(user.id!=='f9053207-1af1-4ed1-be43-28f4bf5d7732'||email!=='phillip.beatty@gmail.com')return json({error:'original_owner_only'},403)

@@ -77,7 +77,7 @@ test('mixed onboarding keeps first-access actions reachable and gates business a
   assert.match(repOnboarding,/service_assert_organization_access/)
   assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:targetEmail/)
   assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:target,role:'rep'/)
-  assert.match(repOnboarding,/organization_id:callerAccess\.organization_id,email:targetEmail\.toLowerCase\(\)/)
+  assert.match(repOnboarding,/organization_id:callerOrganizationId,email:targetEmail\.toLowerCase\(\)/)
 })
 
 test('provider photo capture lookup is scoped to organization and signed-in user',()=>{
