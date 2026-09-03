@@ -8,6 +8,8 @@
   const FEED_LIMIT=100;
   const COMMENT_TOAST_MAX_AGE_MS=15000;
   const COMMENT_TOAST_DURATION_MS=4000;
+  const AUTHORIZATION_RECHECK_MS=120000;
+  const AUTHORIZATION_RECHECK_RETRY_MS=15000;
   const mountState=new Map();
   const state={
     client:null,
@@ -16,6 +18,7 @@
     initialized:false,
     initializing:false,
     initializationRetryTimer:null,
+    authorizationRecheckTimer:null,
     authorizationRefreshing:false,
     authorizationReady:false,
     loading:false,
@@ -549,6 +552,26 @@
     return state.realtimeReady;
   }
 
+  function clearAuthorizationRecheck(){
+    if(!state.authorizationRecheckTimer)return;
+    clearTimeout(state.authorizationRecheckTimer);
+    state.authorizationRecheckTimer=null;
+  }
+
+  function scheduleAuthorizationRecheck(delay=AUTHORIZATION_RECHECK_MS){
+    clearAuthorizationRecheck();
+    if(!state.initialized||!currentAccess()?.active)return;
+    state.authorizationRecheckTimer=setTimeout(()=>{
+      state.authorizationRecheckTimer=null;
+      if(!state.initialized||!currentAccess()?.active)return;
+      if(document.visibilityState!=='visible'||navigator.onLine===false||state.posting||state.initializing||state.authorizationRefreshing){
+        scheduleAuthorizationRecheck(AUTHORIZATION_RECHECK_RETRY_MS);
+        return;
+      }
+      refreshAuthorization();
+    },delay);
+  }
+
   function clearInitializationRetry(){
     if(!state.initializationRetryTimer)return;
     clearTimeout(state.initializationRetryTimer);
@@ -566,10 +589,11 @@
   function resetForIdentity(nextIdentityKey=''){
     saveDraftState();
     clearInitializationRetry();
+    clearAuthorizationRecheck();
     state.generation+=1;
     const client=resolveClient();if(state.channel&&client){try{client.removeChannel(state.channel);}catch(_){/* ignore */}}
     if(state.deleteExpiryTimer)clearTimeout(state.deleteExpiryTimer);
-    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.initializationRetryTimer=null;state.authorizationRefreshing=false;state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
+    state.identityKey=nextIdentityKey;state.initialized=false;state.initializing=false;state.initializationRetryTimer=null;state.authorizationRecheckTimer=null;state.authorizationRefreshing=false;state.authorizationReady=false;state.loading=false;state.reloadQueued=false;state.posting=false;state.events=[];state.context=null;state.scopes=[];state.selectedScope='company';state.selectedScopeId=null;state.draft='';state.pendingRequest=null;state.channel=null;state.channelOrganizationId=null;state.realtimeReady=null;state.deleteExpiryTimer=null;state.toastQueue=[];state.collapsedToasts=0;toastHost.replaceChildren();
     setComposerStatus('');syncComposers();scheduleRender();
   }
 
@@ -585,7 +609,11 @@
   }
 
   async function refreshAuthorization(){
-    if(!state.initialized||state.initializing||state.authorizationRefreshing)return;
+    if(!state.initialized||state.initializing||state.authorizationRefreshing||state.posting){
+      if(state.initialized)scheduleAuthorizationRecheck(AUTHORIZATION_RECHECK_RETRY_MS);
+      return;
+    }
+    clearAuthorizationRecheck();
     const identity=identitySnapshot(),access=currentAccess();
     if(!access?.active||!identity.key){resetForIdentity('');return;}
     if(identity.key!==state.identityKey){resetForIdentity(identity.key);initialize();return;}
@@ -636,7 +664,10 @@
         setComposerStatus('Unable to refresh Live Feed permissions. Existing content and drafts remain hidden until access can be revalidated.','error');
       }
     }finally{
-      if(activeGeneration===state.generation){state.authorizationRefreshing=false;syncComposers();}
+      if(activeGeneration===state.generation){
+        state.authorizationRefreshing=false;syncComposers();
+        scheduleAuthorizationRecheck(state.authorizationReady?AUTHORIZATION_RECHECK_MS:AUTHORIZATION_RECHECK_RETRY_MS);
+      }
     }
   }
 
@@ -661,7 +692,7 @@
       const loaded=await loadFeed({scope:state.selectedScope,scopeId:state.selectedScopeId});
       if(generation!==state.generation)return;
       if(!loaded)throw new Error('live_feed_initial_snapshot_failed');
-      state.authorizationReady=true;state.initialized=true;clearInitializationRetry();
+      state.authorizationReady=true;state.initialized=true;clearInitializationRetry();scheduleAuthorizationRecheck();
     }catch(error){
       if(generation===state.generation){
         const message=String(error?.message||'Unable to initialize Live Feed.');
@@ -699,7 +730,7 @@
     if(state.initialized)refreshAuthorization();else initialize();
   });
   window.addEventListener('offline',()=>setComposerStatus('Offline — drafts remain on this device until you explicitly retry.','offline'));
-  window.addEventListener('beforeunload',()=>{clearInitializationRetry();if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);if(authTransitionSubscription)authTransitionSubscription.unsubscribe();});
+  window.addEventListener('beforeunload',()=>{clearInitializationRetry();clearAuthorizationRecheck();if(state.channel&&resolveClient())resolveClient().removeChannel(state.channel);if(authTransitionSubscription)authTransitionSubscription.unsubscribe();});
 
   const poll=setInterval(()=>{
     findMounts();

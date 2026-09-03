@@ -74,7 +74,7 @@ Realtime subscribes at the organization row boundary and relies on the same RLS 
 
 The client subscribes and then re-queries, preventing a snapshot-to-Realtime gap. If an event arrives while a query is in progress, one additional refresh is queued.
 
-The client listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. Account, organization, role, active-access, and foreground permission changes invalidate older asynchronous responses and the former Realtime channel. During permission revalidation, the client hides the prior feed and draft, disables the composer, restarts Realtime, and performs a new selected-scope snapshot after subscription.
+The client listens directly to Supabase `onAuthStateChange`, so a different account or sign-out clears the former feed synchronously before asynchronous onboarding and organization routing finish. Account, organization, role, active-access, and foreground permission changes invalidate older asynchronous responses and the former Realtime channel. During permission revalidation, the client hides the prior feed and draft, disables the composer, restarts Realtime, and performs a new selected-scope snapshot after subscription. While the app remains continuously foregrounded, a two-minute server authorization timer repeats the same fail-closed check; it defers during an active post and retries after fifteen seconds.
 
 ## Private moderation evidence
 

@@ -121,6 +121,11 @@ test('account changes and snapshot-to-Realtime gaps are handled explicitly',()=>
   assert.match(client,/state\.initializationRetryTimer=setTimeout/)
   assert.match(client,/state\.initialized&&state\.authorizationReady&&!state\.initializing&&!state\.authorizationRefreshing/)
   assert.match(client,/window\.addEventListener\('online',[\s\S]*if\(state\.initialized\)refreshAuthorization\(\);else initialize\(\)/)
+  assert.match(client,/AUTHORIZATION_RECHECK_MS=120000/)
+  assert.match(client,/function scheduleAuthorizationRecheck/)
+  assert.match(client,/state\.authorizationRecheckTimer=setTimeout/)
+  assert.match(client,/document\.visibilityState!=='visible'[\s\S]*state\.posting[\s\S]*scheduleAuthorizationRecheck\(AUTHORIZATION_RECHECK_RETRY_MS\)/)
+  assert.match(client,/state\.authorizationReady=true;state\.initialized=true;clearInitializationRetry\(\);scheduleAuthorizationRecheck\(\)/)
 })
 
 test('offline retry preserves normalized body, scope, and request identity',()=>{

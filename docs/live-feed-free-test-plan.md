@@ -119,7 +119,7 @@ Minimum matrix:
 | Reassigned user | Loses future read/post/Realtime authority for the old team |
 | Offline controlled-team user | Keeps one scoped draft and retries with the same request ID |
 
-Also verify launcher, splash, login logo, update behavior, background/foreground permission refresh, deletion propagation, and verified-sale celebration priority.
+Also verify launcher, splash, login logo, update behavior, background/foreground permission refresh, deletion propagation, and verified-sale celebration priority. While the app remains continuously foregrounded, verify that the two-minute fail-closed authorization check runs and defers an active post for a fifteen-second retry rather than interrupting it.
 
 ## Stage 5 — Wider rollout only after isolation passes
 
