@@ -100,7 +100,7 @@ node --check service-worker.js
 node --test live-feed-comments-contract.test.mjs
 ```
 
-After an isolated Supabase branch is explicitly approved and created, apply only the consolidated migration and run:
+After an isolated Supabase branch is explicitly approved and created, apply only `supabase/preview-migrations/20260903062000_live_feed_company_team_comments_preview.sql` and run:
 
 ```text
 supabase/tests/live-feed-comments-preview-canary.sql
@@ -123,7 +123,7 @@ The canary must roll back all test data and prove:
 
 ## Branch implementation checkpoint
 
-The preview source now uses one consolidated, independently fail-closed migration and scoped v2 RPCs. Source-level checks cover explicit COMPANY/TEAM authority, null COMPANY scope IDs, current `auth.users.email` validation, stale-async generation invalidation, foreground permission revalidation after team reassignment, account switching, scoped offline idempotency, moderation quarantine, Realtime recovery, and strict comment separation from sales authority.
+The preview source now uses one consolidated, independently fail-closed migration stored outside the production migration directory, plus scoped v2 RPCs. Source-level checks cover explicit COMPANY/TEAM authority, null COMPANY scope IDs, current `auth.users.email` validation, stale-async generation invalidation, foreground permission revalidation after team reassignment, account switching, scoped offline idempotency, moderation quarantine, Realtime recovery, and strict comment separation from sales authority.
 
 This checkpoint is intentionally a branch-only validation marker. It does not replace the isolated Supabase canary, cross-user Realtime testing, security/performance advisors, or physical mobile acceptance required below.
 

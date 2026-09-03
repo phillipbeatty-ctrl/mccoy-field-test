@@ -6,7 +6,7 @@ const read=path=>readFileSync(new URL(path,import.meta.url),'utf8')
 const client=read('./app-live-feed.js')
 const liveWins=read('./app-live-wins.js')
 const worker=read('./service-worker.js')
-const migration=read('./supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql')
+const migration=read('./supabase/preview-migrations/20260903062000_live_feed_company_team_comments_preview.sql')
 const canary=read('./supabase/tests/live-feed-comments-preview-canary.sql')
 const docs=read('./docs/live-feed-comments-preview.md')
 const publicCommentTable=migration.match(/create table public\.live_feed_comments \(([\s\S]*?)\n\);/)?.[1]||''

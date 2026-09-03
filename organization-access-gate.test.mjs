@@ -226,7 +226,7 @@ test('organization gate loads before application modules with a fresh iOS cache 
 })
 
 test('service worker rotates the app shell and precaches the cache-busted organization gate',()=>{
-  assert.match(serviceWorker,/field-coach-app-shell-v8-20260903-customer-list-stable-actions/)
+  assert.match(serviceWorker,/field-coach-app-shell-v11-20260903-live-feed-company-team-preview/)
   assert.match(serviceWorker,/'\/app-organization-access-gate\.js\?v=2026090201'/)
 })
 
