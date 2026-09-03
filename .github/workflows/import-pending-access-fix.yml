@@ -19,6 +19,7 @@ on:
       - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
       - 'onboarding-membership-integrity.test.mjs'
+      - 'onboarding-tenant-boundary.test.mjs'
       - 'paywall-phase2.test.mjs'
       - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
@@ -40,6 +41,7 @@ on:
       - 'supabase/tests/onboarding-membership-integrity-canary.sql'
       - 'import-pending-access-fix.test.mjs'
       - 'onboarding-membership-integrity.test.mjs'
+      - 'onboarding-tenant-boundary.test.mjs'
       - 'paywall-phase2.test.mjs'
       - '.github/workflows/deploy-onboarding-integrity.yml'
       - '.github/workflows/import-pending-access-fix.yml'
@@ -74,4 +76,5 @@ jobs:
           node --test \
             import-pending-access-fix.test.mjs \
             onboarding-membership-integrity.test.mjs \
+            onboarding-tenant-boundary.test.mjs \
             paywall-phase2.test.mjs
