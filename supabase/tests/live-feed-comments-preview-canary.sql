@@ -227,6 +227,31 @@ end;
 $$;
 
 -- Pending TEAM text is visible to its author and Admin, but not another member in that team.
+select pg_temp.live_feed_login((select rep_a1_auth from live_feed_canary_ids),'live-feed-rep-a1@preview.invalid');
+do $$
+begin
+  if not exists (
+    select 1 from jsonb_array_elements(public.get_live_feed_v2('team',(select team_a1 from live_feed_canary_ids),100,null)->'events') event
+    where event->>'comment_id'=(select rep_a1_comment::text from live_feed_canary_ids)
+      and event->>'moderation_status'='pending'
+  ) then
+    raise exception 'pending author could not read own comment through RPC';
+  end if;
+end;
+$$;
+set local role authenticated;
+do $$
+begin
+  if not exists (
+    select 1 from public.live_feed_comments
+    where id=(select rep_a1_comment from live_feed_canary_ids)
+      and author_user_id=(select rep_a1_auth from live_feed_canary_ids)
+      and moderation_status='pending'
+  ) then raise exception 'pending author could not read own comment through RLS'; end if;
+end;
+$$;
+reset role;
+
 select pg_temp.live_feed_login((select trainer_a_auth from live_feed_canary_ids),'live-feed-trainer-a@preview.invalid');
 do $$
 begin

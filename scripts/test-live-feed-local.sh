@@ -23,6 +23,13 @@ for command_name in docker node npx; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "${command_name} is required"
 done
 
+for required_file in "${CONFIG_SOURCE}" "${CONTRACT_SOURCE}" "${PREVIEW_SOURCE}" "${CANARY_SOURCE}"; do
+  [[ -f "${required_file}" ]] || fail "missing ${required_file#${ROOT_DIR}/}"
+done
+
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+(( NODE_MAJOR >= 22 )) || fail "Node.js 22 or later is required"
+
 docker info >/dev/null 2>&1 || fail "Docker is not running"
 
 if docker network inspect "${DOCKER_NETWORK}" >/dev/null 2>&1; then
@@ -34,10 +41,6 @@ else
     "${DOCKER_NETWORK}" >/dev/null
   DOCKER_NETWORK_CREATED=1
 fi
-
-for required_file in "${CONFIG_SOURCE}" "${CONTRACT_SOURCE}" "${PREVIEW_SOURCE}" "${CANARY_SOURCE}"; do
-  [[ -f "${required_file}" ]] || fail "missing ${required_file#${ROOT_DIR}/}"
-done
 
 SUPABASE=(npx --yes "supabase@${CLI_VERSION}")
 
@@ -95,12 +98,16 @@ fi
 
 [[ -n "${DB_CONTAINER}" ]] || fail "could not locate the local Supabase Postgres container"
 
-mapfile -t PROJECT_CONTAINERS < <(
-  docker ps --format '{{.Names}}' | grep -F "_${PROJECT_ID}" || true
-)
+PROJECT_CONTAINERS=()
+while IFS= read -r container_name; do
+  [[ -n "${container_name}" ]] && PROJECT_CONTAINERS+=("${container_name}")
+done < <(docker ps --format '{{.Names}}' | grep -F "_${PROJECT_ID}" || true)
 [[ "${#PROJECT_CONTAINERS[@]}" -gt 0 ]] || fail "could not locate local Supabase containers for binding verification"
 
-mapfile -t PUBLISHED_HOST_IPS < <(
+PUBLISHED_HOST_IPS=()
+while IFS= read -r host_ip; do
+  [[ -n "${host_ip}" ]] && PUBLISHED_HOST_IPS+=("${host_ip}")
+done < <(
   for container_name in "${PROJECT_CONTAINERS[@]}"; do
     docker inspect --format '{{range $port, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp}}{{end}}{{end}}' "${container_name}"
   done | sed '/^[[:space:]]*$/d' | sort -u

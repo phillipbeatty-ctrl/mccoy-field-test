@@ -25,6 +25,8 @@ test('local harness cannot link, push, reset, or address a hosted project',()=>{
   assert.doesNotMatch(script,/supabase\s+link|db\s+push|db\s+reset\s+--linked|--project-ref|athxxrfqxwlfnuvbqadp/i)
   assert.match(script,/no hosted Supabase project was linked or changed/)
   assert.match(script,/supabase@\$\{CLI_VERSION\}/)
+  assert.match(script,/Node.js 22 or later is required/)
+  assert.doesNotMatch(script,/\bmapfile\b/)
   assert.match(script,/host_binding_ipv4=127\.0\.0\.1/)
   assert.match(script,/--network-id/)
   assert.match(script,/PUBLISHED_HOST_IPS/)
@@ -55,6 +57,8 @@ test('CI runs the same no-cost Docker path and no remote deployment command',()=
   assert.match(workflow,/SUPABASE_CLI_VERSION: 2\.116\.0/)
   assert.match(workflow,/bash scripts\/test-live-feed-local\.sh/)
   assert.doesNotMatch(workflow,/supabase\s+link|db\s+push|create_branch|project-ref/i)
+  assert.doesNotMatch(workflow,/\n  push:/)
+  assert.match(workflow,/github\.event_name == 'pull_request'[\s\S]*github\.event\.pull_request\.head\.sha/)
 })
 
 test('documented promotion order is local, optional free staging, one-team pilot, mobile, then wider rollout',()=>{

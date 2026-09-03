@@ -105,7 +105,7 @@ The Docker harness:
 - confirms RLS, Realtime publication, v2-only RPCs, and complete rollback;
 - removes the temporary stack and files after the run unless explicitly retained for debugging.
 
-The same test runs in `.github/workflows/live-feed-local-supabase.yml` so a clean GitHub runner independently repeats the Docker validation.
+The same test runs once per pull-request update in `.github/workflows/live-feed-local-supabase.yml`, checking out the exact pull-request head so a clean GitHub runner independently repeats the Docker validation without duplicate push-triggered runs.
 
 See `docs/live-feed-free-test-plan.md` for the full operator and promotion procedure.
 
