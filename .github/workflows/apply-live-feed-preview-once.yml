@@ -57,3 +57,5 @@ jobs:
           git diff --cached --check
           git commit -m "Build preview-only Live Feed comments vertical slice"
           git push origin HEAD:preview/live-feed-comments-20260903
+
+# Retry 2: sale authority was committed directly; remaining payloads are decoded here.
