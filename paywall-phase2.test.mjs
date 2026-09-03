@@ -8,6 +8,11 @@ const sharedGuard=await read('./supabase/functions/_shared/organization-paywall.
 const accountingMigration=await read('./supabase/migrations/20260901073000_paywall_phase2_accounting_entitlement.sql')
 const workflow=await read('./.github/workflows/apply-edge-paywall-guards.yml')
 const functionsRoot=new URL('./supabase/functions/',import.meta.url)
+const retiredAddressValidationSlugs=[
+  'address-validation-admin-review',
+  'address-validation-pilot',
+  'address-validation-repair'
+]
 
 test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('lead-admin'),'lead_management')
@@ -43,6 +48,18 @@ test('every Edge Function is protected or has a documented narrow exemption',asy
   const uncategorized=slugs.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
   assert.deepEqual(uncategorized,[])
   assert.ok(edgePaywallTargets.size>=40,'Phase 2 must cover the full business-function surface')
+})
+
+test('retired address-validation endpoints preserve the deployed 410 tombstone contract',async()=>{
+  for(const slug of retiredAddressValidationSlugs){
+    assert.equal(edgePaywallTargets.has(slug),false)
+    assert.equal(edgePaywallExemptions.get(slug),'retired_endpoint_returns_410_no_business_data')
+    const source=await read(`./supabase/functions/${slug}/index.ts`)
+    assert.equal(
+      source,
+      "Deno.serve(()=>new Response(JSON.stringify({error:'address_validation_removed'}),{status:410,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}}))"
+    )
+  }
 })
 
 test('account recovery and signed provider callbacks are not blanket paywall gated',()=>{
