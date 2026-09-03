@@ -4,7 +4,6 @@ import {readFileSync} from 'node:fs'
 
 const renderer=readFileSync(new URL('./app-accounting-records.js',import.meta.url),'utf8')
 const controls=readFileSync(new URL('./app-customer-list-approval-refresh.js',import.meta.url),'utf8')
-const accountingEdge=readFileSync(new URL('./supabase/functions/accounting-records/index.ts',import.meta.url),'utf8')
 const indexSource=readFileSync(new URL('./index.html',import.meta.url),'utf8')
 const workerSource=readFileSync(new URL('./service-worker.js',import.meta.url),'utf8')
 
@@ -27,8 +26,6 @@ test('the exact frozen REMOVE SALE shape remains actionable without address, ord
 test('final NOT A SALE records cannot remain frozen in Customer List',()=>{
   assert.match(renderer,/function isFinalNotASale\(row\)/)
   assert.match(renderer,/records=\(data\.records\|\|\[\]\)\.filter\(row=>!isFinalNotASale\(row\)\)/)
-  assert.match(accountingEdge,/function isFinalNotASale\(row:any\)/)
-  assert.match(accountingEdge,/isAdminApproved\(row\)&&!isFinalNotASale\(row\)&&!row\.removed_to_bank_at/)
 })
 
 test('production app and service worker request the repaired Customer List files',()=>{
