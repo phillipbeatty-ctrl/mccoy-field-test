@@ -4,7 +4,6 @@ import gzip
 
 FILES = {
     ".github/live-feed-preview-payload/app-live-feed.js.gz.b64": "app-live-feed.js",
-    ".github/live-feed-preview-payload/app-live-wins.js.gz.b64": "app-live-wins.js",
     ".github/live-feed-preview-payload/service-worker.js.gz.b64": "service-worker.js",
     ".github/live-feed-preview-payload/migration.sql.gz.b64": "supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql",
     ".github/live-feed-preview-payload/canary.sql.gz.b64": "supabase/tests/live-feed-comments-preview-canary.sql",
