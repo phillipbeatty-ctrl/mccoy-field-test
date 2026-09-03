@@ -55,6 +55,8 @@ The script additionally verifies that RLS is enabled, `live_feed_comments` is in
 
 The same command runs both the Company/Team feature contract and the free-test harness contract once per pull-request update in `.github/workflows/live-feed-local-supabase.yml`, checking out the exact pull-request head. The CI job is a second execution environment, not a replacement for running the command on a controlled developer machine.
 
+A deployed source preview remains inert by default. To load the comment client, use `?mccoy-live-feed-preview=1` on localhost or a git-scoped Vercel preview hostname. The production hostname cannot enable this preview loader, and this browser gate never substitutes for the later server-enforced controlled-team feature flag.
+
 ### Local safety boundary
 
 The script creates or verifies a Docker bridge whose published ports are bound to `127.0.0.1`, then passes that network to `supabase start --network-id` and inspects the resulting container port bindings before the canary runs. Do not replace it with a network that binds to `0.0.0.0`, and do not expose its Postgres, Auth, Realtime, or API ports to the public internet. Never import production data into the local harness.

@@ -160,7 +160,13 @@ test('canary covers Admin, Manager, Trainer, Rep, team isolation, and cross-orga
   assert.match(canary,/^rollback;$/m)
 })
 
-test('preview shell and loader request the scoped client version',()=>{
+test('preview loader requires an explicit non-production gate',()=>{
+  assert.match(liveWins,/PREVIEW_QUERY='mccoy-live-feed-preview'/)
+  assert.match(liveWins,/host==='localhost'\|\|host==='127\.0\.0\.1'\|\|host==='::1'/)
+  assert.match(liveWins,/host\.endsWith\('\.vercel\.app'\)&&host\.includes\('-git-'\)/)
+  assert.match(liveWins,/if\(!localHost&&!vercelPreview\)return false/)
+  assert.match(liveWins,/new URLSearchParams\(location\.search\)\.get\(PREVIEW_QUERY\)==='1'/)
+  assert.match(liveWins,/if\(!isExplicitNonProductionPreview\(\)\)return/)
   assert.match(liveWins,/app-live-feed\.js\?v=2026090303/)
   assert.match(worker,/field-coach-app-shell-v11-20260903-live-feed-company-team-preview/)
   assert.match(worker,/'\/app-live-feed\.js\?v=2026090303'/)

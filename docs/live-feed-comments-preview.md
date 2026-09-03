@@ -2,6 +2,8 @@
 
 This branch is a preview-only vertical slice. **Do not merge it and do not deploy its migration to the production Supabase project.** The mandatory first database-backed gate is now **Local Supabase Docker validation**. A paid Supabase Preview Branch is not required.
 
+The comment client does not load merely because this branch is deployed. It requires both a non-production host (`localhost`, `127.0.0.1`, `::1`, or a git-scoped Vercel preview hostname) and the explicit query flag `?mccoy-live-feed-preview=1`. Production hostnames refuse this preview loader. This browser loading gate is defense in depth and does not replace the required server-enforced one-team rollout flag.
+
 ## Product objective
 
 Extend the existing verified-sale Live Feed with lightweight operational comments while preserving sale authority and adding two explicit server-enforced scopes:
