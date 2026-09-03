@@ -1,0 +1,100 @@
+name: Live Feed optional free Supabase staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: Non-production Supabase project reference
+        required: true
+        type: string
+      confirmation:
+        description: Type FREE-STAGING-ONLY
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: optional-free-staging-validation
+    if: inputs.confirmation == 'FREE-STAGING-ONLY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: live-feed-free-staging
+    env:
+      STAGING_DB_URL: ${{ secrets.LIVE_FEED_STAGING_DB_URL }}
+      STAGING_PROJECT_REF: ${{ inputs.project_ref }}
+      PRODUCTION_PROJECT_REF: athxxrfqxwlfnuvbqadp
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Prove this is a separate free staging project
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${STAGING_DB_URL:-}" ]] || { echo 'LIVE_FEED_STAGING_DB_URL is not configured in the protected live-feed-free-staging environment.' >&2; exit 1; }
+          [[ -n "${STAGING_PROJECT_REF:-}" ]] || { echo 'A staging project reference is required.' >&2; exit 1; }
+          [[ "$STAGING_PROJECT_REF" != "$PRODUCTION_PROJECT_REF" ]] || { echo 'Refusing to use the production Supabase project.' >&2; exit 1; }
+          [[ "$STAGING_DB_URL" == *"$STAGING_PROJECT_REF"* ]] || { echo 'The database URL does not match the supplied staging project reference.' >&2; exit 1; }
+          case "$STAGING_DB_URL" in
+            *supabase.co*|*supabase.com*) ;;
+            *) echo 'The staging database URL is not a Supabase host.' >&2; exit 1 ;;
+          esac
+          echo "::add-mask::$STAGING_DB_URL"
+          echo 'Confirmed a non-production Supabase staging target.'
+
+      - name: Apply ordinary repository migrations to staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --db-url "$STAGING_DB_URL"
+
+      - name: Require a clean Live Feed preview schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(psql "$STAGING_DB_URL" -X -Atqc "select coalesce(to_regclass('public.live_feed_comments')::text,'')")"
+          [[ -z "$existing" ]] || { echo 'The optional staging project already contains the Live Feed preview schema. Reset or recreate the free staging project before validating another migration head.' >&2; exit 1; }
+
+      - name: Apply preview migration and rollback canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts/live-feed-free-staging
+          psql "$STAGING_DB_URL" -X -v ON_ERROR_STOP=1 --single-transaction \
+            -f supabase/preview-migrations/20260903062000_live_feed_company_team_comments_preview.sql \
+            | tee .artifacts/live-feed-free-staging/migration.log
+          psql "$STAGING_DB_URL" -X -v ON_ERROR_STOP=1 \
+            -f supabase/tests/live-feed-comments-preview-canary.sql \
+            | tee .artifacts/live-feed-free-staging/canary.log
+          grep -Eq '(^|[[:space:]])ROLLBACK([[:space:]]|$)' .artifacts/live-feed-free-staging/canary.log
+          cat > .artifacts/live-feed-free-staging/summary.txt <<'SUMMARY'
+          PASS: non-production Supabase staging project confirmed
+          PASS: ordinary repository migrations applied
+          PASS: COMPANY/TEAM preview migration applied
+          PASS: rollback-only multi-role canary completed
+          SUMMARY
+
+      - name: Upload sanitized staging evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-feed-free-staging-${{ github.sha }}
+          path: .artifacts/live-feed-free-staging
+          if-no-files-found: warn
+          retention-days: 7
