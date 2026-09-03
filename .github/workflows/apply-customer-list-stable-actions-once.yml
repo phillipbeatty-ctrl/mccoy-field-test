@@ -30,19 +30,28 @@ jobs:
       - name: Apply stable identities and final-record filtering
         run: python3 .github/scripts/apply-customer-list-stable-actions.py
 
-      - name: Verify affected JavaScript and Customer List contracts
+      - name: Check affected JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
           node --check app-accounting-records.js
           node --check app-customer-list-approval-refresh.js
           node --check customer-list-stable-actions.test.mjs
-          node --test \
-            customer-list-admin-edit.test.mjs \
-            customer-list-stable-actions.test.mjs \
-            app-update-recovery.test.mjs \
-            organization-access-gate.test.mjs \
-            sale-completion-runtime.test.mjs
+
+      - name: Verify frozen Customer List actions
+        run: node --test customer-list-stable-actions.test.mjs
+
+      - name: Verify existing Customer List edit and return contracts
+        run: node --test customer-list-admin-edit.test.mjs
+
+      - name: Verify update recovery contract
+        run: node --test app-update-recovery.test.mjs
+
+      - name: Verify organization access cache contract
+        run: node --test organization-access-gate.test.mjs
+
+      - name: Verify sale completion runtime contract
+        run: node --test sale-completion-runtime.test.mjs
 
       - name: Commit verified repair
         shell: bash
