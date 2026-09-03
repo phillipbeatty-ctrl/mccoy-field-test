@@ -151,8 +151,8 @@ replace_once(
 )
 replace_once(
     TEST,
-    "  assert.match(migration,/private\\.live_feed_comment_deletions/)\n  assert.match(migration,/original_body text not null/)",
-    "  assert.match(migration,/private\\.live_feed_comment_deletions/)\n  assert.match(migration,/original_body text not null/)\n  assert.match(migration,/set body = 'Comment removed\\.'/)\n  assert.doesNotMatch(migration,/if p_deleted_at is not null then[\\s\\S]*return false/)\n  assert.match(client,/if\\(row\\.deleted_at\\)[\\s\\S]*state\\.events=state\\.events\\.filter/)",
+    "  assert.match(migration,/private\\.live_feed_comment_moderation_events/)\n  assert.doesNotMatch(publicCommentTable,/moderation_reason text/)",
+    "  assert.match(migration,/private\\.live_feed_comment_moderation_events/)\n  assert.match(migration,/private\\.live_feed_comment_deletions/)\n  assert.match(migration,/original_body text not null/)\n  assert.match(migration,/set body = 'Comment removed\\.'/)\n  assert.doesNotMatch(migration,/if p_deleted_at is not null then[\\s\\S]*return false/)\n  assert.match(client,/if\\(row\\.deleted_at\\)[\\s\\S]*state\\.events=state\\.events\\.filter/)\n  assert.doesNotMatch(publicCommentTable,/moderation_reason text/)",
 )
 replace_once(
     TEST,
