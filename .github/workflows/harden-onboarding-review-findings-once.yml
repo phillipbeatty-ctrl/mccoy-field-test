@@ -39,14 +39,15 @@ jobs:
           python3 -m py_compile .github/scripts/harden-onboarding-review-findings.py
           python3 .github/scripts/harden-onboarding-review-findings.py
 
-      - name: Retire generator transforms superseded by whole-action security contracts
+      - name: Retire superseded transforms and refresh exact contracts
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          path=Path('scripts/apply-edge-paywall-guards.mjs')
-          source=path.read_text()
+
+          generator_path=Path('scripts/apply-edge-paywall-guards.mjs')
+          source=generator_path.read_text()
           superseded=(
             "'pending account access rows'",
             "'pending account requests'",
@@ -63,7 +64,16 @@ jobs:
           if after not in source:
             if source.count(before)!=1:raise SystemExit('grant guard generator marker missing')
             source=source.replace(before,after,1)
-          path.write_text(source)
+          generator_path.write_text(source)
+
+          paywall_path=Path('paywall-phase2.test.mjs')
+          paywall=paywall_path.read_text()
+          old="assert.match(repOnboarding,/organization_id:callerAccess\\.organization_id,email:target,role:'rep'/)"
+          new="assert.match(repOnboarding,/organization_id:callerOrganizationId,email:target,role:'rep'/)"
+          if new not in paywall:
+            if paywall.count(old)!=1:raise SystemExit('pending grant test assertion marker missing')
+            paywall=paywall.replace(old,new,1)
+          paywall_path.write_text(paywall)
           PY
 
       - name: Verify source generation, TypeScript, and security contracts
