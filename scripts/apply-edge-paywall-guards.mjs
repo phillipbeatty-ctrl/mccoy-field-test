@@ -23,6 +23,97 @@ const changed=[]
 const unchanged=[]
 const drift=[]
 
+function replaceRequired(source,before,after,label){
+  if(source.includes(after))return source
+  if(!source.includes(before))throw new Error(`${label}: expected source marker was not found`)
+  return source.replace(before,after)
+}
+
+async function applyDeterministicTransform(slug,label,transform){
+  const file=path.join(functionsRoot,slug,'index.ts')
+  const original=await readFile(file,'utf8')
+  const source=transform(original)
+  const reportLabel=`${slug}:${label}`
+  if(source!==original){
+    drift.push(reportLabel)
+    if(writeMode){
+      await writeFile(file,source)
+      changed.push(reportLabel)
+    }
+  }else{
+    unchanged.push(reportLabel)
+  }
+}
+
+// rep-onboarding mixes two pre-membership actions with organization-authorized
+// roster and Admin actions. A blanket wrapper would block the exact users who need
+// status/request_access. Keep those two JWT-authenticated actions reachable, then
+// assert field_coach_access or admin_controls inside the handler before business data.
+await applyDeterministicTransform('rep-onboarding','mixed_pre_membership_admin',source=>{
+  source=source.replace(`${importLine}\n`,'')
+  source=source.replace(/serveWithOrganizationAccess\(\s*['"]admin_controls['"]\s*,/,'Deno.serve(')
+
+  source=replaceRequired(
+    source,
+    ".select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name')",
+    ".select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name,organization_id')",
+    'rep-onboarding caller organization selection'
+  )
+
+  const callerAccessLine="    const {data:callerAccess}=await admin.from('app_user_access').select('email,role,active,display_name,sales_classification,team_name,assigned_manager_email,assigned_manager_name,assigned_admin_email,assigned_admin_name,organization_id').eq('email',email).maybeSingle()"
+  const accessHelper=`${callerAccessLine}\n    async function requireOrganizationAccess(entitlement:string){\n      const {error}=await admin.rpc('service_assert_organization_access',{p_auth_user_id:user.id,p_entitlement:entitlement})\n      if(!error)return null\n      const reason=String(error.message||'').match(/organization_access_denied:([a-z0-9_]+)/i)?.[1]||'organization_access_denied'\n      return json({error:'organization_access_denied',reason,organization_access:{access_allowed:false,denial_reason:reason,entitlement_key:entitlement,purchase_model:'organization_managed_external',purchase_action_available:false}},403)\n    }`
+  if(!source.includes('async function requireOrganizationAccess(entitlement:string)')){
+    source=replaceRequired(source,callerAccessLine,accessHelper,'rep-onboarding mixed access helper')
+  }
+
+  const teamBefore="    if(action==='team_rosters'){\n      if(!callerAccess?.active)return json({error:'forbidden'},403)"
+  const teamAfter="    if(action==='team_rosters'){\n      if(!callerAccess?.active)return json({error:'forbidden'},403)\n      const teamAccessDenied=await requireOrganizationAccess('field_coach_access')\n      if(teamAccessDenied)return teamAccessDenied"
+  source=replaceRequired(source,teamBefore,teamAfter,'rep-onboarding roster access assertion')
+
+  const adminBefore="    if(!callerAccess?.active||callerAccess.role!=='admin') return json({error:'admin_only'},403)"
+  const adminAfter="    if(!callerAccess?.active||callerAccess.role!=='admin') return json({error:'admin_only'},403)\n    const adminAccessDenied=await requireOrganizationAccess('admin_controls')\n    if(adminAccessDenied)return adminAccessDenied"
+  source=replaceRequired(source,adminBefore,adminAfter,'rep-onboarding Admin entitlement assertion')
+
+  source=replaceRequired(
+    source,
+    "admin.from('teams').select('id').eq('name',team).maybeSingle()",
+    "admin.from('teams').select('id').eq('organization_id',callerAccess.organization_id).eq('name',team).maybeSingle()",
+    'rep-onboarding team organization scope'
+  )
+  source=replaceRequired(
+    source,
+    "admin.from('users').upsert({id:account.id,auth_user_id:account.id,email:targetEmail.toLowerCase()",
+    "admin.from('users').upsert({id:account.id,auth_user_id:account.id,organization_id:callerAccess.organization_id,email:targetEmail.toLowerCase()",
+    'rep-onboarding profile organization scope'
+  )
+  source=replaceRequired(
+    source,
+    "admin.from('app_user_access').upsert({email:targetEmail,role,active:true",
+    "admin.from('app_user_access').upsert({organization_id:callerAccess.organization_id,email:targetEmail,role,active:true",
+    'rep-onboarding approval organization scope'
+  )
+  source=replaceRequired(
+    source,
+    "admin.from('app_user_access').upsert({email:target,role:'rep',active:true",
+    "admin.from('app_user_access').upsert({organization_id:callerAccess.organization_id,email:target,role:'rep',active:true",
+    'rep-onboarding pending grant organization scope'
+  )
+
+  if(source.includes(importLine)||source.includes("serveWithOrganizationAccess('admin_controls',")){
+    throw new Error('rep-onboarding: blanket organization wrapper remains')
+  }
+  if(!source.includes('Deno.serve(async(req)=>{'))throw new Error('rep-onboarding: Deno handler was not restored')
+  return source
+})
+
+// The service-role client bypasses RLS. Bind every provider capture lookup to the
+// verified organization as well as the signed-in user before exposing or mutating it.
+await applyDeterministicTransform('provider-sale-photo-stage','organization_capture_scope',source=>{
+  const before="        .eq('id', id)\n        .eq('rep_user_id', user.id)"
+  const after="        .eq('id', id)\n        .eq('organization_id', organizationId)\n        .eq('rep_user_id', user.id)"
+  return replaceRequired(source,before,after,'provider-sale-photo-stage capture tenant scope')
+})
+
 for(const [slug,entitlement] of edgePaywallTargets){
   const file=path.join(functionsRoot,slug,'index.ts')
   let source=await readFile(file,'utf8')
@@ -80,6 +171,6 @@ const report={
 console.log(JSON.stringify(report,null,2))
 
 if(!writeMode&&drift.length){
-  console.error('Run node scripts/apply-edge-paywall-guards.mjs --write and commit the generated guard changes.')
+  console.error('Run node scripts/apply-edge-paywall-guards.mjs --write and commit the generated source changes.')
   process.exitCode=1
 }
