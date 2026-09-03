@@ -76,7 +76,7 @@ async function loadPendingAccounts(admin,caller){
 
   const membershipsPromise=authIds.length
     ?admin.from('organization_memberships')
-      .select('auth_user_id,organization_id,active,role')
+      .select('auth_user_id,organization_id,active,role,is_default,updated_at')
       .in('auth_user_id',authIds)
     :Promise.resolve({data:[],error:null})
 
@@ -110,9 +110,12 @@ async function loadPendingAccounts(admin,caller){
     const access=accessByEmail.get(email)||null
     const request=latestRequestByUser.get(String(account.id))||null
     const memberships=membershipsByUser.get(String(account.id))||[]
+    const callerMembership=memberships.find(row=>
+      row.active===true&&String(row.organization_id)===String(caller.organization_id)
+    )||null
     const belongsToCaller=Boolean(
       access
-      ||memberships.some(row=>row.active&&String(row.organization_id)===String(caller.organization_id))
+      ||callerMembership
       ||(request&&memberships.every(row=>!row.active))
     )
     if(!belongsToCaller)continue
@@ -120,7 +123,12 @@ async function loadPendingAccounts(admin,caller){
     const emailConfirmedAt=account.email_confirmed_at||account.confirmed_at||null
     const requestPending=request?.status==='pending'
     const accessActive=access?.active===true
-    if(emailConfirmedAt&&accessActive&&!requestPending)continue
+    const membershipActive=Boolean(callerMembership)
+    const requiresMembershipRepair=accessActive&&!membershipActive
+
+    // Fully usable accounts leave the queue. An active access row without the
+    // matching membership remains visible as an explicit integrity repair.
+    if(emailConfirmedAt&&accessActive&&membershipActive&&!requestPending)continue
 
     const metadata=account.user_metadata||{}
     const metadataName=String(
@@ -131,13 +139,15 @@ async function loadPendingAccounts(admin,caller){
       ||''
     ).trim()
     const name=String(request?.display_name||access?.display_name||metadataName||email).trim()
-    const accessState=!emailConfirmedAt
-      ?'email_unconfirmed'
-      :requestPending
-        ?'approval_requested'
-        :access
-          ?'access_inactive'
-          :'no_access_record'
+    const accessState=requiresMembershipRepair
+      ?'access_incomplete'
+      :!emailConfirmedAt
+        ?'email_unconfirmed'
+        :requestPending
+          ?'approval_requested'
+          :access
+            ?'access_inactive'
+            :'no_access_record'
 
     accounts.push({
       email,
@@ -149,7 +159,12 @@ async function loadPendingAccounts(admin,caller){
       last_sign_in_at:account.last_sign_in_at||null,
       access_state:accessState,
       access_active:accessActive,
+      membership_active:membershipActive,
+      membership_role:callerMembership?.role||null,
+      membership_organization_id:callerMembership?.organization_id||null,
+      membership_updated_at:callerMembership?.updated_at||null,
       requires_access_grant:!accessActive,
+      requires_membership_repair:requiresMembershipRepair,
       waiting_for_email_confirmation:!emailConfirmedAt,
       auth_user_id:String(account.id),
       request:request?{
@@ -182,7 +197,12 @@ async function loadPendingAccounts(admin,caller){
   for(const account of accounts){
     account.delivery=latestByEmail.get(account.email)||null
   }
-  accounts.sort((left,right)=>String(right.account_created_at||'').localeCompare(String(left.account_created_at||'')))
+  accounts.sort((left,right)=>{
+    if(left.requires_membership_repair!==right.requires_membership_repair){
+      return left.requires_membership_repair?-1:1
+    }
+    return String(right.account_created_at||'').localeCompare(String(left.account_created_at||''))
+  })
   return accounts
 }
 
@@ -239,6 +259,40 @@ serveWithOrganizationAccess('admin_controls',async request=>{
 
     const body=await request.json().catch(()=>({}))
     const action=String(body.action||'list')
+
+    if(action==='repair_organization_access'){
+      const targetEmail=lower(body.email)
+      if(!targetEmail)return json({error:'email_required'},400)
+      const {data:access,error:accessError}=await admin.from('app_user_access')
+        .select('email,active,organization_id')
+        .eq('organization_id',caller.organization_id)
+        .eq('email',targetEmail)
+        .maybeSingle()
+      if(accessError)throw accessError
+      if(!access?.active)return json({error:'active_user_access_required'},404)
+
+      const {data:repair,error:repairError}=await admin.rpc('service_repair_user_organization_access',{
+        p_organization_id:caller.organization_id,
+        p_email:targetEmail
+      })
+      if(repairError)return json({
+        error:'organization_access_repair_failed',
+        detail:repairError.message||'Unable to repair organization access.'
+      },400)
+      if(repair?.access_allowed!==true)return json({
+        error:'organization_access_still_unavailable',
+        detail:repair?.denial_reason||'The membership was synchronized, but Field Coach access is still unavailable.',
+        state:repair||null
+      },409)
+      return json({
+        ok:true,
+        repaired:true,
+        email:targetEmail,
+        organization_id:caller.organization_id,
+        state:repair
+      })
+    }
+
     const providerSettings=await loadProviderSettings(admin,caller.organization_id)
 
     if(action==='list'){
