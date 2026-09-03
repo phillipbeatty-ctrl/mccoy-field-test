@@ -16,13 +16,13 @@ The preview contains exactly three product pieces:
 |---|---|
 | Comment relationship | Standalone chronological comments; no sale threads |
 | Persistence | Comments remain in Live Feed; only the floating notification expires |
-| Visibility | All active authorized members of the same organization |
+| Visibility | Author and Admin see pending submissions; all active authorized members of the same organization see approved comments |
 | Posting | All active authorized organization members |
 | Author notification | Immediate feed confirmation, no floating notification on the posting device |
 | Editing | Not supported |
 | Deletion | Author within five minutes; Admin anytime with a reason for another member's comment |
 | Images and files | Not supported |
-| Customer information | Explicitly prohibited; obvious contact, address, order, and account patterns are rejected server-side |
+| Customer information | Explicitly prohibited; obvious patterns are rejected immediately and every free-form submission remains quarantined until an Admin certifies it contains no customer data |
 | Feed window | Last 30 days, capped at the most recent 100 combined events |
 | Team scope | Not enabled; `scope` and `scope_id` reserve a future organization/team design |
 | Offline behavior | Draft remains on the device; retry is always explicit and idempotent |
@@ -34,6 +34,8 @@ The preview contains exactly three product pieces:
 Verified sales continue to use `public.sales_feed`. Comments use `public.live_feed_comments`. Comment operations never write to `sales_records`, `sales_feed`, rankings, compensation, provider reconciliation, Sales Bank, Customer List, or sale verification.
 
 The server derives organization, Auth user ID, email, display name, and role from the signed-in identity. Authenticated clients receive organization-scoped SELECT access for Realtime, but no direct INSERT, UPDATE, or DELETE privileges. Writes use idempotent RPCs.
+
+Free-form comments fail closed in a moderation quarantine. The author receives immediate pending confirmation and an Admin may review the pending text. Ordinary members do not receive the row or its notification until an Admin explicitly approves it after certifying that no customer information is present. Rejection preserves private immutable audit evidence and never broadcasts the text organization-wide.
 
 ## Preview verification
 
@@ -59,7 +61,7 @@ The canary runs in one transaction and rolls back test organizations, identities
 Do not promote until:
 
 - an isolated Supabase preview branch passes the SQL canary;
-- two preview users in the same organization can exchange comments in Realtime;
+- one preview user can submit a pending comment, an Admin can approve it, and a second same-organization user receives only the approved comment in Realtime;
 - a user in another preview organization cannot read or receive those comments;
 - the author sees no floating notification for their own post;
 - verified sale celebrations interrupt and outrank comment notifications;

@@ -2,16 +2,18 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 
-const migration=readFileSync(new URL('./supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql',import.meta.url),'utf8')
+const baseMigration=readFileSync(new URL('./supabase/migrations/20260903062000_live_feed_comments_vertical_slice.sql',import.meta.url),'utf8')
+const moderationMigration=readFileSync(new URL('./supabase/migrations/20260903063000_live_feed_comment_moderation_quarantine.sql',import.meta.url),'utf8')
+const migration=baseMigration+'\n'+moderationMigration
 const client=readFileSync(new URL('./app-live-feed.js',import.meta.url),'utf8')
 const liveWins=readFileSync(new URL('./app-live-wins.js',import.meta.url),'utf8')
 const worker=readFileSync(new URL('./service-worker.js',import.meta.url),'utf8')
 
 function functionBody(name){
-  const expression=new RegExp(`create or replace function public\\.${name}\\([\\s\\S]*?\\n\\$\\$;`,'i')
-  const match=migration.match(expression)
-  assert.ok(match,`${name} must exist`)
-  return match[0]
+  const expression=new RegExp(`create or replace function public\\.${name}\\([\\s\\S]*?\\n\\$\\$;`,'gi')
+  const matches=[...migration.matchAll(expression)]
+  assert.ok(matches.length,`${name} must exist`)
+  return matches.at(-1)[0]
 }
 
 test('comments are isolated from verified sales and ranking state',()=>{
@@ -106,7 +108,7 @@ test('client renders plain text, preserves explicit offline retry, and suppresse
   assert.doesNotMatch(client,/innerHTML\s*=/)
   assert.match(client,/ownById/)
   assert.match(client,/ownByEmail/)
-  assert.match(client,/if\(!row\|\|ownById\|\|ownByEmail\)return/)
+  assert.match(client,/ownById\|\|ownByEmail\)return/)
 })
 
 test('floating comment notification is nonblocking, downward, auto-expiring, and sale-aware',()=>{
@@ -127,9 +129,9 @@ test('both legacy Live Wins surfaces are promoted to Live Feed without changing 
   assert.match(client,/#salesFeed,#dashboardSalesFeed/)
   assert.match(client,/secondary_messages/)
   assert.match(client,/No Live Feed activity in the last 30 days/)
-  assert.match(liveWins,/app-live-feed\.js\?v=2026090301/)
-  assert.match(worker,/field-coach-app-shell-v9-20260903-live-feed-preview/)
-  assert.match(worker,/'\/app-live-feed\.js\?v=2026090301'/)
+  assert.match(liveWins,/app-live-feed\.js\?v=2026090302/)
+  assert.match(worker,/field-coach-app-shell-v10-20260903-live-feed-moderation-preview/)
+  assert.match(worker,/'\/app-live-feed\.js\?v=2026090302'/)
 })
 
 test('comments participate in Realtime but authenticated clients receive SELECT only',()=>{
@@ -139,4 +141,32 @@ test('comments participate in Realtime but authenticated clients receive SELECT 
   assert.match(client,/filter:`organization_id=eq\.\$\{organizationId\}`/)
   assert.match(client,/await startRealtime\(\);await loadFeed\(\)/)
   assert.match(client,/SUBSCRIBE_WAIT_EXPIRED/)
+})
+
+
+test('free-form comments are quarantined until an Admin approves them',()=>{
+  const post=functionBody('post_live_feed_comment_v1')
+  const getFeed=functionBody('get_live_feed_v1')
+  const moderate=functionBody('moderate_live_feed_comment_v1')
+  assert.match(migration,/moderation_status text not null default 'pending'/)
+  assert.match(migration,/moderation_status in \('pending','approved','rejected'\)/)
+  assert.match(post,/'pending'/)
+  assert.match(getFeed,/comment\.moderation_status = 'approved'/)
+  assert.match(getFeed,/comment\.author_user_id = v_actor\.auth_user_id/)
+  assert.match(getFeed,/v_actor\.role = 'admin'/)
+  assert.match(moderate,/v_actor\.role <> 'admin'/)
+  assert.match(moderate,/v_decision not in \('approve','reject'\)/)
+  assert.match(moderate,/published_at = v_now/)
+  assert.match(moderationMigration,/private\.live_feed_comment_moderation_events/)
+  assert.match(moderationMigration,/live_feed_comment_moderation_events_immutable/)
+})
+
+test('the client publishes and toasts only after moderation approval',()=>{
+  assert.match(client,/Pending Admin approval/)
+  assert.match(client,/Submitted for Admin review/)
+  assert.match(client,/moderate_live_feed_comment_v1/)
+  assert.match(client,/row\.moderation_status!=='approved'/)
+  assert.match(client,/row\.moderation_status==='approved'&&old\?\.moderation_status!=='approved'/)
+  assert.match(client,/contains no customer names, contact details, addresses, order numbers, account numbers/)
+  assert.match(client,/can_moderate/)
 })

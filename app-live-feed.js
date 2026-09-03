@@ -36,7 +36,7 @@
   style.textContent=`
     .live-feed-preview-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.live-feed-preview-pill{display:inline-flex;align-items:center;padding:2px 7px;border:1px solid #c7d2fe;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
     .live-feed-composer{display:grid;gap:7px;margin:10px 0 12px;padding:10px;border:1px solid #dbe3ef;border-radius:11px;background:#f8fafc}.live-feed-compose-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.live-feed-compose-input{box-sizing:border-box;width:100%;min-height:46px;max-height:132px;resize:vertical;padding:10px 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#0f172a;font:inherit;line-height:1.35}.live-feed-compose-input:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.live-feed-post{min-width:76px;min-height:46px}.live-feed-compose-meta{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;font-size:11px;color:#64748b}.live-feed-safety{max-width:760px}.live-feed-compose-status[data-state="error"]{color:#991b1b;font-weight:700}.live-feed-compose-status[data-state="ok"]{color:#166534;font-weight:700}.live-feed-compose-status[data-state="offline"]{color:#92400e;font-weight:700}.live-feed-character-count.over{color:#991b1b;font-weight:800}
-    .live-feed-event-list{display:grid}.live-feed-event{padding:11px 0;border-bottom:1px solid #e5e7eb}.live-feed-event:last-child{border-bottom:0}.live-feed-event-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.live-feed-event-identity{display:flex;align-items:center;gap:8px;min-width:0}.live-feed-event-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:999px;background:#eef2ff;font-size:16px}.live-feed-comment .live-feed-event-icon{background:#f1f5f9;color:#334155;font-size:11px;font-weight:900}.live-feed-event-name{font-size:13px;font-weight:800;color:#0f172a}.live-feed-event-role{margin-left:4px;color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase}.live-feed-event-time{white-space:nowrap;color:#64748b;font-size:10px}.live-feed-event-message{margin:6px 0 0;color:#1e293b;font-size:13px;line-height:1.42;white-space:pre-wrap;overflow-wrap:anywhere}.live-feed-sale .live-feed-event-message{font-weight:800}.live-feed-secondary{display:grid;gap:3px;margin:6px 0 0 38px;color:#475569;font-size:11px}.live-feed-event-actions{display:flex;justify-content:flex-end;margin-top:6px}.live-feed-delete{border:0;background:transparent;color:#64748b;padding:4px 0;font-size:10px;text-decoration:underline;cursor:pointer}.live-feed-delete:disabled{opacity:.55;cursor:wait}.live-feed-empty{padding:12px 0;color:#64748b;font-size:12px}.live-feed-retention{margin-top:8px;color:#64748b;font-size:10px}
+    .live-feed-event-list{display:grid}.live-feed-event{padding:11px 0;border-bottom:1px solid #e5e7eb}.live-feed-event:last-child{border-bottom:0}.live-feed-event-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.live-feed-event-identity{display:flex;align-items:center;gap:8px;min-width:0}.live-feed-event-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:999px;background:#eef2ff;font-size:16px}.live-feed-comment .live-feed-event-icon{background:#f1f5f9;color:#334155;font-size:11px;font-weight:900}.live-feed-event-name{font-size:13px;font-weight:800;color:#0f172a}.live-feed-event-role{margin-left:4px;color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase}.live-feed-event-time{white-space:nowrap;color:#64748b;font-size:10px}.live-feed-event-message{margin:6px 0 0;color:#1e293b;font-size:13px;line-height:1.42;white-space:pre-wrap;overflow-wrap:anywhere}.live-feed-sale .live-feed-event-message{font-weight:800}.live-feed-secondary{display:grid;gap:3px;margin:6px 0 0 38px;color:#475569;font-size:11px}.live-feed-event-actions{display:flex;justify-content:flex-end;margin-top:6px}.live-feed-delete{border:0;background:transparent;color:#64748b;padding:4px 0;font-size:10px;text-decoration:underline;cursor:pointer}.live-feed-delete:disabled{opacity:.55;cursor:wait}.live-feed-moderation-pill{display:inline-flex;margin-left:6px;padding:2px 6px;border:1px solid #f59e0b;border-radius:999px;background:#fffbeb;color:#92400e;font-size:9px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}.live-feed-event-actions{gap:7px;align-items:center;flex-wrap:wrap}.live-feed-moderate{border-radius:7px;padding:5px 8px;font-size:10px;font-weight:800;cursor:pointer}.live-feed-moderate.approve{border:1px solid #86efac;background:#f0fdf4;color:#166534}.live-feed-moderate.reject{border:1px solid #fecaca;background:#fef2f2;color:#991b1b}.live-feed-moderate:disabled{opacity:.55;cursor:wait}.live-feed-empty{padding:12px 0;color:#64748b;font-size:12px}.live-feed-retention{margin-top:8px;color:#64748b;font-size:10px}
     #liveFeedCommentToasts{position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));z-index:180000;width:min(520px,calc(100vw - 24px));transform:translateX(-50%);pointer-events:none}.live-feed-comment-toast{padding:11px 13px;border:1px solid rgba(148,163,184,.8);border-radius:12px;background:rgba(255,255,255,.97);box-shadow:0 14px 34px rgba(15,23,42,.2);color:#0f172a;animation:liveFeedCommentFloat ${COMMENT_TOAST_DURATION_MS}ms ease-out forwards}.live-feed-comment-toast strong{display:block;font-size:12px}.live-feed-comment-toast span{display:-webkit-box;margin-top:3px;overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;line-height:1.35;color:#334155}
     @keyframes liveFeedCommentFloat{0%{opacity:0;transform:translateY(-22px) scale(.98)}12%{opacity:1;transform:translateY(0) scale(1)}74%{opacity:1;transform:translateY(76px) scale(1)}100%{opacity:0;transform:translateY(118px) scale(.99)}}
     @media(max-width:650px){.live-feed-compose-row{grid-template-columns:1fr}.live-feed-post{width:100%}}
@@ -138,7 +138,7 @@
     row.append(input,post);
     const meta=document.createElement('div');meta.className='live-feed-compose-meta';
     const left=document.createElement('div');
-    const safety=document.createElement('div');safety.className='live-feed-safety';safety.textContent='Do not post customer names, phone numbers, addresses, account numbers, order information, or other customer data. Comments are organization-wide, text-only, and cannot be edited.';
+    const safety=document.createElement('div');safety.className='live-feed-safety';safety.textContent='Do not post customer names, phone numbers, addresses, account numbers, order information, or other customer data. Free-form comments are text-only, cannot be edited, and remain visible only to you and Admin until an Admin approves them for the organization.';
     const status=document.createElement('div');status.className='live-feed-compose-status';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
     left.append(safety,status);
     const count=document.createElement('span');count.className='live-feed-character-count';
@@ -195,12 +195,23 @@
     article.append(head,message);
     const extra=secondaryMessages(event);
     if(type==='sale'&&extra.length){const list=document.createElement('div');list.className='live-feed-secondary';for(const text of extra){const line=document.createElement('div');line.textContent=text;list.appendChild(line);}article.appendChild(list);}
+    if(type==='comment'&&event.moderation_status==='pending'){
+      const pending=document.createElement('span');pending.className='live-feed-moderation-pill';pending.textContent='Pending Admin approval';nameWrap.appendChild(pending);
+    }
     const deleteDeadline=parseTime(event?.delete_deadline);
     const deleteAllowed=type==='comment'&&event.can_delete&&(isAdmin()||(event.is_own&&deleteDeadline>Date.now()));
-    if(deleteAllowed){
+    const moderationAllowed=type==='comment'&&event.can_moderate&&event.moderation_status==='pending';
+    if(deleteAllowed||moderationAllowed){
       const actions=document.createElement('div');actions.className='live-feed-event-actions';
-      const remove=document.createElement('button');remove.type='button';remove.className='live-feed-delete';remove.dataset.commentId=String(event.comment_id||'');remove.textContent=event.is_own?'Remove comment':'Remove as Admin';remove.setAttribute('aria-label',remove.textContent);
-      actions.appendChild(remove);article.appendChild(actions);
+      if(moderationAllowed){
+        const approve=document.createElement('button');approve.type='button';approve.className='live-feed-moderate approve';approve.dataset.commentId=String(event.comment_id||'');approve.dataset.decision='approve';approve.textContent='APPROVE';approve.setAttribute('aria-label','Approve this comment for the organization Live Feed');
+        const reject=document.createElement('button');reject.type='button';reject.className='live-feed-moderate reject';reject.dataset.commentId=String(event.comment_id||'');reject.dataset.decision='reject';reject.textContent='REJECT';reject.setAttribute('aria-label','Reject this pending comment');
+        actions.append(approve,reject);
+      }
+      if(deleteAllowed){
+        const remove=document.createElement('button');remove.type='button';remove.className='live-feed-delete';remove.dataset.commentId=String(event.comment_id||'');remove.textContent=event.is_own?'Remove comment':'Remove as Admin';remove.setAttribute('aria-label',remove.textContent);actions.appendChild(remove);
+      }
+      article.appendChild(actions);
     }
     return article;
   }
@@ -252,6 +263,9 @@
     if(/rate limited 5 per minute/i.test(raw))return 'Posting paused: maximum 5 comments per minute.';
     if(/rate limited 30 per hour/i.test(raw))return 'Posting paused: maximum 30 comments per hour.';
     if(/comment too long/i.test(raw))return `Comments are limited to ${MAX_COMMENT_LENGTH} characters.`;
+    if(/moderation reason required/i.test(raw))return 'Enter a reason before rejecting this comment.';
+    if(/comment already moderated/i.test(raw))return 'This comment was already reviewed. Refresh Live Feed.';
+    if(/comment moderation forbidden|admin required/i.test(raw))return 'Only an Admin can approve or reject pending comments.';
     if(/authentication|required|access|membership/i.test(raw))return 'Your Live Feed access could not be verified. Sign in again and retry.';
     if(/function .* does not exist|could not find the function|schema cache/i.test(raw))return 'The preview database is not connected to this Live Feed build yet.';
     return raw||'Live Feed request failed. Your draft was kept.';
@@ -301,12 +315,34 @@
       if(!result?.ok||!result.event)throw new Error(result?.error||'comment_post_failed');
       mergeEvent(result.event);
       state.draft='';state.pendingRequest=null;saveDraft();savePending();syncComposers();
-      setComposerStatus(result.idempotent?'Comment already posted; duplicate retry safely ignored.':'Posted to Live Feed.','ok');
+      setComposerStatus(result.idempotent?'Comment already submitted; duplicate retry safely ignored.':'Submitted for Admin review. It is visible only to you and Admin until approved.','ok');
       window.dispatchEvent(new CustomEvent('mccoy-live-feed-comments-changed',{detail:{eventType:'INSERT',event:result.event,own:true}}));
     }catch(error){
       console.error('Live Feed comment post failed',error);
       setComposerStatus(friendlyError(error),navigator.onLine===false?'offline':'error');
     }finally{state.posting=false;syncComposers();}
+  }
+
+  async function moderateComment(commentId,decision,event){
+    if(!commentId||!isAdmin()||event?.moderation_status!=='pending')return;
+    const client=resolveClient();if(!client)return;
+    let reason='';
+    if(decision==='approve'){
+      if(!confirm('Approve and broadcast this comment to the organization Live Feed? Confirm that you reviewed it and it contains no customer names, contact details, addresses, order numbers, account numbers, or other customer data.'))return;
+      reason='Reviewed by Admin: no customer data observed';
+    }else{
+      reason=prompt('Enter the reason for rejecting this pending comment:','Customer information or inappropriate content');
+      if(!String(reason||'').trim()){setComposerStatus('A rejection reason is required. No change was made.','error');return;}
+    }
+    setComposerStatus(decision==='approve'?'Approving comment…':'Rejecting comment…');
+    try{
+      const {data,error}=await client.rpc('moderate_live_feed_comment_v1',{p_comment_id:commentId,p_decision:decision,p_reason:String(reason).trim()});
+      if(error)throw error;
+      const result=normalizeRpcResponse(data);if(!result?.ok)throw new Error(result?.error||'comment_moderation_failed');
+      if(decision==='approve'&&result.event){markToastSeen(toastSeenKey({id:commentId}));mergeEvent(result.event);setComposerStatus('Comment approved and published to the organization Live Feed.','ok');}
+      else{state.events=state.events.filter(item=>String(item.comment_id||'')!==String(commentId));scheduleRender();setComposerStatus('Comment rejected and retained in the private moderation audit.','ok');}
+      window.dispatchEvent(new CustomEvent('mccoy-live-feed-comments-changed',{detail:{eventType:'MODERATE',commentId,decision}}));
+    }catch(error){console.error('Live Feed comment moderation failed',error);setComposerStatus(friendlyError(error),'error');}
   }
 
   async function deleteComment(commentId,event){
@@ -341,8 +377,8 @@
   function enqueueCommentToast(row){
     const ownById=state.userId&&String(row?.author_user_id||'')===String(state.userId);
     const ownByEmail=state.email&&String(row?.author_email||'').trim().toLowerCase()===state.email;
-    if(!row||ownById||ownByEmail)return;
-    const created=parseTime(row.created_at);if(!created||Date.now()-created>COMMENT_TOAST_MAX_AGE_MS)return;
+    if(!row||row.moderation_status!=='approved'||ownById||ownByEmail)return;
+    const created=parseTime(row.published_at||row.created_at);if(!created||Date.now()-created>COMMENT_TOAST_MAX_AGE_MS)return;
     const key=toastSeenKey(row);if(wasToastSeen(key))return;markToastSeen(key);
     if(state.toastQueue.length>=3){state.collapsedToasts+=1;return;}
     state.toastQueue.push({row,enqueuedAt:Date.now()});drainToasts();
@@ -365,12 +401,15 @@
   }
 
   function commentEventFromRow(row){
-    const own=String(row.author_user_id||'')===String(state.userId||''),created=parseTime(row.created_at);
+    const own=String(row.author_user_id||'')===String(state.userId||''),submitted=parseTime(row.created_at),status=String(row.moderation_status||'pending');
     return {
       event_id:`comment:${row.id}`,
       event_type:'comment',
       comment_id:row.id,
-      created_at:row.created_at,
+      created_at:row.published_at||row.created_at,
+      submitted_at:row.created_at,
+      published_at:row.published_at||null,
+      moderation_status:status,
       actor_user_id:row.author_user_id,
       actor_name:row.author_display_name,
       actor_role:row.author_role,
@@ -379,21 +418,27 @@
       related_sale_id:null,
       scope:row.scope||'organization',
       is_own:own,
-      can_delete:isAdmin()||(own&&created>=Date.now()-5*60*1000),
-      delete_deadline:new Date(created+5*60*1000).toISOString()
+      can_delete:isAdmin()||(own&&submitted>=Date.now()-5*60*1000),
+      can_moderate:isAdmin()&&status==='pending',
+      delete_deadline:new Date(submitted+5*60*1000).toISOString()
     };
   }
 
   function onCommentRealtime(payload){
     const type=payload?.eventType,row=payload?.new||null,old=payload?.old||null;
     if(type==='INSERT'&&row){
-      const event=commentEventFromRow(row);mergeEvent(event);enqueueCommentToast(row);
+      const event=commentEventFromRow(row);mergeEvent(event);
+      if(row.moderation_status==='approved')enqueueCommentToast(row);
       window.dispatchEvent(new CustomEvent('mccoy-live-feed-comments-changed',{detail:{eventType:'INSERT',event,own:event.is_own}}));
       return;
     }
     if(type==='UPDATE'){
-      if(row?.deleted_at){state.events=state.events.filter(item=>String(item.comment_id||'')!==String(row.id));scheduleRender();}
-      else if(row)mergeEvent(commentEventFromRow(row));
+      if(row?.deleted_at||row?.moderation_status==='rejected'){
+        state.events=state.events.filter(item=>String(item.comment_id||'')!==String(row.id));scheduleRender();
+      }else if(row){
+        const event=commentEventFromRow(row);mergeEvent(event);
+        if(row.moderation_status==='approved'&&old?.moderation_status!=='approved')enqueueCommentToast(row);
+      }
       window.dispatchEvent(new CustomEvent('mccoy-live-feed-comments-changed',{detail:{eventType:'UPDATE',commentId:row?.id||old?.id||null}}));
     }
   }
@@ -427,6 +472,7 @@
   }
 
   document.addEventListener('click',event=>{
+    const moderation=event.target?.closest?.('.live-feed-moderate');if(moderation){event.preventDefault();const commentId=moderation.dataset.commentId,eventItem=state.events.find(item=>String(item.comment_id||'')===String(commentId));moderateComment(commentId,moderation.dataset.decision,eventItem);return;}
     const remove=event.target?.closest?.('.live-feed-delete');if(remove){event.preventDefault();const commentId=remove.dataset.commentId,eventItem=state.events.find(item=>String(item.comment_id||'')===String(commentId));deleteComment(commentId,eventItem);return;}
     if(event.target?.closest?.('#salesRefreshBtn,#repDashboardSalesRefresh'))setTimeout(()=>loadFeed({quiet:true}),0);
   });

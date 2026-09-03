@@ -73,7 +73,7 @@
 (()=>{
   if(document.querySelector('script[data-mccoy-live-feed-preview]'))return;
   const script=document.createElement('script');
-  script.src='app-live-feed.js?v=2026090301';
+  script.src='app-live-feed.js?v=2026090302';
   script.dataset.mccoyLiveFeedPreview='1';
   document.head.appendChild(script);
 })();
