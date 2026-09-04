@@ -5,6 +5,8 @@ import fs from 'node:fs'
 const migration=fs.readFileSync(new URL('./supabase/migrations/20260904150000_automatic_daily_workday_segments.sql',import.meta.url),'utf8')
 const gapGuard=fs.readFileSync(new URL('./supabase/migrations/20260904160000_enforce_tracking_gap_exclusion.sql',import.meta.url),'utf8')
 const control=fs.readFileSync(new URL('./supabase/functions/session-control/index.ts',import.meta.url),'utf8')
+const autoStop=fs.readFileSync(new URL('./app-auto-stop.js',import.meta.url),'utf8')
+const adminHistory=fs.readFileSync(new URL('./supabase/functions/admin-session-history/index.ts',import.meta.url),'utf8')
 const ui=fs.readFileSync(new URL('./app-automatic-workday.js',import.meta.url),'utf8')
 
 test('workday has only the requested automatic segment classes',()=>{
@@ -35,6 +37,8 @@ test('automatic stops are removed and only midnight closes the session',()=>{
   assert.match(migration,/reason in \('inactive_30_minutes','maximum_16_hours','local_midnight'\)/)
   assert.match(migration,/due\.midnight_at <= clock_timestamp\(\)/)
   assert.doesNotMatch(migration,/now\(\) - interval '30 minutes'/)
+  assert.match(autoStop,/Workday closed automatically at local midnight/)
+  assert.match(adminHistory,/local_midnight: 'Closed automatically at local midnight'/)
 })
 
 test('the user starts once and sees no break or stop controls',()=>{

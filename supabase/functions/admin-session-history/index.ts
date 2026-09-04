@@ -58,6 +58,7 @@ function reasonLabel(code: string | null) {
     stationary_after_disposition: 'Auto-stopped after inactivity',
     inactive_30_minutes: 'Auto-closed after inactivity',
     maximum_16_hours: 'Auto-closed at maximum session length',
+    local_midnight: 'Closed automatically at local midnight',
     ended: 'Session terminated',
   }
   return labels[code || ''] || 'Session terminated'
