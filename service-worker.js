@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v10-20260904-map-window-controls';
+const VERSION='field-coach-app-shell-v11-20260904-move-pin-viewport-lock';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -19,6 +19,8 @@ const SHELL=[
   '/app-supabase-client.js?v=2026090201',
   '/app-sph-home-admin-only.js?v=2026090502',
   '/app-lead-map-window-controls.js?v=2026090401',
+  '/app-map-viewport-lock.js?v=2026090401',
+  '/app-map-manual-control.js?v=2026090402',
   '/app-sales.js?v=2026082417',
   '/app-sales-products.js?v=2026090201',
   '/app-accounting-records.js?v=2026090301',
