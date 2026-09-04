@@ -16,13 +16,11 @@ test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('sale-submit'),'sales_tracking')
   assert.equal(edgePaywallTargets.get('provider-sale-capture'),'sales_tracking')
   assert.equal(edgePaywallTargets.get('provider-reconcile'),'provider_integrations')
-  assert.equal(edgePaywallTargets.get('provider-sale-photo-stage'),'provider_integrations')
   assert.equal(edgePaywallTargets.get('field-analytics'),'analytics')
   assert.equal(edgePaywallTargets.get('metrics-visibility'),'analytics')
   assert.equal(edgePaywallTargets.get('accounting-records'),'accounting')
   assert.equal(edgePaywallTargets.get('accounting-sales'),'accounting')
   assert.equal(edgePaywallTargets.get('rep-onboarding'),'admin_controls')
-  assert.equal(edgePaywallTargets.get('native-location-ingest'),'native_background_location')
   assert.equal(edgePaywallTargets.get('session-control'),'native_background_location')
 })
 
@@ -41,14 +39,15 @@ test('every Edge Function is protected or has a documented narrow exemption',asy
   const entries=await readdir(functionsRoot,{withFileTypes:true})
   const slugs=entries.filter(entry=>entry.isDirectory()&&entry.name!=='_shared').map(entry=>entry.name)
   const uncategorized=slugs.filter(slug=>!edgePaywallTargets.has(slug)&&!edgePaywallExemptions.has(slug))
+  const stale=[...edgePaywallTargets.keys(),...edgePaywallExemptions.keys()].filter(slug=>!slugs.includes(slug))
   assert.deepEqual(uncategorized,[])
-  assert.ok(edgePaywallTargets.size>=40,'Phase 2 must cover the full business-function surface')
+  assert.deepEqual(stale,[])
+  assert.equal(edgePaywallTargets.size+edgePaywallExemptions.size,slugs.length,'every current Edge Function must be classified exactly once')
 })
 
 test('account recovery and signed provider callbacks are not blanket paywall gated',()=>{
   for(const slug of [
     'auth-email-confirmed',
-    'auth-email-delivery-webhook',
     'auth-email-provider-webhook',
     'auth-email-resend',
     'auth-email-status'
