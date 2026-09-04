@@ -2,8 +2,8 @@
   if(window.MCCOY_LEAD_MAP_WINDOW_CONTROLS)return
   window.MCCOY_LEAD_MAP_WINDOW_CONTROLS=true
 
-  const STANDARD='standard',EXPANDED='expanded',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN='move-pin'
-  let mode=STANDARD,selectedLead=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false
+  const STANDARD='standard',EXPANDED='expanded',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN_READY='move-pin-ready',MOVE_PIN='move-pin'
+  let mode=STANDARD,selectedLead=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null
   const byId=id=>document.getElementById(id)
   const panel=byId('leadMapPanel'),canvas=byId('leadMapFrame')
   if(!panel||!canvas)return
@@ -15,19 +15,21 @@
   style.textContent=`
     .lead-map-window-card{position:relative}
     #leadMapWindowControls{position:absolute;z-index:1400;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 3px 14px rgba(15,23,42,.28);backdrop-filter:blur(8px)}
-    .map-window-control{appearance:none;-webkit-appearance:none;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;display:grid!important;place-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
-    .map-window-control:focus-visible{outline:3px solid #1455d9!important;outline-offset:1px}.map-window-control[aria-disabled="true"]{cursor:default;opacity:.42;filter:saturate(.45)}
-    .map-window-lamp{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(15,23,42,.28),0 1px 2px rgba(15,23,42,.24);color:#172033}.map-window-lamp svg{width:10px;height:10px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .map-window-control,.map-move-control{appearance:none;-webkit-appearance:none;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;display:grid!important;place-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
+    .map-window-control:focus-visible,.map-move-control:focus-visible{outline:3px solid #1455d9!important;outline-offset:1px}.map-window-control[aria-disabled="true"],.map-move-control[aria-disabled="true"]{cursor:default;opacity:.42;filter:saturate(.45)}
+    .map-window-lamp,.map-move-lamp{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(15,23,42,.28),0 1px 2px rgba(15,23,42,.24);color:#172033}.map-window-lamp svg,.map-move-lamp svg{width:10px;height:10px;stroke:currentColor;stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round}
     .map-window-lamp-green{background:#30d158}.map-window-lamp-yellow{background:#ffd60a}.map-window-lamp-red{background:#ff453a}.map-window-more{font:900 8px/1 system-ui;letter-spacing:-1px;transform:translateY(-1px)}
+    .map-move-lamp-move{background:#e2e8f0}.map-move-lamp-confirm{background:#30d158}.map-move-lamp-cancel{background:#f8fafc}
     #leadMapWindowHint{position:absolute;z-index:1450;top:max(61px,calc(env(safe-area-inset-top) + 51px));left:max(10px,env(safe-area-inset-left));padding:6px 9px;border-radius:7px;background:#111827;color:#fff;font:800 11px/1.1 system-ui;letter-spacing:.035em;box-shadow:0 3px 10px rgba(0,0,0,.28);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .14s ease,transform .14s ease}#leadMapWindowHint.show{opacity:1;transform:translateY(0)}
     #leadMapActionMenu{position:absolute;z-index:1390;top:max(64px,calc(env(safe-area-inset-top) + 54px));left:max(10px,env(safe-area-inset-left));display:none;gap:8px;padding:10px;border-radius:12px;background:rgba(255,255,255,.97);box-shadow:0 8px 24px rgba(15,23,42,.28)}#leadMapActionMenu.show{display:grid}#leadMapActionMenu button{min-height:44px;min-width:132px}
     #leadMapSelectedAddress{position:absolute;z-index:1350;left:max(10px,env(safe-area-inset-left));bottom:max(28px,calc(env(safe-area-inset-bottom) + 22px));max-width:min(430px,calc(100% - 20px));display:none;padding:8px 11px;border-radius:10px;background:rgba(17,24,39,.92);color:#fff;font:700 12px/1.35 system-ui;box-shadow:0 4px 14px rgba(0,0,0,.28)}#leadMapSelectedAddress.show{display:block}
     #leadMapWorkflowSheet{position:absolute;z-index:1380;left:max(10px,env(safe-area-inset-left));bottom:max(58px,calc(env(safe-area-inset-bottom) + 52px));width:min(430px,calc(100% - 20px));max-height:min(68vh,620px);display:none;overflow:auto;padding:12px;border-radius:14px;background:rgba(255,255,255,.98);box-shadow:0 10px 32px rgba(15,23,42,.34)}#leadMapWorkflowSheet.show{display:block}
     .lead-map-workflow-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.lead-map-workflow-head strong{font-size:13px}.lead-map-workflow-head button{min-height:44px;min-width:76px}
+    #leadMapMoveDock{position:absolute;z-index:1410;right:max(22px,calc(env(safe-area-inset-right) + 18px));bottom:max(92px,calc(env(safe-area-inset-bottom) + 82px));display:none;align-items:center;gap:2px;padding:3px;border-radius:999px;background:rgba(255,255,255,.9);box-shadow:0 3px 14px rgba(15,23,42,.24);backdrop-filter:blur(8px)}#leadMapMoveDock.show{display:flex}#leadMapMoveDock .move-active-only{display:none}#leadMapMoveDock.active .move-ready-only{display:none}#leadMapMoveDock.active .move-active-only{display:grid}
     body.lead-map-window-open{overflow:hidden!important;overscroll-behavior:none}#leadMapPanel.lead-map-window-expanded{position:fixed!important;inset:0!important;z-index:190000!important;display:block!important;padding:0!important;margin:0!important;background:#e5e7eb}
     #leadMapPanel.lead-map-window-expanded>.grid-2{display:block!important;width:100%!important;height:100%!important;margin:0!important}#leadMapPanel.lead-map-window-expanded>.grid-2>.lead-map-window-card{display:flex!important;position:relative!important;width:100%!important;height:100%!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;overflow:hidden}#leadMapPanel.lead-map-window-expanded>.grid-2>.card:not(.lead-map-window-card){display:none!important}
     #leadMapPanel.lead-map-window-expanded #realLeadMapHeader,#leadMapPanel.lead-map-window-expanded #leadGeoControls{display:none!important}#leadMapPanel.lead-map-window-expanded #leadMapFrame{width:100%!important;height:100%!important;min-height:100dvh!important;border:0!important;border-radius:0!important}#leadMapPanel.lead-map-window-expanded .leaflet-top.leaflet-left{top:max(64px,calc(env(safe-area-inset-top) + 54px))}
-    @media(max-width:620px){#leadMapWorkflowSheet{left:max(8px,env(safe-area-inset-left));width:calc(100% - max(16px,env(safe-area-inset-left) + env(safe-area-inset-right)));max-height:56vh}#leadMapSelectedAddress{left:max(8px,env(safe-area-inset-left));max-width:calc(100% - max(16px,env(safe-area-inset-left) + env(safe-area-inset-right)))}}
+    @media(max-width:620px){#leadMapWorkflowSheet{left:max(8px,env(safe-area-inset-left));width:calc(100% - max(16px,env(safe-area-inset-left) + env(safe-area-inset-right)));max-height:56vh}#leadMapSelectedAddress{left:max(8px,env(safe-area-inset-left));max-width:calc(100% - max(16px,env(safe-area-inset-left) + env(safe-area-inset-right)))}#leadMapMoveDock{right:max(18px,calc(env(safe-area-inset-right) + 14px));bottom:max(86px,calc(env(safe-area-inset-bottom) + 76px))}}
     @media(prefers-reduced-motion:reduce){#leadMapWindowHint{transition:none}}
   `
   document.head.appendChild(style)
@@ -39,55 +41,50 @@
   const menu=document.createElement('div');menu.id='leadMapActionMenu';menu.className='leaflet-control';menu.setAttribute('role','menu');menu.setAttribute('aria-label','Selected lead actions');menu.innerHTML='<button id="leadMapDispositionAction" type="button" class="primary" role="menuitem">DISPOSITION</button><button id="leadMapMovePinAction" type="button" class="assign-btn" role="menuitem">MOVE PIN</button>'
   const address=document.createElement('div');address.id='leadMapSelectedAddress';address.setAttribute('aria-live','polite')
   const sheet=document.createElement('div');sheet.id='leadMapWorkflowSheet';sheet.className='leaflet-control';sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','false');sheet.innerHTML='<div class="lead-map-workflow-head"><strong id="leadMapWorkflowTitle"></strong><button id="leadMapWorkflowCancel" type="button" class="assign-btn">CANCEL</button></div><div id="leadMapWorkflowBody"></div>'
-  canvas.append(controls,hint,menu,address,sheet)
-  window.L?.DomEvent?.disableClickPropagation?.(controls);window.L?.DomEvent?.disableClickPropagation?.(menu);window.L?.DomEvent?.disableClickPropagation?.(sheet)
+  const moveDock=document.createElement('div');moveDock.id='leadMapMoveDock';moveDock.className='leaflet-control';moveDock.setAttribute('role','group');moveDock.setAttribute('aria-label','Move selected lead pin');moveDock.innerHTML=`<button id="leadMapMoveStart" class="map-move-control move-ready-only" type="button" aria-label="MOVE PIN" title="MOVE PIN"><span class="map-move-lamp map-move-lamp-move" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10M6 1 4.5 2.5M6 1l1.5 1.5M6 11l-1.5-1.5M6 11l1.5-1.5M1 6l1.5-1.5M1 6l1.5 1.5M11 6 9.5 4.5M11 6 9.5 7.5"/></svg></span></button><button id="leadMapMoveConfirm" class="map-move-control move-active-only" type="button" aria-label="CONFIRM PIN LOCATION" title="CONFIRM" aria-disabled="true"><span class="map-move-lamp map-move-lamp-confirm" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2 6.5 2.3 2.3L10 3.2"/></svg></span></button><button id="leadMapMoveCancel" class="map-move-control move-active-only" type="button" aria-label="CANCEL PIN MOVE" title="CANCEL"><span class="map-move-lamp map-move-lamp-cancel" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5"/></svg></span></button>`
+  canvas.append(controls,hint,menu,address,sheet,moveDock)
+  window.L?.DomEvent?.disableClickPropagation?.(controls);window.L?.DomEvent?.disableClickPropagation?.(menu);window.L?.DomEvent?.disableClickPropagation?.(sheet);window.L?.DomEvent?.disableClickPropagation?.(moveDock)
 
-  const maximize=byId('leadMapMaximizeBtn'),actions=byId('leadMapActionsBtn'),restore=byId('leadMapRestoreBtn'),dispositionAction=byId('leadMapDispositionAction'),moveAction=byId('leadMapMovePinAction'),workflowBody=byId('leadMapWorkflowBody')
+  const maximize=byId('leadMapMaximizeBtn'),actions=byId('leadMapActionsBtn'),restore=byId('leadMapRestoreBtn'),dispositionAction=byId('leadMapDispositionAction'),moveAction=byId('leadMapMovePinAction'),workflowBody=byId('leadMapWorkflowBody'),moveStart=byId('leadMapMoveStart'),moveConfirm=byId('leadMapMoveConfirm'),moveCancel=byId('leadMapMoveCancel')
   const leadById=id=>{const value=String(id??''),leads=typeof state!=='undefined'&&Array.isArray(state.realLeads)?state.realLeads:[];return leads.find(lead=>String(lead.dbId||lead.id)===value||String(lead.id)===value)||null}
   const selectedAddress=()=>selectedLead?[selectedLead.address,selectedLead.city,selectedLead.stateCode,selectedLead.zip].filter(Boolean).join(', ')||'Selected lead':'Select a lead to see its actions.'
   const mayMoveSelectedLead=()=>{if(!selectedLead)return false;const role=String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase(),userId=String(window.MCCOY_ACCESS?.user?.id||'');return role==='admin'||(role==='rep'&&String(selectedLead.assignedRepId||'')===userId)||(['manager','trainer'].includes(role)&&String(selectedLead.assignedManagerId||'')===userId)}
   function showHint(text){clearTimeout(hintTimer);hint.textContent=text;hint.classList.add('show');hintTimer=setTimeout(()=>hint.classList.remove('show'),1800)}
   const setAvailable=(button,available)=>button.setAttribute('aria-disabled',available?'false':'true')
+  function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
+  function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
 
-  function restoreMountedWorkflow(){
-    if(!mountedWorkflow)return
-    for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}
-    mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')
-  }
+  function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
-    const expanded=mode!==STANDARD,workflow=mode===DISPOSITION||mode===MOVE_PIN
-    panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',mode===ACTION_MENU);sheet.classList.toggle('show',workflow);address.classList.toggle('show',mode===ACTION_MENU||workflow);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',mode===ACTION_MENU?'true':'false')
-    setAvailable(maximize,mode===STANDARD);setAvailable(actions,expanded&&!workflow&&Boolean(selectedLead));setAvailable(restore,expanded&&!workflow);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead())
+    const expanded=mode!==STANDARD,dispositionOpen=mode===DISPOSITION,moveReady=mode===MOVE_PIN_READY,moveActive=mode===MOVE_PIN
+    panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',mode===ACTION_MENU);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveReady||moveActive);moveDock.classList.toggle('active',moveActive);address.classList.toggle('show',mode===ACTION_MENU||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',mode===ACTION_MENU?'true':'false')
+    setAvailable(maximize,mode===STANDARD);setAvailable(actions,expanded&&!dispositionOpen&&!moveReady&&!moveActive&&Boolean(selectedLead));setAvailable(restore,expanded&&!dispositionOpen&&!moveReady&&!moveActive);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());syncCompactConfirm()
     requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,leadId:selectedLead?.dbId||selectedLead?.id||null}}))
   }
   function setMode(next){if(next===STANDARD)restoreMountedWorkflow();mode=next;sync()}
-  function mountWorkflow(node,title,nextMode){
-    if(!node){showHint(`${title} UNAVAILABLE`);return false}
-    restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=nextMode===MOVE_PIN;mode=nextMode;sync();return true
-  }
-  function mountMoveWorkflow(){
-    const ids=['moveLeadPinBtn','movePinActions','movePinDistance','leadCorrectionMsg'],nodes=ids.map(byId).filter(Boolean)
-    if(nodes.length!==ids.length){showHint('MOVE PIN UNAVAILABLE');return false}
-    restoreMountedWorkflow();mountedWorkflow={items:nodes.map(node=>({node,parent:node.parentNode,nextSibling:node.nextSibling}))};for(const node of nodes)workflowBody.appendChild(node)
-    byId('leadMapWorkflowTitle').textContent='MOVE PIN';byId('leadMapWorkflowCancel').hidden=true;mode=MOVE_PIN;sync();return true
-  }
-  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
+  function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
+  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
   function handleControl(button,label,action){button.addEventListener('pointerdown',()=>{suppressClick=false;clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{suppressClick=true;showHint(label)},500)});for(const eventName of ['pointerup','pointercancel','pointerleave'])button.addEventListener(eventName,()=>clearTimeout(longPressTimer));button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(suppressClick){suppressClick=false;return}showHint(label);action()})}
 
   handleControl(maximize,'MAXIMIZE',()=>{if(mode===STANDARD)setMode(EXPANDED)})
-  handleControl(actions,'ACTIONS',()=>{if(mode===STANDARD){showHint('MAXIMIZE MAP FIRST');return}if(mode===DISPOSITION||mode===MOVE_PIN){showHint('FINISH OR CANCEL CURRENT ACTION');return}if(!selectedLead){showHint('SELECT A LEAD FIRST');return}setMode(mode===ACTION_MENU?EXPANDED:ACTION_MENU)})
+  handleControl(actions,'ACTIONS',()=>{if(mode===STANDARD){showHint('MAXIMIZE MAP FIRST');return}if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN){showHint('FINISH OR CANCEL CURRENT ACTION');return}if(!selectedLead){showHint('SELECT A LEAD FIRST');return}setMode(mode===ACTION_MENU?EXPANDED:ACTION_MENU)})
   handleControl(restore,'RESTORE',()=>{if(mode===EXPANDED||mode===ACTION_MENU)setMode(STANDARD)})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
-  moveAction.addEventListener('click',event=>{event.stopPropagation();if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');menu.classList.remove('show');if(mountMoveWorkflow())byId('moveLeadPinBtn')?.click()})
+  moveAction.addEventListener('click',event=>{event.stopPropagation();if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN')})
+  handleControl(moveStart,'MOVE PIN',()=>{if(mode!==MOVE_PIN_READY)return;if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');byId('moveLeadPinBtn')?.click()})
+  moveConfirm.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');byId('confirmLeadPinBtn')?.click()})
+  moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
   byId('leadMapWorkflowCancel').addEventListener('click',cancelWorkflow)
+  watchCompactConfirm()
 
   window.addEventListener('mccoy-map-lead-selected',event=>{selectedLead=leadById(event.detail?.leadId);if(mode===ACTION_MENU)mode=EXPANDED;sync()})
-  window.addEventListener('mccoy-map-lead-deleted',event=>{if(String(event.detail?.leadId||'')!==String(selectedLead?.dbId||selectedLead?.id||''))return;restoreMountedWorkflow();selectedLead=null;mode=mode===STANDARD?STANDARD:EXPANDED;sync()})
-  window.addEventListener('mccoy-map-move-pin-ended',()=>{if(mode!==MOVE_PIN)return;restoreMountedWorkflow();mode=EXPANDED;sync()})
+  window.addEventListener('mccoy-map-lead-deleted',event=>{if(String(event.detail?.leadId||'')!==String(selectedLead?.dbId||selectedLead?.id||''))return;if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();restoreMountedWorkflow();selectedLead=null;mode=mode===STANDARD?STANDARD:EXPANDED;sync()})
+  window.addEventListener('mccoy-map-move-pin-started',()=>{if(mode!==MOVE_PIN_READY)return;mode=MOVE_PIN;sync();watchCompactConfirm()})
+  window.addEventListener('mccoy-map-move-pin-ended',()=>{if(mode!==MOVE_PIN&&mode!==MOVE_PIN_READY)return;mode=EXPANDED;sync()})
   window.addEventListener('mccoy-door-visit-completed',()=>{if(mode!==DISPOSITION)return;restoreMountedWorkflow();mode=EXPANDED;sync()})
-  byId('clearMapSelectionBtn')?.addEventListener('click',()=>{selectedLead=null;if(mode===ACTION_MENU)mode=EXPANDED;sync()})
+  byId('clearMapSelectionBtn')?.addEventListener('click',()=>{if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;if(mode===ACTION_MENU||mode===MOVE_PIN_READY)mode=EXPANDED;sync()})
   document.addEventListener('click',event=>{const mapPick=event.target?.closest?.('.map-pick');if(mapPick?.dataset?.id){selectedLead=leadById(mapPick.dataset.id);if(mode===ACTION_MENU)mode=EXPANDED;setTimeout(sync,0)}const view=event.target?.closest?.('[data-view]')?.dataset?.view;if(view!==undefined&&view!=='leads'){if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;setMode(STANDARD)}if(view==='leads'&&!panel.classList.contains('lead-map-window-expanded'))setMode(STANDARD)},true)
-  document.addEventListener('keydown',event=>{if(event.key!=='Escape')return;if(mode===DISPOSITION||mode===MOVE_PIN)cancelWorkflow();else if(mode===ACTION_MENU)setMode(EXPANDED);else if(mode===EXPANDED)setMode(STANDARD)})
+  document.addEventListener('keydown',event=>{if(event.key!=='Escape')return;if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN)cancelWorkflow();else if(mode===ACTION_MENU)setMode(EXPANDED);else if(mode===EXPANDED)setMode(STANDARD)})
   let resizeTimer=null;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}),120)})
   sync();window.MCCOY_LEAD_MAP_WINDOW={getMode:()=>mode,maximize:()=>setMode(EXPANDED),restore:()=>setMode(STANDARD)}
 })()
