@@ -19,5 +19,6 @@
     setText(title,'Automatic Sales / Hour Workday')
   }
   window.addEventListener('mccoy-sph-workday-ready',event=>apply(event.detail))
-  window.addEventListener('mccoy-access-ready',()=>setTimeout(()=>apply(),0))
+  const readyDetail=window.MCCOY_SPH_WORKDAY_READY_DETAIL
+  if(readyDetail)setTimeout(()=>apply(readyDetail),0)
 })();
