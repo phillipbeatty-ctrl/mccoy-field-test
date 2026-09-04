@@ -28,17 +28,7 @@
     button.addEventListener('click',event=>{
       event.preventDefault();event.stopPropagation()
       if(!selectedLeadId)return
-      const controller=window.MCCOY_LEAD_MAP_WINDOW
-      if(!controller)return
-      if(controller.getMode?.()==='standard')controller.maximize?.()
-      requestAnimationFrame(()=>{
-        const actions=byId('leadMapActionsBtn')
-        if(actions?.getAttribute('aria-disabled')==='false')actions.click()
-        requestAnimationFrame(()=>{
-          const move=byId('leadMapMovePinAction')
-          if(move?.getAttribute('aria-disabled')==='false')move.click()
-        })
-      })
+      window.MCCOY_LEAD_MAP_WINDOW?.beginMovePin?.(selectedLeadId)
     })
     canvas.appendChild(button)
     window.L?.DomEvent?.disableClickPropagation?.(button)
