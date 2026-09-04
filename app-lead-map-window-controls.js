@@ -239,6 +239,13 @@
     if(mode===ACTION_MENU)mode=EXPANDED
     sync()
   })
+  window.addEventListener('mccoy-map-lead-deleted',event=>{
+    if(String(event.detail?.leadId||'')!==String(selectedLead?.dbId||selectedLead?.id||''))return
+    restoreMountedWorkflow()
+    selectedLead=null
+    mode=mode===STANDARD?STANDARD:EXPANDED
+    sync()
+  })
   window.addEventListener('mccoy-map-move-pin-ended',()=>{
     if(mode!==MOVE_PIN)return
     restoreMountedWorkflow()
@@ -253,6 +260,12 @@
   })
   byId('clearMapSelectionBtn')?.addEventListener('click',()=>{selectedLead=null;if(mode===ACTION_MENU)mode=EXPANDED;sync()})
   document.addEventListener('click',event=>{
+    const mapPick=event.target?.closest?.('.map-pick')
+    if(mapPick?.dataset?.id){
+      selectedLead=leadById(mapPick.dataset.id)
+      if(mode===ACTION_MENU)mode=EXPANDED
+      setTimeout(sync,0)
+    }
     const view=event.target?.closest?.('[data-view]')?.dataset?.view
     if(view!==undefined&&view!=='leads'){
       if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click()
