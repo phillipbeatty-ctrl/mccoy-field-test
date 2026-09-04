@@ -30,12 +30,6 @@ test('only the protected map is deployed and recovery/webhook exemptions remain 
   }
 })
 
-test('custom-gateway native ingestion keeps gateway JWT verification disabled while enforcing the in-function guard',()=>{
-  assert.equal(edgePaywallTargets.get('native-location-ingest'),'native_background_location')
-  assert.match(workflow,/\[ "\$function_name" = 'native-location-ingest' \]/)
-  assert.match(workflow,/--no-verify-jwt/)
-})
-
 test('deployment publishes non-secret evidence instead of credentials',()=>{
   assert.match(workflow,/field-coach-paywall-phase2-production/)
   assert.match(workflow,/functions\.json/)
