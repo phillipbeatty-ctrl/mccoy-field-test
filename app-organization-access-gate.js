@@ -4,6 +4,7 @@
 (()=>{
   const REQUIRED_ENTITLEMENT='field_coach_access';
   const VERIFIED_EVENT='organization_access_verified';
+  const ACCESS_CHECK_TIMEOUT_MS=12000;
   let accessSnapshot=null;
   let checkPromise=null;
   let organizationState=null;
@@ -91,6 +92,7 @@
       organization_membership_required:'This account is not attached to an active organization.',
       active_user_access_required:'This account does not have active Field Coach access.',
       auth_user_not_found:'The signed-in account could not be verified.',
+      access_check_timeout:'The access check took too long. Check your connection and select RECHECK ACCESS.',
       access_check_unavailable:'Field Coach could not verify organization access. No business data has been loaded.'
     };
     return messages[reason]||'Organization access is not currently available.';
@@ -141,9 +143,24 @@
   }
 
   async function fetchState(entitlement=REQUIRED_ENTITLEMENT){
-    const {data,error}=await sb.functions.invoke('organization-access',{
-      body:{action:'status',entitlement}
+    let timeoutId;
+    const timeout=new Promise((_,reject)=>{
+      timeoutId=setTimeout(()=>{
+        const timeoutError=new Error('organization_access_timeout');
+        timeoutError.code='access_check_timeout';
+        reject(timeoutError);
+      },ACCESS_CHECK_TIMEOUT_MS);
     });
+    let response;
+    try{
+      response=await Promise.race([
+        sb.functions.invoke('organization-access',{body:{action:'status',entitlement}}),
+        timeout
+      ]);
+    }finally{
+      clearTimeout(timeoutId);
+    }
+    const {data,error}=response;
     if(error)throw error;
     const state=data?.organization_access||data;
     if(!state||typeof state.access_allowed!=='boolean')throw new Error('invalid_organization_access_response');
@@ -170,7 +187,7 @@
         const denied={
           schema_version:1,
           access_allowed:false,
-          denial_reason:'access_check_unavailable',
+          denial_reason:error?.code==='access_check_timeout'?'access_check_timeout':'access_check_unavailable',
           entitlement_key:REQUIRED_ENTITLEMENT,
           purchase_model:'organization_managed_external',
           purchase_action_available:false
