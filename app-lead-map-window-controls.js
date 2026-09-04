@@ -63,6 +63,13 @@
     requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,leadId:selectedLead?.dbId||selectedLead?.id||null}}))
   }
   function setMode(next){if(next===STANDARD)restoreMountedWorkflow();mode=next;sync()}
+  function beginMovePin(leadId){
+    const resolved=leadById(leadId)||selectedLead
+    if(!resolved){showHint('SELECT A LEAD FIRST');return false}
+    selectedLead=resolved
+    if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}
+    restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');return true
+  }
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
   function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
   function handleControl(button,label,action){button.addEventListener('pointerdown',()=>{suppressClick=false;clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{suppressClick=true;showHint(label)},500)});for(const eventName of ['pointerup','pointercancel','pointerleave'])button.addEventListener(eventName,()=>clearTimeout(longPressTimer));button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(suppressClick){suppressClick=false;return}showHint(label);action()})}
@@ -71,7 +78,7 @@
   handleControl(actions,'ACTIONS',()=>{if(mode===STANDARD){showHint('MAXIMIZE MAP FIRST');return}if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN){showHint('FINISH OR CANCEL CURRENT ACTION');return}if(!selectedLead){showHint('SELECT A LEAD FIRST');return}setMode(mode===ACTION_MENU?EXPANDED:ACTION_MENU)})
   handleControl(restore,'RESTORE',()=>{if(mode===EXPANDED||mode===ACTION_MENU)setMode(STANDARD)})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
-  moveAction.addEventListener('click',event=>{event.stopPropagation();if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN')})
+  moveAction.addEventListener('click',event=>{event.stopPropagation();beginMovePin(selectedLead?.dbId||selectedLead?.id)})
   handleControl(moveStart,'MOVE PIN',()=>{if(mode!==MOVE_PIN_READY)return;if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');byId('moveLeadPinBtn')?.click()})
   moveConfirm.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');byId('confirmLeadPinBtn')?.click()})
   moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
@@ -87,5 +94,5 @@
   document.addEventListener('click',event=>{const mapPick=event.target?.closest?.('.map-pick');if(mapPick?.dataset?.id){selectedLead=leadById(mapPick.dataset.id);if(mode===ACTION_MENU)mode=EXPANDED;setTimeout(sync,0)}const view=event.target?.closest?.('[data-view]')?.dataset?.view;if(view!==undefined&&view!=='leads'){if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;setMode(STANDARD)}if(view==='leads'&&!panel.classList.contains('lead-map-window-expanded'))setMode(STANDARD)},true)
   document.addEventListener('keydown',event=>{if(event.key!=='Escape')return;if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN)cancelWorkflow();else if(mode===ACTION_MENU)setMode(EXPANDED);else if(mode===EXPANDED)setMode(STANDARD)})
   let resizeTimer=null;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}),120)})
-  sync();window.MCCOY_LEAD_MAP_WINDOW={getMode:()=>mode,maximize:()=>setMode(EXPANDED),restore:()=>setMode(STANDARD)}
+  sync();window.MCCOY_LEAD_MAP_WINDOW={getMode:()=>mode,maximize:()=>setMode(EXPANDED),restore:()=>setMode(STANDARD),beginMovePin}
 })()
