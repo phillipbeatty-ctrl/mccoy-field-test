@@ -22,16 +22,22 @@ test('traffic-light controls use icons, stable accessible meanings, and one-hand
 })
 
 test('map begins standard and implements the requested state transitions',()=>{
-  assert.match(controls,/let mode=STANDARD/)
+  assert.match(controls,/mode=STANDARD/)
   assert.match(controls,/handleControl\(maximize,'MAXIMIZE'/)
   assert.match(controls,/handleControl\(actions,'ACTIONS'/)
   assert.match(controls,/handleControl\(restore,'RESTORE'/)
   assert.match(controls,/setMode\(EXPANDED\)/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
-  assert.match(controls,/mountWorkflow\([^\n]*'MOVE PIN',MOVE_PIN\)/)
-  assert.match(controls,/leadMapWorkflowCancel'\)\.hidden=nextMode===MOVE_PIN/)
+  assert.match(controls,/mountMoveWorkflow\(\)/)
   assert.match(controls,/mccoy-map-move-pin-ended/)
   assert.match(controls,/mccoy-door-visit-completed/)
+})
+
+test('MOVE PIN workflow contains only pin movement controls and never disposition or address editing',()=>{
+  assert.match(controls,/const ids=\['moveLeadPinBtn','movePinActions','movePinDistance','leadCorrectionMsg'\]/)
+  assert.doesNotMatch(controls,/mountWorkflow\(byId\('leadCorrectionPanel'\),'MOVE PIN'/)
+  assert.doesNotMatch(controls,/adminLeadAddressFields.*MOVE PIN|MOVE PIN.*adminLeadAddressFields/s)
+  assert.doesNotMatch(controls,/map-pin-disposition.*mountMoveWorkflow|mountMoveWorkflow.*map-pin-disposition/s)
 })
 
 test('unavailable controls remain visible, explain themselves, and do not rely on color',()=>{
