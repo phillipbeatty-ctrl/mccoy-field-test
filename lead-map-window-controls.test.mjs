@@ -28,6 +28,7 @@ test('map begins standard and implements the requested state transitions',()=>{
   assert.match(controls,/setMode\(EXPANDED\)/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
   assert.match(controls,/mountWorkflow\([^\n]*'MOVE PIN',MOVE_PIN\)/)
+  assert.match(controls,/leadMapWorkflowCancel'\)\.hidden=nextMode===MOVE_PIN/)
   assert.match(controls,/mccoy-map-move-pin-ended/)
   assert.match(controls,/mccoy-door-visit-completed/)
 })
