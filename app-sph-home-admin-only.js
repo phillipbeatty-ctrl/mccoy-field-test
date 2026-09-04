@@ -19,6 +19,7 @@
     setText(title,'Automatic Sales / Hour Workday')
   }
   window.addEventListener('mccoy-sph-workday-ready',event=>apply(event.detail))
-  const readyDetail=window.MCCOY_SPH_WORKDAY_READY_DETAIL
-  if(readyDetail)setTimeout(()=>apply(readyDetail),0)
+  if(document.getElementById('sphWorkdayControl')){
+    window.MCCOY_SPH_PRESENCE?.refresh?.().catch(error=>console.error('Home status refresh failed',error))
+  }
 })();
