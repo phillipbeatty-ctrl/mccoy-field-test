@@ -45,7 +45,7 @@
     let label='Knocking auto-stopped';
     if(data.reason==='outside_assigned_area') label='Auto-stopped — outside assigned working area';
     else if(data.reason==='stationary_after_disposition') label='Auto-stopped — inactive after last disposition';
-    else if(data.reason==='session_already_ended') label='Session ended';
+    else if(data.reason==='local_midnight'||data.reason==='session_already_ended') label='Workday closed automatically at local midnight';
     telemetryStatus(label,true);
     clearLocalSession(label);
     // Admin/manager sessions can immediately generate protected analytics; testers receive no formulas/results.
