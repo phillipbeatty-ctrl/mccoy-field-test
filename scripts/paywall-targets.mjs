@@ -2,6 +2,7 @@ export const edgePaywallTargets=new Map([
   ['accounting-records','accounting'],
   ['accounting-sales','accounting'],
   ['admin-session-history','analytics'],
+  ['admin-workday','analytics'],
   ['company-leaders','analytics'],
   ['compensation-settings','admin_controls'],
   ['field-analytics','analytics'],
