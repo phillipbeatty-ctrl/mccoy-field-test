@@ -3,9 +3,11 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
 const controls=fs.readFileSync(new URL('./app-lead-map-window-controls.js',import.meta.url),'utf8')
+const entryFix=fs.readFileSync(new URL('./app-lead-map-window-entry-fix.js',import.meta.url),'utf8')
 const map=fs.readFileSync(new URL('./app-lead-map.js',import.meta.url),'utf8')
 const detail=fs.readFileSync(new URL('./app-lead-detail-panel.js',import.meta.url),'utf8')
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8')
+const loader=fs.readFileSync(new URL('./app-page-layout.js',import.meta.url),'utf8')
 const worker=fs.readFileSync(new URL('./service-worker.js',import.meta.url),'utf8')
 
 test('traffic-light controls use icons, stable accessible meanings, and one-hand touch targets',()=>{
@@ -21,13 +23,15 @@ test('traffic-light controls use icons, stable accessible meanings, and one-hand
   assert.match(controls,/touch-action:manipulation/)
 })
 
-test('map begins standard and implements the requested display and action transitions',()=>{
+test('Lead Pool entry automatically maximizes while preserving requested map transitions',()=>{
   assert.match(controls,/mode=STANDARD/)
+  assert.match(entryFix,/controller\.getMode\?\.\(\)==='standard'/)
+  assert.match(entryFix,/controller\.maximize\?\.\(\)/)
+  assert.match(entryFix,/view==='leads'/)
   assert.match(controls,/MOVE_PIN_READY='move-pin-ready'/)
   assert.match(controls,/handleControl\(maximize,'MAXIMIZE'/)
   assert.match(controls,/handleControl\(actions,'ACTIONS'/)
   assert.match(controls,/handleControl\(restore,'RESTORE'/)
-  assert.match(controls,/setMode\(EXPANDED\)/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
   assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\)/)
   assert.match(controls,/mccoy-map-move-pin-started/)
@@ -48,6 +52,12 @@ test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit t
   assert.match(controls,/move-active-only/)
   assert.match(controls,/#leadMapMoveDock\.active \.move-ready-only\{display:none\}/)
   assert.match(controls,/#leadMapMoveDock\.active \.move-active-only\{display:grid\}/)
+})
+
+test('legacy outside-map correction panel cannot surface',()=>{
+  assert.match(entryFix,/#leadCorrectionPanel\{display:none!important\}/)
+  assert.doesNotMatch(controls,/mountWorkflow\(byId\('leadCorrectionPanel'\),'MOVE PIN'/)
+  assert.doesNotMatch(controls,/workflowBody\.appendChild\(byId\('moveLeadPinBtn'\)/)
 })
 
 test('MOVE PIN never mounts a workflow sheet, disposition controls, or address-editing controls',()=>{
@@ -88,17 +98,17 @@ test('expanded map preserves selected lead context and lead lifecycle safety',()
   assert.match(controls,/if\(window\.MCCOY_MAP_MOVE_PIN_ACTIVE\)byId\('cancelLeadPinBtn'\)\?\.click\(\)/)
 })
 
-test('orientation preserves mode while navigation and reload begin standard',()=>{
+test('orientation preserves mode while leaving Lead Pool restores standard',()=>{
   assert.match(controls,/window\.addEventListener\('resize'/)
   assert.doesNotMatch(controls,/localStorage|sessionStorage/)
   assert.match(controls,/view!==undefined&&view!=='leads'/)
   assert.match(controls,/setMode\(STANDARD\)/)
 })
 
-test('production entrypoint and app shell ship the prototype with fresh cache keys',()=>{
+test('production lifecycle loads the compact MOVE PIN entry fix',()=>{
   assert.match(html,/app-lead-map\.js\?v=2026090401/)
   assert.match(html,/app-lead-map-window-controls\.js\?v=2026090401/)
+  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026090401/)
   assert.ok(html.indexOf('app-lead-detail-panel.js?v=2026090401')<html.indexOf('app-lead-map-window-controls.js?v=2026090401'))
   assert.match(worker,/field-coach-app-shell-v10-20260904-map-window-controls/)
-  assert.match(worker,/'\/app-lead-map-window-controls\.js\?v=2026090401'/)
 })
