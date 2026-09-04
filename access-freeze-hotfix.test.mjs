@@ -9,7 +9,9 @@ const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8')
 test('Home lock is event-driven without a document-wide observer',()=>{
   assert.doesNotMatch(home,/MutationObserver/)
   assert.match(home,/addEventListener\('mccoy-sph-workday-ready'/)
-  assert.match(home,/addEventListener\('mccoy-access-ready'/)
+  assert.doesNotMatch(home,/addEventListener\('mccoy-access-ready'/)
+  assert.match(home,/getElementById\('sphWorkdayControl'\)/)
+  assert.match(home,/MCCOY_SPH_PRESENCE\?\.refresh\?\.\(\)/)
 })
 
 test('Home lock writes labels only when values differ and removes editor once',()=>{
