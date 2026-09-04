@@ -124,6 +124,7 @@
     if(correctionLead){markerByLead.get(correctionLead.dbId)?.setOpacity?.(1);}
     movePinOriginal=null;movePinProposed=null;movePinBusy=false;window.MCCOY_MAP_MOVE_PIN_ACTIVE=false;syncMovePinButtons(false);restoreGrabCursor();
     const distance=document.getElementById('movePinDistance');if(distance)distance.textContent='';if(message)correctionMsg(message);
+    window.dispatchEvent(new CustomEvent('mccoy-map-move-pin-ended',{detail:{leadId:correctionLead?.dbId||correctionLead?.id||null,message}}));
   }
   async function currentUserMayMove(l){
     const role=String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase();
@@ -137,6 +138,7 @@
     const hasPin=Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng)),hasCandidate=Number.isFinite(Number(l.geocodeCandidateLat))&&Number.isFinite(Number(l.geocodeCandidateLng));
     if(!hasPin&&!hasCandidate){correctionMsg('This lead has no starting map point. Save a complete address before placing it.');return;}
     clearLassoShape();restoreGrabCursor();window.MCCOY_MAP_MOVE_PIN_ACTIVE=true;
+    window.dispatchEvent(new CustomEvent('mccoy-map-move-pin-started',{detail:{leadId:l.dbId||l.id}}));
     movePinOriginal={lat:Number(hasPin?l.lat:l.geocodeCandidateLat),lng:Number(hasPin?l.lng:l.geocodeCandidateLng)};movePinProposed=null;
     markerByLead.get(l.dbId)?.setOpacity?.(.38);
     correctionMarker=L.marker([movePinOriginal.lat,movePinOriginal.lng],{draggable:true,autoPan:true,title:'Move pin to the actual door',icon:leadPinIcon(l,false,true)}).addTo(map);
