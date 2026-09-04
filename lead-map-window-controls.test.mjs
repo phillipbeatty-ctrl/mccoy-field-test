@@ -27,24 +27,57 @@ test('Lead Pool stays standard until MOVE PIN is explicitly selected',()=>{
   assert.match(controls,/mode=STANDARD/)
   assert.doesNotMatch(entryFix,/mccoy-real-leads-loaded[^\n]*maximize|pageshow[^\n]*maximize|view==='leads'[^\n]*maximize/s)
   assert.match(entryFix,/leadMapMovePinLauncher/)
-  assert.match(entryFix,/controller\.getMode\?\.\(\)==='standard'/)
-  assert.match(entryFix,/controller\.maximize\?\.\(\)/)
-  assert.match(entryFix,/leadMapActionsBtn/)
-  assert.match(entryFix,/leadMapMovePinAction/)
   assert.match(controls,/MOVE_PIN_READY='move-pin-ready'/)
   assert.match(controls,/handleControl\(maximize,'MAXIMIZE'/)
   assert.match(controls,/handleControl\(actions,'ACTIONS'/)
   assert.match(controls,/handleControl\(restore,'RESTORE'/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
-  assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\)/)
 })
 
-test('selected lead exposes a standard-view MOVE PIN launcher that auto-maximizes into compact mode',()=>{
+test('Standard MOVE PIN calls first-class controller transition directly',()=>{
+  assert.match(entryFix,/MCCOY_LEAD_MAP_WINDOW\?\.beginMovePin\?\.\(selectedLeadId\)/)
+  assert.doesNotMatch(entryFix,/leadMapActionsBtn/)
+  assert.doesNotMatch(entryFix,/leadMapMovePinAction/)
+  assert.doesNotMatch(entryFix,/\.maximize\?\.\(\)/)
+  assert.doesNotMatch(entryFix,/requestAnimationFrame/)
+  assert.doesNotMatch(entryFix,/\.click\(\)/)
+  assert.match(controls,/function beginMovePin\(leadId\)/)
+  assert.match(controls,/const resolved=leadById\(leadId\)\|\|selectedLead/)
+  assert.match(controls,/selectedLead=resolved/)
+  assert.match(controls,/if\(!mayMoveSelectedLead\(\)\)/)
+  assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\);return true/)
+  assert.match(controls,/beginMovePin\}/)
+})
+
+test('beginMovePin state transition maximizes and reveals compact MOVE PIN without yellow Actions',()=>{
+  const beginStart=controls.indexOf('function beginMovePin(leadId)')
+  const beginEnd=controls.indexOf('function mountWorkflow',beginStart)
+  assert.ok(beginStart>=0&&beginEnd>beginStart)
+  const beginBody=controls.slice(beginStart,beginEnd)
+  assert.match(beginBody,/mode=MOVE_PIN_READY/)
+  assert.match(beginBody,/sync\(\)/)
+  assert.doesNotMatch(beginBody,/actions\.click|moveAction\.click|ACTION_MENU/)
+
+  const syncStart=controls.indexOf('function sync()')
+  const syncEnd=controls.indexOf('function setMode',syncStart)
+  assert.ok(syncStart>=0&&syncEnd>syncStart)
+  const syncBody=controls.slice(syncStart,syncEnd)
+  assert.match(syncBody,/const expanded=mode!==STANDARD/)
+  assert.match(syncBody,/moveReady=mode===MOVE_PIN_READY/)
+  assert.match(syncBody,/panel\.classList\.toggle\('lead-map-window-expanded',expanded\)/)
+  assert.match(syncBody,/moveDock\.classList\.toggle\('show',moveReady\|\|moveActive\)/)
+})
+
+test('selected lead exposes a standard-view MOVE PIN launcher',()=>{
   assert.match(entryFix,/selectedLeadId=event\.detail\?\.leadId\|\|null/)
   assert.match(entryFix,/button\.textContent='MOVE PIN'/)
   assert.match(entryFix,/button\.setAttribute\('aria-label','MOVE PIN'\)/)
   assert.match(entryFix,/selectedLeadId&&standard&&leadsActive/)
   assert.match(entryFix,/#leadMapPanel\.lead-map-window-expanded #leadMapMovePinLauncher\{display:none!important\}/)
+})
+
+test('yellow Actions MOVE PIN uses the same first-class beginMovePin transition',()=>{
+  assert.match(controls,/moveAction\.addEventListener\('click',event=>\{event\.stopPropagation\(\);beginMovePin\(selectedLead\?\.dbId\|\|selectedLead\?\.id\)\}\)/)
 })
 
 test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit targets',()=>{
