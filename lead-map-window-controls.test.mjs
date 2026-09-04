@@ -4,6 +4,8 @@ import fs from 'node:fs'
 
 const controls=fs.readFileSync(new URL('./app-lead-map-window-controls.js',import.meta.url),'utf8')
 const entryFix=fs.readFileSync(new URL('./app-lead-map-window-entry-fix.js',import.meta.url),'utf8')
+const viewportLock=fs.readFileSync(new URL('./app-map-viewport-lock.js',import.meta.url),'utf8')
+const manualMap=fs.readFileSync(new URL('./app-map-manual-control.js',import.meta.url),'utf8')
 const map=fs.readFileSync(new URL('./app-lead-map.js',import.meta.url),'utf8')
 const detail=fs.readFileSync(new URL('./app-lead-detail-panel.js',import.meta.url),'utf8')
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8')
@@ -80,6 +82,44 @@ test('yellow Actions MOVE PIN uses the same first-class beginMovePin transition'
   assert.match(controls,/moveAction\.addEventListener\('click',event=>\{event\.stopPropagation\(\);beginMovePin\(selectedLead\?\.dbId\|\|selectedLead\?\.id\)\}\)/)
 })
 
+test('MOVE PIN owns a shared viewport lock that blocks automatic pan and fit',()=>{
+  assert.match(viewportLock,/MCCOY_MAP_VIEWPORT_LOCK/)
+  assert.match(viewportLock,/owner==='move-pin'/)
+  assert.match(viewportLock,/map\.panTo=function\(\.\.\.args\)/)
+  assert.match(viewportLock,/if\(isMovePinOwner\(\)\)return this/)
+  assert.match(viewportLock,/map\.fitBounds=function\(\.\.\.args\)/)
+  assert.match(viewportLock,/snapshot=map\?\{center:map\.getCenter\?\.\(\),zoom:map\.getZoom\?\.\(\)\}:null/)
+  assert.match(viewportLock,/mode==='move-pin-ready'\|\|mode==='move-pin'/)
+  assert.match(viewportLock,/acquire\('move-pin'\)/)
+  assert.match(viewportLock,/release\('move-pin'\)/)
+})
+
+test('MOVE PIN viewport lock turns location follow off but leaves GPS collection untouched',()=>{
+  const acquireStart=viewportLock.indexOf("function acquire(nextOwner='move-pin')")
+  const acquireEnd=viewportLock.indexOf('function release',acquireStart)
+  assert.ok(acquireStart>=0&&acquireEnd>acquireStart)
+  const acquireBody=viewportLock.slice(acquireStart,acquireEnd)
+  assert.ok(acquireBody.indexOf('stopLocationFollow()')<acquireBody.indexOf('owner=nextOwner'))
+  assert.match(viewportLock,/followMyLocationBtn/)
+  assert.doesNotMatch(viewportLock,/navigator\.geolocation|mccoy-gps-update|receiveFix/)
+})
+
+test('manual map browsing no longer fakes lead selection',()=>{
+  assert.doesNotMatch(manualMap,/__mccoy_map_browse__/)
+  assert.doesNotMatch(manualMap,/mccoy-map-lead-selected/)
+  assert.match(manualMap,/pauseLocationFollow/)
+  assert.match(manualMap,/mousedown','touchstart','dragstart','zoomstart/)
+})
+
+test('viewport lock loads before manual map control and is available offline',()=>{
+  const viewportIndex=loader.indexOf('app-map-viewport-lock.js?v=2026090401')
+  const manualIndex=loader.indexOf('app-map-manual-control.js?v=2026090402')
+  assert.ok(viewportIndex>=0&&manualIndex>viewportIndex)
+  assert.match(worker,/field-coach-app-shell-v11-20260904-move-pin-viewport-lock/)
+  assert.match(worker,/app-map-viewport-lock\.js\?v=2026090401/)
+  assert.match(worker,/app-map-manual-control\.js\?v=2026090402/)
+})
+
 test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit targets',()=>{
   assert.match(controls,/id="leadMapMoveDock"/)
   assert.match(controls,/right:max\(22px/)
@@ -142,5 +182,4 @@ test('production lifecycle loads the MOVE PIN entry launcher',()=>{
   assert.match(html,/app-lead-map-window-controls\.js\?v=2026090401/)
   assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026090401/)
   assert.ok(html.indexOf('app-lead-detail-panel.js?v=2026090401')<html.indexOf('app-lead-map-window-controls.js?v=2026090401'))
-  assert.match(worker,/field-coach-app-shell-v10-20260904-map-window-controls/)
 })
