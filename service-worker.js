@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v8-20260903-customer-list-stable-actions';
+const VERSION='field-coach-app-shell-v9-20260904-access-freeze-hotfix';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -15,8 +15,9 @@ const SHELL=[
   '/assets/icon-512.png',
   '/assets/icon-maskable-512.png',
   '/app-product-brand.js',
-  '/app-organization-access-gate.js?v=2026090201',
+  '/app-organization-access-gate.js?v=2026090402',
   '/app-supabase-client.js?v=2026090201',
+  '/app-sph-home-admin-only.js?v=2026090502',
   '/app-sales.js?v=2026082417',
   '/app-sales-products.js?v=2026090201',
   '/app-accounting-records.js?v=2026090301',
