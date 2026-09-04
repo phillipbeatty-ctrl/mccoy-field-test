@@ -33,6 +33,8 @@ create index if not exists lead_pin_move_audit_lead_created_idx
   on private.lead_pin_move_audit (lead_id, created_at desc);
 
 revoke all on private.lead_pin_move_audit from public, anon, authenticated;
+grant usage on schema private to service_role;
+grant select, insert on private.lead_pin_move_audit to service_role;
 
 create or replace function public.move_lead_pin(
   p_lead_id uuid,
@@ -51,7 +53,7 @@ create or replace function public.move_lead_pin(
   p_client_context jsonb default '{}'::jsonb
 ) returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = pg_catalog, public, private
 as $$
 declare
