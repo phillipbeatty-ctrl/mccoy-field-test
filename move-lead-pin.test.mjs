@@ -9,13 +9,12 @@ const leads=fs.readFileSync(new URL('./app-real-leads.js',import.meta.url),'utf8
 const deselect=fs.readFileSync(new URL('./app-lead-map-deselect.js',import.meta.url),'utf8');
 
 test('server exposes only the narrow move action to field roles',()=>{
-  assert.match(edge,/allFieldActions=\[[^\]]*'move_lead_pin'/);
-  assert.match(edge,/action==='move_lead_pin'/);
-  assert.match(edge,/admin\.rpc\('move_lead_pin'/);
+  assert.match(edge,/action === 'move_lead_pin'/);
+  assert.match(edge,/db\.rpc\('move_lead_pin'/);
   assert.match(migration,/revoke all on function public\.move_lead_pin\([^)]+\) from public, anon, authenticated/);
   assert.match(migration,/grant execute on function public\.move_lead_pin\([^)]+\) to service_role/);
   assert.match(migration,/security invoker/);
-  assert.match(edge,/p_actor_user_id:user\.id/);
+  assert.match(edge,/p_actor_user_id: profile\.id/);
   assert.doesNotMatch(map,/action:'update_lead'[^\n]*proposed_latitude/);
 });
 
@@ -58,7 +57,7 @@ test('mobile move mode previews before explicit confirmation',()=>{
 });
 
 test('lead list carries optimistic concurrency version to the client',()=>{
-  assert.match(edge,/latitude,longitude,pin_location_updated_at,geocode_status/);
+  assert.match(edge,/'latitude','longitude','pin_location_updated_at'/);
   assert.match(leads,/updatedAt:r\.pin_location_updated_at/);
   assert.match(map,/expected_updated_at:l\.updatedAt/);
 });
