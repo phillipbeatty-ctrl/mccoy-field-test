@@ -2,7 +2,6 @@ export const edgePaywallTargets=new Map([
   ['accounting-records','accounting'],
   ['accounting-sales','accounting'],
   ['admin-session-history','analytics'],
-  ['address-validation-admin-review','lead_management'],
   ['address-validation-pilot','lead_management'],
   ['address-validation-repair','lead_management'],
   ['company-leaders','analytics'],
