@@ -17,6 +17,7 @@ test('the Phase 2 entitlement map uses the narrowest business capability',()=>{
   assert.equal(edgePaywallTargets.get('provider-sale-capture'),'sales_tracking')
   assert.equal(edgePaywallTargets.get('provider-reconcile'),'provider_integrations')
   assert.equal(edgePaywallTargets.get('field-analytics'),'analytics')
+  assert.equal(edgePaywallTargets.get('admin-workday'),'analytics')
   assert.equal(edgePaywallTargets.get('metrics-visibility'),'analytics')
   assert.equal(edgePaywallTargets.get('accounting-records'),'accounting')
   assert.equal(edgePaywallTargets.get('accounting-sales'),'accounting')
