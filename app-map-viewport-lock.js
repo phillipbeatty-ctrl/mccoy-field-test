@@ -39,11 +39,11 @@
   function acquire(nextOwner='move-pin'){
     install();
     if(owner===nextOwner)return snapshot;
+    stopLocationFollow();
     const map=mapApi();
     owner=nextOwner;
     snapshot=map?{center:map.getCenter?.(),zoom:map.getZoom?.()}:null;
     map?.stop?.();
-    stopLocationFollow();
     window.dispatchEvent(new CustomEvent('mccoy-map-viewport-lock-changed',{detail:{owner,locked:true,snapshot}}));
     return snapshot;
   }
@@ -64,7 +64,8 @@
     if(event.target?.closest?.('#followMyLocationBtn')){
       event.preventDefault();
       event.stopImmediatePropagation();
-      stopLocationFollow();
+      const button=document.getElementById('followMyLocationBtn');
+      if(button){button.setAttribute('aria-pressed','false');button.textContent='MY LOCATION';}
     }
   },true);
 
