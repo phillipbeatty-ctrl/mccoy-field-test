@@ -4,6 +4,7 @@ import fs from 'node:fs'
 
 const controls=fs.readFileSync(new URL('./app-lead-map-window-controls.js',import.meta.url),'utf8')
 const map=fs.readFileSync(new URL('./app-lead-map.js',import.meta.url),'utf8')
+const detail=fs.readFileSync(new URL('./app-lead-detail-panel.js',import.meta.url),'utf8')
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8')
 const worker=fs.readFileSync(new URL('./service-worker.js',import.meta.url),'utf8')
 
@@ -48,6 +49,10 @@ test('expanded map preserves selection context and uses existing audited workflo
   assert.match(controls,/MCCOY_MAP_MOVE_PIN_ACTIVE/)
   assert.match(map,/mccoy-map-move-pin-started/)
   assert.match(map,/mccoy-map-move-pin-ended/)
+  assert.match(controls,/closest\?\.\('\.map-pick'\)/)
+  assert.match(detail,/mccoy-map-lead-deleted/)
+  assert.match(controls,/mccoy-map-lead-deleted/)
+  assert.match(map,/requestId!==movePinRequest/)
 })
 
 test('orientation preserves mode while navigation and reload begin standard',()=>{
@@ -60,7 +65,7 @@ test('orientation preserves mode while navigation and reload begin standard',()=
 test('production entrypoint and app shell ship the prototype with fresh cache keys',()=>{
   assert.match(html,/app-lead-map\.js\?v=2026090401/)
   assert.match(html,/app-lead-map-window-controls\.js\?v=2026090401/)
-  assert.ok(html.indexOf('app-lead-detail-panel.js?v=2026082423')<html.indexOf('app-lead-map-window-controls.js?v=2026090401'))
+  assert.ok(html.indexOf('app-lead-detail-panel.js?v=2026090401')<html.indexOf('app-lead-map-window-controls.js?v=2026090401'))
   assert.match(worker,/field-coach-app-shell-v10-20260904-map-window-controls/)
   assert.match(worker,/'\/app-lead-map-window-controls\.js\?v=2026090401'/)
 })
