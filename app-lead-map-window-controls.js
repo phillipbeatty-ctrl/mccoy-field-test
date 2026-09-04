@@ -14,6 +14,7 @@
   style.id='leadMapWindowControlStyles'
   style.textContent=`
     .lead-map-window-card{position:relative}
+    #leadPoolPhoneSaleSearch{display:none!important}
     #leadMapWindowControls{position:absolute;z-index:1400;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 3px 14px rgba(15,23,42,.28);backdrop-filter:blur(8px)}
     .map-window-control,.map-move-control{appearance:none;-webkit-appearance:none;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;display:grid!important;place-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
     .map-window-control:focus-visible,.map-move-control:focus-visible{outline:3px solid #1455d9!important;outline-offset:1px}.map-window-control[aria-disabled="true"],.map-move-control[aria-disabled="true"]{cursor:default;opacity:.42;filter:saturate(.45)}
