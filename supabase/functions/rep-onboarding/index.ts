@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{...corsHeaders,'Content-Type':'application/json','Cache-Control':'no-store'}})
@@ -6,7 +7,7 @@ const PAY_LEVELS=['trainee','experienced','active_manager_trainer'] as const
 const payLevel=(value:any)=>PAY_LEVELS.includes(String(value||'') as any)?String(value):null
 const displayName=(value:any)=>String(value??'').trim().replace(/\s+/g,' ')
 const isTeamLeaderRole=(role:any)=>role==='manager'||role==='trainer'
-Deno.serve(async(req)=>{
+serveWithOrganizationAccess('admin_controls',async(req)=>{
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders})
   try{
     const auth=req.headers.get('Authorization')||''; const jwt=auth.replace(/^Bearer\s+/,''); if(!jwt) return json({error:'unauthorized'},401)
