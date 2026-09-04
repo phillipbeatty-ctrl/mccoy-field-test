@@ -38,7 +38,7 @@ jobs:
       - run: node --check app-sale-visit-isolation.js
       - run: node --check app-provider-sale-router.js
       - run: node --check app-page-layout.js
-      - run: deno check supabase/functions/lead-map-address-search/index.ts
-      - run: deno check supabase/functions/provider-sale-capture/index.ts
-      - run: deno check supabase/functions/sale-submit/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/lead-map-address-search/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/provider-sale-capture/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/sale-submit/index.ts
       - run: node --test lead-pool-independent-disposition-phone-sales.test.mjs

@@ -63,11 +63,7 @@ jobs:
           mapfile -t functions < <(node -e "import('./scripts/paywall-targets.mjs').then(({edgePaywallTargets})=>console.log([...edgePaywallTargets.keys()].join('\n')))" )
           for function_name in "${functions[@]}"; do
             echo "Deploying ${function_name}"
-            if [ "$function_name" = 'native-location-ingest' ]; then
-              npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
-            else
-              npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF"
-            fi
+            npx --yes supabase@2.39.2 functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_REF"
           done
 
       - name: Capture non-secret deployment evidence

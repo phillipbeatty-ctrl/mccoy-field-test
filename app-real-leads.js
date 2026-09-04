@@ -88,6 +88,7 @@
       city:r.city||'',stateCode:r.state||'',zip:r.zip||'',
       fullAddress:[[r.address1,r.address2].filter(Boolean).join(' '),r.city,r.state,r.zip].filter(Boolean).join(', '),
       lat:validCoordinate(r.latitude),lng:validCoordinate(r.longitude),
+      updatedAt:r.pin_location_updated_at||null,
       geocodeStatus:r.geocode_status||null,
       geocodeProvider:r.geocode_provider||null,
       geocodePrecision:r.geocode_precision||null,

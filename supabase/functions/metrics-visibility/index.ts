@@ -4,7 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
 const json=(body:any,status=200)=>Response.json(body,{status,headers:{...corsHeaders,'Cache-Control':'no-store'}})
 
-serveWithOrganizationAccess('admin_controls',async req=>{
+serveWithOrganizationAccess('analytics',async req=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const jwt=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/,'')

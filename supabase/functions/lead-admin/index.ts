@@ -15,7 +15,7 @@ serveWithOrganizationAccess('lead_management',async(req)=>{if(req.method==='OPTI
  const isAdmin=access.role==='admin',isManager=isManagerPermissionRole(access.role)
  const body=await req.json().catch(()=>({})),action=String(body.action||'')
  const managerActions=['list_reps','assign_lead','assign_leads']
- const allFieldActions=['list_real_leads','duplicate_status','delete_lead','remove_duplicate_leads']
+ const allFieldActions=['list_real_leads','duplicate_status','delete_lead','remove_duplicate_leads','move_lead_pin']
  if(allFieldActions.includes(action)){/* Every active field account may view, disposition, and clean up real leads. */}else if(managerActions.includes(action)){if(!isAdmin&&!isManager)return json({error:'manager_or_admin_only'},403)}else if(!isAdmin)return json({error:'admin_only'},403)
  let authUsersPromise:Promise<any[]>|null=null
  const getAuthUsers=async()=>{if(!authUsersPromise)authUsersPromise=admin.auth.admin.listUsers({page:1,perPage:1000}).then(({data,error}:any)=>{if(error)throw error;return data?.users||[]});return await authUsersPromise}
@@ -143,7 +143,7 @@ serveWithOrganizationAccess('lead_management',async(req)=>{if(req.method==='OPTI
      return rows.map((account:any)=>({user_id:profileByEmail.get(String(account.email||'').toLowerCase())?.id||null,email:account.email,display_name:account.display_name||account.email,role:account.role,team_name:account.team_name||null,assigned_manager_email:account.assigned_manager_email||null,assigned_admin_email:account.assigned_admin_email||null})).filter((account:any)=>account.user_id);
    };
    const makeQuery=(includeCount=false)=>{
-     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,geocode_status,geocode_provider,geocode_precision,geocode_verification_status,geocode_comparison_distance_meters,geocode_candidate_latitude,geocode_candidate_longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined).is('deleted_at',null);
+     let query=admin.from('leads').select('id,source_id,address1,address2,city,state,zip,latitude,longitude,pin_location_updated_at,geocode_status,geocode_provider,geocode_precision,geocode_verification_status,geocode_comparison_distance_meters,geocode_candidate_latitude,geocode_candidate_longitude,current_disposition,last_activity_type,visit_result,stage,pin_color,pin_color_source,assigned_rep_id,assigned_manager_id,assigned_admin_email,assigned_team_id,source_system,import_batch_id,created_at',includeCount?{count:'exact'}:undefined).is('deleted_at',null);
      query=selectedIds.length?query.or(`import_batch_id.in.(${selectedIds.join(',')}),source_system.eq.FIELD_ENTRY`):query.eq('source_system','FIELD_ENTRY');
      query=query.not('source_system','ilike','%demo%');
      return query;
@@ -155,6 +155,28 @@ serveWithOrganizationAccess('lead_management',async(req)=>{if(req.method==='OPTI
    for(const result of results)if(result.error)throw result.error;
    const rows=results.flatMap(result=>result.data||[]),total=knownTotal||Number(results[0]?.count||0);
    return json({ok:true,...metadata,total,leads:rows,...(owners?{owners}:{})});
+ }
+
+ if(action==='move_lead_pin'){
+   const leadId=String(body.lead_id||''),requestId=String(body.client_request_id||'');
+   const proposedLat=Number(body.proposed_latitude),proposedLng=Number(body.proposed_longitude);
+   if(!leadId)return json({error:'lead_id_required'},400);
+   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))return json({error:'valid_client_request_id_required'},400);
+   if(!Number.isFinite(proposedLat)||!Number.isFinite(proposedLng)||proposedLat < -90||proposedLat > 90||proposedLng < -180||proposedLng > 180)return json({error:'invalid_coordinates'},400);
+   const nullableNumber=(value:any)=>value===null||value===undefined||value===''?null:Number(value);
+   const originalLat=nullableNumber(body.original_latitude),originalLng=nullableNumber(body.original_longitude),actorLat=nullableNumber(body.actor_latitude),actorLng=nullableNumber(body.actor_longitude),accuracy=nullableNumber(body.actor_accuracy_meters);
+   if([originalLat,originalLng,actorLat,actorLng,accuracy].some(value=>value!==null&&!Number.isFinite(value)))return json({error:'invalid_numeric_input'},400);
+   const {data,error}=await admin.rpc('move_lead_pin',{
+     p_lead_id:leadId,p_actor_user_id:user.id,p_actor_email:user.email.toLowerCase(),
+     p_expected_updated_at:body.expected_updated_at||null,p_original_latitude:originalLat,p_original_longitude:originalLng,
+     p_proposed_latitude:proposedLat,p_proposed_longitude:proposedLng,
+     p_actor_latitude:actorLat,p_actor_longitude:actorLng,p_actor_accuracy_meters:accuracy,
+     p_gps_captured_at:body.gps_captured_at||null,p_client_request_id:requestId,
+     p_client_context:{platform:String(body?.client_context?.platform||'').slice(0,40),app_version:String(body?.client_context?.app_version||'').slice(0,40)}
+   });
+   if(error)throw error;
+   const status=data?.error==='unauthorized_lead'?403:data?.error==='stale_lead'?409:data?.error==='lead_not_found'?404:data?.ok?200:400;
+   return json(data||{error:'move_lead_pin_failed'},status);
  }
 
  if(action==='update_lead'){
