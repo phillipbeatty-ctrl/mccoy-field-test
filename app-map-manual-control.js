@@ -4,7 +4,6 @@
   if(window.MCCOY_MAP_MANUAL_CONTROL)return;
   window.MCCOY_MAP_MANUAL_CONTROL=true;
 
-  const BROWSE_SENTINEL='__mccoy_map_browse__';
   let syntheticLocationClick=false;
   let mapBound=false;
 
@@ -25,13 +24,6 @@
     if(label&&activeSession())label.textContent=message;
   }
 
-  function holdManualMapPosition(){
-    if(!activeSession())return;
-    window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{
-      detail:{leadId:BROWSE_SENTINEL,source:'manual_map_navigation'}
-    }));
-  }
-
   function bindLocationButton(){
     const button=locationButton();
     if(!button||button.dataset.mccoyOneShotLocation==='1')return;
@@ -39,15 +31,12 @@
     button.title='Center once on your current location. The map will not keep following you.';
     button.addEventListener('click',()=>{
       if(syntheticLocationClick)return;
-      // Let the existing location control center the map, then immediately turn
-      // follow back off so later GPS fixes cannot pull the map away from the user.
       setTimeout(()=>{
         if(button.getAttribute('aria-pressed')==='true')pauseLocationFollow('Location centered once. Move or tap the map freely; it will stay where you leave it.');
         else{
           button.textContent='MY LOCATION';
           button.setAttribute('aria-pressed','false');
         }
-        holdManualMapPosition();
       },0);
     },true);
   }
@@ -58,7 +47,6 @@
     mapBound=true;
     const userMoved=()=>{
       pauseLocationFollow('Current location remains available. Map movement is manual until MY LOCATION is pressed again.');
-      holdManualMapPosition();
     };
     for(const eventName of ['mousedown','touchstart','dragstart','zoomstart'])map.on(eventName,userMoved);
     map.on('click',event=>{
@@ -66,23 +54,16 @@
       if(target?.closest?.('.lead-house-icon,.mccoy-live-location-icon,.mccoy-lead-cluster'))return;
       userMoved();
     });
-    if(activeSession())holdManualMapPosition();
   }
 
   function init(){bindLocationButton();bindMap();}
 
   window.addEventListener('mccoy-field-session-started',()=>{
-    setTimeout(()=>{init();pauseLocationFollow();holdManualMapPosition();},0);
+    setTimeout(()=>{init();pauseLocationFollow();},0);
   });
   window.addEventListener('mccoy-field-session-ended',()=>setTimeout(init,0));
-  window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{
-    init();
-    if(activeSession())holdManualMapPosition();
-  },0));
+  window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(init,0));
   document.addEventListener('click',event=>{
-    if(event.target.closest?.('#clearMapSelectionBtn')&&activeSession()){
-      setTimeout(holdManualMapPosition,0);
-    }
     if(event.target.closest?.('#followMyLocationBtn'))setTimeout(bindLocationButton,0);
   },true);
 
