@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 
 const migration=fs.readFileSync(new URL('./supabase/migrations/20260904150000_automatic_daily_workday_segments.sql',import.meta.url),'utf8')
+const gapGuard=fs.readFileSync(new URL('./supabase/migrations/20260904160000_enforce_tracking_gap_exclusion.sql',import.meta.url),'utf8')
 const control=fs.readFileSync(new URL('./supabase/functions/session-control/index.ts',import.meta.url),'utf8')
 const ui=fs.readFileSync(new URL('./app-automatic-workday.js',import.meta.url),'utf8')
 
@@ -24,6 +25,8 @@ test('tracking gaps and conservative homeward travel are excluded',()=>{
   assert.match(migration,/o\.prev_home_distance - o\.distance_home_m >= 250/)
   assert.match(migration,/homeward_travel_and_post_work_idle_excluded/)
   assert.match(migration,/returned\.inside_area is true or returned\.event_type in \('field_start','sale'\)/)
+  assert.match(gapGuard,/new\.segment_type = 'tracking_gap'[\s\S]*new\.sph_counted_seconds := 0/)
+  assert.match(gapGuard,/before insert or update on private\.field_workday_segments/)
 })
 
 test('automatic stops are removed and only midnight closes the session',()=>{
