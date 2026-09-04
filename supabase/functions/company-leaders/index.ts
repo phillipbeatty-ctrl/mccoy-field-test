@@ -4,7 +4,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 
 // Compatibility endpoint for existing McCoy clients. The database RPC is the
 // sole ranking authority; this function performs no independent calculation.
-serveWithOrganizationAccess('rankings',async(req)=>{
+serveWithOrganizationAccess('analytics',async(req)=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
     const authorization=req.headers.get('Authorization')||''
