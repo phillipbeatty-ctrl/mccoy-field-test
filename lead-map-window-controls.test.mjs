@@ -23,20 +23,28 @@ test('traffic-light controls use icons, stable accessible meanings, and one-hand
   assert.match(controls,/touch-action:manipulation/)
 })
 
-test('Lead Pool entry automatically maximizes while preserving requested map transitions',()=>{
+test('Lead Pool stays standard until MOVE PIN is explicitly selected',()=>{
   assert.match(controls,/mode=STANDARD/)
+  assert.doesNotMatch(entryFix,/mccoy-real-leads-loaded[^\n]*maximize|pageshow[^\n]*maximize|view==='leads'[^\n]*maximize/s)
+  assert.match(entryFix,/leadMapMovePinLauncher/)
   assert.match(entryFix,/controller\.getMode\?\.\(\)==='standard'/)
   assert.match(entryFix,/controller\.maximize\?\.\(\)/)
-  assert.match(entryFix,/view==='leads'/)
+  assert.match(entryFix,/leadMapActionsBtn/)
+  assert.match(entryFix,/leadMapMovePinAction/)
   assert.match(controls,/MOVE_PIN_READY='move-pin-ready'/)
   assert.match(controls,/handleControl\(maximize,'MAXIMIZE'/)
   assert.match(controls,/handleControl\(actions,'ACTIONS'/)
   assert.match(controls,/handleControl\(restore,'RESTORE'/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
   assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\)/)
-  assert.match(controls,/mccoy-map-move-pin-started/)
-  assert.match(controls,/mccoy-map-move-pin-ended/)
-  assert.match(controls,/mccoy-door-visit-completed/)
+})
+
+test('selected lead exposes a standard-view MOVE PIN launcher that auto-maximizes into compact mode',()=>{
+  assert.match(entryFix,/selectedLeadId=event\.detail\?\.leadId\|\|null/)
+  assert.match(entryFix,/button\.textContent='MOVE PIN'/)
+  assert.match(entryFix,/button\.setAttribute\('aria-label','MOVE PIN'\)/)
+  assert.match(entryFix,/selectedLeadId&&standard&&leadsActive/)
+  assert.match(entryFix,/#leadMapPanel\.lead-map-window-expanded #leadMapMovePinLauncher\{display:none!important\}/)
 })
 
 test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit targets',()=>{
@@ -80,15 +88,6 @@ test('compact MOVE PIN delegates to the existing audited move backend controls',
   assert.match(map,/requestId!==movePinRequest/)
 })
 
-test('unavailable controls remain visible, explain themselves, and do not rely on color',()=>{
-  assert.match(controls,/aria-disabled/)
-  assert.match(controls,/SELECT A LEAD FIRST/)
-  assert.match(controls,/MAXIMIZE MAP FIRST/)
-  assert.match(controls,/MOVE PIN NOT AUTHORIZED/)
-  assert.match(controls,/MOVE THE PIN FIRST/)
-  assert.match(controls,/setTimeout\(\(\)=>\{suppressClick=true;showHint\(label\)\},500\)/)
-})
-
 test('expanded map preserves selected lead context and lead lifecycle safety',()=>{
   assert.match(controls,/leadMapSelectedAddress/)
   assert.match(controls,/MCCOY_MAP_MOVE_PIN_ACTIVE/)
@@ -105,7 +104,7 @@ test('orientation preserves mode while leaving Lead Pool restores standard',()=>
   assert.match(controls,/setMode\(STANDARD\)/)
 })
 
-test('production lifecycle loads the compact MOVE PIN entry fix',()=>{
+test('production lifecycle loads the MOVE PIN entry launcher',()=>{
   assert.match(html,/app-lead-map\.js\?v=2026090401/)
   assert.match(html,/app-lead-map-window-controls\.js\?v=2026090401/)
   assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026090401/)
