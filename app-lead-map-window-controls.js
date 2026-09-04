@@ -142,6 +142,7 @@
     else parent.appendChild(node)
     mountedWorkflow=null
     workflowBody.replaceChildren()
+    byId('leadMapWorkflowCancel').hidden=false
     sheet.classList.remove('show')
   }
 
@@ -177,6 +178,7 @@
     workflowBody.appendChild(node)
     node.style.display='block'
     byId('leadMapWorkflowTitle').textContent=title
+    byId('leadMapWorkflowCancel').hidden=nextMode===MOVE_PIN
     mode=nextMode
     sync()
     return true
