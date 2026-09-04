@@ -21,23 +21,53 @@ test('traffic-light controls use icons, stable accessible meanings, and one-hand
   assert.match(controls,/touch-action:manipulation/)
 })
 
-test('map begins standard and implements the requested state transitions',()=>{
+test('map begins standard and implements the requested display and action transitions',()=>{
   assert.match(controls,/mode=STANDARD/)
+  assert.match(controls,/MOVE_PIN_READY='move-pin-ready'/)
   assert.match(controls,/handleControl\(maximize,'MAXIMIZE'/)
   assert.match(controls,/handleControl\(actions,'ACTIONS'/)
   assert.match(controls,/handleControl\(restore,'RESTORE'/)
   assert.match(controls,/setMode\(EXPANDED\)/)
   assert.match(controls,/mountWorkflow\([^\n]*'DISPOSITION',DISPOSITION\)/)
-  assert.match(controls,/mountMoveWorkflow\(\)/)
+  assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\)/)
+  assert.match(controls,/mccoy-map-move-pin-started/)
   assert.match(controls,/mccoy-map-move-pin-ended/)
   assert.match(controls,/mccoy-door-visit-completed/)
 })
 
-test('MOVE PIN workflow contains only pin movement controls and never disposition or address editing',()=>{
-  assert.match(controls,/const ids=\['moveLeadPinBtn','movePinActions','movePinDistance','leadCorrectionMsg'\]/)
+test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit targets',()=>{
+  assert.match(controls,/id="leadMapMoveDock"/)
+  assert.match(controls,/right:max\(22px/)
+  assert.match(controls,/bottom:max\(92px/)
+  assert.match(controls,/\.map-move-lamp\{width:16px;height:16px/)
+  assert.match(controls,/\.map-window-control,\.map-move-control/)
+  assert.match(controls,/aria-label="MOVE PIN"/)
+  assert.match(controls,/aria-label="CONFIRM PIN LOCATION"/)
+  assert.match(controls,/aria-label="CANCEL PIN MOVE"/)
+  assert.match(controls,/move-ready-only/)
+  assert.match(controls,/move-active-only/)
+  assert.match(controls,/#leadMapMoveDock\.active \.move-ready-only\{display:none\}/)
+  assert.match(controls,/#leadMapMoveDock\.active \.move-active-only\{display:grid\}/)
+})
+
+test('MOVE PIN never mounts a workflow sheet, disposition controls, or address-editing controls',()=>{
+  assert.doesNotMatch(controls,/mountMoveWorkflow/)
   assert.doesNotMatch(controls,/mountWorkflow\(byId\('leadCorrectionPanel'\),'MOVE PIN'/)
-  assert.doesNotMatch(controls,/adminLeadAddressFields.*MOVE PIN|MOVE PIN.*adminLeadAddressFields/s)
-  assert.doesNotMatch(controls,/map-pin-disposition.*mountMoveWorkflow|mountMoveWorkflow.*map-pin-disposition/s)
+  assert.doesNotMatch(controls,/workflowBody\.appendChild\(byId\('moveLeadPinBtn'\)/)
+  assert.doesNotMatch(controls,/adminLeadAddressFields/)
+  assert.doesNotMatch(controls,/map-pin-disposition.*MOVE_PIN_READY|MOVE_PIN_READY.*map-pin-disposition/s)
+  assert.match(controls,/sheet\.classList\.toggle\('show',dispositionOpen\)/)
+})
+
+test('compact MOVE PIN delegates to the existing audited move backend controls',()=>{
+  assert.match(controls,/byId\('moveLeadPinBtn'\)\?\.click\(\)/)
+  assert.match(controls,/byId\('confirmLeadPinBtn'\)\?\.click\(\)/)
+  assert.match(controls,/byId\('cancelLeadPinBtn'\)\?\.click\(\)/)
+  assert.match(controls,/MutationObserver\(syncCompactConfirm\)/)
+  assert.match(map,/mccoy-map-move-pin-started/)
+  assert.match(map,/mccoy-map-move-pin-ended/)
+  assert.match(map,/action:'move_lead_pin'/)
+  assert.match(map,/requestId!==movePinRequest/)
 })
 
 test('unavailable controls remain visible, explain themselves, and do not rely on color',()=>{
@@ -45,20 +75,17 @@ test('unavailable controls remain visible, explain themselves, and do not rely o
   assert.match(controls,/SELECT A LEAD FIRST/)
   assert.match(controls,/MAXIMIZE MAP FIRST/)
   assert.match(controls,/MOVE PIN NOT AUTHORIZED/)
+  assert.match(controls,/MOVE THE PIN FIRST/)
   assert.match(controls,/setTimeout\(\(\)=>\{suppressClick=true;showHint\(label\)\},500\)/)
 })
 
-test('expanded map preserves selection context and uses existing audited workflows',()=>{
+test('expanded map preserves selected lead context and lead lifecycle safety',()=>{
   assert.match(controls,/leadMapSelectedAddress/)
-  assert.match(controls,/map-pin-disposition/)
-  assert.match(controls,/moveLeadPinBtn/)
   assert.match(controls,/MCCOY_MAP_MOVE_PIN_ACTIVE/)
-  assert.match(map,/mccoy-map-move-pin-started/)
-  assert.match(map,/mccoy-map-move-pin-ended/)
   assert.match(controls,/closest\?\.\('\.map-pick'\)/)
   assert.match(detail,/mccoy-map-lead-deleted/)
   assert.match(controls,/mccoy-map-lead-deleted/)
-  assert.match(map,/requestId!==movePinRequest/)
+  assert.match(controls,/if\(window\.MCCOY_MAP_MOVE_PIN_ACTIVE\)byId\('cancelLeadPinBtn'\)\?\.click\(\)/)
 })
 
 test('orientation preserves mode while navigation and reload begin standard',()=>{
