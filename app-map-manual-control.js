@@ -3,6 +3,7 @@
 (()=>{
   if(window.MCCOY_MAP_MANUAL_CONTROL)return;
   window.MCCOY_MAP_MANUAL_CONTROL=true;
+  if(typeof window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD!=='boolean')window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=false;
 
   let syntheticLocationClick=false;
   let mapBound=false;
@@ -24,6 +25,11 @@
     if(label&&activeSession())label.textContent=message;
   }
 
+  function holdManualViewport(){
+    window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=true;
+    window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:true}}));
+  }
+
   function bindLocationButton(){
     const button=locationButton();
     if(!button||button.dataset.mccoyOneShotLocation==='1')return;
@@ -37,6 +43,7 @@
           button.textContent='MY LOCATION';
           button.setAttribute('aria-pressed','false');
         }
+        holdManualViewport();
       },0);
     },true);
   }
@@ -46,6 +53,7 @@
     if(!map||mapBound)return;
     mapBound=true;
     const userMoved=()=>{
+      holdManualViewport();
       pauseLocationFollow('Current location remains available. Map movement is manual until MY LOCATION is pressed again.');
     };
     for(const eventName of ['mousedown','touchstart','dragstart','zoomstart'])map.on(eventName,userMoved);
@@ -65,6 +73,12 @@
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(init,0));
   document.addEventListener('click',event=>{
     if(event.target.closest?.('#followMyLocationBtn'))setTimeout(bindLocationButton,0);
+    if(event.target.closest?.('#fitAllPinsBtn'))holdManualViewport();
+    const leadNav=event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView');
+    if(leadNav){
+      window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=false;
+      window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:false}}));
+    }
   },true);
 
   [0,100,300,800,1600,3000].forEach(delay=>setTimeout(init,delay));
