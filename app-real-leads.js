@@ -15,7 +15,7 @@
   }
 
   async function loadRealLeadRowsFromServer(onProgress=null){
-    const PAGE=4000,CONCURRENT=4;
+    const PAGE=1000,CONCURRENT=4;
     async function fetchPage(page,totalHint=0){
       const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE,...(totalHint?{total_hint:totalHint}:{})}});
       if(error)throw error;
@@ -34,6 +34,7 @@
       for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)requests.push(fetchPage(page,total));
       const responses=await Promise.all(requests);
       for(const response of responses)rows.push(...(Array.isArray(response.leads)?response.leads:[]));
+      if(typeof onProgress==='function')onProgress(resultForRows(rows.slice()));
     }
     return resultForRows(rows);
   }
@@ -139,7 +140,7 @@
     const started=typeof performance!=='undefined'?performance.now():Date.now();
     const result=await loadRealLeadRowsFromServer(preview=>applyLoadedResult(preview,{partial:true}));
     const real=applyLoadedResult(result);startupComplete=true;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
-    window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000};
+    window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:1000};
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
     console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting verified placement.`);
     return real;
@@ -158,6 +159,7 @@
         }
       }
       console.error('Real lead server load failed',lastErr);
+      window.MCCOY_LAST_LEAD_LOAD={count:0,total:0,page_size:1000,error:lastErr?.message||String(lastErr)};
       window.dispatchEvent(new CustomEvent('mccoy-real-leads-load-error',{detail:{message:lastErr?.message||String(lastErr)}}));
       return [];
     })();
