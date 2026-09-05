@@ -3,6 +3,7 @@
   let activating=false;
   let filterTouched=false;
   let lastVisible=false;
+  let accessReplaySent=false;
 
   function mappedLeads(){
     return (state.realLeads||[]).filter(lead=>Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)));
@@ -26,17 +27,25 @@
     return true;
   }
 
+  function enterMapView(){
+    if(typeof state!=='undefined')state.leadView='map';
+    const panel=document.getElementById('leadMapPanel');
+    const table=document.getElementById('leadsTable');
+    const pager=document.getElementById('leadPager');
+    const mapButton=document.getElementById('leadMapView');
+    const listButton=document.getElementById('leadListView');
+    if(panel)panel.style.display='block';
+    if(table)table.style.display='none';
+    if(pager)pager.style.display='none';
+    if(mapButton)mapButton.className='primary';
+    if(listButton)listButton.className='assign-btn';
+  }
+
   function ensureLeadMapVisible(){
     const leads=document.getElementById('leads');
     const panel=document.getElementById('leadMapPanel');
     if(!leads?.classList.contains('active')||!panel)return false;
-    if(state.leadView==='map'){
-      panel.style.display='block';
-      const table=document.getElementById('leadsTable');
-      const pager=document.getElementById('leadPager');
-      if(table)table.style.display='none';
-      if(pager)pager.style.display='none';
-    }
+    if(state.leadView==='map')enterMapView();
     return panel.style.display!=='none'&&state.leadView==='map';
   }
 
@@ -47,13 +56,13 @@
     const mapped=mappedLeads().length;
     const filtered=filteredMappedLeads().length;
     const domPins=document.querySelectorAll('#leadMapFrame .lead-house-icon,#leadMapFrame .mccoy-lead-cluster').length;
-    status.textContent=`Lead data: ${total.toLocaleString()} loaded · ${mapped.toLocaleString()} mapped · ${filtered.toLocaleString()} in current filters · ${domPins.toLocaleString()} visible pin/cluster elements.`;
+    const scope=state.leadAccessScope?.scope||'unknown';
+    const reason=state.leadAccessScope?.assignmentReason||'none';
+    status.textContent=`Lead data: ${total.toLocaleString()} loaded · ${mapped.toLocaleString()} mapped · ${filtered.toLocaleString()} in current filters · ${domPins.toLocaleString()} visible pin/cluster elements · scope ${scope} · assignment reason ${reason}.`;
   }
 
   function rebuildVisibleMarkers(){
     if(!Array.isArray(state.realLeads)||!state.realLeads.length)return;
-    // renderPins caches by lead-array identity. A fresh array reference forces exactly
-    // one clean layer rebuild after the map transitions from hidden to visible.
     state.realLeads=state.realLeads.slice();
     if(state.leadMode==='real')state.leads=state.realLeads;
     window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});
@@ -65,13 +74,14 @@
     activating=true;
     try{
       await sleep(40);
-      const visible=ensureLeadMapVisible();
+      ensureLeadMapVisible();
 
-      if((!Array.isArray(state.realLeads)||state.realLeads.length===0)&&!state.leadAccessScope?.assignmentRequired){
+      const blockedByAssignment=Boolean(state.leadAccessScope?.assignmentReason);
+      if((!Array.isArray(state.realLeads)||state.realLeads.length===0)&&!blockedByAssignment){
         await window.loadMcCoyLeads?.();
       }
 
-      for(let i=0;i<4&&!state.leadAccessScope?.assignmentRequired&&(!Array.isArray(state.realLeads)||state.realLeads.length===0);i++)await sleep(120);
+      for(let i=0;i<4&&!state.leadAccessScope?.assignmentReason&&(!Array.isArray(state.realLeads)||state.realLeads.length===0);i++)await sleep(120);
       clearUntouchedStaleFilters();
 
       const nowVisible=ensureLeadMapVisible();
@@ -89,6 +99,15 @@
     }
   }
 
+  function replayVerifiedAccessAfterPageLoad(){
+    if(accessReplaySent)return;
+    const access=window.MCCOY_ACCESS?.access;
+    const organization=window.FIELD_COACH_ORGANIZATION_ACCESS;
+    if(!access?.active||organization?.access_allowed!==true)return;
+    accessReplaySent=true;
+    window.dispatchEvent(new CustomEvent('mccoy-access-ready',{detail:{organization_access_verified:true,bootstrap_replay:true,organization_access:organization}}));
+  }
+
   window.MCCOY_ACTIVATE_LEAD_MAP=activateLeadMap;
 
   for(const eventName of ['input','change'])document.addEventListener(eventName,e=>{
@@ -99,6 +118,7 @@
     if(e.target?.closest?.('#leadMapView'))setTimeout(()=>activateLeadMap({forceRebuild:true}),0);
     if(e.target?.closest?.('.nav-btn[data-view="leads"]')){
       lastVisible=false;
+      enterMapView();
       setTimeout(()=>activateLeadMap({forceRebuild:true}),60);
     }
   },true);
@@ -108,7 +128,11 @@
     if(panel&&panel.style.display!=='none')setTimeout(()=>activateLeadMap({forceRebuild:true}),30);
   });
 
-  window.addEventListener('mccoy-field-session-started',()=>{
-    if(document.getElementById('leads')?.classList.contains('active'))setTimeout(()=>activateLeadMap({forceRebuild:true}),60);
+  window.addEventListener('load',()=>{
+    setTimeout(replayVerifiedAccessAfterPageLoad,0);
+    setTimeout(()=>{
+      replayVerifiedAccessAfterPageLoad();
+      if(document.getElementById('leads')?.classList.contains('active'))activateLeadMap({forceRebuild:true});
+    },800);
   });
 })();
