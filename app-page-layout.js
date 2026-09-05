@@ -14,24 +14,8 @@
     const style=document.createElement('style');
     style.id='sidebarImportLeadStyles';
     style.textContent=`
-      .sidebar-import-leads-btn{
-        display:block!important;
-        border:0!important;
-        background:transparent!important;
-        color:#d1d5db!important;
-        text-align:left!important;
-        padding:11px 12px!important;
-        border-radius:8px!important;
-        cursor:pointer!important;
-        width:100%!important;
-        font-weight:400!important;
-        box-sizing:border-box!important;
-      }
-      .sidebar-import-leads-btn[hidden]{display:none!important;}
-      .sidebar-import-leads-btn:hover{
-        background:#1f2937!important;
-        color:#fff!important;
-      }
+      .sidebar-import-leads-btn{display:block!important;border:0!important;background:transparent!important;color:#d1d5db!important;text-align:left!important;padding:11px 12px!important;border-radius:8px!important;cursor:pointer!important;width:100%!important;font-weight:400!important;box-sizing:border-box!important}
+      .sidebar-import-leads-btn[hidden]{display:none!important}.sidebar-import-leads-btn:hover{background:#1f2937!important;color:#fff!important}
     `;
     document.head.appendChild(style);
   }
@@ -42,11 +26,7 @@
     const wrap=title?.parentElement;
     if(!title||!topbar||!wrap)return;
     let subtitle=document.getElementById('pageSubtitle');
-    if(!subtitle){
-      subtitle=wrap.querySelector('.muted');
-      if(subtitle)subtitle.id='pageSubtitle';
-      else{subtitle=document.createElement('div');subtitle.id='pageSubtitle';subtitle.className='muted';wrap.appendChild(subtitle);}
-    }
+    if(!subtitle){subtitle=wrap.querySelector('.muted');if(subtitle)subtitle.id='pageSubtitle';else{subtitle=document.createElement('div');subtitle.id='pageSubtitle';subtitle.className='muted';wrap.appendChild(subtitle);}}
     wrap.style.display='flex';wrap.style.alignItems='baseline';wrap.style.gap='14px';wrap.style.flexWrap='wrap';wrap.style.minWidth='0';title.style.margin='0';subtitle.style.margin='0';subtitle.style.whiteSpace='nowrap';
   }
 
@@ -65,8 +45,8 @@
       'app-sales-to-complete.js?v=2026082602',
       'app-sale-order-photo-admin.js?v=2026082601',
       'app-admin-session-history.js?v=2026082901',
-      'app-lead-pool-independent-activity.js?v=2026082901',
-      'app-map-viewport-lock.js?v=2026090401',
+      'app-lead-pool-independent-activity.js?v=2026090402',
+      'app-map-viewport-lock.js?v=2026090402',
       'app-map-manual-control.js?v=2026090402',
       'app-field-lead-editor.js?v=2026083001',
       'app-sale-visit-isolation.js?v=2026082901',
