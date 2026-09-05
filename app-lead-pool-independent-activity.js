@@ -237,7 +237,7 @@
     return nearest;
   }
   function autoSelectNearest(){
-    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin'||window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD)return;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
     if(!mapVisible()||manualSelectedLeadId||phoneContext)return;
     const nearest=nearestVisibleLead();if(!nearest)return;
     if(String(selectedLeadId||'')===String(nearest.lead.dbId||nearest.lead.id))return;
@@ -246,7 +246,7 @@
   }
   function scheduleAutoSelect(delay=150){
     clearTimeout(autoSelectTimer);
-    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin'||window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD)return;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
     autoSelectTimer=setTimeout(autoSelectNearest,delay);
   }
 
@@ -333,7 +333,6 @@
   window.addEventListener('mccoy-door-visit-started',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   window.addEventListener('mccoy-door-visit-completed',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   document.addEventListener('click',event=>{
-    if(event.target.closest?.('#fitAllPinsBtn')){clearTimeout(autoSelectTimer);window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=true;}
     const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id&&!window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(pick.dataset.id)){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;setTimeout(configureSelectedDetail,60);}
     if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
     if(event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView'))setTimeout(()=>{ensurePhoneSearch();scheduleAutoSelect(180);},60);
