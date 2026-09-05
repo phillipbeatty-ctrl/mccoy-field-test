@@ -215,7 +215,9 @@
   }
   function focusLead(lead,{source='manual',center=true,zoom=17}={}){
     if(!lead)return;
-    selectedLeadId=lead.dbId||lead.id;
+    const nextId=lead.dbId||lead.id;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(nextId))return;
+    selectedLeadId=nextId;
     if(source!=='auto_nearest')manualSelectedLeadId=selectedLeadId;
     window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:selectedLeadId,source}}));
     const point=validPoint(lead),map=window.MCCOY_LEAD_MAP?.map;
@@ -235,13 +237,18 @@
     return nearest;
   }
   function autoSelectNearest(){
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
     if(!mapVisible()||manualSelectedLeadId||phoneContext)return;
     const nearest=nearestVisibleLead();if(!nearest)return;
     if(String(selectedLeadId||'')===String(nearest.lead.dbId||nearest.lead.id))return;
     focusLead(nearest.lead,{source:'auto_nearest',center:true,zoom:16});
     setTimeout(()=>setMessage(`Nearest mapped lead auto-selected · ${Math.round(nearest.distance).toLocaleString()} m away. Select any other pin to hold that selection.`),80);
   }
-  function scheduleAutoSelect(delay=150){clearTimeout(autoSelectTimer);autoSelectTimer=setTimeout(autoSelectNearest,delay);}
+  function scheduleAutoSelect(delay=150){
+    clearTimeout(autoSelectTimer);
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
+    autoSelectTimer=setTimeout(autoSelectNearest,delay);
+  }
 
   function ensurePhoneSearch(){
     const controls=byId('leadGeoControls');if(!controls||byId('leadPoolPhoneSaleSearch'))return false;
@@ -306,10 +313,15 @@
 
   window.addEventListener('mccoy-map-lead-selected',event=>{
     const id=event.detail?.leadId,source=event.detail?.source||'manual';if(!id)return;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(id))return;
     selectedLeadId=id;if(source!=='auto_nearest')manualSelectedLeadId=id;
     resetVisitTimer();setTimeout(configureSelectedDetail,0);
   });
   window.addEventListener('mccoy-gps-update',()=>scheduleAutoSelect(250));
+  window.addEventListener('mccoy-map-viewport-lock-changed',event=>{
+    if(event.detail?.owner==='move-pin'&&event.detail?.locked){clearTimeout(autoSelectTimer);return;}
+    if(!event.detail?.locked)scheduleAutoSelect(250);
+  });
   window.addEventListener('mccoy-real-leads-loaded',()=>{
     ensurePhoneSearch();refreshPhoneOptions();
     if(selectedLeadId&&!leadByAnyId(selectedLeadId)){
@@ -321,8 +333,8 @@
   window.addEventListener('mccoy-door-visit-started',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   window.addEventListener('mccoy-door-visit-completed',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   document.addEventListener('click',event=>{
-    const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;setTimeout(configureSelectedDetail,60);}
-    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
+    const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id&&!window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(pick.dataset.id)){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;setTimeout(configureSelectedDetail,60);}
+    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
     if(event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView'))setTimeout(()=>{ensurePhoneSearch();scheduleAutoSelect(180);},60);
   },true);
   window.addEventListener('beforeunload',()=>{stopTimerLoop();clearTimeout(autoSelectTimer);});
