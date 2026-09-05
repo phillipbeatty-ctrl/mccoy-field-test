@@ -10,8 +10,6 @@
     if(message)message.textContent='';
   }
   function clearMapSelection(){
-    window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=true;
-    window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:true,source:'map_background_deselect'}}));
     document.getElementById('clearMapSelectionBtn')?.click();
     resetSelectedLeadDetails();
   }
