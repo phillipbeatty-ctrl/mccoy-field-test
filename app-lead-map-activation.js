@@ -2,6 +2,7 @@
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   let activating=false;
   let filterTouched=false;
+  let lastVisible=false;
 
   function mappedLeads(){
     return (state.realLeads||[]).filter(lead=>Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)));
@@ -25,39 +26,62 @@
     return true;
   }
 
+  function ensureLeadMapVisible(){
+    const leads=document.getElementById('leads');
+    const panel=document.getElementById('leadMapPanel');
+    if(!leads?.classList.contains('active')||!panel)return false;
+    if(state.leadView==='map'){
+      panel.style.display='block';
+      const table=document.getElementById('leadsTable');
+      const pager=document.getElementById('leadPager');
+      if(table)table.style.display='none';
+      if(pager)pager.style.display='none';
+    }
+    return panel.style.display!=='none'&&state.leadView==='map';
+  }
+
   function reportMapPopulation(){
     const status=document.getElementById('mapSelectionStatus');
     if(!status)return;
     const total=(state.realLeads||[]).length;
     const mapped=mappedLeads().length;
     const filtered=filteredMappedLeads().length;
-    const existing=String(status.textContent||'').replace(/^Lead data: .*?\.\s*/,'');
-    status.textContent=`Lead data: ${total.toLocaleString()} loaded · ${mapped.toLocaleString()} mapped · ${filtered.toLocaleString()} in current filters. ${existing}`;
+    const domPins=document.querySelectorAll('#leadMapFrame .lead-house-icon,#leadMapFrame .mccoy-lead-cluster').length;
+    status.textContent=`Lead data: ${total.toLocaleString()} loaded · ${mapped.toLocaleString()} mapped · ${filtered.toLocaleString()} in current filters · ${domPins.toLocaleString()} visible pin/cluster elements.`;
   }
 
-  async function activateLeadMap(){
+  function rebuildVisibleMarkers(){
+    if(!Array.isArray(state.realLeads)||!state.realLeads.length)return;
+    // renderPins caches by lead-array identity. A fresh array reference forces exactly
+    // one clean layer rebuild after the map transitions from hidden to visible.
+    state.realLeads=state.realLeads.slice();
+    if(state.leadMode==='real')state.leads=state.realLeads;
+    window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});
+    window.MCCOY_RENDER_LEAD_MAP?.(true);
+  }
+
+  async function activateLeadMap({forceRebuild=false}={}){
     if(activating)return;
     activating=true;
     try{
-      // Let the Lead Pool switch the panel from hidden to visible first.
       await sleep(40);
+      const visible=ensureLeadMapVisible();
 
-      // Always recover the real lead pool when MAP / ASSIGN is opened directly.
       if((!Array.isArray(state.realLeads)||state.realLeads.length===0)&&!state.leadAccessScope?.assignmentRequired){
         await window.loadMcCoyLeads?.();
       }
 
-      // Managers and reps with no assigned pool should not wait for leads that cannot arrive.
       for(let i=0;i<4&&!state.leadAccessScope?.assignmentRequired&&(!Array.isArray(state.realLeads)||state.realLeads.length===0);i++)await sleep(120);
-
-      // Mobile browsers may restore old form values after reload. If those untouched
-      // values exclude every mapped lead, return to the documented default filters.
       clearUntouchedStaleFilters();
 
-      // Marker rendering is cached and batched, so one visible redraw is sufficient.
-      window.MCCOY_RENDER_LEAD_MAP?.(true);
-      setTimeout(reportMapPopulation,80);
-      setTimeout(reportMapPopulation,500);
+      const nowVisible=ensureLeadMapVisible();
+      window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});
+      if(nowVisible&&(forceRebuild||!lastVisible))rebuildVisibleMarkers();
+      else window.MCCOY_RENDER_LEAD_MAP?.(true);
+      lastVisible=nowVisible;
+
+      setTimeout(()=>{window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});reportMapPopulation();},120);
+      setTimeout(reportMapPopulation,700);
     }catch(e){
       console.error('Lead map activation failed',e);
     }finally{
@@ -72,13 +96,19 @@
   },true);
 
   document.addEventListener('click',e=>{
-    const btn=e.target?.closest?.('#leadMapView');
-    if(btn)setTimeout(activateLeadMap,0);
-  });
+    if(e.target?.closest?.('#leadMapView'))setTimeout(()=>activateLeadMap({forceRebuild:true}),0);
+    if(e.target?.closest?.('.nav-btn[data-view="leads"]')){
+      lastVisible=false;
+      setTimeout(()=>activateLeadMap({forceRebuild:true}),60);
+    }
+  },true);
 
-  // If real leads arrive while the map is already open, populate it immediately.
   window.addEventListener('mccoy-real-leads-loaded',()=>{
     const panel=document.getElementById('leadMapPanel');
-    if(panel&&panel.style.display!=='none')setTimeout(activateLeadMap,30);
+    if(panel&&panel.style.display!=='none')setTimeout(()=>activateLeadMap({forceRebuild:true}),30);
+  });
+
+  window.addEventListener('mccoy-field-session-started',()=>{
+    if(document.getElementById('leads')?.classList.contains('active'))setTimeout(()=>activateLeadMap({forceRebuild:true}),60);
   });
 })();
