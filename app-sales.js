@@ -107,7 +107,8 @@
   byId('completeSaleBtn')?.addEventListener('click',completeSale);
   byId('abandonedSaleBtn')?.addEventListener('click',recordAbandoned);
   for(const eventName of ['mccoy-provider-sale-capture-started','mccoy-provider-sale-capture-ready'])window.addEventListener(eventName,event=>resumeProviderCapture(event.detail?.capture,false));
-  for(const eventName of ['mccoy-provider-sale-returned','mccoy-provider-sale-capture-restored'])window.addEventListener(eventName,event=>resumeProviderCapture(event.detail?.capture,true));
+  window.addEventListener('mccoy-provider-sale-returned',event=>resumeProviderCapture(event.detail?.capture,true));
+  window.addEventListener('mccoy-provider-sale-capture-restored',event=>resumeProviderCapture(event.detail?.capture,false));
   window.addEventListener('mccoy-provider-sale-capture-error',event=>{resumeProviderCapture(event.detail?.capture,false);setSaleMsg('The ISP dashboard opened, but McCoy could not secure the provider capture. Return to the sale and retry before choosing an outcome.','error');});
 
   function renderSalesFeed(rows){const root=byId('salesFeed');if(!root)return;root.replaceChildren();const wins=[];for(const row of rows){const messages=Array.isArray(row.celebration_messages)&&row.celebration_messages.length?row.celebration_messages:[row.message||`${row.rep_name||'A rep'} logged a sale`];for(const message of messages)wins.push({message,created_at:row.created_at});}if(!wins.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No completed sales posted this month yet.';root.appendChild(empty);return;}for(const win of wins.slice(0,30)){const item=document.createElement('div');item.className='feed-item';const message=document.createElement('strong'),time=document.createElement('div');message.textContent=win.message;time.className='muted small';time.textContent=new Date(win.created_at).toLocaleString();item.append(message,time);root.appendChild(item);}}

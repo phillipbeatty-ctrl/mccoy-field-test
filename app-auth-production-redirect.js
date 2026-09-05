@@ -46,6 +46,32 @@
     };
     return true;
   }
+
+  let adminLandingApplied=false;
+  function openAdminDashboard(){
+    if(adminLandingApplied||window.MCCOY_ACCESS?.access?.role!=='admin')return false;
+    const dashboardButton=document.querySelector('.nav-btn[data-view="dashboard"]');
+    const dashboard=document.getElementById('dashboard');
+    if(!dashboardButton||!dashboard)return false;
+    adminLandingApplied=true;
+    document.querySelectorAll('.nav-btn').forEach(button=>button.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(view=>view.classList.remove('active'));
+    dashboardButton.classList.add('active');
+    dashboard.classList.add('active');
+    const title=document.getElementById('pageTitle');
+    if(title)title.textContent=dashboardButton.textContent;
+    return true;
+  }
+
+  window.addEventListener('mccoy-access-ready',()=>setTimeout(openAdminDashboard,0));
+  window.addEventListener('load',()=>{
+    openAdminDashboard();
+    const started=Date.now();
+    const timer=setInterval(()=>{
+      if(openAdminDashboard()||adminLandingApplied||Date.now()-started>5000)clearInterval(timer);
+    },100);
+  });
+
   if(!patchSignup()){
     const obs=new MutationObserver(()=>{if(patchSignup())obs.disconnect();});
     obs.observe(document.documentElement,{childList:true,subtree:true});

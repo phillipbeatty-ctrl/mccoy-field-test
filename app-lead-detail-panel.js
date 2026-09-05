@@ -61,7 +61,7 @@
       else mapDispositionMessage('Disposition was not saved. Review the Sales Hub door status and retry.',true);
     });
     sale.addEventListener('click',()=>{selectLeadForWorkflow(lead);document.getElementById('processSaleBtn')?.click();});
-    remove.addEventListener('click',async()=>{remove.disabled=true;const removed=await window.MCCOY_DELETE_LEAD?.(lead);if(removed){activeLeadId=null;const detail=ensureDetailPanel();if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Select another lead to view details.</div>';}else remove.disabled=false;});
+    remove.addEventListener('click',async()=>{remove.disabled=true;const removed=await window.MCCOY_DELETE_LEAD?.(lead);if(removed){activeLeadId=null;window.dispatchEvent(new CustomEvent('mccoy-map-lead-deleted',{detail:{leadId:lead.dbId||lead.id}}));const detail=ensureDetailPanel();if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Select another lead to view details.</div>';}else remove.disabled=false;});
     sync();
   }
 

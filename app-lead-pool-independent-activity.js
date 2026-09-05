@@ -7,6 +7,7 @@
   const QUARTER_MILE_METERS=402.336;
   let selectedLeadId=null;
   let manualSelectedLeadId=null;
+  let manualViewportHold=false;
   let saveBusy=false;
   let pendingSaveRequestId=null;
   let visitTimerStartedAt=null;
@@ -189,7 +190,7 @@
   async function deleteLead(lead){
     const button=byId('mapDeleteLeadBtn');if(button)button.disabled=true;
     const removed=await window.MCCOY_DELETE_LEAD?.(lead);
-    if(removed){selectedLeadId=null;manualSelectedLeadId=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
+    if(removed){selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
     else if(button)button.disabled=false;
   }
   function configureDetail(lead){
@@ -215,8 +216,10 @@
   }
   function focusLead(lead,{source='manual',center=true,zoom=17}={}){
     if(!lead)return;
-    selectedLeadId=lead.dbId||lead.id;
-    if(source!=='auto_nearest')manualSelectedLeadId=selectedLeadId;
+    const nextId=lead.dbId||lead.id;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(nextId))return;
+    selectedLeadId=nextId;
+    if(source!=='auto_nearest'){manualSelectedLeadId=selectedLeadId;manualViewportHold=false;}
     window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:selectedLeadId,source}}));
     const point=validPoint(lead),map=window.MCCOY_LEAD_MAP?.map;
     if(center&&point&&map)map.setView([point.latitude,point.longitude],Math.max(Number(map.getZoom?.()||0),zoom),{animate:false});
@@ -235,13 +238,18 @@
     return nearest;
   }
   function autoSelectNearest(){
-    if(!mapVisible()||manualSelectedLeadId||phoneContext)return;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
+    if(manualViewportHold||!mapVisible()||manualSelectedLeadId||phoneContext)return;
     const nearest=nearestVisibleLead();if(!nearest)return;
     if(String(selectedLeadId||'')===String(nearest.lead.dbId||nearest.lead.id))return;
     focusLead(nearest.lead,{source:'auto_nearest',center:true,zoom:16});
     setTimeout(()=>setMessage(`Nearest mapped lead auto-selected · ${Math.round(nearest.distance).toLocaleString()} m away. Select any other pin to hold that selection.`),80);
   }
-  function scheduleAutoSelect(delay=150){clearTimeout(autoSelectTimer);autoSelectTimer=setTimeout(autoSelectNearest,delay);}
+  function scheduleAutoSelect(delay=150){
+    clearTimeout(autoSelectTimer);
+    if(manualViewportHold||window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
+    autoSelectTimer=setTimeout(autoSelectNearest,delay);
+  }
 
   function ensurePhoneSearch(){
     const controls=byId('leadGeoControls');if(!controls||byId('leadPoolPhoneSaleSearch'))return false;
@@ -250,7 +258,7 @@
     controls.appendChild(panel);
     byId('leadPoolCenterAddressBtn').addEventListener('click',searchPhoneAddress);
     byId('leadPoolPhoneSaleBtn').addEventListener('click',()=>{if(phoneContext)startExplicitSale(phoneContext);});
-    byId('leadPoolPhoneAddress').addEventListener('input',()=>{phoneContext=null;byId('leadPoolPhoneSaleBtn').disabled=true;if(!byId('leadPoolPhoneAddress').value.trim()){manualSelectedLeadId=null;removePhoneMarker();scheduleAutoSelect(100);}});
+    byId('leadPoolPhoneAddress').addEventListener('input',()=>{phoneContext=null;byId('leadPoolPhoneSaleBtn').disabled=true;if(!byId('leadPoolPhoneAddress').value.trim()){manualSelectedLeadId=null;manualViewportHold=false;removePhoneMarker();scheduleAutoSelect(100);}});
     refreshPhoneOptions();return true;
   }
   function refreshPhoneOptions(){
@@ -277,7 +285,7 @@
     const center=validPoint(data?.center)||validPoint(data?.geocoded_center)||validPoint(matchedLead);
     const serviceAddress=String(data?.service_address||leadAddress(matchedLead)||address).trim();
     phoneContext=explicitSaleContext({lead:matchedLead,address:serviceAddress,point:center,source:matchedLead?'lead_pool_phone_matched_lead':'lead_pool_phone_typed_address'});
-    manualSelectedLeadId=matchedLead?.dbId||matchedLead?.id||'phone_address';
+    manualSelectedLeadId=matchedLead?.dbId||matchedLead?.id||'phone_address';manualViewportHold=false;
     byId('leadPoolPhoneSaleBtn').disabled=false;
     if(matchedLead)focusLead(matchedLead,{source:'address_search',center:true,zoom:18});
     else if(center&&window.MCCOY_LEAD_MAP?.map){
@@ -299,21 +307,26 @@
       applyPhoneSearchResult(data,address);
     }catch(error){
       console.error('Lead Pool phone address search failed',error);
-      phoneContext=explicitSaleContext({address,source:'lead_pool_phone_ungeocoded_address'});manualSelectedLeadId='phone_address';byId('leadPoolPhoneSaleBtn').disabled=false;
+      phoneContext=explicitSaleContext({address,source:'lead_pool_phone_ungeocoded_address'});manualSelectedLeadId='phone_address';manualViewportHold=false;byId('leadPoolPhoneSaleBtn').disabled=false;
       phoneMessage('The address could not be centered, but it is retained for phone-sale processing. Verify the address before continuing.',true);
     }finally{phoneSearchBusy=false;button.disabled=false;button.textContent='CENTER ADDRESS / LEAD';}
   }
 
   window.addEventListener('mccoy-map-lead-selected',event=>{
     const id=event.detail?.leadId,source=event.detail?.source||'manual';if(!id)return;
-    selectedLeadId=id;if(source!=='auto_nearest')manualSelectedLeadId=id;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(id))return;
+    selectedLeadId=id;if(source!=='auto_nearest'){manualSelectedLeadId=id;manualViewportHold=false;}
     resetVisitTimer();setTimeout(configureSelectedDetail,0);
   });
   window.addEventListener('mccoy-gps-update',()=>scheduleAutoSelect(250));
+  window.addEventListener('mccoy-map-viewport-lock-changed',event=>{
+    if(event.detail?.owner==='move-pin'&&event.detail?.locked){clearTimeout(autoSelectTimer);return;}
+    if(!event.detail?.locked)scheduleAutoSelect(250);
+  });
   window.addEventListener('mccoy-real-leads-loaded',()=>{
     ensurePhoneSearch();refreshPhoneOptions();
     if(selectedLeadId&&!leadByAnyId(selectedLeadId)){
-      selectedLeadId=null;manualSelectedLeadId=null;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. The nearest available pin will be selected.</div>';
+      selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. The nearest available pin will be selected.</div>';
     }else if(selectedLeadId)configureSelectedDetail();
     scheduleAutoSelect(150);
   });
@@ -321,9 +334,9 @@
   window.addEventListener('mccoy-door-visit-started',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   window.addEventListener('mccoy-door-visit-completed',()=>{if(selectedLeadId)setTimeout(configureSelectedDetail,0);});
   document.addEventListener('click',event=>{
-    const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;setTimeout(configureSelectedDetail,60);}
-    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{selectedLeadId=null;manualSelectedLeadId=null;phoneContext=null;removePhoneMarker();resetVisitTimer();scheduleAutoSelect(80);},0);}
-    if(event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView'))setTimeout(()=>{ensurePhoneSearch();scheduleAutoSelect(180);},60);
+    const pick=event.target.closest?.('.map-pick');if(pick?.dataset?.id&&!window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(pick.dataset.id)){selectedLeadId=pick.dataset.id;manualSelectedLeadId=pick.dataset.id;manualViewportHold=false;setTimeout(configureSelectedDetail,60);}
+    if(event.target.closest?.('#clearMapSelectionBtn')){setTimeout(()=>{if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;clearTimeout(autoSelectTimer);selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=true;phoneContext=null;removePhoneMarker();resetVisitTimer();},0);}
+    if(event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView'))setTimeout(()=>{manualViewportHold=false;ensurePhoneSearch();scheduleAutoSelect(180);},60);
   },true);
   window.addEventListener('beforeunload',()=>{stopTimerLoop();clearTimeout(autoSelectTimer);});
 
