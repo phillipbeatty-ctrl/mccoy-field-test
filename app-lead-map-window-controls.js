@@ -3,7 +3,7 @@
   window.MCCOY_LEAD_MAP_WINDOW_CONTROLS=true
 
   const STANDARD='standard',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN_READY='move-pin-ready',MOVE_PIN='move-pin'
-  let mode=STANDARD,expanded=false,selectedLead=null,movePinLeadId=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null,statusObserver=null,statusTimer=null
+  let mode=STANDARD,expanded=false,selectedLead=null,movePinLeadId=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null,statusObserver=null,statusTimer=null,movePinSnapshotPromise=null
   const byId=id=>document.getElementById(id)
   const panel=byId('leadMapPanel'),canvas=byId('leadMapFrame')
   if(!panel||!canvas)return
@@ -58,30 +58,32 @@
   const setAvailable=(button,available)=>button.setAttribute('aria-disabled',available?'false':'true')
   function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
-  function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
+  function releaseMovePinOwnership(){movePinLeadId=null;movePinSnapshotPromise=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
   function recoverFailedMoveStart(){if(mode!==MOVE_PIN_READY||window.MCCOY_MAP_MOVE_PIN_ACTIVE)return;releaseMovePinOwnership();mode=STANDARD;sync();showHint('MOVE PIN DID NOT START')}
   async function refreshMovePinSnapshot(){
     if(!movePinLeadId)return false
     const lead=leadById(movePinLeadId)
     if(!lead)return false
-    showMapStatus('Refreshing current pin location…')
-    const {data,error}=await sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:movePinLeadId}})
-    if(error||!data?.ok){showMapStatus('Unable to refresh the current pin. Try MOVE PIN again.');return false}
-    const snapshot=data.lead||{}
+    const timeout=new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),2000))
+    const result=await Promise.race([sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:movePinLeadId}}),timeout])
+    if(result?.timeout||result?.error||!result?.data?.ok)return false
+    const snapshot=result.data.lead||{}
     const lat=Number(snapshot.latitude),lng=Number(snapshot.longitude)
     if(Number.isFinite(lat))lead.lat=lat
     if(Number.isFinite(lng))lead.lng=lng
     lead.updatedAt=snapshot.pin_location_updated_at||lead.updatedAt||null
     selectedLead=lead
-    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
     return true
   }
-  async function triggerUnderlyingMove(){
+  function triggerUnderlyingMove(){
     if(!movePinLeadId)return false
-    if(!await refreshMovePinSnapshot()){recoverFailedMoveStart();return false}
+    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
     const underlying=byId('moveLeadPinBtn')
     if(!underlying){recoverFailedMoveStart();showHint('MOVE PIN UNAVAILABLE');return false}
-    status.classList.remove('show');underlying.click();setTimeout(recoverFailedMoveStart,3000);return true
+    underlying.click()
+    movePinSnapshotPromise=refreshMovePinSnapshot().catch(()=>false)
+    setTimeout(recoverFailedMoveStart,3000)
+    return true
   }
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
@@ -105,7 +107,7 @@
   fitAllAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.MCCOY_LEAD_MAP?.fitLeadPins?.();mode=STANDARD;sync();showHint('FIT ALL PINS')})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
   moveAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return}beginMovePin(selectedLead?.dbId||selectedLead?.id,{startImmediately:true})})
-  moveConfirm.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');byId('confirmLeadPinBtn')?.click()})
+  moveConfirm.addEventListener('click',async event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');if(movePinSnapshotPromise){showMapStatus('Checking latest pin state…');await movePinSnapshotPromise;movePinSnapshotPromise=null}byId('confirmLeadPinBtn')?.click()})
   moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
   byId('leadMapWorkflowCancel').addEventListener('click',cancelWorkflow)
   watchCompactConfirm();watchMoveStatus()
