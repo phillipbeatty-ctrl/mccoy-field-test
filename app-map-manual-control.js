@@ -5,6 +5,20 @@
   window.MCCOY_MAP_MANUAL_CONTROL=true;
   if(typeof window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD!=='boolean')window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=false;
 
+  const nativeSetTimeout=window.setTimeout.bind(window);
+  if(!window.MCCOY_MAP_AUTO_NEAREST_TIMER_GUARD){
+    window.MCCOY_MAP_AUTO_NEAREST_TIMER_GUARD=true;
+    window.setTimeout=function(callback,delay,...args){
+      if(typeof callback==='function'&&callback.name==='autoSelectNearest'){
+        return nativeSetTimeout(()=>{
+          if(window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD)return;
+          callback(...args);
+        },delay);
+      }
+      return nativeSetTimeout(callback,delay,...args);
+    };
+  }
+
   let syntheticLocationClick=false;
   let mapBound=false;
 
