@@ -5,20 +5,6 @@
   window.MCCOY_MAP_MANUAL_CONTROL=true;
   if(typeof window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD!=='boolean')window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=false;
 
-  const nativeSetTimeout=window.setTimeout.bind(window);
-  if(!window.MCCOY_MAP_AUTO_NEAREST_TIMER_GUARD){
-    window.MCCOY_MAP_AUTO_NEAREST_TIMER_GUARD=true;
-    window.setTimeout=function(callback,delay,...args){
-      if(typeof callback==='function'&&callback.name==='autoSelectNearest'){
-        return nativeSetTimeout(()=>{
-          if(window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD)return;
-          callback(...args);
-        },delay);
-      }
-      return nativeSetTimeout(callback,delay,...args);
-    };
-  }
-
   let syntheticLocationClick=false;
   let mapBound=false;
 
@@ -39,9 +25,9 @@
     if(label&&activeSession())label.textContent=message;
   }
 
-  function holdManualViewport(){
-    window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=true;
-    window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:true}}));
+  function setManualViewportHold(held){
+    window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=Boolean(held);
+    window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:Boolean(held)}}));
   }
 
   function bindLocationButton(){
@@ -57,7 +43,7 @@
           button.textContent='MY LOCATION';
           button.setAttribute('aria-pressed','false');
         }
-        holdManualViewport();
+        setManualViewportHold(true);
       },0);
     },true);
   }
@@ -67,7 +53,7 @@
     if(!map||mapBound)return;
     mapBound=true;
     const userMoved=()=>{
-      holdManualViewport();
+      setManualViewportHold(true);
       pauseLocationFollow('Current location remains available. Map movement is manual until MY LOCATION is pressed again.');
     };
     for(const eventName of ['mousedown','touchstart','dragstart','zoomstart'])map.on(eventName,userMoved);
@@ -87,12 +73,9 @@
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(init,0));
   document.addEventListener('click',event=>{
     if(event.target.closest?.('#followMyLocationBtn'))setTimeout(bindLocationButton,0);
-    if(event.target.closest?.('#fitAllPinsBtn'))holdManualViewport();
+    if(event.target.closest?.('#fitAllPinsBtn'))setManualViewportHold(true);
     const leadNav=event.target.closest?.('.nav-btn[data-view="leads"],#leadMapView');
-    if(leadNav){
-      window.MCCOY_MAP_MANUAL_VIEWPORT_HOLD=false;
-      window.dispatchEvent(new CustomEvent('mccoy-map-manual-viewport-hold-changed',{detail:{held:false}}));
-    }
+    if(leadNav)setManualViewportHold(false);
   },true);
 
   [0,100,300,800,1600,3000].forEach(delay=>setTimeout(init,delay));
