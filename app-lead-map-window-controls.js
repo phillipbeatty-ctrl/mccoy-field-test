@@ -3,7 +3,7 @@
   window.MCCOY_LEAD_MAP_WINDOW_CONTROLS=true
 
   const STANDARD='standard',EXPANDED='expanded',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN_READY='move-pin-ready',MOVE_PIN='move-pin'
-  let mode=STANDARD,selectedLead=null,movePinLeadId=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null
+  let mode=STANDARD,selectedLead=null,movePinLeadId=null,movePinViewport=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null
   const byId=id=>document.getElementById(id)
   const panel=byId('leadMapPanel'),canvas=byId('leadMapFrame')
   if(!panel||!canvas)return
@@ -54,7 +54,16 @@
   const setAvailable=(button,available)=>button.setAttribute('aria-disabled',available?'false':'true')
   function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
-  function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
+  function releaseMovePinOwnership(){movePinLeadId=null;movePinViewport=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
+  function captureMovePinViewport(){const map=window.MCCOY_LEAD_MAP?.map,center=map?.getCenter?.(),zoom=Number(map?.getZoom?.());movePinViewport=center&&Number.isFinite(Number(center.lat))&&Number.isFinite(Number(center.lng))&&Number.isFinite(zoom)?{lat:Number(center.lat),lng:Number(center.lng),zoom}:null}
+  function restoreMovePinViewport(){
+    const map=window.MCCOY_LEAD_MAP?.map,leadId=movePinLeadId,view=movePinViewport,lock=window.MCCOY_MAP_VIEWPORT_LOCK
+    if(!map||!leadId||!view||mode!==MOVE_PIN_READY)return
+    lock?.release?.('move-pin')
+    map.invalidateSize?.({pan:false})
+    map.setView?.([view.lat,view.lng],view.zoom,{animate:false})
+    lock?.acquire?.('move-pin',leadId)
+  }
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
@@ -69,9 +78,10 @@
     if(!resolved){showHint('SELECT A LEAD FIRST');return false}
     selectedLead=resolved
     if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}
+    captureMovePinViewport()
     movePinLeadId=String(resolved.dbId||resolved.id)
     window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId)
-    restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');return true
+    restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();requestAnimationFrame(()=>requestAnimationFrame(restoreMovePinViewport));showHint('MOVE PIN');return true
   }
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
   function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){releaseMovePinOwnership();mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
