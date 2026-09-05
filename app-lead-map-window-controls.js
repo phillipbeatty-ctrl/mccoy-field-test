@@ -3,7 +3,7 @@
   window.MCCOY_LEAD_MAP_WINDOW_CONTROLS=true
 
   const STANDARD='standard',EXPANDED='expanded',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN_READY='move-pin-ready',MOVE_PIN='move-pin'
-  let mode=STANDARD,selectedLead=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null
+  let mode=STANDARD,selectedLead=null,movePinLeadId=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null
   const byId=id=>document.getElementById(id)
   const panel=byId('leadMapPanel'),canvas=byId('leadMapFrame')
   if(!panel||!canvas)return
@@ -54,24 +54,27 @@
   const setAvailable=(button,available)=>button.setAttribute('aria-disabled',available?'false':'true')
   function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
+  function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
     const expanded=mode!==STANDARD,dispositionOpen=mode===DISPOSITION,moveReady=mode===MOVE_PIN_READY,moveActive=mode===MOVE_PIN
     panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',mode===ACTION_MENU);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveReady||moveActive);moveDock.classList.toggle('active',moveActive);address.classList.toggle('show',mode===ACTION_MENU||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',mode===ACTION_MENU?'true':'false')
     setAvailable(maximize,mode===STANDARD);setAvailable(actions,expanded&&!dispositionOpen&&!moveReady&&!moveActive&&Boolean(selectedLead));setAvailable(restore,expanded&&!dispositionOpen&&!moveReady&&!moveActive);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());syncCompactConfirm()
-    requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,leadId:selectedLead?.dbId||selectedLead?.id||null}}))
+    requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,leadId:movePinLeadId||selectedLead?.dbId||selectedLead?.id||null}}))
   }
-  function setMode(next){if(next===STANDARD)restoreMountedWorkflow();mode=next;sync()}
+  function setMode(next){if(next===STANDARD)restoreMountedWorkflow();if(next!==MOVE_PIN_READY&&next!==MOVE_PIN&&movePinLeadId)releaseMovePinOwnership();mode=next;sync()}
   function beginMovePin(leadId){
-    const resolved=leadById(leadId)||selectedLead
+    const resolved=leadId?leadById(leadId):selectedLead
     if(!resolved){showHint('SELECT A LEAD FIRST');return false}
     selectedLead=resolved
     if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}
+    movePinLeadId=String(resolved.dbId||resolved.id)
+    window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId)
     restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');return true
   }
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
-  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
+  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){releaseMovePinOwnership();mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
   function handleControl(button,label,action){button.addEventListener('pointerdown',()=>{suppressClick=false;clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{suppressClick=true;showHint(label)},500)});for(const eventName of ['pointerup','pointercancel','pointerleave'])button.addEventListener(eventName,()=>clearTimeout(longPressTimer));button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(suppressClick){suppressClick=false;return}showHint(label);action()})}
 
   handleControl(maximize,'MAXIMIZE',()=>{if(mode===STANDARD)setMode(EXPANDED)})
@@ -85,14 +88,14 @@
   byId('leadMapWorkflowCancel').addEventListener('click',cancelWorkflow)
   watchCompactConfirm()
 
-  window.addEventListener('mccoy-map-lead-selected',event=>{selectedLead=leadById(event.detail?.leadId);if(mode===ACTION_MENU)mode=EXPANDED;sync()})
-  window.addEventListener('mccoy-map-lead-deleted',event=>{if(String(event.detail?.leadId||'')!==String(selectedLead?.dbId||selectedLead?.id||''))return;if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();restoreMountedWorkflow();selectedLead=null;mode=mode===STANDARD?STANDARD:EXPANDED;sync()})
+  window.addEventListener('mccoy-map-lead-selected',event=>{const nextId=event.detail?.leadId;if(movePinLeadId&&String(nextId??'')!==String(movePinLeadId))return;selectedLead=leadById(nextId);if(mode===ACTION_MENU)mode=EXPANDED;sync()})
+  window.addEventListener('mccoy-map-lead-deleted',event=>{if(String(event.detail?.leadId||'')!==String(selectedLead?.dbId||selectedLead?.id||''))return;if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();releaseMovePinOwnership();restoreMountedWorkflow();selectedLead=null;mode=mode===STANDARD?STANDARD:EXPANDED;sync()})
   window.addEventListener('mccoy-map-move-pin-started',()=>{if(mode!==MOVE_PIN_READY)return;mode=MOVE_PIN;sync();watchCompactConfirm()})
-  window.addEventListener('mccoy-map-move-pin-ended',()=>{if(mode!==MOVE_PIN&&mode!==MOVE_PIN_READY)return;mode=EXPANDED;sync()})
+  window.addEventListener('mccoy-map-move-pin-ended',()=>{if(mode!==MOVE_PIN&&mode!==MOVE_PIN_READY)return;releaseMovePinOwnership();mode=EXPANDED;sync()})
   window.addEventListener('mccoy-door-visit-completed',()=>{if(mode!==DISPOSITION)return;restoreMountedWorkflow();mode=EXPANDED;sync()})
-  byId('clearMapSelectionBtn')?.addEventListener('click',()=>{if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;if(mode===ACTION_MENU||mode===MOVE_PIN_READY)mode=EXPANDED;sync()})
-  document.addEventListener('click',event=>{const mapPick=event.target?.closest?.('.map-pick');if(mapPick?.dataset?.id){selectedLead=leadById(mapPick.dataset.id);if(mode===ACTION_MENU)mode=EXPANDED;setTimeout(sync,0)}const view=event.target?.closest?.('[data-view]')?.dataset?.view;if(view!==undefined&&view!=='leads'){if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;setMode(STANDARD)}if(view==='leads'&&!panel.classList.contains('lead-map-window-expanded'))setMode(STANDARD)},true)
+  byId('clearMapSelectionBtn')?.addEventListener('click',()=>{if(movePinLeadId)return;if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();selectedLead=null;if(mode===ACTION_MENU||mode===MOVE_PIN_READY)mode=EXPANDED;sync()})
+  document.addEventListener('click',event=>{const mapPick=event.target?.closest?.('.map-pick');if(mapPick?.dataset?.id&&(!movePinLeadId||String(mapPick.dataset.id)===String(movePinLeadId))){selectedLead=leadById(mapPick.dataset.id);if(mode===ACTION_MENU)mode=EXPANDED;setTimeout(sync,0)}const view=event.target?.closest?.('[data-view]')?.dataset?.view;if(view!==undefined&&view!=='leads'){if(window.MCCOY_MAP_MOVE_PIN_ACTIVE)byId('cancelLeadPinBtn')?.click();releaseMovePinOwnership();selectedLead=null;setMode(STANDARD)}if(view==='leads'&&!panel.classList.contains('lead-map-window-expanded'))setMode(STANDARD)},true)
   document.addEventListener('keydown',event=>{if(event.key!=='Escape')return;if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN)cancelWorkflow();else if(mode===ACTION_MENU)setMode(EXPANDED);else if(mode===EXPANDED)setMode(STANDARD)})
   let resizeTimer=null;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}),120)})
-  sync();window.MCCOY_LEAD_MAP_WINDOW={getMode:()=>mode,maximize:()=>setMode(EXPANDED),restore:()=>setMode(STANDARD),beginMovePin}
+  sync();window.MCCOY_LEAD_MAP_WINDOW={getMode:()=>mode,getMovePinLeadId:()=>movePinLeadId,maximize:()=>setMode(EXPANDED),restore:()=>setMode(STANDARD),beginMovePin}
 })()
