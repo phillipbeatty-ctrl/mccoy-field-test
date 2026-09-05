@@ -55,6 +55,17 @@
   function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
   function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
+  function recoverFailedMoveStart(){
+    if(mode!==MOVE_PIN_READY||window.MCCOY_MAP_MOVE_PIN_ACTIVE)return
+    releaseMovePinOwnership();mode=ACTION_MENU;sync();showHint('MOVE PIN DID NOT START')
+  }
+  function triggerUnderlyingMove(){
+    if(!movePinLeadId)return false
+    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
+    const underlying=byId('moveLeadPinBtn')
+    if(!underlying){recoverFailedMoveStart();showHint('MOVE PIN UNAVAILABLE');return false}
+    underlying.click();setTimeout(recoverFailedMoveStart,3000);return true
+  }
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
@@ -70,9 +81,10 @@
     selectedLead=resolved
     if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}
     movePinLeadId=String(resolved.dbId||resolved.id)
+    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
     window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId)
     restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN')
-    if(startImmediately)setTimeout(()=>byId('moveLeadPinBtn')?.click(),0)
+    if(startImmediately)setTimeout(triggerUnderlyingMove,0)
     return true
   }
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
@@ -84,7 +96,7 @@
   handleControl(restore,'RESTORE',()=>{if(mode===EXPANDED||mode===ACTION_MENU)setMode(STANDARD)})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
   moveAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return}beginMovePin(selectedLead?.dbId||selectedLead?.id,{startImmediately:true})})
-  handleControl(moveStart,'MOVE PIN',()=>{if(mode===MOVE_PIN){showHint('DRAG THE LARGE PIN');return}if(mode!==MOVE_PIN_READY)return;if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');byId('moveLeadPinBtn')?.click()})
+  handleControl(moveStart,'MOVE PIN',()=>{if(mode===MOVE_PIN){showHint('DRAG THE LARGE PIN');return}if(mode!==MOVE_PIN_READY)return;if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');triggerUnderlyingMove()})
   moveConfirm.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');byId('confirmLeadPinBtn')?.click()})
   moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
   byId('leadMapWorkflowCancel').addEventListener('click',cancelWorkflow)
