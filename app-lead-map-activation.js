@@ -27,26 +27,32 @@
     return true;
   }
 
-  function enterMapView(){
-    if(typeof state!=='undefined')state.leadView='map';
+  function showListWorkspace(){
+    if(typeof state!=='undefined')state.leadView='list';
     const panel=document.getElementById('leadMapPanel');
     const table=document.getElementById('leadsTable');
     const pager=document.getElementById('leadPager');
     const mapButton=document.getElementById('leadMapView');
     const listButton=document.getElementById('leadListView');
-    if(panel)panel.style.display='block';
-    if(table)table.style.display='none';
-    if(pager)pager.style.display='none';
-    if(mapButton)mapButton.className='primary';
-    if(listButton)listButton.className='assign-btn';
+    if(panel)panel.style.display='none';
+    if(table)table.style.display='block';
+    if(pager)pager.style.display='flex';
+    if(mapButton)mapButton.className='assign-btn';
+    if(listButton)listButton.className='primary';
+    document.querySelector('#leads>.card')?.classList.remove('lead-pool-map-workspace');
+    lastVisible=false;
   }
 
   function ensureLeadMapVisible(){
     const leads=document.getElementById('leads');
     const panel=document.getElementById('leadMapPanel');
-    if(!leads?.classList.contains('active')||!panel)return false;
-    if(state.leadView==='map')enterMapView();
-    return panel.style.display!=='none'&&state.leadView==='map';
+    if(!leads?.classList.contains('active')||!panel||state.leadView!=='map')return false;
+    panel.style.display='block';
+    const table=document.getElementById('leadsTable');
+    const pager=document.getElementById('leadPager');
+    if(table)table.style.display='none';
+    if(pager)pager.style.display='none';
+    return true;
   }
 
   function reportMapPopulation(){
@@ -70,11 +76,11 @@
   }
 
   async function activateLeadMap({forceRebuild=false}={}){
-    if(activating)return;
+    if(activating||state.leadView!=='map')return;
     activating=true;
     try{
       await sleep(40);
-      ensureLeadMapVisible();
+      if(!ensureLeadMapVisible())return;
 
       const blockedByAssignment=Boolean(state.leadAccessScope?.assignmentReason);
       if((!Array.isArray(state.realLeads)||state.realLeads.length===0)&&!blockedByAssignment){
@@ -87,11 +93,13 @@
       const nowVisible=ensureLeadMapVisible();
       window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});
       if(nowVisible&&(forceRebuild||!lastVisible))rebuildVisibleMarkers();
-      else window.MCCOY_RENDER_LEAD_MAP?.(true);
+      else if(nowVisible)window.MCCOY_RENDER_LEAD_MAP?.(true);
       lastVisible=nowVisible;
 
-      setTimeout(()=>{window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});reportMapPopulation();},120);
-      setTimeout(reportMapPopulation,700);
+      if(nowVisible){
+        setTimeout(()=>{window.MCCOY_LEAD_MAP?.map?.invalidateSize?.({pan:false});reportMapPopulation();},120);
+        setTimeout(reportMapPopulation,700);
+      }
     }catch(e){
       console.error('Lead map activation failed',e);
     }finally{
@@ -116,23 +124,23 @@
 
   document.addEventListener('click',e=>{
     if(e.target?.closest?.('#leadMapView'))setTimeout(()=>activateLeadMap({forceRebuild:true}),0);
+    if(e.target?.closest?.('#leadListView'))setTimeout(showListWorkspace,0);
     if(e.target?.closest?.('.nav-btn[data-view="leads"]')){
       lastVisible=false;
-      enterMapView();
-      setTimeout(()=>activateLeadMap({forceRebuild:true}),60);
+      setTimeout(()=>{
+        const listButton=document.getElementById('leadListView');
+        if(listButton)listButton.click();
+        else showListWorkspace();
+      },0);
     }
   },true);
 
   window.addEventListener('mccoy-real-leads-loaded',()=>{
-    const panel=document.getElementById('leadMapPanel');
-    if(panel&&panel.style.display!=='none')setTimeout(()=>activateLeadMap({forceRebuild:true}),30);
+    if(state.leadView==='map'&&document.getElementById('leadMapPanel')?.style.display!=='none')setTimeout(()=>activateLeadMap({forceRebuild:true}),30);
   });
 
   window.addEventListener('load',()=>{
     setTimeout(replayVerifiedAccessAfterPageLoad,0);
-    setTimeout(()=>{
-      replayVerifiedAccessAfterPageLoad();
-      if(document.getElementById('leads')?.classList.contains('active'))activateLeadMap({forceRebuild:true});
-    },800);
+    setTimeout(replayVerifiedAccessAfterPageLoad,800);
   });
 })();
