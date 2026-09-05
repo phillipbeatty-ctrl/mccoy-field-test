@@ -60,7 +60,29 @@
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
   function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
   function recoverFailedMoveStart(){if(mode!==MOVE_PIN_READY||window.MCCOY_MAP_MOVE_PIN_ACTIVE)return;releaseMovePinOwnership();mode=ACTION_MENU;sync();showHint('MOVE PIN DID NOT START')}
-  function triggerUnderlyingMove(){if(!movePinLeadId)return false;window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId);const underlying=byId('moveLeadPinBtn');if(!underlying){recoverFailedMoveStart();showHint('MOVE PIN UNAVAILABLE');return false}underlying.click();setTimeout(recoverFailedMoveStart,3000);return true}
+  async function refreshMovePinSnapshot(){
+    if(!movePinLeadId)return false
+    const lead=leadById(movePinLeadId)
+    if(!lead)return false
+    showMapStatus('Refreshing current pin location…')
+    const {data,error}=await sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:movePinLeadId}})
+    if(error||!data?.ok){showMapStatus('Unable to refresh the current pin. Try MOVE PIN again.');return false}
+    const snapshot=data.lead||{}
+    const lat=Number(snapshot.latitude),lng=Number(snapshot.longitude)
+    if(Number.isFinite(lat))lead.lat=lat
+    if(Number.isFinite(lng))lead.lng=lng
+    lead.updatedAt=snapshot.pin_location_updated_at||lead.updatedAt||null
+    selectedLead=lead
+    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
+    return true
+  }
+  async function triggerUnderlyingMove(){
+    if(!movePinLeadId)return false
+    if(!await refreshMovePinSnapshot()){recoverFailedMoveStart();return false}
+    const underlying=byId('moveLeadPinBtn')
+    if(!underlying){recoverFailedMoveStart();showHint('MOVE PIN UNAVAILABLE');return false}
+    status.classList.remove('show');underlying.click();setTimeout(recoverFailedMoveStart,3000);return true
+  }
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
