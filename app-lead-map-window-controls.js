@@ -60,18 +60,20 @@
   function sync(){
     const expanded=mode!==STANDARD,dispositionOpen=mode===DISPOSITION,moveReady=mode===MOVE_PIN_READY,moveActive=mode===MOVE_PIN
     panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',mode===ACTION_MENU);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveReady||moveActive);moveDock.classList.toggle('active',moveActive);address.classList.toggle('show',mode===ACTION_MENU||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',mode===ACTION_MENU?'true':'false')
-    setAvailable(maximize,mode===STANDARD);setAvailable(actions,expanded&&!dispositionOpen&&!moveReady&&!moveActive&&Boolean(selectedLead));setAvailable(restore,expanded&&!dispositionOpen&&!moveReady&&!moveActive);setAvailable(moveStart,moveReady);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());syncCompactConfirm()
+    setAvailable(maximize,mode===STANDARD);setAvailable(actions,expanded&&!dispositionOpen&&!moveReady&&!moveActive&&Boolean(selectedLead));setAvailable(restore,expanded&&!dispositionOpen&&!moveReady&&!moveActive);setAvailable(moveStart,moveReady||moveActive);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());syncCompactConfirm()
     requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,leadId:movePinLeadId||selectedLead?.dbId||selectedLead?.id||null}}))
   }
   function setMode(next){if(next===STANDARD)restoreMountedWorkflow();if(next!==MOVE_PIN_READY&&next!==MOVE_PIN&&movePinLeadId)releaseMovePinOwnership();mode=next;sync()}
-  function beginMovePin(leadId){
+  function beginMovePin(leadId,{startImmediately=false}={}){
     const resolved=leadId?leadById(leadId):selectedLead
     if(!resolved){showHint('SELECT A LEAD FIRST');return false}
     selectedLead=resolved
     if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}
     movePinLeadId=String(resolved.dbId||resolved.id)
     window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId)
-    restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');return true
+    restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN')
+    if(startImmediately)setTimeout(()=>byId('moveLeadPinBtn')?.click(),0)
+    return true
   }
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
   function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){releaseMovePinOwnership();mode=EXPANDED;sync();return}restoreMountedWorkflow();mode=EXPANDED;sync()}
@@ -81,7 +83,7 @@
   handleControl(actions,'ACTIONS',()=>{if(mode===STANDARD){showHint('MAXIMIZE MAP FIRST');return}if(mode===DISPOSITION||mode===MOVE_PIN_READY||mode===MOVE_PIN){showHint('FINISH OR CANCEL CURRENT ACTION');return}if(!selectedLead){showHint('SELECT A LEAD FIRST');return}setMode(mode===ACTION_MENU?EXPANDED:ACTION_MENU)})
   handleControl(restore,'RESTORE',()=>{if(mode===EXPANDED||mode===ACTION_MENU)setMode(STANDARD)})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
-  moveAction.addEventListener('click',event=>{event.stopPropagation();beginMovePin(selectedLead?.dbId||selectedLead?.id)})
+  moveAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return}beginMovePin(selectedLead?.dbId||selectedLead?.id,{startImmediately:true})})
   handleControl(moveStart,'MOVE PIN',()=>{if(mode===MOVE_PIN){showHint('DRAG THE LARGE PIN');return}if(mode!==MOVE_PIN_READY)return;if(!mayMoveSelectedLead())return showHint('MOVE PIN NOT AUTHORIZED');byId('moveLeadPinBtn')?.click()})
   moveConfirm.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');byId('confirmLeadPinBtn')?.click()})
   moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
