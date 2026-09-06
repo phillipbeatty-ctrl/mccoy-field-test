@@ -1,0 +1,30 @@
+name: MOVE PIN diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'app-lead-map-deselect.js'
+      - 'app-lead-map.js'
+      - 'app-lead-map-window-controls.js'
+      - 'app-real-leads.js'
+      - 'supabase/functions/lead-admin/**'
+      - 'supabase/migrations/20260903190000_move_lead_pin_transaction.sql'
+      - 'move-pin-admin-diagnostics.test.mjs'
+      - 'move-lead-pin.test.mjs'
+      - '.github/workflows/move-pin-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics-and-move-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-lead-map-deselect.js
+      - run: node --test move-pin-admin-diagnostics.test.mjs move-lead-pin.test.mjs

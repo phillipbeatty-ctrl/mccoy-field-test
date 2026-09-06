@@ -28,18 +28,42 @@
 
   const GENERIC_MOVE_FAILURE='Unable to save the proposed location. The original pin is unchanged.';
   const clean=value=>String(value??'').trim();
-  const currentRole=()=>String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase();
+  const currentRole=()=>clean(window.MCCOY_ACCESS?.access?.role).toLowerCase();
+  const currentUserId=()=>clean(window.MCCOY_ACCESS?.user?.id);
+  const GENERIC_WRAPPER_ERRORS=new Set(['lead_admin_failed','move_lead_pin_failed','location_save_failed']);
+
+  function moveFailureReason(payload,error){
+    const code=clean(payload?.error),detail=clean(payload?.detail);
+    // Keep the wrapper code for context without losing the actual RPC failure.
+    if(GENERIC_WRAPPER_ERRORS.has(code)&&detail)return `${code}: ${detail}`;
+    return code||detail||clean(payload?.message)||clean(error?.message)||'location_save_failed';
+  }
 
   function installMovePinDiagnostics(){
-    if(window.MCCOY_MOVE_PIN_DIAGNOSTICS_INSTALLED)return;
-    if(typeof sb==='undefined'||!sb?.functions||typeof sb.functions.invoke!=='function')return;
+    if(window.MCCOY_MOVE_PIN_DIAGNOSTICS_INSTALLED)return true;
+    if(typeof sb==='undefined'||!sb?.functions||typeof sb.functions.invoke!=='function')return false;
+    const source=document.getElementById('leadCorrectionMsg');
+    if(!source)return false;
     window.MCCOY_MOVE_PIN_DIAGNOSTICS_INSTALLED=true;
+
+    let diagnosticRequest=0;
+    const clearDiagnostic=()=>{
+      diagnosticRequest++;
+      window.MCCOY_LAST_MOVE_PIN_ERROR=null;
+      if(clean(source.textContent).startsWith(`${GENERIC_MOVE_FAILURE} Admin diagnostic:`))source.textContent=GENERIC_MOVE_FAILURE;
+    };
+    sb.auth?.onAuthStateChange?.(clearDiagnostic);
+    window.addEventListener('mccoy-map-move-pin-started',clearDiagnostic);
 
     const originalInvoke=sb.functions.invoke.bind(sb.functions);
     sb.functions.invoke=async function(name,options){
-      const result=await originalInvoke(name,options);
       const body=options?.body||{};
-      if(name!=='lead-admin'||body.action!=='move_lead_pin'||!result?.error)return result;
+      if(name!=='lead-admin'||body.action!=='move_lead_pin')return originalInvoke(name,options);
+      clearDiagnostic();
+      const request=diagnosticRequest,userId=currentUserId(),adminAtStart=currentRole()==='admin'&&Boolean(userId);
+      const stillAdmin=()=>adminAtStart&&request===diagnosticRequest&&currentRole()==='admin'&&currentUserId()===userId;
+      const result=await originalInvoke(name,options);
+      if(!result?.error||!stillAdmin())return result;
 
       let payload=null,status=null,sbErrorCode=null;
       const context=result.error?.context;
@@ -57,7 +81,9 @@
         console.warn('MOVE PIN diagnostic response parsing failed',parseError);
       }
 
-      const backendReason=clean(payload?.error||payload?.detail||payload?.message||result.error?.message)||'location_save_failed';
+      // Recheck after asynchronous body reads in case the account changed.
+      if(!stillAdmin())return result;
+      const backendReason=moveFailureReason(payload,result.error);
       window.MCCOY_LAST_MOVE_PIN_ERROR={
         reason:backendReason,
         status,
@@ -67,16 +93,13 @@
         captured_at:new Date().toISOString()
       };
 
-      if(payload&&(!result.data||!result.data.error)){
-        result.data={...(result.data||{}),...payload,ok:false,error:backendReason};
-      }
+      // Diagnostics are display-only. Never feed backend detail into data.error:
+      // confirmMovePin branches on that value for stale/GPS/assignment handling.
       return result;
     };
 
-    const source=document.getElementById('leadCorrectionMsg');
-    if(!source)return;
     const renderAdminDiagnostic=()=>{
-      if(currentRole()!=='admin')return;
+      if(currentRole()!=='admin'){clearDiagnostic();return;}
       const detail=window.MCCOY_LAST_MOVE_PIN_ERROR;
       if(!detail||clean(source.textContent)!==GENERIC_MOVE_FAILURE)return;
       const diagnostic=[detail.reason,detail.status?`HTTP ${detail.status}`:'',detail.sb_error_code?`Supabase ${detail.sb_error_code}`:''].filter(Boolean).join(' · ');
@@ -84,12 +107,14 @@
     };
     const observer=new MutationObserver(renderAdminDiagnostic);
     observer.observe(source,{childList:true,subtree:true,characterData:true});
+    return true;
   }
 
-  const installTimer=setInterval(()=>{
-    if(typeof sb==='undefined'||!document.getElementById('leadCorrectionMsg'))return;
-    clearInterval(installTimer);
-    installMovePinDiagnostics();
-  },100);
+  const retryInstall=()=>{if(installMovePinDiagnostics())clearInterval(installTimer);};
+  const installTimer=setInterval(retryInstall,100);
   setTimeout(()=>clearInterval(installTimer),10000);
+  // A slow sign-in or late map initialization must not lose diagnostics forever.
+  window.addEventListener('mccoy-real-leads-loaded',retryInstall);
+  window.addEventListener('mccoy-map-move-pin-started',retryInstall);
+  retryInstall();
 })();
