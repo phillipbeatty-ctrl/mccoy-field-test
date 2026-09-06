@@ -3,7 +3,7 @@
   window.MCCOY_LEAD_MAP_WINDOW_CONTROLS=true
 
   const STANDARD='standard',ACTION_MENU='action-menu',DISPOSITION='disposition',MOVE_PIN_READY='move-pin-ready',MOVE_PIN='move-pin'
-  let mode=STANDARD,expanded=false,selectedLead=null,movePinLeadId=null,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null,statusObserver=null,statusTimer=null
+  let mode=STANDARD,expanded=false,selectedLead=null,movePinLeadId=null,moveStartSequence=0,mountedWorkflow=null,hintTimer=null,longPressTimer=null,suppressClick=false,confirmObserver=null,statusObserver=null,statusTimer=null
   const byId=id=>document.getElementById(id)
   const panel=byId('leadMapPanel'),canvas=byId('leadMapFrame')
   if(!panel||!canvas)return
@@ -56,49 +56,55 @@
   function showMapStatus(text){clearTimeout(statusTimer);status.textContent=String(text||'').trim();status.classList.toggle('show',Boolean(status.textContent)&&mode!==STANDARD);if(status.textContent)statusTimer=setTimeout(()=>status.classList.remove('show'),6500)}
   function watchMoveStatus(){statusObserver?.disconnect();const source=byId('leadCorrectionMsg');if(!source)return;statusObserver=new MutationObserver(()=>{const text=source.textContent?.trim();if(text)showMapStatus(text)});statusObserver.observe(source,{childList:true,subtree:true,characterData:true})}
   const setAvailable=(button,available)=>button.setAttribute('aria-disabled',available?'false':'true')
-  function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE))}
+  function syncCompactConfirm(){const underlying=byId('confirmLeadPinBtn');setAvailable(moveConfirm,Boolean(underlying&&!underlying.disabled&&window.MCCOY_MAP_MOVE_PIN_ACTIVE));setAvailable(moveCancel,!byId('cancelLeadPinBtn')?.disabled)}
   function watchCompactConfirm(){confirmObserver?.disconnect();const underlying=byId('confirmLeadPinBtn');if(!underlying)return;confirmObserver=new MutationObserver(syncCompactConfirm);confirmObserver.observe(underlying,{attributes:true,attributeFilter:['disabled']});syncCompactConfirm()}
-  function releaseMovePinOwnership(){movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
-  function recoverFailedMoveStart(){if(mode!==MOVE_PIN_READY||window.MCCOY_MAP_MOVE_PIN_ACTIVE)return;releaseMovePinOwnership();mode=STANDARD;sync();showHint('MOVE PIN DID NOT START')}
-  async function refreshMovePinSnapshot(){
-    if(!movePinLeadId)return false
-    const lead=leadById(movePinLeadId)
-    if(!lead)return false
-    const timeout=new Promise(resolve=>setTimeout(()=>resolve({timeout:true}),2000))
-    const result=await Promise.race([sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:movePinLeadId}}),timeout])
-    if(result?.timeout||result?.error||!result?.data?.ok)return false
-    const snapshot=result.data.lead||{}
-    const lat=Number(snapshot.latitude),lng=Number(snapshot.longitude)
-    if(Number.isFinite(lat))lead.lat=lat
-    if(Number.isFinite(lng))lead.lng=lng
-    lead.updatedAt=snapshot.pin_location_updated_at||lead.updatedAt||null
-    selectedLead=lead
-    return true
+  function releaseMovePinOwnership(){moveStartSequence++;movePinLeadId=null;window.MCCOY_MAP_VIEWPORT_LOCK?.release?.('move-pin')}
+  function recoverFailedMoveStart(message='MOVE PIN DID NOT START'){if(mode!==MOVE_PIN_READY||window.MCCOY_MAP_MOVE_PIN_ACTIVE)return;releaseMovePinOwnership();mode=STANDARD;sync();showHint(message)}
+  async function refreshMovePinSnapshot(leadId,sequence){
+    let timeoutId
+    try{
+      const timeout=new Promise(resolve=>{timeoutId=setTimeout(()=>resolve({timeout:true}),8000)})
+      const result=await Promise.race([sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:leadId}}),timeout])
+      if(sequence!==moveStartSequence||leadId!==movePinLeadId||mode!==MOVE_PIN_READY)return false
+      if(result?.timeout||result?.error||!result?.data?.ok)return false
+      const snapshot=result.data.lead||{},lead=leadById(leadId)
+      const validCoordinate=(value,limit)=>value===null||(typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=limit)
+      if(!lead||String(snapshot.id)!==leadId||typeof snapshot.pin_location_updated_at!=='string'||!Number.isFinite(Date.parse(snapshot.pin_location_updated_at))||!validCoordinate(snapshot.latitude,90)||!validCoordinate(snapshot.longitude,180))return false
+      lead.lat=snapshot.latitude;lead.lng=snapshot.longitude
+      // Keep PostgreSQL's full timestamp precision; do not round through Date.
+      lead.updatedAt=snapshot.pin_location_updated_at
+      selectedLead=lead
+      return true
+    }catch{return false}finally{clearTimeout(timeoutId)}
   }
-  function triggerUnderlyingMove(){
-    if(!movePinLeadId)return false
-    window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId)
+  async function triggerUnderlyingMove(){
+    const leadId=movePinLeadId,sequence=moveStartSequence
+    if(!leadId||mode!==MOVE_PIN_READY)return false
+    showHint('LOADING CURRENT PIN')
+    const fresh=await refreshMovePinSnapshot(leadId,sequence)
+    if(sequence!==moveStartSequence||leadId!==movePinLeadId||mode!==MOVE_PIN_READY)return false
+    if(!fresh){recoverFailedMoveStart('PIN REFRESH FAILED — TRY AGAIN');return false}
+    window.MCCOY_SELECT_MAP_LEAD?.(leadId)
     const underlying=byId('moveLeadPinBtn')
-    if(!underlying){recoverFailedMoveStart();showHint('MOVE PIN UNAVAILABLE');return false}
-    underlying.click()
-    refreshMovePinSnapshot().catch(()=>false)
-    setTimeout(recoverFailedMoveStart,3000)
-    return true
+    if(typeof underlying?.onclick!=='function'){recoverFailedMoveStart('MOVE PIN UNAVAILABLE');return false}
+    try{await underlying.onclick.call(underlying)}catch{recoverFailedMoveStart();return false}
+    recoverFailedMoveStart()
+    return Boolean(window.MCCOY_MAP_MOVE_PIN_ACTIVE)
   }
 
   function restoreMountedWorkflow(){if(!mountedWorkflow)return;for(const item of mountedWorkflow.items){if(item.nextSibling?.parentNode===item.parent)item.parent.insertBefore(item.node,item.nextSibling);else item.parent.appendChild(item.node)}mountedWorkflow=null;workflowBody.replaceChildren();byId('leadMapWorkflowCancel').hidden=false;sheet.classList.remove('show')}
   function sync(){
     const dispositionOpen=mode===DISPOSITION,moveReady=mode===MOVE_PIN_READY,moveActive=mode===MOVE_PIN,actionOpen=mode===ACTION_MENU,busy=dispositionOpen||moveReady||moveActive
-    panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',actionOpen);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveActive);address.classList.toggle('show',actionOpen||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',actionOpen?'true':'false')
+    panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',actionOpen);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveReady||moveActive);address.classList.toggle('show',actionOpen||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',actionOpen?'true':'false')
     setAvailable(maximize,!expanded&&!busy);setAvailable(actions,!busy);setAvailable(restore,expanded&&!busy);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());dispositionAction.setAttribute('aria-disabled',selectedLead?'false':'true');dispositionAction.classList.toggle('is-disabled',!selectedLead);syncCompactConfirm()
     requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,expanded,leadId:movePinLeadId||selectedLead?.dbId||selectedLead?.id||null}}))
   }
   function setMode(next){if(next===STANDARD)restoreMountedWorkflow();if(next!==MOVE_PIN_READY&&next!==MOVE_PIN&&movePinLeadId)releaseMovePinOwnership();mode=next;sync()}
   function maximizeMap(){if(expanded)return;expanded=true;sync()}
   function restoreMap(){if(!expanded)return;expanded=false;if(mode===ACTION_MENU)mode=STANDARD;sync()}
-  function beginMovePin(leadId,{startImmediately=false}={}){const resolved=leadId?leadById(leadId):selectedLead;if(!resolved){showHint('SELECT A LEAD FIRST');return false}selectedLead=resolved;if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}movePinLeadId=String(resolved.dbId||resolved.id);window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId);window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId);restoreMountedWorkflow();menu.classList.remove('show');mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');if(startImmediately)setTimeout(triggerUnderlyingMove,0);return true}
+  function beginMovePin(leadId){if(mode===MOVE_PIN_READY||mode===MOVE_PIN)return false;const resolved=leadId?leadById(leadId):selectedLead;if(!resolved){showHint('SELECT A LEAD FIRST');return false}selectedLead=resolved;if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return false}moveStartSequence++;movePinLeadId=String(resolved.dbId||resolved.id);window.MCCOY_SELECT_MAP_LEAD?.(movePinLeadId);window.MCCOY_MAP_VIEWPORT_LOCK?.acquire?.('move-pin',movePinLeadId);restoreMountedWorkflow();menu.classList.remove('show');expanded=true;mode=MOVE_PIN_READY;sync();showHint('MOVE PIN');triggerUnderlyingMove();return true}
   function mountWorkflow(node,title,nextMode){if(!node){showHint(`${title} UNAVAILABLE`);return false}restoreMountedWorkflow();mountedWorkflow={items:[{node,parent:node.parentNode,nextSibling:node.nextSibling}]};workflowBody.appendChild(node);node.style.display='block';byId('leadMapWorkflowTitle').textContent=title;byId('leadMapWorkflowCancel').hidden=false;mode=nextMode;sync();return true}
-  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){releaseMovePinOwnership();mode=STANDARD;sync();return}restoreMountedWorkflow();mode=STANDARD;sync()}
+  function cancelWorkflow(){if(mode===MOVE_PIN&&window.MCCOY_MAP_MOVE_PIN_ACTIVE){byId('cancelLeadPinBtn')?.click();return}if(mode===MOVE_PIN_READY){byId('cancelLeadPinBtn')?.click();releaseMovePinOwnership();mode=STANDARD;sync();return}restoreMountedWorkflow();mode=STANDARD;sync()}
   function handleControl(button,label,action){button.addEventListener('pointerdown',()=>{suppressClick=false;clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{suppressClick=true;showHint(label)},500)});for(const eventName of ['pointerup','pointercancel','pointerleave'])button.addEventListener(eventName,()=>clearTimeout(longPressTimer));button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(suppressClick){suppressClick=false;return}showHint(label);action()})}
 
   handleControl(maximize,'MAXIMIZE',()=>{if(!expanded&&mode===STANDARD)maximizeMap()})
@@ -106,9 +112,9 @@
   handleControl(restore,'RESTORE',()=>{if(expanded&&(mode===STANDARD||mode===ACTION_MENU))restoreMap()})
   fitAllAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.MCCOY_LEAD_MAP?.fitLeadPins?.();mode=STANDARD;sync();showHint('FIT ALL PINS')})
   dispositionAction.addEventListener('click',event=>{event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');menu.classList.remove('show');mountWorkflow(byId('mapLeadDetail')?.querySelector('.map-pin-disposition'),'DISPOSITION',DISPOSITION)})
-  moveAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();if(!selectedLead)return showHint('SELECT A LEAD FIRST');if(!mayMoveSelectedLead()){showHint('MOVE PIN NOT AUTHORIZED');sync();return}beginMovePin(selectedLead?.dbId||selectedLead?.id,{startImmediately:true})})
-  moveConfirm.addEventListener('click',async event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');showMapStatus('Checking latest pin state…');const fresh=await refreshMovePinSnapshot();if(!fresh)showMapStatus('Pin refresh unavailable; validating on save…');const underlying=byId('confirmLeadPinBtn');if(typeof underlying?.onclick!=='function'){showMapStatus('Unable to start pin confirmation.');return}showMapStatus('Saving pin location…');underlying.onclick.call(underlying,event)})
-  moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();byId('cancelLeadPinBtn')?.click()})
+  moveAction.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();beginMovePin(selectedLead?.dbId||selectedLead?.id)})
+  moveConfirm.addEventListener('click',async event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveConfirm.getAttribute('aria-disabled')==='true')return showHint('MOVE THE PIN FIRST');const underlying=byId('confirmLeadPinBtn');if(typeof underlying?.onclick!=='function'){showMapStatus('Unable to start pin confirmation.');return}showMapStatus('Saving pin location…');await underlying.onclick.call(underlying,event)})
+  moveCancel.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();syncCompactConfirm();if(moveCancel.getAttribute('aria-disabled')==='true')return;cancelWorkflow()})
   byId('leadMapWorkflowCancel').addEventListener('click',cancelWorkflow)
   watchCompactConfirm();watchMoveStatus()
 

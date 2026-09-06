@@ -117,7 +117,7 @@
   function metersBetween(a,b){if(!a||!b)return null;const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r,x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;return 6371000*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
   function syncMovePinButtons(active=false){
     const actions=document.getElementById('movePinActions'),move=document.getElementById('moveLeadPinBtn'),confirm=document.getElementById('confirmLeadPinBtn');
-    if(actions)actions.style.display=active?'grid':'none';if(move)move.style.display=active?'none':'block';if(confirm)confirm.disabled=!active||!movePinProposed||movePinBusy;
+    if(actions)actions.style.display=active?'grid':'none';if(move)move.style.display=active?'none':'block';for(const id of ['cancelLeadPinBtn','keepOriginalPinBtn']){const button=document.getElementById(id);if(button)button.disabled=movePinBusy;}if(confirm)confirm.disabled=!active||!movePinProposed||movePinBusy;
   }
   function endMovePin(message=''){
     movePinRequest+=1;
@@ -138,11 +138,12 @@
     const requestId=++movePinRequest,allowed=await currentUserMayMove(l);
     if(requestId!==movePinRequest)return;
     if(!allowed){correctionMsg('You can move only a lead currently assigned to you or your managed team.');return;}
-    const hasPin=Number.isFinite(Number(l.lat))&&Number.isFinite(Number(l.lng)),hasCandidate=Number.isFinite(Number(l.geocodeCandidateLat))&&Number.isFinite(Number(l.geocodeCandidateLng));
+    const coordinate=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
+    const hasPin=coordinate(l.lat)&&coordinate(l.lng),hasCandidate=coordinate(l.geocodeCandidateLat)&&coordinate(l.geocodeCandidateLng);
     if(!hasPin&&!hasCandidate){correctionMsg('This lead has no starting map point. Save a complete address before placing it.');return;}
     clearLassoShape();restoreGrabCursor();window.MCCOY_MAP_MOVE_PIN_ACTIVE=true;
     window.dispatchEvent(new CustomEvent('mccoy-map-move-pin-started',{detail:{leadId:l.dbId||l.id}}));
-    movePinOriginal={lat:Number(hasPin?l.lat:l.geocodeCandidateLat),lng:Number(hasPin?l.lng:l.geocodeCandidateLng)};movePinProposed=null;
+    movePinOriginal=Object.freeze({lat:Number(hasPin?l.lat:l.geocodeCandidateLat),lng:Number(hasPin?l.lng:l.geocodeCandidateLng),latitude:coordinate(l.lat)?Number(l.lat):null,longitude:coordinate(l.lng)?Number(l.lng):null,updatedAt:l.updatedAt});movePinProposed=null;
     markerByLead.get(l.dbId)?.setOpacity?.(.38);
     correctionMarker=L.marker([movePinOriginal.lat,movePinOriginal.lng],{draggable:true,autoPan:true,title:'Move pin to the actual door',icon:leadPinIcon(l,false,true)}).addTo(map);
     correctionMarker.bindTooltip('MOVE TO ACTUAL DOOR',{direction:'top'}).openTooltip();syncMovePinButtons(true);
@@ -151,12 +152,22 @@
   }
   function freshGps(){return new Promise(resolve=>{if(!navigator.geolocation)return resolve(null);navigator.geolocation.getCurrentPosition(position=>resolve({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy),capturedAt:Date.now()}),()=>resolve(null),{enableHighAccuracy:true,maximumAge:0,timeout:10000});});}
   async function confirmMovePin(){
-    const l=correctionLead;if(!l||!movePinProposed||movePinBusy)return;movePinBusy=true;syncMovePinButtons(true);correctionMsg('Confirming permission and current GPS…');
+    const l=correctionLead,original=movePinOriginal,proposed=movePinProposed,requestId=movePinRequest;if(!l||!original||!proposed||movePinBusy)return;movePinBusy=true;syncMovePinButtons(true);correctionMsg('Confirming permission and current GPS…');
     try{
       const role=String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase(),gps=await freshGps();
+      if(requestId!==movePinRequest||correctionLead!==l)return;
       if(role!=='admin'&&!gps)throw new Error('fresh_gps_required');
-      const body={action:'move_lead_pin',lead_id:l.dbId,expected_updated_at:l.updatedAt,original_latitude:Number.isFinite(Number(l.lat))?Number(l.lat):null,original_longitude:Number.isFinite(Number(l.lng))?Number(l.lng):null,proposed_latitude:movePinProposed.lat,proposed_longitude:movePinProposed.lng,actor_latitude:gps?.lat??null,actor_longitude:gps?.lng??null,actor_accuracy_meters:gps?.accuracy??null,gps_captured_at:gps?new Date(gps.capturedAt).toISOString():null,client_request_id:crypto.randomUUID(),client_context:{platform:navigator.userAgentData?.platform||navigator.platform||'web',app_version:window.MCCOY_CLIENT_VERSION||''}};
-      const {data,error}=await (window.MCCOY_INVOKE_MOVE_PIN?window.MCCOY_INVOKE_MOVE_PIN(body):sb.functions.invoke('lead-admin',{body}));if(error||!data?.ok)throw new Error(data?.error||error?.message||'location_save_failed');
+      const body={action:'move_lead_pin',lead_id:l.dbId,expected_updated_at:original.updatedAt,original_latitude:original.latitude,original_longitude:original.longitude,proposed_latitude:proposed.lat,proposed_longitude:proposed.lng,actor_latitude:gps?.lat??null,actor_longitude:gps?.lng??null,actor_accuracy_meters:gps?.accuracy??null,gps_captured_at:gps?new Date(gps.capturedAt).toISOString():null,client_request_id:crypto.randomUUID(),client_context:{platform:navigator.userAgentData?.platform||navigator.platform||'web',app_version:window.MCCOY_CLIENT_VERSION||''}};
+      const {data,error}=await (window.MCCOY_INVOKE_MOVE_PIN?window.MCCOY_INVOKE_MOVE_PIN(body):sb.functions.invoke('lead-admin',{body}));
+      if(requestId!==movePinRequest||correctionLead!==l)return;
+      if(error||!data?.ok){
+        const safeCodes=['stale_lead','fresh_gps_required','unauthorized_lead'];let code=data?.error;
+        // Non-2xx SDK results put the stable rejection code in error.context.
+        // Only these public recovery codes may select a UI branch; never detail.
+        if(!safeCodes.includes(code)&&error?.context?.clone){try{const payload=await error.context.clone().json();code=payload?.error;}catch{}}
+        if(requestId!==movePinRequest||correctionLead!==l)return;
+        throw new Error(safeCodes.includes(code)?code:'location_save_failed');
+      }
       l.lat=data.lead.latitude;l.lng=data.lead.longitude;l.updatedAt=data.lead.updated_at;l.geocodeStatus=data.lead.geocode_status;l.geocodeProvider=data.lead.geocode_provider;l.geocodePrecision=data.lead.geocode_precision;l.geocodeVerificationStatus=data.lead.geocode_verification_status;
       const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));endMovePin(data.decision==='review_required'?'Location saved and flagged for Admin review.':'Location confirmed and saved.');
     }catch(error){

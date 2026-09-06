@@ -6,12 +6,21 @@ on:
       - 'app-lead-map-deselect.js'
       - 'app-lead-map.js'
       - 'app-lead-map-window-controls.js'
+      - 'app-lead-map-window-entry-fix.js'
+      - 'styles.css'
+      - 'index.html'
+      - 'app-page-layout.js'
+      - 'service-worker.js'
       - 'app-real-leads.js'
+      - 'supabase/functions/lead-pin-snapshot/**'
       - 'supabase/functions/lead-admin/**'
       - 'supabase/migrations/20260903190000_move_lead_pin_transaction.sql'
       - 'move-pin-admin-diagnostics.test.mjs'
       - 'move-pin-diagnostics-probe.js'
       - 'move-lead-pin.test.mjs'
+      - 'move-pin-snapshot.test.mjs'
+      - 'lead-map-window-controls.test.mjs'
+      - 'lead-pool-map-layout.test.mjs'
       - '.github/workflows/move-pin-diagnostics.yml'
   workflow_dispatch:
 
@@ -29,5 +38,7 @@ jobs:
           node-version: 22
       - run: node --check app-lead-map-deselect.js
       - run: node --check app-lead-map.js
+      - run: node --check app-lead-map-window-controls.js
+      - run: node --check app-lead-map-window-entry-fix.js
       - run: node --check move-pin-diagnostics-probe.js
-      - run: node --test move-pin-admin-diagnostics.test.mjs move-lead-pin.test.mjs
+      - run: node --test move-pin-admin-diagnostics.test.mjs move-lead-pin.test.mjs move-pin-snapshot.test.mjs lead-map-window-controls.test.mjs lead-pool-map-layout.test.mjs

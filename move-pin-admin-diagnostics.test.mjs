@@ -64,7 +64,9 @@ function harness({ role = 'admin', result = httpFailure(), invoke, missingMessag
     setTimeout(callback, delay) { timeouts.push({ callback, delay }); return ++timerId; },
     Date, crypto: { randomUUID }, navigator: { platform: 'test' },
     correctionLead: { dbId: 'test-lead', lat: 10, lng: 20, updatedAt: null },
-    movePinProposed: { lat: 10.001, lng: 20.001 }, movePinBusy: false,
+    movePinOriginal: {lat:10,lng:20,latitude:10,longitude:20,updatedAt:'2026-09-04T00:54:25.198452+00:00'},
+    movePinProposed: { lat: 10.001, lng: 20.001 }, movePinBusy: false, movePinRequest:0,
+    markerByLead: new Map(), selectedIds: new Set(), leadPinIcon() {},
     syncMovePinButtons() {}, freshGps: async () => ({ lat: 10, lng: 20, accuracy: 1, capturedAt: Date.now() }),
     correctionMsg(text) { message.textContent = text; },
     endMovePin(text) { ended.push(text); message.textContent = text; },
@@ -306,4 +308,56 @@ test('the opt-in live probe cannot submit a real lead identifier or GPS', () => 
   }
   assert.doesNotMatch(probe, /navigator\.geolocation|state\.realLeads|correctionLead|\.rpc\(|\.from\(/);
   assert.match(probe, /output\.textContent=shown/);
+});
+
+for (const role of ['admin','rep']) {
+  test(`${role} recovers from a real SDK HTTP 409 stale rejection without exposing detail`, async () => {
+    const h=harness({role,result:httpFailure({error:'stale_lead',detail:'private database detail'},409)});
+    assert.match(await h.confirm(), /This lead changed while you were moving it/);
+    assert.equal(h.reloads,1);
+    assert.equal(h.ended.length,1);
+    assert.doesNotMatch(h.message.textContent,/private database detail|Admin diagnostic/);
+  });
+  test(`${role} sees the safe assignment message from an HTTP 403 rejection`, async () => {
+    const h=harness({role,result:httpFailure({error:'unauthorized_lead',detail:'private database detail'},403)});
+    assert.match(await h.confirm(), /Your assignment changed/);
+    assert.equal(h.reloads,0);
+    assert.doesNotMatch(h.message.textContent,/private database detail/);
+  });
+}
+
+test('confirmation keeps the original microsecond version even if the live lead object changes after dragging',async()=>{
+  const h=harness({result:{data:{ok:true,decision:'accepted',lead:{latitude:10.001,longitude:20.001,updated_at:'2026-09-06T12:00:00.123456+00:00'}},error:null}});
+  h.context.correctionLead.lat=11;h.context.correctionLead.lng=21;h.context.correctionLead.updatedAt='2026-09-06T11:00:00Z';
+  assert.equal(await h.confirm(),'Location confirmed and saved.');
+  const body=h.calls[0].options.body;
+  assert.equal(body.expected_updated_at,'2026-09-04T00:54:25.198452+00:00');
+  assert.equal(body.original_latitude,10);assert.equal(body.original_longitude,20);
+  assert.equal(h.context.correctionLead.lat,10.001);
+  assert.equal(h.context.correctionLead.updatedAt,'2026-09-06T12:00:00.123456+00:00');
+});
+
+test('a review point keeps null original database coordinates instead of sending zero',async()=>{
+  const h=harness();h.context.movePinOriginal.latitude=null;h.context.movePinOriginal.longitude=null;
+  await h.confirm();
+  assert.equal(h.calls[0].options.body.original_latitude,null);
+  assert.equal(h.calls[0].options.body.original_longitude,null);
+});
+
+test('leaving the move while GPS is pending cannot submit a late save',async()=>{
+  const h=harness();let resolveGps;h.context.freshGps=()=>new Promise(resolve=>{resolveGps=resolve});
+  const confirming=h.confirm();h.context.movePinRequest++;resolveGps(null);await confirming;
+  assert.equal(h.calls.length,0);
+});
+
+test('a second confirmation during a pending request cannot send a duplicate move',async()=>{
+  const h=harness();let resolveGps;h.context.freshGps=()=>new Promise(resolve=>{resolveGps=resolve});
+  const confirming=h.confirm();await h.confirm();resolveGps(null);await confirming;
+  assert.equal(h.calls.length,1);
+});
+
+test('non-Admin confirmation still requires GPS before any backend write',async()=>{
+  const h=harness({role:'rep'});h.context.freshGps=async()=>null;
+  assert.match(await h.confirm(),/A fresh GPS fix is required/);
+  assert.equal(h.calls.length,0);
 });
