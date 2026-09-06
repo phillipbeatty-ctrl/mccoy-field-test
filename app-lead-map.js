@@ -156,7 +156,7 @@
       const role=String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase(),gps=await freshGps();
       if(role!=='admin'&&!gps)throw new Error('fresh_gps_required');
       const body={action:'move_lead_pin',lead_id:l.dbId,expected_updated_at:l.updatedAt,original_latitude:Number.isFinite(Number(l.lat))?Number(l.lat):null,original_longitude:Number.isFinite(Number(l.lng))?Number(l.lng):null,proposed_latitude:movePinProposed.lat,proposed_longitude:movePinProposed.lng,actor_latitude:gps?.lat??null,actor_longitude:gps?.lng??null,actor_accuracy_meters:gps?.accuracy??null,gps_captured_at:gps?new Date(gps.capturedAt).toISOString():null,client_request_id:crypto.randomUUID(),client_context:{platform:navigator.userAgentData?.platform||navigator.platform||'web',app_version:window.MCCOY_CLIENT_VERSION||''}};
-      const {data,error}=await sb.functions.invoke('lead-admin',{body});if(error||!data?.ok)throw new Error(data?.error||error?.message||'location_save_failed');
+      const {data,error}=await (window.MCCOY_INVOKE_MOVE_PIN?window.MCCOY_INVOKE_MOVE_PIN(body):sb.functions.invoke('lead-admin',{body}));if(error||!data?.ok)throw new Error(data?.error||error?.message||'location_save_failed');
       l.lat=data.lead.latitude;l.lng=data.lead.longitude;l.updatedAt=data.lead.updated_at;l.geocodeStatus=data.lead.geocode_status;l.geocodeProvider=data.lead.geocode_provider;l.geocodePrecision=data.lead.geocode_precision;l.geocodeVerificationStatus=data.lead.geocode_verification_status;
       const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));endMovePin(data.decision==='review_required'?'Location saved and flagged for Admin review.':'Location confirmed and saved.');
     }catch(error){

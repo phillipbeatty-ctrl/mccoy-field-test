@@ -55,14 +55,14 @@
     sb.auth?.onAuthStateChange?.(clearDiagnostic);
     window.addEventListener('mccoy-map-move-pin-started',clearDiagnostic);
 
-    const originalInvoke=sb.functions.invoke.bind(sb.functions);
-    sb.functions.invoke=async function(name,options){
-      const body=options?.body||{};
-      if(name!=='lead-admin'||body.action!=='move_lead_pin')return originalInvoke(name,options);
+    // Supabase exposes functions through a getter returning a fresh client.
+    // Wrap this one application call site, not a discarded SDK instance.
+    window.MCCOY_INVOKE_MOVE_PIN=async function(body){
+      if(body?.action!=='move_lead_pin')return sb.functions.invoke('lead-admin',{body});
       clearDiagnostic();
       const request=diagnosticRequest,userId=currentUserId(),adminAtStart=currentRole()==='admin'&&Boolean(userId);
       const stillAdmin=()=>adminAtStart&&request===diagnosticRequest&&currentRole()==='admin'&&currentUserId()===userId;
-      const result=await originalInvoke(name,options);
+      const result=await sb.functions.invoke('lead-admin',{body});
       if(!result?.error||!stillAdmin())return result;
 
       let payload=null,status=null,sbErrorCode=null;
@@ -107,6 +107,10 @@
     };
     const observer=new MutationObserver(renderAdminDiagnostic);
     observer.observe(source,{childList:true,subtree:true,characterData:true});
+    // Explicit QA opt-in only; the normal application has no probe control.
+    if(window.location&&new URLSearchParams(window.location.search).get('move_pin_diagnostics')==='1'){
+      const probe=document.createElement('script');probe.src='/move-pin-diagnostics-probe.js';document.head.appendChild(probe);
+    }
     return true;
   }
 

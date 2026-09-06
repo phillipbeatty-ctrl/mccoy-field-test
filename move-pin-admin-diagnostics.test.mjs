@@ -20,7 +20,7 @@ function httpFailure(payload = { error: 'lead_admin_failed', detail }, status = 
 
 // Execute the shipped IIFE and the real confirmMovePin handler with a controlled
 // SDK response. No real accounts, leads, GPS, or network calls are used here.
-function harness({ role = 'admin', result = httpFailure(), invoke, missingMessage = false, missingClient = false } = {}) {
+function harness({ role = 'admin', result = httpFailure(), invoke, missingMessage = false, missingClient = false, freshFunctionsGetter = false } = {}) {
   const elements = new Map();
   const observers = new Set();
   const pending = new Set();
@@ -47,6 +47,10 @@ function harness({ role = 'admin', result = httpFailure(), invoke, missingMessag
     functions: { async invoke(name, options) { calls.push({ name, options, receiver: this }); return invoke ? invoke(name, options) : result; } },
     auth: { onAuthStateChange(callback) { authCallbacks.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } }
   };
+  if (freshFunctionsGetter) {
+    const client = sb.functions;
+    Object.defineProperty(sb, 'functions', { get: () => ({ ...client }) });
+  }
   const context = vm.createContext({
     window, ...(missingClient ? {} : { sb }), console,
     document: { getElementById: id => elements.get(id) || null, addEventListener() {} },
@@ -81,7 +85,7 @@ function harness({ role = 'admin', result = httpFailure(), invoke, missingMessag
   }
   return {
     window, sb, context, message, status, calls, elements, intervals, timeouts, tick, flush,
-    invoke: (name = 'lead-admin', body = moveBody) => sb.functions.invoke(name, { body }),
+    invoke: (name = 'lead-admin', body = moveBody) => name === 'lead-admin' && window.MCCOY_INVOKE_MOVE_PIN ? window.MCCOY_INVOKE_MOVE_PIN(body) : sb.functions.invoke(name, { body }),
     async confirm() { await context.confirmMovePin(); flush(); return message.textContent; },
     render(text = generic) { message.textContent = text; flush(); return message.textContent; },
     authChange(role) { window.MCCOY_ACCESS.access.role = role; for (const callback of authCallbacks) callback('SIGNED_OUT', null); flush(); },
@@ -252,9 +256,9 @@ test('a late client or message element can install diagnostics on the MOVE PIN l
   h.dispatch('mccoy-map-move-pin-started');
   await h.invoke();
   assert.match(h.render(), /permission denied/);
-  const wrapped = h.sb.functions.invoke;
+  const wrapped = h.window.MCCOY_INVOKE_MOVE_PIN;
   h.dispatch('mccoy-real-leads-loaded');
-  assert.equal(h.sb.functions.invoke, wrapped);
+  assert.equal(h.window.MCCOY_INVOKE_MOVE_PIN, wrapped);
 });
 
 test('the account is rechecked after an asynchronous HTTP body read', async () => {
@@ -278,4 +282,28 @@ test('an Admin role without an authenticated user does not capture diagnostics',
   h.window.MCCOY_ACCESS.user = null;
   assert.equal(await h.confirm(), generic);
   assert.ok(!h.window.MCCOY_LAST_MOVE_PIN_ERROR);
+});
+
+test('the real confirm handler captures detail with the Supabase fresh-functions getter', async () => {
+  for (const role of ['admin', 'rep']) {
+    const h = harness({ role, freshFunctionsGetter: true });
+    assert.notEqual(h.sb.functions, h.sb.functions, 'match the real SDK getter contract');
+    const message = await h.confirm();
+    if (role === 'admin') assert.match(message, /Admin diagnostic: lead_admin_failed: permission denied/);
+    else assert.equal(message, generic);
+    assert.equal(h.calls.length, 1);
+  }
+});
+
+test('the opt-in live probe cannot submit a real lead identifier or GPS', () => {
+  const probe = readFileSync(new URL('./move-pin-diagnostics-probe.js', import.meta.url), 'utf8');
+  assert.match(source, /get\('move_pin_diagnostics'\)===\x271\x27/);
+  assert.match(probe, /lead_id:'__invalid_uuid_move_pin_probe__'/);
+  assert.match(probe, /proposed_latitude:0/);
+  assert.match(probe, /proposed_longitude:0/);
+  for (const field of ['original_latitude', 'original_longitude', 'actor_latitude', 'actor_longitude', 'actor_accuracy_meters', 'gps_captured_at']) {
+    assert.match(probe, new RegExp(`${field}:null`));
+  }
+  assert.doesNotMatch(probe, /navigator\.geolocation|state\.realLeads|correctionLead|\.rpc\(|\.from\(/);
+  assert.match(probe, /output\.textContent=shown/);
 });
