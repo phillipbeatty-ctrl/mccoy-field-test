@@ -1,0 +1,32 @@
+name: Manager end-of-shift addresses
+on:
+  pull_request:
+    paths:
+      - 'app-admin-workday.js'
+      - 'app-sph-home-admin-only.js'
+      - 'app-sph-presence.js'
+      - 'admin-workday.test.mjs'
+      - 'supabase/functions/admin-workday/**'
+      - 'supabase/functions/_shared/home-destination.mjs'
+      - 'supabase/migrations/20260906113827_manager_end_of_shift_home.sql'
+      - 'tests/home-destination/**'
+      - '.github/workflows/manager-home-destinations.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  permissions-and-destinations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --prefix tests/home-destination
+      - run: npm --prefix tests/home-destination test
+      - run: node --test admin-workday.test.mjs
+      - run: node --check app-admin-workday.js && node --check app-sph-home-admin-only.js && node --check app-sph-presence.js
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.4
+      - run: deno check --node-modules-dir=auto supabase/functions/admin-workday/index.ts
