@@ -228,9 +228,9 @@ test('organization gate loads before application modules with a fresh iOS cache 
 })
 
 test('service worker rotates the app shell and precaches the cache-busted organization gate',()=>{
-  assert.match(serviceWorker,/field-coach-app-shell-v10-20260904-map-window-controls/)
+  assert.match(serviceWorker,/field-coach-app-shell-v13-20260906-manager-home/)
   assert.match(serviceWorker,/'\/app-organization-access-gate\.js\?v=2026090402'/)
-  assert.match(serviceWorker,/'\/app-sph-home-admin-only\.js\?v=2026090502'/)
+  assert.match(serviceWorker,/'\/app-sph-home-admin-only\.js\?v=2026090601'/)
 })
 
 test('Edge endpoint validates JWT and restricts entitlement names',()=>{

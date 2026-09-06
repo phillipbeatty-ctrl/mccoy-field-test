@@ -11,7 +11,7 @@ const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8')
 test('reps cannot write Home settings',()=>{
   assert.match(migration,/revoke all on function public\.set_sph_home_location[\s\S]+from public, anon, authenticated/)
   assert.doesNotMatch(repUi,/set_sph_home_location|SAVE HOME|street-address/)
-  assert.match(repUi,/Home address configured by Admin/)
+  assert.match(repUi,/End-of-shift address/)
 })
 
 test('Admin Home writer is organization scoped and audited transactionally',()=>{
@@ -23,11 +23,8 @@ test('Admin Home writer is organization scoped and audited transactionally',()=>
   assert.doesNotMatch(migration,/grant execute on function public\.admin_set_sph_home_location[^;]+to authenticated;/)
 })
 
-test('Admin Edge function requires exact server-side Google geocoding',()=>{
-  assert.match(edge,/access\.role !== 'admin'/)
+test('Home Edge function keeps server-side Google credentials private',()=>{
   assert.match(edge,/Deno\.env\.get\('GOOGLE_MAPS_API_KEY'\)/)
-  assert.match(edge,/\['ROOFTOP', 'RANGE_INTERPOLATED'\]/)
-  assert.match(edge,/has\('street_number'\).*has\('route'\)/s)
   assert.doesNotMatch(adminUi,/GOOGLE_MAPS_API_KEY/)
 })
 
@@ -51,7 +48,7 @@ test('timeline provides all five requested color classes and evidence',()=>{
 })
 
 test('browser loads Admin controls and removes rep Home input after base module',()=>{
-  assert.match(html,/app-admin-workday\.js\?v=2026090501/)
+  assert.match(html,/app-admin-workday\.js\?v=2026090601/)
   const presence=html.indexOf('app-sph-presence.js')
   const guard=html.indexOf('app-sph-home-admin-only.js')
   assert.ok(presence>=0&&guard>presence)

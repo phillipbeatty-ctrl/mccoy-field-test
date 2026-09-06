@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v12-20260904-move-pin-nearest-lock';
+const VERSION='field-coach-app-shell-v13-20260906-manager-home';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -17,7 +17,7 @@ const SHELL=[
   '/app-product-brand.js',
   '/app-organization-access-gate.js?v=2026090402',
   '/app-supabase-client.js?v=2026090201',
-  '/app-sph-home-admin-only.js?v=2026090502',
+  '/app-sph-home-admin-only.js?v=2026090601',
   '/app-lead-map-window-controls.js?v=2026090401',
   '/app-lead-pool-independent-activity.js?v=2026090402',
   '/app-map-viewport-lock.js?v=2026090402',
@@ -97,3 +97,4 @@ self.addEventListener('fetch',event=>{
       .catch(()=>caches.match(request))
   );
 });
+

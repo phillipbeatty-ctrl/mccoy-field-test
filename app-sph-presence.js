@@ -57,6 +57,9 @@
       if(error||!data?.ok)throw error||new Error(data?.reason||'sph_presence_rejected')
       const status=$('sphPresenceStatus')
       if(status)status.textContent=data.inside_area===true?'In assigned area - Sales/Hour timer active':data.area_basis==='none'?'No assigned area detected - 11 AM-7 PM fallback applies':'Outside assigned area'
+      // Pick up a manager's destination update when the rep returns to the app,
+      // and during the normal heartbeat, without requiring another login.
+      await loadStatus().catch(error=>console.warn('Destination status refresh failed',error))
       schedule()
       return true
     }catch(error){
