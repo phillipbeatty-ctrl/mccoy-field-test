@@ -23,7 +23,7 @@ insert into public.leads (id,organization_id,latitude,longitude,pin_location_upd
 insert into public.leads (id,organization_id,latitude,longitude,pin_location_updated_at,deleted_at) values
   ('00000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000010',1,2,now(),now());
 
-\ir ../supabase/migrations/20260910183903_lead_pin_snapshot_precision.sql
+\ir ../supabase/migrations/20260910184444_lead_pin_snapshot_precision.sql
 
 set local role service_role;
 set local extra_float_digits=0;
