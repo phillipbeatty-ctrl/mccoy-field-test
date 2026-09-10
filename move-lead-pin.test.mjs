@@ -59,6 +59,7 @@ test('mobile move mode previews before explicit confirmation',()=>{
 test('lead list carries optimistic concurrency version to the client',()=>{
   assert.match(edge,/'latitude','longitude','pin_location_updated_at'/);
   assert.match(leads,/updatedAt:r\.pin_location_updated_at/);
-  assert.match(map,/updatedAt:l\.updatedAt/);
+  assert.match(map,/updatedAt:snapshot\.pin_location_updated_at/);
+  assert.match(map,/sb\.functions\.invoke\('lead-pin-snapshot'/);
   assert.match(map,/expected_updated_at:original\.updatedAt/);
 });

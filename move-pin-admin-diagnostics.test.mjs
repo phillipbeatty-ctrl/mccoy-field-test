@@ -6,7 +6,9 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('./app-lead-map-deselect.js', import.meta.url), 'utf8');
 const mapSource = readFileSync(new URL('./app-lead-map.js', import.meta.url), 'utf8');
-const confirmSource = mapSource.slice(mapSource.indexOf('  async function confirmMovePin(){'), mapSource.indexOf('  function selectCorrectionLead('));
+const helperSource = mapSource.slice(mapSource.indexOf('  async function fetchAuthoritativeMovePinState('), mapSource.indexOf('  async function startMovePin('));
+const handlerSource = mapSource.slice(mapSource.indexOf('  async function confirmMovePin('), mapSource.indexOf('  function selectCorrectionLead('));
+const confirmSource = `${helperSource}\n${handlerSource}`;
 const controlsSource = readFileSync(new URL('./app-lead-map-window-controls.js', import.meta.url), 'utf8');
 const watchStatusSource = controlsSource.split('\n').find(line => line.includes('function watchMoveStatus()'));
 const generic = 'Unable to save the proposed location. The original pin is unchanged.';
@@ -44,7 +46,7 @@ function harness({ role = 'admin', result = httpFailure(), invoke, missingMessag
     async loadMcCoyLeads() { reloads++; }
   };
   const sb = {
-    functions: { async invoke(name, options) { calls.push({ name, options, receiver: this }); return invoke ? invoke(name, options) : result; } },
+    functions: { async invoke(name, options) { calls.push({ name, options, receiver: this }); if(name==='lead-pin-snapshot')return {data:{ok:true,lead:{id:'test-lead',latitude:10,longitude:20,pin_location_updated_at:'2026-09-04T00:54:25.198452+00:00'}},error:null}; return invoke ? invoke(name, options) : result; } },
     auth: { onAuthStateChange(callback) { authCallbacks.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } }
   };
   if (freshFunctionsGetter) {
@@ -66,7 +68,7 @@ function harness({ role = 'admin', result = httpFailure(), invoke, missingMessag
     correctionLead: { dbId: 'test-lead', lat: 10, lng: 20, updatedAt: null },
     movePinOriginal: {lat:10,lng:20,latitude:10,longitude:20,updatedAt:'2026-09-04T00:54:25.198452+00:00'},
     movePinProposed: { lat: 10.001, lng: 20.001 }, movePinBusy: false, movePinRequest:0,
-    markerByLead: new Map(), selectedIds: new Set(), leadPinIcon() {},
+    markerByLead: new Map(), selectedIds: new Set(), leadPinIcon() {}, metersBetween() { return 100; },
     syncMovePinButtons() {}, freshGps: async () => ({ lat: 10, lng: 20, accuracy: 1, capturedAt: Date.now() }),
     correctionMsg(text) { message.textContent = text; },
     endMovePin(text) { ended.push(text); message.textContent = text; },
@@ -166,16 +168,16 @@ test('detail text cannot select a different save-error branch or reload leads', 
   assert.equal(h.ended.length, 0);
 });
 
-test('structured stale-lead and GPS/assignment messages retain their original behavior', async () => {
+test('structured stale-lead retains the proposal for an explicit retry while GPS/assignment messages remain safe', async () => {
   for (const role of ['admin', 'rep']) {
     for (const [error, message] of [
-      ['stale_lead', 'This lead changed while you were moving it. The current pin is being reloaded.'],
+      ['stale_lead', 'The saved pin changed. Its current version is loaded; review the proposed location and tap the green check again.'],
       ['fresh_gps_required', 'A fresh GPS fix is required before this field correction can be confirmed.'],
       ['unauthorized_lead', 'Your assignment changed or you no longer control this lead.']
     ]) {
       const h = harness({ role, result: { data: { ok: false, error }, error: null } });
-      assert.equal(await h.confirm(), message);
-      assert.equal(h.reloads, error === 'stale_lead' ? 1 : 0);
+      assert.ok((await h.confirm()).startsWith(message));
+      assert.equal(h.reloads, 0);
     }
   }
 });
@@ -311,18 +313,20 @@ test('the opt-in live probe cannot submit a real lead identifier or GPS', () => 
 });
 
 for (const role of ['admin','rep']) {
-  test(`${role} recovers from a real SDK HTTP 409 stale rejection without exposing detail`, async () => {
+  test(`${role} refreshes a real SDK HTTP 409 stale rejection and keeps the proposal`, async () => {
     const h=harness({role,result:httpFailure({error:'stale_lead',detail:'private database detail'},409)});
-    assert.match(await h.confirm(), /This lead changed while you were moving it/);
-    assert.equal(h.reloads,1);
-    assert.equal(h.ended.length,1);
-    assert.doesNotMatch(h.message.textContent,/private database detail|Admin diagnostic/);
+    assert.match(await h.confirm(), /tap the green check again/);
+    assert.equal(h.reloads,0);
+    assert.equal(h.ended.length,0);
+    if(role==='admin')assert.match(h.message.textContent,/Admin diagnostic: stale_lead · HTTP 409/);
+    else assert.doesNotMatch(h.message.textContent,/private database detail|Admin diagnostic/);
   });
   test(`${role} sees the safe assignment message from an HTTP 403 rejection`, async () => {
     const h=harness({role,result:httpFailure({error:'unauthorized_lead',detail:'private database detail'},403)});
     assert.match(await h.confirm(), /Your assignment changed/);
     assert.equal(h.reloads,0);
-    assert.doesNotMatch(h.message.textContent,/private database detail/);
+    if(role==='admin')assert.match(h.message.textContent,/Admin diagnostic: unauthorized_lead: private database detail · HTTP 403/);
+    else assert.doesNotMatch(h.message.textContent,/private database detail/);
   });
 }
 

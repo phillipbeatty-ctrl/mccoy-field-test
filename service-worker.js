@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v13-20260906-map-acceptance';
+const VERSION='field-coach-app-shell-v14-20260910-move-pin';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -6,7 +6,7 @@ const SHELL=[
   '/install.html',
   '/install-ios.html',
   '/download.html',
-  '/styles.css?v=2026090601',
+  '/styles.css?v=2026091001',
   '/manifest.webmanifest',
   '/assets/brand/official-logo-source.png',
   '/assets/favicon-64.png',
@@ -18,9 +18,9 @@ const SHELL=[
   '/app-organization-access-gate.js?v=2026090402',
   '/app-supabase-client.js?v=2026090201',
   '/app-sph-home-admin-only.js?v=2026090502',
-  '/app-lead-map-window-controls.js?v=2026090601',
-  '/app-lead-map.js?v=2026090601',
-  '/app-lead-map-window-entry-fix.js?v=2026090601',
+  '/app-lead-map-window-controls.js?v=2026091001',
+  '/app-lead-map.js?v=2026091001',
+  '/app-lead-map-window-entry-fix.js?v=2026091001',
   '/app-lead-pool-independent-activity.js?v=2026090402',
   '/app-map-viewport-lock.js?v=2026090402',
   '/app-map-manual-control.js?v=2026090402',
@@ -29,7 +29,7 @@ const SHELL=[
   '/app-accounting-records.js?v=2026090301',
   '/app-customer-list-approval-refresh.js?v=2026090301',
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
-  '/app-page-layout.js?v=2026090601',
+  '/app-page-layout.js?v=2026091001',
   '/app-sale-lifecycle.js?v=2026090201',
   '/app-sale-photo-staging.js?v=2026090201',
   '/confirm-email.html',

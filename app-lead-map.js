@@ -133,17 +133,44 @@
     const {data}=await sb.auth.getUser();const id=String(data?.user?.id||'');if(!id)return false;
     return role==='admin'||(role==='rep'&&String(l.assignedRepId||'')===id)||(['manager','trainer'].includes(role)&&String(l.assignedManagerId||'')===id);
   }
+  async function fetchAuthoritativeMovePinState(l){
+    const leadId=String(l?.dbId||l?.id||'');
+    if(!leadId)throw new Error('pin_snapshot_unavailable');
+    const {data,error}=await sb.functions.invoke('lead-pin-snapshot',{body:{lead_id:leadId}});
+    const snapshot=data?.lead,coordinate=(value,limit)=>value===null||(typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=limit);
+    if(error||!data?.ok||String(snapshot?.id||'')!==leadId||typeof snapshot?.pin_location_updated_at!=='string'||!Number.isFinite(Date.parse(snapshot.pin_location_updated_at))||!coordinate(snapshot.latitude,90)||!coordinate(snapshot.longitude,180))throw new Error('pin_snapshot_unavailable');
+    const hasPin=snapshot.latitude!==null&&snapshot.longitude!==null,hasCandidate=Number.isFinite(Number(l.geocodeCandidateLat))&&Number.isFinite(Number(l.geocodeCandidateLng));
+    if(!hasPin&&!hasCandidate)throw new Error('pin_start_unavailable');
+    return Object.freeze({
+      lat:Number(hasPin?snapshot.latitude:l.geocodeCandidateLat),lng:Number(hasPin?snapshot.longitude:l.geocodeCandidateLng),
+      latitude:snapshot.latitude,longitude:snapshot.longitude,updatedAt:snapshot.pin_location_updated_at
+    });
+  }
+  function movePinAdminDiagnostic(reason,status,mismatches=[]){
+    if(String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase()!=='admin'||!String(window.MCCOY_ACCESS?.user?.id||''))return'';
+    const parts=[reason,status?`HTTP ${status}`:'',mismatches.length?`changed: ${mismatches.join(', ')}`:''].filter(Boolean);
+    return parts.length?` Admin diagnostic: ${parts.join(' · ')}.`:'';
+  }
+  async function movePinFailurePayload(error){
+    let payload=null,status=Number(error?.context?.status)||null;
+    if(error?.context?.clone){
+      try{payload=await error.context.clone().json();}
+      catch{try{const text=String(await error.context.clone().text()||'').trim();if(text)payload={message:text.slice(0,500)};}catch{}}
+    }
+    return{payload,status};
+  }
   async function startMovePin(){
     const l=correctionLead;if(!l||movePinBusy)return;
     const requestId=++movePinRequest,allowed=await currentUserMayMove(l);
     if(requestId!==movePinRequest)return;
     if(!allowed){correctionMsg('You can move only a lead currently assigned to you or your managed team.');return;}
-    const coordinate=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
-    const hasPin=coordinate(l.lat)&&coordinate(l.lng),hasCandidate=coordinate(l.geocodeCandidateLat)&&coordinate(l.geocodeCandidateLng);
-    if(!hasPin&&!hasCandidate){correctionMsg('This lead has no starting map point. Save a complete address before placing it.');return;}
+    correctionMsg('Loading the current saved pin…');
+    try{movePinOriginal=await fetchAuthoritativeMovePinState(l);}
+    catch(error){correctionMsg(error?.message==='pin_start_unavailable'?'This lead has no starting map point. Save a complete address before placing it.':'The current saved pin could not be loaded. Try MOVE PIN again.');return;}
+    if(requestId!==movePinRequest||correctionLead!==l)return;
     clearLassoShape();restoreGrabCursor();window.MCCOY_MAP_MOVE_PIN_ACTIVE=true;
     window.dispatchEvent(new CustomEvent('mccoy-map-move-pin-started',{detail:{leadId:l.dbId||l.id}}));
-    movePinOriginal=Object.freeze({lat:Number(hasPin?l.lat:l.geocodeCandidateLat),lng:Number(hasPin?l.lng:l.geocodeCandidateLng),latitude:coordinate(l.lat)?Number(l.lat):null,longitude:coordinate(l.lng)?Number(l.lng):null,updatedAt:l.updatedAt});movePinProposed=null;
+    l.lat=movePinOriginal.latitude;l.lng=movePinOriginal.longitude;l.updatedAt=movePinOriginal.updatedAt;movePinProposed=null;
     markerByLead.get(l.dbId)?.setOpacity?.(.38);
     correctionMarker=L.marker([movePinOriginal.lat,movePinOriginal.lng],{draggable:true,autoPan:true,title:'Move pin to the actual door',icon:leadPinIcon(l,false,true)}).addTo(map);
     correctionMarker.bindTooltip('MOVE TO ACTUAL DOOR',{direction:'top'}).openTooltip();syncMovePinButtons(true);
@@ -161,17 +188,30 @@
       const {data,error}=await (window.MCCOY_INVOKE_MOVE_PIN?window.MCCOY_INVOKE_MOVE_PIN(body):sb.functions.invoke('lead-admin',{body}));
       if(requestId!==movePinRequest||correctionLead!==l)return;
       if(error||!data?.ok){
-        const safeCodes=['stale_lead','fresh_gps_required','unauthorized_lead'];let code=data?.error;
+        const safeCodes=['stale_lead','fresh_gps_required','unauthorized_lead'];const failure=await movePinFailurePayload(error);let code=data?.error||failure.payload?.error;
         // Non-2xx SDK results put the stable rejection code in error.context.
         // Only these public recovery codes may select a UI branch; never detail.
         if(!safeCodes.includes(code)&&error?.context?.clone){try{const payload=await error.context.clone().json();code=payload?.error;}catch{}}
         if(requestId!==movePinRequest||correctionLead!==l)return;
-        throw new Error(safeCodes.includes(code)?code:'location_save_failed');
+        const failureError=new Error(safeCodes.includes(code)?code:'location_save_failed');failureError.status=failure.status;failureError.backendReason=[failure.payload?.error,failure.payload?.detail].filter(Boolean).join(': ')||failure.payload?.message||error?.message||failureError.message;throw failureError;
       }
       l.lat=data.lead.latitude;l.lng=data.lead.longitude;l.updatedAt=data.lead.updated_at;l.geocodeStatus=data.lead.geocode_status;l.geocodeProvider=data.lead.geocode_provider;l.geocodePrecision=data.lead.geocode_precision;l.geocodeVerificationStatus=data.lead.geocode_verification_status;
       const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));endMovePin(data.decision==='review_required'?'Location saved and flagged for Admin review.':'Location confirmed and saved.');
     }catch(error){
-      const reason=String(error?.message||error);if(reason.includes('stale_lead')){endMovePin('This lead changed while you were moving it. The current pin is being reloaded.');await window.loadMcCoyLeads?.();}else{movePinBusy=false;syncMovePinButtons(true);correctionMsg(reason.includes('fresh_gps_required')?'A fresh GPS fix is required before this field correction can be confirmed.':reason.includes('unauthorized_lead')?'Your assignment changed or you no longer control this lead.':'Unable to save the proposed location. The original pin is unchanged.');}
+      const reason=String(error?.message||error);
+      if(reason.includes('stale_lead')){
+        try{
+          const previous=movePinOriginal,current=await fetchAuthoritativeMovePinState(l);
+          if(requestId!==movePinRequest||correctionLead!==l)return;
+          const mismatches=[];if(previous.updatedAt!==current.updatedAt)mismatches.push('timestamp');if(previous.latitude!==current.latitude)mismatches.push('latitude');if(previous.longitude!==current.longitude)mismatches.push('longitude');
+          movePinOriginal=current;l.lat=current.latitude;l.lng=current.longitude;l.updatedAt=current.updatedAt;
+          const marker=markerByLead.get(l.dbId);if(current.latitude!==null&&current.longitude!==null)marker?.setLatLng([current.latitude,current.longitude]);
+          const meters=metersBetween(current,movePinProposed),distance=document.getElementById('movePinDistance');if(distance&&Number.isFinite(meters))distance.textContent=`Proposed move: ${meters<30?Math.round(meters*3.28084)+' ft':Math.round(meters)+' m'} from the current saved pin.`;
+          movePinBusy=false;syncMovePinButtons(true);correctionMsg(`The saved pin changed. Its current version is loaded; review the proposed location and tap the green check again.${movePinAdminDiagnostic('stale_lead',error.status||409,mismatches)}`);
+        }catch{
+          movePinBusy=false;syncMovePinButtons(true);correctionMsg(`The saved pin changed, but its current version could not be loaded. Cancel and reopen MOVE PIN.${movePinAdminDiagnostic('stale_lead',error.status||409)}`);
+        }
+      }else{movePinBusy=false;syncMovePinButtons(true);const generic=reason.includes('fresh_gps_required')?'A fresh GPS fix is required before this field correction can be confirmed.':reason.includes('unauthorized_lead')?'Your assignment changed or you no longer control this lead.':'Unable to save the proposed location. The original pin is unchanged.';correctionMsg(`${generic}${movePinAdminDiagnostic(error.backendReason||reason,error.status)}`);}
     }
   }
   function selectCorrectionLead(l){

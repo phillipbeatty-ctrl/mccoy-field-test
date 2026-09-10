@@ -51,7 +51,7 @@
       'app-field-lead-editor.js?v=2026083001',
       'app-sale-visit-isolation.js?v=2026082901',
       'app-lead-pool-independent-refresh.js?v=2026082901',
-      'app-lead-map-window-entry-fix.js?v=2026090601'
+      'app-lead-map-window-entry-fix.js?v=2026091001'
     ]){
       if(document.querySelector(`script[src^="${src.split('?')[0]}"]`))continue;
       const script=document.createElement('script');script.src=src;script.async=false;document.body.appendChild(script);

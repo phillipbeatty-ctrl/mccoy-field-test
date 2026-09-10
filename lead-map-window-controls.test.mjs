@@ -94,7 +94,7 @@ test('manual map browsing no longer fakes lead selection',()=>{
 test('viewport and nearest-selection guards are loaded with fresh mobile cache keys',()=>{
   assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026090402/)
   assert.match(loader,/app-map-viewport-lock\.js\?v=2026090402/)
-  assert.match(worker,/field-coach-app-shell-v13-20260906-map-acceptance/)
+  assert.match(worker,/field-coach-app-shell-v14-20260910-move-pin/)
   assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026090402/)
   assert.match(worker,/app-map-viewport-lock\.js\?v=2026090402/)
 })
@@ -147,7 +147,14 @@ test('orientation preserves mode while leaving Lead Pool restores standard',()=>
 })
 
 test('production lifecycle still loads the MOVE PIN entry launcher',()=>{
-  assert.match(html,/app-lead-map\.js\?v=2026090601/)
-  assert.match(html,/app-lead-map-window-controls\.js\?v=2026090601/)
-  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026090601/)
+  assert.match(html,/app-lead-map\.js\?v=2026091001/)
+  assert.match(html,/app-lead-map-window-controls\.js\?v=2026091001/)
+  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026091001/)
+})
+
+test('expanded iPad map owns the dynamic viewport and locks both scroll roots',()=>{
+  assert.match(controls,/html\.lead-map-window-open,body\.lead-map-window-open/)
+  assert.match(controls,/#leadMapPanel\.lead-map-window-expanded\{[^}]*position:fixed!important;[^}]*inset:0!important;[^}]*width:100vw!important;[^}]*height:100dvh!important/)
+  assert.match(controls,/#leadMapPanel\.lead-map-window-expanded #leadMapFrame\{[^}]*width:100vw!important;[^}]*height:100dvh!important;[^}]*max-height:100dvh!important/)
+  assert.match(controls,/document\.documentElement\.classList\.toggle\('lead-map-window-open',expanded\)/)
 })
