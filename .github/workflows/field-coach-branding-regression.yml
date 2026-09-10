@@ -1,0 +1,59 @@
+name: Field Coach Branding Regression
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'install.html'
+      - 'offline.html'
+      - 'privacy.html'
+      - 'support.html'
+      - 'confirm-email.html'
+      - 'pending-access.html'
+      - 'app-*.js'
+      - 'confirm-email.js'
+      - 'pending-access.js'
+      - 'capacitor.config.json'
+      - 'capacitor.config.ts'
+      - 'scripts/configure-native-project.mjs'
+      - 'scripts/mobile-release-doctor.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'VERSION'
+      - 'field-coach-branding.test.mjs'
+      - '.github/workflows/mobile-android-internal.yml'
+      - '.github/workflows/field-coach-branding-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'capacitor.config.json'
+      - 'capacitor.config.ts'
+      - 'scripts/configure-native-project.mjs'
+      - 'package.json'
+      - 'VERSION'
+      - 'field-coach-branding.test.mjs'
+      - '.github/workflows/mobile-android-internal.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-field-coach-name:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run test:branding
+      - run: npm run test:mobile
+      - name: Block old installed-app labels
+        shell: bash
+        run: |
+          ! grep -RInE 'appName[[:space:]]*[:=][[:space:]]*["'\'' ]*McCoy|"short_name"[[:space:]]*:[[:space:]]*"McCoy"|<title>McCoy|McCoy-Android' \
+            --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=supabase/migrations .

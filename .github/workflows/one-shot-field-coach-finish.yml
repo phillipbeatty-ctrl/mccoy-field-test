@@ -1,0 +1,90 @@
+name: One-shot finish Field Coach rename
+
+on:
+  push:
+    branches:
+      - rename/field-coach-all-apps-20260831
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: field-coach-finish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-and-merge:
+    if: github.actor == 'phillipbeatty-ctrl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: rename/field-coach-all-apps-20260831
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify required Field Coach files exist
+        shell: bash
+        run: |
+          test -f field-coach-branding.test.mjs
+          test -f FIELD_COACH_BRANDING.md
+          test -f manifest.webmanifest
+          test -f capacitor.config.json
+          test -f scripts/configure-native-project.mjs
+
+      - name: Run Field Coach and mobile tests
+        run: |
+          npm run test:branding
+          npm run test:mobile
+
+      - name: Verify all installed-app labels
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const manifest=JSON.parse(fs.readFileSync('manifest.webmanifest','utf8'));
+          const capacitor=JSON.parse(fs.readFileSync('capacitor.config.json','utf8'));
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          const index=fs.readFileSync('index.html','utf8');
+          const native=fs.readFileSync('scripts/configure-native-project.mjs','utf8');
+          const workflow=fs.readFileSync('.github/workflows/mobile-android-internal.yml','utf8');
+          const failures=[];
+          if(manifest.name!=='Field Coach')failures.push('PWA name');
+          if(manifest.short_name!=='Field Coach')failures.push('PWA short_name');
+          if(capacitor.appName!=='Field Coach')failures.push('Capacitor appName');
+          if(capacitor.appId!=='com.mccoyplatform.app')failures.push('bundle continuity');
+          if(pkg.version!=='1.0.0-beta.2')failures.push('mobile version');
+          if(!/<title>Field Coach\b/.test(index))failures.push('web title');
+          if(!/>Field Coach</.test(index))failures.push('web brand');
+          if(!/app_name\">Field Coach/.test(native))failures.push('Android label');
+          if(!/CFBundleDisplayName/.test(native)||!/<string>Field Coach<\/string>/.test(native))failures.push('iOS/iPad display name');
+          if(!/Field-Coach-Android/.test(workflow))failures.push('Android artifact name');
+          if(failures.length)throw new Error('Field Coach release gate failed: '+failures.join(', '));
+          console.log('Field Coach release gate passed for web, PWA, Android, iPhone, and iPad.');
+          NODE
+
+      - name: Remove temporary automation and commit final branch
+        shell: bash
+        run: |
+          rm -f .github/workflows/one-shot-field-coach-branding.yml
+          rm -f .github/workflows/one-shot-field-coach-finish.yml
+          git config user.name 'Field Coach Release Automation'
+          git config user.email 'noreply@auth.mccoyplatform.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Finalize Field Coach product rename'
+            git push origin HEAD:rename/field-coach-all-apps-20260831
+          fi
+
+      - name: Merge PR 100 after the release gate passes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge 100 --repo phillipbeatty-ctrl/mccoy-field-test --squash --admin --subject 'Rename every app version to Field Coach' --body 'Validated Field Coach branding across web, PWA, Android, iPhone, and iPad while preserving legal and technical identity.'
