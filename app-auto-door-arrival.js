@@ -41,7 +41,9 @@
     if(button&&!state.activeDoorVisit?.autoVerified)button.hidden=false;
   }
 
+  const autoNearestEnabled=()=>window.MCCOY_FIELD_FEATURES?.automaticNearestLead===true;
   function evaluateAutoArrival(){
+    if(!autoNearestEnabled()){resetCandidate();restoreManualButton();return;}
     restoreManualButton();
     const sessionStart=state.session?.startedAt||null;
     if(sessionStart!==observedSessionStart){observedSessionStart=sessionStart;autoArrivedLeadIds.clear();resetCandidate();lastFixAt=0;}

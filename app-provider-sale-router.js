@@ -68,6 +68,7 @@
     return[...bytes].map((value,index)=>([4,6,8,10].includes(index)?'-':'')+value.toString(16).padStart(2,'0')).join('');
   }
   function validPoint(value){
+    if((value?.latitude??value?.lat)==null||(value?.longitude??value?.lng)==null)return null;
     const latitude=Number(value?.latitude??value?.lat),longitude=Number(value?.longitude??value?.lng);
     return Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180?{latitude,longitude}:null;
   }
@@ -92,26 +93,13 @@
         customer_map_location:validPoint(explicit.customer_map_location)
       };
     }
-    const currentState=typeof state!=='undefined'?state:null;
-    const selectedLeadId=Number(document.getElementById('fieldLeadSelect')?.value);
-    const distanceContext=window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()||null;
-    const addressContext=window.MCCOY_LEAD_ADDRESS?.current?.()||null;
-    const activeVisit=currentState?.activeDoorVisit||null;
-    const lead=distanceContext?.lead||activeVisit?.lead||currentState?.leads?.find(item=>item.id===selectedLeadId)||null;
-    const typedAddress=addressContext?.kind==='typed'?addressContext.address:null;
-    return{
-      sale_context:'field',
-      session_id:currentSessionId(),
-      lead_id:lead?.dbId||null,
-      lead_label:typedAddress||(lead?.address||lead?.fullAddress||null),
-      service_address:typedAddress||(distanceContext?.address||(lead?.fullAddress||lead?.address||null)),
-      selection_source:typedAddress?'typed_address':'sales_hub',
-      source:'sales_hub',
-      source_door_visit_id:activeVisit?.serverVisitId||null,
-      preserve_active_visit:false,
-      customer_map_location:validPoint(lead)
-    };
+    return window.MCCOY_LEAD_ADDRESS_CORE?.saleSource({
+      addressContext:window.MCCOY_LEAD_ADDRESS?.current?.(),
+      activeVisit:typeof state!=='undefined'?state.activeDoorVisit:null,
+      sessionId:currentSessionId()
+    })||null;
   }
+
   async function captureCall(action,payload={}){
     if(typeof sb==='undefined')throw new Error('McCoy connection is not ready.');
     const{data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action,...payload}});
@@ -132,8 +120,9 @@
       await markCaptureReturned(true);
     }catch(error){serverRecoveryStarted=false;console.error('Provider sale capture recovery failed',error);}
   }
-  function startProviderCapture(provider,portalResult){
-    const source=saleSourceContext(),info=portalInfo(provider),draft={
+  function startProviderCapture(provider,portalResult,source=saleSourceContext()){
+    if(!source?.service_address)throw new Error('Enter a complete service address before starting a sale.');
+    const info=portalInfo(provider),draft={
       client_request_id:newCaptureRequestId(),provider,sale_context:source.sale_context||'field',
       service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
       lead_id:source.lead_id||null,source_door_visit_id:source.source_door_visit_id||null,
@@ -239,8 +228,8 @@
     return`Sara Plus account required: ${account}. Confirm Sara Plus is signed into your assigned ${account} account. McCoy will record this capture only as ${provider}.`;
   }
   function updatePortalStatus(){
-    const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider),explicit=window.MCCOY_PENDING_SALE_CONTEXT;
-    const contextMessage=explicit?.preserve_active_visit!==false?' This sale is isolated from the current physical-door activity.':'';
+    const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider),explicit=pending?.source||window.MCCOY_PENDING_SALE_CONTEXT;
+    const contextMessage=explicit?.preserve_active_visit===true?' This sale is isolated from the current physical-door activity.':'';
     document.getElementById('providerRouterStatus').textContent=(message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Close that tab or tap its X to return directly to McCoy.`))+contextMessage;
   }
   function sellerAccountDestination(provider){
@@ -282,16 +271,22 @@
     if(select&&select.value!==provider){select.value=provider;select.dispatchEvent(new Event('change',{bubbles:true}));}
   }
   function showRouter(target){
-    const provider=currentProvider(),explicit=window.MCCOY_PENDING_SALE_CONTEXT;
-    choice.value=provider;pending={target};
+    const provider=currentProvider(),explicit=saleSourceContext();
+    if(!explicit?.service_address){
+      window.MCCOY_PENDING_SALE_CONTEXT=null;
+      alert('Enter a complete service address or select a lead before starting a sale.');
+      window.MCCOY_LEAD_ADDRESS?.focus?.();return;
+    }
+    // Freeze the address at SALE, before provider selection or asynchronous GPS work.
+    choice.value=provider;pending={target,source:structuredClone(explicit)};
     document.getElementById('providerRouterTitle').textContent=explicit?.sale_context==='out_of_area_phone'?'Choose provider for this phone sale':'Choose provider for this sale';
-    document.getElementById('providerRouterDescription').textContent=explicit?.service_address?`Process the sale for ${explicit.service_address}. The current door activity will remain active.`:'Select the Internet provider whose seller account will process this sale.';
+    document.getElementById('providerRouterDescription').textContent=`Process the sale for ${explicit.service_address}.${explicit.preserve_active_visit?' Any other door activity will remain active.':''}`;
     const continueButton=document.getElementById('providerRouterContinue');
     continueButton.disabled=false;continueButton.textContent='OPEN PROVIDER DASHBOARD';
     choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
     updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
-  function closeRouter(){if(routing)return;panel.classList.remove('show');pending=null;}
+  function closeRouter(){if(routing)return;panel.classList.remove('show');pending=null;window.MCCOY_PENDING_SALE_CONTEXT=null;}
 
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
   choice.addEventListener('change',()=>{if(pending){delete pending.destination;delete pending.capture;}updatePortalStatus();});
@@ -304,14 +299,14 @@
     const next=pending,continueButton=document.getElementById('providerRouterContinue');
     routing=true;continueButton.disabled=true;continueButton.textContent='SAVING CAPTURE…';
     choice.disabled=true;document.getElementById('providerRouterCancel').disabled=true;
-    window.MCCOY_SALE_CONTEXT=window.MCCOY_PENDING_SALE_CONTEXT?.sale_context||'field';
+    window.MCCOY_SALE_CONTEXT=next.source.sale_context||'field';
     window.MCCOY_TESTER_PKB_SALE=false;setProvider(provider);
     const destination=next.destination||sellerAccountDestination(provider);
     const reservedWindow=destination.opened?reserveProviderWindow():null;
-    const draft=next.capture||startProviderCapture(provider,destination);
+    const draft=next.capture||startProviderCapture(provider,destination,next.source);
     if(destination.opened){
       document.getElementById('providerRouterStatus').textContent=reservedWindow?'Saving this provider attempt before loading the provider tab…':'The browser blocked a separate tab. McCoy will use a same-tab fallback after saving the capture.';
-      await waitForCaptureReady(draft);panel.classList.remove('show');pending=null;
+      await waitForCaptureReady(draft);panel.classList.remove('show');pending=null;routing=false;
       const navigation=navigateSellerAccount(provider,destination,reservedWindow);
       if(!navigation.opened){
         routing=false;pending={...next,destination,capture:draft};panel.classList.add('show');
@@ -331,8 +326,10 @@
       if(saleGuard){saleGuard=false;return;}
       if(isTesterPkb()){
         event.preventDefault();event.stopImmediatePropagation();
+        const source=saleSourceContext();
+        if(!source?.service_address){alert('Enter a complete service address before starting a sale.');window.MCCOY_LEAD_ADDRESS?.focus?.();return;}
         const provider=currentProvider();window.MCCOY_SALE_CONTEXT=window.MCCOY_PENDING_SALE_CONTEXT?.sale_context||'field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
-        startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'});
+        startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'},source);
         saleGuard=true;saleButton.click();return;
       }
       event.preventDefault();event.stopImmediatePropagation();showRouter(saleButton);
@@ -340,10 +337,11 @@
   },true);
 
   window.MCCOY_START_EXPLICIT_SALE=context=>{
-    if(!context?.service_address)throw new Error('service_address_required');
-    window.MCCOY_PENDING_SALE_CONTEXT={...context,preserve_active_visit:context.preserve_active_visit!==false};
+    if(String(context?.service_address||'').trim().length<5)throw new Error('Enter a complete service address.');
+    if(routing||pending)throw new Error('Finish or cancel the current provider selection first.');
     const button=document.getElementById('processSaleBtn')||document.querySelector('[data-disp="Sale"]');
-    if(!button)throw new Error('sale_button_not_ready');
+    if(!button||button.disabled)throw new Error('Sale controls are still loading. Please retry.');
+    window.MCCOY_PENDING_SALE_CONTEXT={...context,preserve_active_visit:context.preserve_active_visit!==false};
     button.click();
   };
   window.MCCOY_OPEN_PROVIDER_PORTAL=openSellerAccount;

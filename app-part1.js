@@ -190,8 +190,8 @@ function renderFieldLeadSelect(){
   if(el.dataset.mccoyLeadSignature===signature&&el.options.length){if(current)el.value=current;return;}
   const MAX_FIELD_OPTIONS=750,visible=leads.slice(0,MAX_FIELD_OPTIONS);if(current&&!visible.some(lead=>String(lead.id)===String(current))){const selected=leads.find(lead=>String(lead.id)===String(current));if(selected)visible.push(selected);}
   const escape=value=>String(value??"").replace(/[&<>"\']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\'":"&#39;"}[char]));
-  el.innerHTML=visible.map(lead=>`<option value="${escape(lead.id)}">${escape(lead.address)} — ${escape(lead.team)}</option>`).join("")+(leads.length>MAX_FIELD_OPTIONS?`<option disabled>Showing ${MAX_FIELD_OPTIONS.toLocaleString()} of ${leads.length.toLocaleString()} leads — use Lead Pool search for more</option>`:"");
-  el.dataset.mccoyLeadSignature=signature;if(current)el.value=current;
+  el.innerHTML='<option value="">Type an address or select a lead</option>'+visible.map(lead=>`<option value="${escape(lead.id)}">${escape(lead.address)} — ${escape(lead.team)}</option>`).join("")+(leads.length>MAX_FIELD_OPTIONS?`<option disabled>Showing ${MAX_FIELD_OPTIONS.toLocaleString()} of ${leads.length.toLocaleString()} leads — use Lead Pool search for more</option>`:"");
+  el.dataset.mccoyLeadSignature=signature;el.value=current||'';
 }
 
 function getGPSOnce(){

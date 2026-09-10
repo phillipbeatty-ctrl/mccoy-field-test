@@ -1,0 +1,63 @@
+# Manual address sales and paused nearest-lead automation
+
+Automatic nearest-lead selection is paused by `app-field-features.js`.
+The algorithms remain in source for a future reviewed release:
+
+- `app-distance-to-lead.js`: nearest selection and linked automatic arrival/departure.
+- `app-closest-lead-autofill-v2.js`: server nearest-lead lookup and address autofill.
+- `app-lead-pool-independent-activity.js`: nearest visible map pin selection.
+- `app-auto-door-arrival.js`: fallback GPS arrival and selection.
+
+The switch defaults to false when configuration is missing. It does not stop GPS
+collection, manual map selection, MOVE PIN, explicit arrivals/dispositions, or sale
+distance auditing. The native address selector starts empty instead of selecting
+the first imported lead.
+
+## Current behavior
+
+Type a full service address in Sales Hub and press SALE. In Lead Pool, use
+"Sale for any address" and PROCESS SALE immediately; CENTER MAP is optional.
+No lead, permanent pin, GPS fix, geocode result, or active field session is required
+to start the provider capture. Existing authentication, organization access,
+provider completion and evidence requirements still apply.
+
+SALE freezes the address before provider selection. Typed addresses do not inherit
+an unrelated active door's lead, coordinates, or visit ID. Only an explicitly
+selected matching door can be closed by that sale. Local matching uses the full
+address, including locality/unit; stale map responses cannot replace newer input.
+
+ADD PIN / ADDRESS opens the shared field-user form from Sales Hub, Lead Pool, or
+the maximized map's action menu. Pin creation uses the existing `lead-field-actions`
+endpoint and still requires geocoding. PROCESS SALE FOR THIS ADDRESS can proceed
+without creating a pin. Blank optional fields do not clear an existing matched
+lead's contact information.
+
+No Edge Function or database migration is changed in this release. Backend
+permission and provider completion checks remain authoritative.
+
+## Validation
+
+Run `node --test manual-address-sales.test.mjs` for the pause, explicit selection,
+address identity, unrelated-visit isolation, provider-intent snapshot, stale
+geocode responses, geocode failure, role visibility and duplicate-contact checks.
+The workflow also runs the existing sale completion, phone sale, map and access
+regressions. These use controlled test inputs; they do not create production sales.
+
+Before accepting the mobile flow, verify on the preview with an active field
+account: blank address stays blank as GPS changes; type an address absent from the
+Lead Pool; open the provider flow and confirm the retained address; add a legitimate
+address from the maximized map; verify its pin and retry an existing address.
+Finish a legitimate provider sale through the normal evidence/review process and
+check the correct service address and unchanged unrelated physical visit.
+
+## Re-enable later
+
+Change `automaticNearestLead` only in a separate reviewed release. Prove manual
+selection/typed-address priority, GPS accuracy and freshness, imported/low-precision
+pin handling, concurrent pin changes, active-sale isolation, provider return,
+and Android/iPhone/iPad behavior before enabling it. Re-test all four entry points
+and bump the app-shell cache and asset versions together.
+
+Known backend follow-up: creating the same new address concurrently uses separate
+lookup/insert calls. A database uniqueness/transaction repair is needed to guarantee
+deduplication across devices; sequential matching alone does not prove that case.

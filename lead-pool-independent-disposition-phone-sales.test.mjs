@@ -33,7 +33,7 @@ test('map activities retain occurred-at and optional Visit dwell time', () => {
   assert.match(activity, /p_dwell_seconds:dwellSeconds/)
 })
 
-test('Lead Pool auto-selects nearest pin until a manual pin or address is selected', () => {
+test('Lead Pool retains the nearest algorithm for later reactivation', () => {
   assert.match(activity, /function autoSelectNearest\(/)
   assert.match(activity, /manualSelectedLeadId/)
   assert.match(activity, /if\(manualViewportHold\|\|!mapVisible\(\)\|\|manualSelectedLeadId\|\|phoneContext\)return/)
@@ -51,7 +51,7 @@ test('physical knocking from the map retains the quarter-mile rule', () => {
 
 test('phone-sale address search centers the map and selects a matching lead', () => {
   assert.match(activity, /leadPoolPhoneAddress/)
-  assert.match(activity, /CENTER ADDRESS \/ LEAD/)
+  assert.match(activity, /CENTER MAP \(OPTIONAL\)/)
   assert.match(activity, /lead-map-address-search/)
   assert.match(activity, /PROCESS PHONE SALE/)
   assert.match(activity, /preserve_active_visit:true/)

@@ -19,7 +19,8 @@
   }
   function matchingLeads(value,leads){
     const key=normalizeAddress(value);if(!key)return[];
-    return (Array.isArray(leads)?leads:[]).filter(lead=>leadLabels(lead).some(label=>normalizeAddress(label)===key));
+    // Do not attach a sale to a different city or apartment by street alone.
+    return (Array.isArray(leads)?leads:[]).filter(lead=>normalizeAddress(leadLabels(lead)[0])===key);
   }
   function selectedLead(selectedId,leads){
     const value=String(selectedId||'');
@@ -27,7 +28,7 @@
   }
   function context({value,leads,selectedId}={}){
     const address=cleanAddress(value),selected=selectedLead(selectedId,leads);
-    if(selected&&leadLabels(selected).some(label=>normalizeAddress(label)===normalizeAddress(address))){
+    if(selected&&normalizeAddress(leadLabels(selected)[0])===normalizeAddress(address)){
       return{kind:'assigned',address:leadLabels(selected)[0]||address,lead:selected,valid:true};
     }
     const matches=matchingLeads(address,leads);
@@ -40,5 +41,25 @@
     const clean=cleanAddress(address);
     return{id:`typed:${normalizeAddress(clean)}`,dbId:null,address:clean,fullAddress:clean,team:'Ad-hoc',isDemo:false,isAdHoc:true,selectionSource:'typed_address',disposition:'Prospecting',stage:'Prospecting',pinColor:'#fbbf24',pinColorSource:'stage'};
   }
-  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,matchingLeads,selectedLead,context,adHocLead};
+  function saleSource({addressContext,activeVisit,sessionId=null}={}){
+    if(!addressContext?.valid)return null;
+    const address=cleanAddress(addressContext.address);
+    if(address.length<MIN_ADDRESS_LENGTH)return null;
+    const lead=addressContext.kind==='assigned'?addressContext.lead:null;
+    const visitLead=activeVisit?.lead;
+    const sameVisit=Boolean(activeVisit?.serverVisitId&&(lead?.dbId
+      ?String(lead.dbId)===String(visitLead?.dbId)
+      :!visitLead?.dbId&&normalizeAddress(address)===normalizeAddress(leadLabels(visitLead)[0])));
+    const lat=lead?.lat??lead?.latitude,lng=lead?.lng??lead?.longitude;
+    const mapped=lat!=null&&lng!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180;
+    return{
+      sale_context:'field',session_id:sessionId,lead_id:lead?.dbId||null,
+      lead_label:address,service_address:address,
+      source:'sales_hub',selection_source:lead?'manual_lead':'typed_address',
+      source_door_visit_id:sameVisit?activeVisit.serverVisitId:null,
+      preserve_active_visit:!sameVisit,
+      customer_map_location:mapped?{latitude:Number(lat),longitude:Number(lng)}:null
+    };
+  }
+  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,matchingLeads,selectedLead,context,adHocLead,saleSource};
 });

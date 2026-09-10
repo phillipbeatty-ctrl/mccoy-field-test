@@ -59,8 +59,8 @@ test('MOVE PIN locks the workflow to the original lead until confirm or cancel',
 })
 
 test('nearest-lead automation is disabled at the source while MOVE PIN owns the viewport',()=>{
-  assert.match(independent,/function autoSelectNearest\(\)\{\s*if\(window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
-  assert.match(independent,/function scheduleAutoSelect\(delay=150\)\{\s*clearTimeout\(autoSelectTimer\);\s*if\(manualViewportHold\|\|window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
+  assert.match(independent,/function autoSelectNearest\(\)\{\s*if\(!autoNearestEnabled\(\)\)return;\s*if\(window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
+  assert.match(independent,/function scheduleAutoSelect\(delay=150\)\{\s*clearTimeout\(autoSelectTimer\);\s*if\(!autoNearestEnabled\(\)\)return;\s*if\(manualViewportHold\|\|window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
   assert.match(independent,/MCCOY_MAP_VIEWPORT_LOCK\?\.blocksSelection\?\.\(nextId\)/)
   assert.match(independent,/MCCOY_MAP_VIEWPORT_LOCK\?\.blocksSelection\?\.\(id\)/)
   assert.match(independent,/mccoy-map-viewport-lock-changed/)
@@ -92,10 +92,10 @@ test('manual map browsing no longer fakes lead selection',()=>{
 })
 
 test('viewport and nearest-selection guards are loaded with fresh mobile cache keys',()=>{
-  assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026090402/)
+  assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026091002/)
   assert.match(loader,/app-map-viewport-lock\.js\?v=2026090402/)
-  assert.match(worker,/field-coach-app-shell-v14-20260910-move-pin/)
-  assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026090402/)
+  assert.match(worker,/field-coach-app-shell-v15-20260910-manual-address/)
+  assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026091002/)
   assert.match(worker,/app-map-viewport-lock\.js\?v=2026090402/)
 })
 

@@ -6,7 +6,7 @@
   if(!core||!select)return;
 
   const root=document.createElement('div');root.className='field-lead-combobox';
-  root.innerHTML='<label for="fieldLeadAddressInput">Lead or service address</label><div class="field-lead-combobox-row"><input id="fieldLeadAddressInput" list="fieldLeadAddressOptions" autocomplete="street-address" maxlength="240" placeholder="Closest McCoy lead or type any address" aria-describedby="fieldLeadAddressStatus"><button id="clearFieldLeadAddress" type="button" class="assign-btn" aria-label="Clear lead address">CLEAR</button></div><datalist id="fieldLeadAddressOptions"></datalist><div id="fieldLeadAddressStatus" class="muted small" role="status" aria-live="polite">The closest mapped McCoy lead will appear when GPS is available. Type any address to override it.</div>';
+  root.innerHTML='<label for="fieldLeadAddressInput">Lead or service address</label><div class="field-lead-combobox-row"><input id="fieldLeadAddressInput" list="fieldLeadAddressOptions" autocomplete="street-address" maxlength="240" placeholder="Street, unit, city, state and ZIP" aria-describedby="fieldLeadAddressStatus"><button id="clearFieldLeadAddress" type="button" class="assign-btn" aria-label="Clear lead address">CLEAR</button></div><datalist id="fieldLeadAddressOptions"></datalist><div id="fieldLeadAddressStatus" class="muted small" role="status" aria-live="polite">Type a complete service address or select a lead, then press SALE. A map pin is optional.</div>';
   select.insertAdjacentElement('beforebegin',root);select.classList.add('field-lead-select-native');select.setAttribute('aria-hidden','true');select.tabIndex=-1;
   const input=document.getElementById('fieldLeadAddressInput'),list=document.getElementById('fieldLeadAddressOptions'),status=document.getElementById('fieldLeadAddressStatus'),clear=document.getElementById('clearFieldLeadAddress');
   let syncing=false,lastContext={kind:'empty',address:'',lead:null,valid:false};
@@ -18,9 +18,9 @@
     status.classList.toggle('field-lead-address-invalid',ctx.kind==='invalid');
     const arrive=document.getElementById('arriveDoorBtn');if(arrive&&!state.activeDoorVisit)arrive.textContent=ctx.kind==='typed'?'START ADDRESS ACTIVITY':'ARRIVED AT DOOR';
     if(ctx.kind==='assigned')status.textContent='McCoy lead selected — proximity and ownership are retained for the visit record.';
-    else if(ctx.kind==='typed')status.textContent='Ad-hoc address — not added to the McCoy lead pool. GPS is retained for audit.';
+    else if(ctx.kind==='typed')status.textContent='Ready for SALE at this address. A pin is optional; this address is not added to the McCoy lead pool.';
     else if(ctx.kind==='invalid')status.textContent='Enter at least 5 characters for an ad-hoc address.';
-    else status.textContent='The closest mapped McCoy lead will appear when GPS is available. Type any address to override it.';
+    else status.textContent='Type a complete service address or select a lead, then press SALE. A map pin is optional.';
   }
   function dispatch(ctx,source){
     lastContext=ctx;setStatus(ctx);
@@ -41,8 +41,7 @@
     input.value=label(lead);const ctx={kind:'assigned',address:label(lead),lead,valid:true};dispatch(ctx,source);return ctx;
   }
   function refresh(){
-    // Keep the datalist bounded for mobile-browser performance. Automatic nearest
-    // selection still evaluates every usable lead in state.leads.
+    // Keep the datalist bounded for mobile-browser performance.
     const options=leads().slice(0,750).map(lead=>{const option=document.createElement('option');option.value=label(lead);option.label=lead.team?`${lead.address||label(lead)} — ${lead.team}`:label(lead);return option;});
     list.replaceChildren(...options);
     if(select.value)syncFromSelect('refresh');else if(input.value)syncFromInput('refresh');
@@ -62,7 +61,7 @@
   select.addEventListener('change',()=>syncFromSelect('lead_selection'));
   clear.addEventListener('click',()=>clearValue());
   for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded','mccoy-door-visit-corrected'])window.addEventListener(eventName,()=>setTimeout(refresh,0));
-  window.addEventListener('mccoy-door-visit-started',()=>{input.disabled=true;clear.disabled=true;});
+  window.addEventListener('mccoy-door-visit-started',()=>{input.disabled=false;clear.disabled=false;});
   window.addEventListener('mccoy-door-visit-completed',()=>{input.disabled=false;clear.disabled=false;setTimeout(refresh,0);});
   window.MCCOY_LEAD_ADDRESS={current:()=>core.context({value:input.value,leads:leads(),selectedId:select.value}),refresh,setTyped,setLead,clear:clearValue,focus:()=>input.focus(),setDisabled(value){input.disabled=!!value;clear.disabled=!!value;}};
   [0,120,350,800,1500].forEach(delay=>setTimeout(refresh,delay));
