@@ -1,0 +1,70 @@
+name: MOVE PIN diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'app-lead-map-deselect.js'
+      - 'app-lead-map.js'
+      - 'app-lead-map-window-controls.js'
+      - 'app-lead-map-window-entry-fix.js'
+      - 'styles.css'
+      - 'index.html'
+      - 'app-page-layout.js'
+      - 'service-worker.js'
+      - 'app-real-leads.js'
+      - 'supabase/functions/lead-pin-snapshot/**'
+      - 'supabase/functions/lead-admin/**'
+      - 'supabase/migrations/20260903190000_move_lead_pin_transaction.sql'
+      - 'supabase/migrations/*_lead_pin_snapshot_precision.sql'
+      - 'scripts/test-move-pin-precision.sql'
+      - 'scripts/verify-move-pin-rollback.sql'
+      - 'move-pin-admin-diagnostics.test.mjs'
+      - 'move-pin-diagnostics-probe.js'
+      - 'move-lead-pin.test.mjs'
+      - 'move-pin-snapshot.test.mjs'
+      - 'lead-map-window-controls.test.mjs'
+      - 'lead-pool-map-layout.test.mjs'
+      - '.github/workflows/move-pin-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostics-and-move-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check app-lead-map-deselect.js
+      - run: node --check app-lead-map.js
+      - run: node --check app-lead-map-window-controls.js
+      - run: node --check app-lead-map-window-entry-fix.js
+      - run: node --check move-pin-diagnostics-probe.js
+      - run: node --test move-pin-admin-diagnostics.test.mjs move-lead-pin.test.mjs move-pin-snapshot.test.mjs lead-map-window-controls.test.mjs lead-pool-map-layout.test.mjs
+
+  snapshot-postgres-precision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: move_pin_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify snapshot JSON against real PostgreSQL float8 values
+        env:
+          PGPASSWORD: fixture_only
+        run: psql --host=localhost --username=postgres --dbname=move_pin_test --file=scripts/test-move-pin-precision.sql

@@ -47,11 +47,11 @@ test('Standard MOVE PIN calls first-class controller transition directly',()=>{
   assert.match(controls,/const resolved=leadId\?leadById\(leadId\):selectedLead/)
   assert.match(controls,/movePinLeadId=String\(resolved\.dbId\|\|resolved\.id\)/)
   assert.match(controls,/MCCOY_MAP_VIEWPORT_LOCK\?\.acquire\?\.\('move-pin',movePinLeadId\)/)
-  assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\);return true/)
+  assert.match(controls,/mode=MOVE_PIN_READY;sync\(\);showHint\('MOVE PIN'\);triggerUnderlyingMove\(\);return true/)
 })
 
 test('MOVE PIN locks the workflow to the original lead until confirm or cancel',()=>{
-  assert.match(controls,/let mode=STANDARD,selectedLead=null,movePinLeadId=null/)
+  assert.match(controls,/let mode=STANDARD,expanded=false,selectedLead=null,movePinLeadId=null/)
   assert.match(controls,/if\(movePinLeadId&&String\(nextId\?\?''\)!==String\(movePinLeadId\)\)return/)
   assert.match(controls,/getMovePinLeadId:\(\)=>movePinLeadId/)
   assert.match(controls,/function releaseMovePinOwnership\(\)/)
@@ -60,7 +60,7 @@ test('MOVE PIN locks the workflow to the original lead until confirm or cancel',
 
 test('nearest-lead automation is disabled at the source while MOVE PIN owns the viewport',()=>{
   assert.match(independent,/function autoSelectNearest\(\)\{\s*if\(window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
-  assert.match(independent,/function scheduleAutoSelect\(delay=150\)\{\s*clearTimeout\(autoSelectTimer\);\s*if\(window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
+  assert.match(independent,/function scheduleAutoSelect\(delay=150\)\{\s*clearTimeout\(autoSelectTimer\);\s*if\(manualViewportHold\|\|window\.MCCOY_MAP_VIEWPORT_LOCK\?\.owner\?\.\(\)==='move-pin'\)return;/)
   assert.match(independent,/MCCOY_MAP_VIEWPORT_LOCK\?\.blocksSelection\?\.\(nextId\)/)
   assert.match(independent,/MCCOY_MAP_VIEWPORT_LOCK\?\.blocksSelection\?\.\(id\)/)
   assert.match(independent,/mccoy-map-viewport-lock-changed/)
@@ -94,7 +94,7 @@ test('manual map browsing no longer fakes lead selection',()=>{
 test('viewport and nearest-selection guards are loaded with fresh mobile cache keys',()=>{
   assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026090402/)
   assert.match(loader,/app-map-viewport-lock\.js\?v=2026090402/)
-  assert.match(worker,/field-coach-app-shell-v12-20260904-move-pin-nearest-lock/)
+  assert.match(worker,/field-coach-app-shell-v14-20260910-move-pin/)
   assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026090402/)
   assert.match(worker,/app-map-viewport-lock\.js\?v=2026090402/)
 })
@@ -110,16 +110,17 @@ test('beginMovePin state transition maximizes and reveals compact MOVE PIN witho
 })
 
 test('MOVE PIN uses a compact in-map controller with 16px visuals and 44px hit targets',()=>{
-  assert.match(controls,/id="leadMapMoveDock"/)
+  assert.match(controls,/moveDock\.id='leadMapMoveDock'/)
   assert.match(controls,/\.map-move-lamp\{width:16px;height:16px/)
-  assert.match(controls,/aria-label="MOVE PIN"/)
+  assert.match(entryFix,/setAttribute\('aria-label','MOVE PIN'\)/)
   assert.match(controls,/aria-label="CONFIRM PIN LOCATION"/)
   assert.match(controls,/aria-label="CANCEL PIN MOVE"/)
 })
 
 test('compact MOVE PIN delegates to the existing audited move backend controls',()=>{
-  assert.match(controls,/byId\('moveLeadPinBtn'\)\?\.click\(\)/)
-  assert.match(controls,/byId\('confirmLeadPinBtn'\)\?\.click\(\)/)
+  assert.match(controls,/const underlying=byId\('moveLeadPinBtn'\)/)
+  assert.match(controls,/const underlying=byId\('confirmLeadPinBtn'\)/)
+  assert.match(controls,/await underlying\.onclick\.call\(underlying,event\)/)
   assert.match(controls,/byId\('cancelLeadPinBtn'\)\?\.click\(\)/)
   assert.match(map,/mccoy-map-move-pin-started/)
   assert.match(map,/mccoy-map-move-pin-ended/)
@@ -146,7 +147,14 @@ test('orientation preserves mode while leaving Lead Pool restores standard',()=>
 })
 
 test('production lifecycle still loads the MOVE PIN entry launcher',()=>{
-  assert.match(html,/app-lead-map\.js\?v=2026090401/)
-  assert.match(html,/app-lead-map-window-controls\.js\?v=2026090401/)
-  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026090401/)
+  assert.match(html,/app-lead-map\.js\?v=2026091001/)
+  assert.match(html,/app-lead-map-window-controls\.js\?v=2026091001/)
+  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026091001/)
+})
+
+test('expanded iPad map owns the dynamic viewport and locks both scroll roots',()=>{
+  assert.match(controls,/html\.lead-map-window-open,body\.lead-map-window-open/)
+  assert.match(controls,/#leadMapPanel\.lead-map-window-expanded\{[^}]*position:fixed!important;[^}]*inset:0!important;[^}]*width:100vw!important;[^}]*height:100dvh!important/)
+  assert.match(controls,/#leadMapPanel\.lead-map-window-expanded #leadMapFrame\{[^}]*width:100vw!important;[^}]*height:100dvh!important;[^}]*max-height:100dvh!important/)
+  assert.match(controls,/document\.documentElement\.classList\.toggle\('lead-map-window-open',expanded\)/)
 })

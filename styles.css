@@ -74,9 +74,9 @@ body:has(#leads.view.active) #modeBadge{display:none}
   #leads>.lead-pool-map-workspace>.toolbar{grid-column:1;grid-row:4;min-width:0}
   #leads>.lead-pool-map-workspace>#leadPager,
   #leads>.lead-pool-map-workspace>#leadsTable{display:none!important}
-  #leads>.lead-pool-map-workspace>#leadMapPanel,
-  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2{display:contents!important}
-  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2>.card:first-child{
+  #leads>.lead-pool-map-workspace>#leadMapPanel:not(.lead-map-window-expanded),
+  #leads>.lead-pool-map-workspace>#leadMapPanel:not(.lead-map-window-expanded)>.grid-2{display:contents!important}
+  #leads>.lead-pool-map-workspace>#leadMapPanel:not(.lead-map-window-expanded)>.grid-2>.card:first-child{
     grid-column:1;
     grid-row:5;
     width:100%!important;
@@ -84,7 +84,7 @@ body:has(#leads.view.active) #modeBadge{display:none}
     min-height:0;
     overflow:hidden;
   }
-  #leads>.lead-pool-map-workspace>#leadMapPanel>.grid-2>.card:last-child{
+  #leads>.lead-pool-map-workspace>#leadMapPanel:not(.lead-map-window-expanded)>.grid-2>.card:last-child{
     grid-column:2;
     grid-row:1/6;
     width:100%!important;
@@ -94,8 +94,8 @@ body:has(#leads.view.active) #modeBadge{display:none}
     min-height:0;
     overflow:hidden;
   }
-  #leads>.lead-pool-map-workspace #leadMapCanvas,
-  #leads>.lead-pool-map-workspace #leadMapFrame{height:100%!important;min-height:0!important;max-height:none!important}
+  #leads>.lead-pool-map-workspace #leadMapPanel:not(.lead-map-window-expanded) #leadMapCanvas,
+  #leads>.lead-pool-map-workspace #leadMapPanel:not(.lead-map-window-expanded) #leadMapFrame{height:100%!important;min-height:0!important;max-height:none!important}
   #leads>.lead-pool-map-workspace #mapLeadList{
     flex:0 1 18vh!important;
     min-height:92px!important;

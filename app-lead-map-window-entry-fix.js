@@ -11,7 +11,6 @@
     #leadCorrectionPanel{display:none!important}
     #leadMapMovePinLauncher{position:absolute;z-index:1375;right:18px;bottom:22px;display:none;align-items:center;justify-content:center;min-width:92px;min-height:44px;padding:0 13px;border:0;border-radius:999px;background:rgba(255,255,255,.94);box-shadow:0 3px 14px rgba(15,23,42,.26);font:800 11px/1 system-ui;letter-spacing:.025em;color:#172033;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
     #leadMapMovePinLauncher.show{display:flex}
-    #leadMapPanel.lead-map-window-expanded #leadMapMovePinLauncher{display:none!important}
   `
   document.head.appendChild(style)
 
