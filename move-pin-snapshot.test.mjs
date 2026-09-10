@@ -81,7 +81,7 @@ function endpoint({role='admin',assigned=true,user=true,active=true}={}){
   const db={auth:{async getUser(){return {data:{user:user?{email:'fixture@example.invalid'}:null},error:null}}},from(table){
     tables.push(table);const query={select(){return query},eq(column,value){filters.push({table,column,value});return query},ilike(){return query},is(){return query},async maybeSingle(){return {data:table==='app_user_access'&&!active?null:rows[table],error:null}}};return query;
   }};
-  const js=stripTypeScriptTypes(snapshotSource.replace(/^import .*\n/,''));
+  const js=stripTypeScriptTypes(snapshotSource.replace(/^import .*\n/gm,'').replace("serveWithOrganizationAccess('lead_management',",'Deno.serve('));
   vm.runInNewContext(js,{createClient:()=>db,Deno:{env:{get:()=> 'fixture'},serve(fn){handler=fn}},Response,console:{error(){}}});
   return {filters,tables,call:(method='POST',authorization='Bearer fixture')=>handler(new Request('https://example.invalid/lead-pin-snapshot',{method,headers:{...(authorization?{Authorization:authorization}:{}),'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify({lead_id:leadId})}:{})}))};
 }
@@ -99,6 +99,10 @@ test('snapshot response preserves precise coordinates and microseconds within th
   const h=endpoint();const response=await h.call();assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
   assert.deepEqual((await response.json()).lead,snapshot);
   assert.ok(h.filters.some(x=>x.table==='leads'&&x.column==='organization_id'&&x.value==='fixture-org'));
+});
+
+test('snapshot endpoint is protected by the lead-management organization entitlement',()=>{
+  assert.match(snapshotSource,/serveWithOrganizationAccess\('lead_management'/);
 });
 
 test('snapshot permission remains assignment scoped for field roles',async()=>{

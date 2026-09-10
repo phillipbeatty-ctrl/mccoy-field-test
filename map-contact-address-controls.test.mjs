@@ -8,8 +8,9 @@ test('MY LOCATION is one-shot and manual map navigation blocks background recent
   const source = read('./app-map-manual-control.js')
   assert.match(source, /one-time center/i)
   assert.match(source, /aria-pressed'\)==='true'/)
-  assert.match(source, /mccoy-map-lead-selected/)
-  assert.match(source, /manual_map_navigation/)
+  assert.doesNotMatch(source, /mccoy-map-lead-selected/)
+  assert.match(source, /map\.on\('click'/)
+  assert.match(source, /Map movement is manual/)
   assert.match(source, /mccoy-field-session-started/)
 })
 

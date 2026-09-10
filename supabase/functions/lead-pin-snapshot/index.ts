@@ -1,3 +1,4 @@
+import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
 
 const corsHeaders = {
@@ -13,7 +14,7 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 
 const norm = (value: unknown) => String(value || '').trim().toLowerCase()
 
-Deno.serve(async request => {
+serveWithOrganizationAccess('lead_management', async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 

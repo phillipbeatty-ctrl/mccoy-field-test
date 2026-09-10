@@ -36,7 +36,7 @@ test('map activities retain occurred-at and optional Visit dwell time', () => {
 test('Lead Pool auto-selects nearest pin until a manual pin or address is selected', () => {
   assert.match(activity, /function autoSelectNearest\(/)
   assert.match(activity, /manualSelectedLeadId/)
-  assert.match(activity, /if\(!mapVisible\(\)\|\|manualSelectedLeadId\|\|phoneContext\)return/)
+  assert.match(activity, /if\(manualViewportHold\|\|!mapVisible\(\)\|\|manualSelectedLeadId\|\|phoneContext\)return/)
   assert.match(activity, /mccoy-gps-update/)
   assert.match(activity, /source:'auto_nearest'/)
 })
