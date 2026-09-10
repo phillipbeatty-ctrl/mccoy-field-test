@@ -60,13 +60,13 @@ serveWithOrganizationAccess('lead_management', async request => {
     const leadId = String(body.lead_id || '')
     if (!leadId) return json({ error: 'lead_id_required' }, 400)
 
-    const { data: lead, error: leadError } = await db
-      .from('leads')
-      .select('id,latitude,longitude,pin_location_updated_at,assigned_rep_id,assigned_manager_id,organization_id,deleted_at')
-      .eq('id', leadId)
-      .eq('organization_id', access.organization_id)
-      .is('deleted_at', null)
-      .maybeSingle()
+    // Build JSON inside the RPC with round-trip-safe float output. A table read
+    // can round coordinates at extra_float_digits=0 and falsely fail the exact
+    // stale-state checks in move_lead_pin, even immediately after a refresh.
+    const { data: lead, error: leadError } = await db.rpc('get_lead_pin_snapshot', {
+      p_lead_id: leadId,
+      p_organization_id: access.organization_id,
+    })
     if (leadError) throw leadError
     if (!lead) return json({ error: 'lead_not_found' }, 404)
 

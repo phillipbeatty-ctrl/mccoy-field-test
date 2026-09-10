@@ -8,7 +8,8 @@ const controls=readFileSync(new URL('./app-lead-map-window-controls.js',import.m
 const snapshotSource=readFileSync(new URL('./supabase/functions/lead-pin-snapshot/index.ts',import.meta.url),'utf8');
 const timestamp='2026-09-04T00:54:25.198452+00:00';
 const leadId='00000000-0000-4000-8000-000000000001';
-const snapshot={id:leadId,latitude:10,longitude:20,pin_location_updated_at:timestamp};
+// These synthetic coordinates require more than 15 digits to round-trip.
+const snapshot={id:leadId,latitude:12.345678901234568,longitude:-98.76543210987654,pin_location_updated_at:timestamp};
 const functions=controls.slice(controls.indexOf('  function releaseMovePinOwnership'),controls.indexOf('  function restoreMountedWorkflow'));
 const begin=controls.split('\n').find(x=>x.includes('function beginMovePin('));
 const cancel=controls.split('\n').find(x=>x.includes('function cancelWorkflow('));
@@ -37,7 +38,7 @@ test('MOVE PIN automatically expands and waits for the authoritative snapshot be
   assert.equal(h.starts.length,0);
   resolve({data:{ok:true,lead:snapshot},error:null});await h.settle();
   assert.equal(h.starts.length,1);assert.equal(h.starts[0].updatedAt,timestamp);
-  assert.equal(h.starts[0].lat,10);assert.equal(h.starts[0].lng,20);
+  assert.equal(h.starts[0].lat,snapshot.latitude);assert.equal(h.starts[0].lng,snapshot.longitude);
   assert.equal(h.calls[0].name,'lead-pin-snapshot');assert.equal(h.calls[0].body.lead_id,leadId);
 });
 
@@ -75,15 +76,17 @@ test('compact confirmation does not refresh or replace the original pin version 
   assert.match(handler,/await underlying\.onclick\.call\(underlying,event\)/);
 });
 
-function endpoint({role='admin',assigned=true,user=true,active=true}={}){
-  const filters=[],tables=[];let handler;
+function endpoint({role='admin',assigned=true,user=true,active=true,found=true,rpcError=null}={}){
+  const filters=[],tables=[],rpcCalls=[];let handler;
   const rows={app_user_access:{email:'fixture@example.invalid',role,active:true,organization_id:'fixture-org'},users:{id:'fixture-user'},leads:{...snapshot,assigned_rep_id:assigned?'fixture-user':'other-user',assigned_manager_id:assigned?'fixture-user':'other-user'}};
-  const db={auth:{async getUser(){return {data:{user:user?{email:'fixture@example.invalid'}:null},error:null}}},from(table){
+  const db={auth:{async getUser(){return {data:{user:user?{email:'fixture@example.invalid'}:null},error:null}}},async rpc(name,args){
+    rpcCalls.push({name,args});return {data:found?rows.leads:null,error:rpcError};
+  },from(table){
     tables.push(table);const query={select(){return query},eq(column,value){filters.push({table,column,value});return query},ilike(){return query},is(){return query},async maybeSingle(){return {data:table==='app_user_access'&&!active?null:rows[table],error:null}}};return query;
   }};
   const js=stripTypeScriptTypes(snapshotSource.replace(/^import .*\n/gm,'').replace("serveWithOrganizationAccess('lead_management',",'Deno.serve('));
   vm.runInNewContext(js,{createClient:()=>db,Deno:{env:{get:()=> 'fixture'},serve(fn){handler=fn}},Response,console:{error(){}}});
-  return {filters,tables,call:(method='POST',authorization='Bearer fixture')=>handler(new Request('https://example.invalid/lead-pin-snapshot',{method,headers:{...(authorization?{Authorization:authorization}:{}),'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify({lead_id:leadId})}:{})}))};
+  return {filters,tables,rpcCalls,call:(method='POST',authorization='Bearer fixture')=>handler(new Request('https://example.invalid/lead-pin-snapshot',{method,headers:{...(authorization?{Authorization:authorization}:{}),'content-type':'application/json'},...(method==='POST'?{body:JSON.stringify({lead_id:leadId,organization_id:'untrusted-org'})}:{})}))};
 }
 
 test('snapshot endpoint has a working handler, CORS, and explicit method handling',async()=>{
@@ -91,14 +94,25 @@ test('snapshot endpoint has a working handler, CORS, and explicit method handlin
 });
 
 test('snapshot endpoint rejects missing credentials and inactive users before reading leads',async()=>{
-  for(const options of [{user:false},{active:false}]){const h=endpoint(options);assert.ok([401,403].includes((await h.call()).status));assert.ok(!h.tables.includes('leads'));}
+  for(const options of [{user:false},{active:false}]){const h=endpoint(options);assert.ok([401,403].includes((await h.call()).status));assert.equal(h.rpcCalls.length,0);}
   assert.equal((await endpoint().call('POST','')).status,401);
 });
 
 test('snapshot response preserves precise coordinates and microseconds within the authorized organization',async()=>{
   const h=endpoint();const response=await h.call();assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
   assert.deepEqual((await response.json()).lead,snapshot);
-  assert.ok(h.filters.some(x=>x.table==='leads'&&x.column==='organization_id'&&x.value==='fixture-org'));
+  assert.equal(h.rpcCalls.length,1);
+  assert.equal(h.rpcCalls[0].name,'get_lead_pin_snapshot');
+  assert.equal(h.rpcCalls[0].args.p_lead_id,leadId);
+  assert.equal(h.rpcCalls[0].args.p_organization_id,'fixture-org');
+  assert.ok(!h.tables.includes('leads'),'must not fall back to the lossy table read');
+});
+
+test('missing leads and precision RPC failures cannot fall back to rounded coordinates',async()=>{
+  for(const [options,status] of [[{found:false},404],[{rpcError:{message:'unavailable'}},500]]){
+    const h=endpoint(options);assert.equal((await h.call()).status,status);
+    assert.equal(h.rpcCalls.length,1);assert.ok(!h.tables.includes('leads'));
+  }
 });
 
 test('snapshot endpoint is protected by the lead-management organization entitlement',()=>{
