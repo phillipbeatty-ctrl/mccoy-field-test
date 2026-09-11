@@ -10,8 +10,8 @@ The algorithms remain in source for a future reviewed release:
 
 The switch defaults to false when configuration is missing. It does not stop GPS
 collection, manual map selection, MOVE PIN, explicit arrivals/dispositions, or sale
-distance auditing. The native address selector starts empty instead of selecting
-the first imported lead.
+distance auditing. The internal address-selection bridge starts empty and remains
+hidden; Sales Hub has no lead dropdown or address suggestion list.
 
 ## Current behavior
 
@@ -21,6 +21,14 @@ No lead, permanent pin, GPS fix, geocode result, or active field session is requ
 to start the provider capture. Existing authentication, organization access,
 provider completion and evidence requirements still apply.
 
+Sales Hub has one Service address line inside Door Workflow. ADD ADDRESS saves
+that same address as a pin, with no second form to fill out. Enter may also submit
+ADD ADDRESS. Enter a full address as `Street, Unit, City, ST ZIP` (unit optional).
+For example: `123 Main St, Apt 2, Portland, OR 97201`. Separate state/ZIP commas
+and a trailing US country label are also accepted. Ambiguous address text gets an
+inline format hint instead of a guessed city or nearby pin. This does not block
+using the typed address for SALE.
+
 SALE freezes the address before provider selection. Typed addresses do not inherit
 an unrelated active door's lead, coordinates, or visit ID. Only an explicitly
 selected matching door can be closed by that sale. Local matching uses the full
@@ -29,8 +37,9 @@ Refreshing the lead list preserves the address and database lead identity even
 when numeric display IDs change. A delayed session restore cannot replace input
 the user entered or cleared while it was loading.
 
-ADD PIN / ADDRESS opens the shared field-user form from Sales Hub, Lead Pool, or
-the maximized map's action menu. Pin creation uses the existing `lead-field-actions`
+ADD PIN / ADDRESS still opens the field-user form from Lead Pool or the maximized
+map's action menu. The Sales Hub shortcut to that extra form is removed.
+Both creation paths use the existing `lead-field-actions`
 endpoint and still requires geocoding. PROCESS SALE FOR THIS ADDRESS can proceed
 without creating a pin. Blank optional fields do not clear an existing matched
 lead's contact information.
@@ -45,18 +54,21 @@ permission and provider completion checks remain authoritative.
 
 ## Validation
 
-Run `node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs`
+Run `node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs single-sales-hub-address.test.mjs`
 for the pause, explicit selection,
 address identity, unrelated-visit isolation, provider-intent snapshot, stale
 geocode responses, geocode failure, role visibility and duplicate-contact checks.
 The workflow also runs the existing sale completion, phone sale, map and access
 regressions. These use controlled test inputs; they do not create production sales.
-The full related suite passes 164 tests, including 12 added for refresh, session
-restore, lexical lead state, saved-pin recovery and the maximized-map handoff.
+The full related suite passes 174 tests. The latest ten cover the one-line
+interface, full-address parsing, unit preservation, shared creation, duplicate
+clicks, late responses, inline errors and feedback retained through refresh/blur.
 
 Before accepting the mobile flow, verify on the preview with an active field
 account: blank address stays blank as GPS changes; type an address absent from the
-Lead Pool; open the provider flow and confirm the retained address; add a legitimate
+Lead Pool; confirm there is one input and no dropdown; press ADD ADDRESS and verify
+its pin without retyping; open the provider flow and confirm the retained address;
+add a legitimate
 address from the maximized map; verify its pin and retry an existing address.
 Finish a legitimate provider sale through the normal evidence/review process and
 check the correct service address and unchanged unrelated physical visit.

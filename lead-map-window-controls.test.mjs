@@ -92,10 +92,10 @@ test('manual map browsing no longer fakes lead selection',()=>{
 })
 
 test('viewport and nearest-selection guards are loaded with fresh mobile cache keys',()=>{
-  assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026091101/)
+  assert.match(loader,/app-lead-pool-independent-activity\.js\?v=2026091102/)
   assert.match(loader,/app-map-viewport-lock\.js\?v=2026090402/)
-  assert.match(worker,/field-coach-app-shell-v16-20260911-manual-address/)
-  assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026091101/)
+  assert.match(worker,/field-coach-app-shell-v17-20260911-single-address/)
+  assert.match(worker,/app-lead-pool-independent-activity\.js\?v=2026091102/)
   assert.match(worker,/app-map-viewport-lock\.js\?v=2026090402/)
 })
 

@@ -41,6 +41,23 @@
     const clean=cleanAddress(address);
     return{id:`typed:${normalizeAddress(clean)}`,dbId:null,address:clean,fullAddress:clean,team:'Ad-hoc',isDemo:false,isAdHoc:true,selectionSource:'typed_address',disposition:'Prospecting',stage:'Prospecting',pinColor:'#fbbf24',pinColorSource:'stage'};
   }
+  function fieldAddress(value){
+    // Parse an explicit full US address; never guess the city or a nearby lead.
+    if(String(value??'').trim().length>MAX_ADDRESS_LENGTH)return null;
+    const text=cleanAddress(value).replace(/,\s*(?:USA|US|United States(?: of America)?)$/i,'');
+    const parts=text.split(',').map(part=>part.trim());
+    if(parts.some(part=>!part))return null;
+    let region=parts.pop()||'';
+    if(/^\d{5}(?:-\d{4})?$/.test(region)&&/^[a-z]{2}$/i.test(parts.at(-1)||''))region=parts.pop()+' '+region;
+    const match=region.match(/^([a-z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+    if(!match||parts.length<2)return null;
+    const city=parts.pop(),street=parts.join(', ');
+    let address1=street,address2='';
+    const unit=street.match(/^(.*?)(?:,\s*|\s+)((?:(?:apt|apartment|unit|suite|ste)\.?\s+|#\s*)(?:[a-z]|[a-z0-9-]*\d[a-z0-9-]*))$/i);
+    if(unit){address1=unit[1].trim();address2=unit[2].trim();}
+    if(!address1||address1.length>180||address2.length>80||!city||city.length>100)return null;
+    return{address1,address2,city,state:match[1].toUpperCase(),zip:match[2]};
+  }
   function saleSource({addressContext,activeVisit,sessionId=null}={}){
     if(!addressContext?.valid)return null;
     const address=cleanAddress(addressContext.address);
@@ -61,5 +78,5 @@
       customer_map_location:mapped?{latitude:Number(lat),longitude:Number(lng)}:null
     };
   }
-  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,matchingLeads,selectedLead,context,adHocLead,saleSource};
+  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,matchingLeads,selectedLead,context,adHocLead,fieldAddress,saleSource};
 });

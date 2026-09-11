@@ -59,7 +59,7 @@ test('Sales Hub routes typed addresses through the dedicated RPC and preserves s
   assert.match(client,/p_service_address:addressContext\.address/);
   assert.match(distance,/selectionSource:'typed_address'/);
   assert.match(providerRouter,/MCCOY_LEAD_ADDRESS_CORE\?\.saleSource/);
-  assert.match(typedUi,/not added to the McCoy lead pool/);
+  assert.match(typedUi,/SALE can proceed without a pin/);
   assert.match(autoArrival,/MCCOY_LEAD_ADDRESS\?\.current\?\.\(\)\.kind==='typed'/);
 });
 

@@ -182,9 +182,9 @@
   }
 
   function ensureAddressShortcuts(){
+    ensureSalesHubAddressAction();
     if(!fieldRole())return;
     for(const [host,id,label] of [
-      [byId('fieldLeadAddressInput')?.closest('.field-lead-combobox'),'salesHubAddPinBtn','ADD PIN / ADDRESS'],
       [byId('leadMapActionMenu'),'leadMapAddAddressAction','ADD PIN / ADDRESS']
     ]){
       if(!host||byId(id))continue;
@@ -192,6 +192,30 @@
       if(id==='leadMapAddAddressAction')button.setAttribute('role','menuitem');
       button.addEventListener('click',event=>{event.stopPropagation();openAddressEntry();});host.append(button);
     }
+  }
+
+  function ensureSalesHubAddressAction(){
+    byId('salesHubAddPinBtn')?.remove();
+    const button=byId('addFieldAddressBtn');if(!button)return;
+    button.hidden=!fieldRole();button.disabled=creatingLead||!fieldRole();
+    if(button.dataset.mccoyAddressBound==='1')return;
+    button.dataset.mccoyAddressBound='1';
+    button.addEventListener('click',addSalesHubAddress);
+    byId('fieldLeadAddressInput')?.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'||event.isComposing)return;
+      event.preventDefault();addSalesHubAddress();
+    });
+  }
+
+  async function addSalesHubAddress(){
+    if(creatingLead||!fieldRole())return;
+    const entry=window.MCCOY_LEAD_ADDRESS,context=entry?.current?.();
+    const address=window.MCCOY_LEAD_ADDRESS_CORE?.fieldAddress(context?.address);
+    if(!address){
+      entry?.setMessage?.('Use street, city, ST ZIP. Include a unit when needed. Example: 123 Main St, Apt 2, Portland, OR 97201.',true);
+      entry?.focus?.();return;
+    }
+    return createLead({suppliedAddress:address,source:'sales_hub',revision:entry.revision()});
   }
 
   function addressFields(){
@@ -220,37 +244,45 @@
     return true;
   }
 
-  async function createLead(){
+  async function createLead({suppliedAddress=null,source='lead_pool',revision=null}={}){
     if(creatingLead)return;
-    const address=addressFields();if(!address)return;
-    const button=byId('createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
-    for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=true;
-    setCreateMessage('Checking the Lead Pool and locating the address…');
+    const address=suppliedAddress||addressFields();if(!address)return;
+    const salesHub=source==='sales_hub';
+    const accessKey=()=>`${window.MCCOY_ACCESS?.user?.id||''}:${window.MCCOY_ACCESS?.access?.organization_id||''}`;
+    const requestAccess=accessKey();
+    const isCurrent=()=>requestAccess===accessKey()&&(!salesHub||revision===window.MCCOY_LEAD_ADDRESS?.revision?.());
+    const message=(text,error=false)=>{if(!isCurrent())return;if(salesHub)window.MCCOY_LEAD_ADDRESS?.setMessage?.(text,error);else setCreateMessage(text,error);};
+    const button=byId(salesHub?'addFieldAddressBtn':'createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
+    if(!salesHub)for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=true;
+    message('Checking the Lead Pool and locating the address…');
     let saved=false;
     try{
       // Blank optional fields must not erase an existing matched lead's contact.
       const contact={};
-      for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
+      if(!salesHub)for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
       const data=await call('create_lead',{...address,...contact});
       saved=true;
-      const message=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
-      setCreateMessage(message+' Loading its pin…');
+      if(!isCurrent())return;
+      const savedMessage=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
+      message(savedMessage+' Loading its pin…');
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();
+      if(!isCurrent())return;
       if(leadId){
         // An already-running load may have started before the insert. Retry once after it finishes.
         if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
+        if(!isCurrent())return;
         const lead=leadByAnyId(leadId);
         const shown=lead&&showSavedPin(lead);
-        setCreateMessage(message+(shown?' Its pin is selected on the map. You can process the sale below.':' Its pin is not visible in the current Lead Pool. You can still process the sale below.'));
+        message(savedMessage+(shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));
       }else{
-        setCreateMessage(message+' You can process the sale below.');
+        message(savedMessage+' Ready for SALE.');
       }
       // Keep the address available for PROCESS SALE without requiring re-entry.
     }catch(error){
       console.error('Field lead creation failed',error);
-      setCreateMessage(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
-    }finally{creatingLead=false;for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=false;if(button){button.disabled=false;button.textContent='ADD TO LEAD POOL';}}
+      message(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+    }finally{creatingLead=false;if(!salesHub)for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=false;if(button){button.disabled=salesHub&&!fieldRole();button.textContent=salesHub?'ADD ADDRESS':'ADD TO LEAD POOL';}}
   }
 
   function selectedLeadFromEvent(event){

@@ -33,7 +33,7 @@ function context(seed={}){
   s.window=s;return s;
 }
 function addressHarness(){
-  const nodes=new Map(['fieldLeadSelect','fieldLeadAddressInput','fieldLeadAddressOptions','fieldLeadAddressStatus','clearFieldLeadAddress'].map(id=>[id,new Element(id==='fieldLeadSelect'?'select':'div')]));
+  const nodes=new Map(['fieldLeadSelect','fieldLeadAddressInput','fieldLeadAddressStatus','addFieldAddressBtn'].map(id=>[id,new Element(id==='fieldLeadSelect'?'select':'div')]));
   const state={leads:[{...original}],activeDoorVisit:null};
   const s=context({inputState:state,MCCOY_LEAD_ADDRESS_CORE:core,document:{getElementById:id=>nodes.get(id)||null,createElement:tag=>new Element(tag)},addEventListener(){},dispatchEvent(){},setTimeout(){}});
   // Production uses a lexical binding; window.state is intentionally absent.
@@ -68,6 +68,15 @@ test('manual map choice outside the 750 initial options remains selected',()=>{
   const {state,api,nodes}=addressHarness();state.leads=Array.from({length:800},(_,index)=>({...original,id:100000+index,dbId:`lead-${index}`,fullAddress:`${index} Main St, Portland, OR 97201`}));
   api.refresh();api.setLead(state.leads[799],'map_pin');
   assert.equal(api.current().lead.dbId,'lead-799');assert.equal(nodes.get('fieldLeadSelect').value,'100799');
+});
+
+test('address save feedback survives list refresh and blur until the user edits',()=>{
+  const {api,nodes}=addressHarness();api.setTyped(different.fullAddress,'user_input');
+  const revision=api.revision();api.setMessage('Address added. Ready for SALE.');api.refresh();
+  nodes.get('fieldLeadAddressInput').dispatchEvent({type:'change'});
+  assert.equal(api.revision(),revision);assert.equal(nodes.get('fieldLeadAddressStatus').textContent,'Address added. Ready for SALE.');
+  api.setTyped('900 New Ave, Boise, ID 83702','user_input');assert.ok(api.revision()>revision);
+  assert.notEqual(nodes.get('fieldLeadAddressStatus').textContent,'Address added. Ready for SALE.');
 });
 
 function resumeHarness({initial='',typedVisit=false}={}){
