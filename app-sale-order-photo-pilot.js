@@ -4,7 +4,7 @@
   if(window.MCCOY_SALE_ORDER_PHOTO_PILOT)return;
   window.MCCOY_SALE_ORDER_PHOTO_PILOT=true;
 
-  const fallbackProviders=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
+  const fallbackProviders=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const fieldDefinitions=[
     ['customer_name','Customer name','text'],
     ['service_address','Address','text'],

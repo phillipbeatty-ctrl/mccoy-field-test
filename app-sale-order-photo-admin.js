@@ -4,7 +4,7 @@
   if(window.MCCOY_SALE_ORDER_PHOTO_ADMIN)return;
   window.MCCOY_SALE_ORDER_PHOTO_ADMIN=true;
 
-  for(const src of ['app-sale-review-events.js?v=2026082701','app-sale-order-photo-pilot.js?v=2026082701']){
+  for(const src of ['app-sale-review-events.js?v=2026082701','app-sale-order-photo-pilot.js?v=2026091105']){
     if(document.querySelector(`script[src^="${src.split('?')[0]}"]`))continue;
     const script=document.createElement('script');script.src=src;script.defer=true;document.body.appendChild(script);
   }
