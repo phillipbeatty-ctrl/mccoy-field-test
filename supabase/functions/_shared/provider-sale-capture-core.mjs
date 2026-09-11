@@ -5,6 +5,7 @@ export const SALE_PROVIDERS = Object.freeze([
   'T-Mobile / T-Fiber',
   'Kinetic',
   'Fidium',
+  'Ziply',
   'Ascend Fiber',
   'Lightcurve',
   'Ripple Fiber',
@@ -27,6 +28,7 @@ export function normalizeSaleProvider(value) {
   if (input.includes('tmobile') || input.includes('tfiber')) return 'T-Mobile / T-Fiber'
   if (input.includes('kinetic') || input.includes('windstream')) return 'Kinetic'
   if (input.includes('fidium')) return 'Fidium'
+  if (input === 'ziply' || input === 'ziplyfiber') return 'Ziply'
   if (input.includes('ascend')) return 'Ascend Fiber'
   if (input.includes('lightcurve')) return 'Lightcurve'
   if (input.includes('ripple')) return 'Ripple Fiber'

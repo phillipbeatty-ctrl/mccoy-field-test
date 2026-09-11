@@ -19,6 +19,9 @@ test('normalizes every configured provider dashboard', () => {
     'T-Fiber': 'T-Mobile / T-Fiber',
     Windstream: 'Kinetic',
     Fidium: 'Fidium',
+    Ziply: 'Ziply',
+    'Ziply Fiber': 'Ziply',
+    ' ZIPLY ': 'Ziply',
     Ascend: 'Ascend Fiber',
     Lightcurve: 'Lightcurve',
     Ripple: 'Ripple Fiber',
@@ -32,6 +35,7 @@ test('normalizes every configured provider dashboard', () => {
     assert.ok(SALE_PROVIDERS.includes(expected))
   }
   assert.equal(normalizeSaleProvider('unknown provider'), null)
+  assert.equal(normalizeSaleProvider('not Ziply'), null)
 })
 
 test('requires an explicit completed or abandoned outcome', () => {
