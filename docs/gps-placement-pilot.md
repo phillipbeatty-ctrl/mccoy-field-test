@@ -75,7 +75,7 @@ Background updates retain active input elements, keyboard, cursor and edits.
 ## Bounded release and source reconciliation
 
 Keep the original applied `20260911222724_field_gps_placement_pilot.sql` unchanged.
-Apply only the follow-up `20260911225650_knock_door_gps_placement.sql`, then deploy
+Apply only the follow-up `20260911231228_knock_door_gps_placement.sql`, then deploy
 `lead-gps-placement/index.ts` and `_shared/organization-paywall.ts` with JWT
 verification. Never run a blanket database push. Verify exact deployed source,
 RPC grants, retired action rejection and preservation of pilot/audit counts.
@@ -118,3 +118,11 @@ rollout and a newly bundled native Android release remain separate after accepta
 - /FAILHOW: A wrong typed address or poor GPS can still relocate the permitted group;
   original coordinates remain in the audit, and no false verification claim is made.
 - /NEXT: Verify the revised preview at known doors before broader enablement.
+
+Backend follow-up is verified: migration `20260911231228` is applied and
+`lead-gps-placement` v2 is ACTIVE. Source bytes match review, browser RPC execution
+is revoked, unauthenticated HTTP returns 401, and both retired actions reject.
+The release preserved the existing one enrolled account and five audit rows.
+See `supabase/releases/gps-placement/knock-door-release.json`. The four existing
+private-table RLS-without-policy INFO notices are deliberate: no browser grants
+are present. [Advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
