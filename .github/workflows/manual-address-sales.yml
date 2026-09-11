@@ -12,6 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci --ignore-scripts
       - name: Address selection, sale completion, map and access regressions
         run: >-
           node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs single-sales-hub-address.test.mjs typed-lead-address.test.mjs
