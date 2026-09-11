@@ -9,7 +9,7 @@ const errors = new Set(['active_field_role_required', 'active_user_profile_requi
   'enabled_required', 'gps_pilot_not_enabled', 'current_location_consent_required', 'unsupported_action',
   'request_id_required', 'request_payload_changed', 'valid_gps_required', 'fresh_gps_required',
   'complete_valid_address_required', 'address_group_not_authorized', 'stale_location', 'contact_too_long',
-  'use_selected_door_contact_editor', 'saved_door_visit_required', 'lead_not_available', 'lead_not_authorized'])
+  'use_selected_door_contact_editor', 'active_manual_knock_required', 'knock_address_changed', 'lead_not_available', 'lead_not_authorized'])
 
 serveWithOrganizationAccess('lead_management', async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -25,7 +25,7 @@ serveWithOrganizationAccess('lead_management', async request => {
     if (raw.length > 16000) return json({ error: 'request_too_large' }, 413)
     let body
     try { body = JSON.parse(raw) } catch { return json({ error: 'invalid_json' }, 400) }
-    if (!body || !['status', 'set_pilot', 'place_address', 'refine_disposition'].includes(body.action)) {
+    if (!body || !['status', 'set_pilot', 'add_address', 'knock_door'].includes(body.action)) {
       return json({ error: 'unsupported_action' }, 400)
     }
     const { data, error } = await db.rpc('field_gps_placement', {

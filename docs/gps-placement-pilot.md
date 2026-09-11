@@ -1,130 +1,120 @@
-# GPS doorway placement pilot
+# KNOCK DOOR GPS pilot
 
-This implements the owner's September 11 decisions: ADD ADDRESS places new leads
-at the user's reported GPS doorway and moves the complete matching address group,
-including its apartments, to that point. Poor accuracy is recorded and does not
-block an explicit placement. A later saved physical Visit improves only its own
-pin when the fresh reading has strictly better reported accuracy.
+The September 11 follow-up moves GPS placement from ADD ADDRESS and disposition
+completion to **KNOCK DOOR** (formerly Start Address). All runtime label writers,
+including authentication and address refreshes, use the same label.
 
-The GPS point is a user-reported door, not independent proof that the typed address
-is there. There is no old-pin distance limit and no artificial GPS-to-itself check.
-Every original coordinate is retained in a private audit. No leads, apartments,
-customer records, sales, or assignments are merged or deleted.
+## User flow
 
-## Pilot boundary
+1. Type one service address. **ADD ADDRESS** resolves the complete matching group
+   or creates the missing address/unit. It never asks for GPS or changes existing
+   coordinates. A newly created address has no map coordinates until its knock.
+   Duplicate rows are kept separate; ambiguity never picks the most recently active row.
+2. At the physical door, tap **KNOCK DOOR**. The existing session/visit operation
+   starts the visit, then one fresh GPS request places the matching address group.
+   Every authorized duplicate and apartment moves to that point. Poor accuracy
+   is applied and labeled; the point is the user's reported door, not independently
+   verified proof of the address. No GPS-to-old-pin distance limit is added.
+3. Record a disposition or sale. This does not acquire another placement fix or
+   move the pin. A new visit's KNOCK DOOR can relocate the group again, including
+   with worse reported accuracy. The earlier disposition refinement code is
+   retained in the original migration/history, but its endpoint action is retired.
 
-The frontend exposes this pilot only on the project's Vercel preview URLs (and
-localhost for development). The production domain retains existing behavior.
-The server also requires an enabled, unexpired account membership in
-`private.field_gps_pilot`. The migration enrolls nobody. An active Admin with the
-current location consent can use **START GPS PILOT** in the existing Sales Hub
-address area to enroll their own account for seven days. **PAUSE GPS PILOT** stops
-new placements immediately. The server rechecks the pilot on every write.
+The visit and GPS transaction have separate outcomes. If GPS is unavailable or
+rejected, the saved visit remains usable for disposition/sale. The status explains
+what failed, and KNOCK DOOR retries GPS without creating another visit. A lost GPS
+response reuses the exact request UUID/body until confirmed. A definite rejection
+permits a fresh fix. Rapid repeated taps cannot start duplicate requests.
 
-Other pilot accounts require deliberate operator enrollment; no browser-supplied
-role, organization, or actor can authorize an operation. Existing movement scopes
-apply: Admin within organization; Manager/Trainer on their assigned leads; Rep on
-their own assigned leads. Tester can create a new lead but has no expanded right
-to move existing leads. If any matching pin is unauthorized, the entire group
-operation stops. No partial moves and no disclosure of another organization's leads.
+## Pilot and permission boundary
 
-The earlier nearest-lead automation stays paused. GPS is requested only for
-ADD ADDRESS and an explicit physical Visit. Calls, texts, phone sales and automatic
-outcomes never reposition a pin. GPS failure does not block disposition saving or
-manual address sales. Precise GPS is never logged to the browser console or Edge logs.
+GPS UI remains enabled only on this project's Vercel previews and localhost.
+Broader production-domain enablement is off. Server membership in
+`private.field_gps_pilot` is also required and expires. An Admin with current
+consent can START/PAUSE their own seven-day pilot. Existing enrollments and audits
+are preserved; this follow-up does not enroll any user or relocate any customer pin.
 
-## Address and concurrency rules
+The Edge endpoint derives actor identity with auth.getUser and applies the
+existing organization gate. The service-role-only RPC rechecks active identity,
+organization, pilot, current GPS consent and assignment rights. Admin may move
+pins in their organization; Manager/Trainer and Rep retain their assigned scope.
+Tester has no expanded right to move existing rows. A mixed unauthorized group
+rejects atomically without exposing other organizations or partially moving rows.
 
-Matching includes street, city, state and five-digit ZIP. Case, punctuation,
-common street suffixes/directions and parsed inline apartment notation are
-normalized. Unit identifiers remain distinct. House-number fractions and ranges
-are retained. This is deliberately not fuzzy address or proximity matching.
+A GPS write additionally requires an owned, open field session and an active
+manual/typed door visit. Completed visits, automatic-nearest visits, Lead Pool
+activity receipts, other actors and expired/closed sessions cannot authorize it.
+For a selected lead, the server derives the address and preserves that exact lead
+identity. A typed address must match the saved visit; only an unambiguous exact
+unit is linked back to the visit. Ambiguous buildings remain unselected for spiral
+selection. A new exact lead is available immediately to the visit and sale context.
 
-All matching rows are locked in a stable order. GPS requests for a building
-serialize with an advisory transaction lock; concurrent retries reuse a request
-UUID scoped to actor and organization. A reused UUID with a changed payload is
-rejected. A pin edited after GPS capture causes the whole placement to stop;
-the next press obtains a fresh reading. GPS must have an actual browser capture
-timestamp no older than 30 seconds, with at most five seconds of clock skew.
-Invalid coordinates or missing accuracy cannot be substituted with zero.
+ADD ADDRESS and disposition GPS actions from older previews are rejected by the
+new endpoint/RPC. Reload the current preview to get KNOCK DOOR behavior. Ordinary
+manual sales and the paused nearest-lead code remain available as before.
 
-One exact unit match may be selected after placement. Multiple exact duplicates,
-or a building with multiple units and no specified door, return no selected lead.
-The user can choose from the existing stacked/spiral map pins. A specified new
-unit gets its own row while the building's existing rows are co-located.
+## Data integrity and responsiveness
 
-Existing customer information is never broadcast to a group. Use the selected-door
-contact editor for existing records. New-lead contact fields are created in the
-same transaction as the location, request record and audit.
+Street, city, state and five-digit ZIP define a conservative address group. Units,
+house fractions and number ranges remain distinct identities. No fuzzy proximity
+match is introduced. All matching rows lock in stable order. Creation, group
+coordinates, visit linkage, request receipt and per-lead original-coordinate
+audits commit or roll back together inside the GPS operation. The already-saved
+visit remains if this separate GPS operation rolls back.
 
-Disposition saving remains its existing operation. Location refinement then runs
-as a separate audited transaction tied to that actor's saved physical Visit and
-its exact GPS fields. If refinement fails, the disposition remains saved and the
-UI says the pin update was not confirmed. Coordinate and audit writes always
-commit or roll back together. Equal or worse subsequent accuracy leaves the pin.
+Fresh fixes must have a real browser timestamp within 30 seconds (five seconds
+future clock tolerance), valid coordinates and numeric accuracy. A later pin edit
+or changed selected address rejects the group. Account, session, address revision
+and active-visit guards prevent late browser responses from taking over a new
+selection. Confirmed pin versions are compared at microsecond precision so a
+late lead-list response cannot undo placement or a newer edit.
 
-## Source reconciliation and bounded backend release
+There is no new timer, GPS watcher, dropdown, address input or nearest selection.
+Background updates retain active input elements, keyboard, cursor and edits.
 
-The inspected production `lead-field-actions` is version 6, bundle SHA-256
-`46aea73ccac87076d996c4eb7c84509cfece09c1ce2ed663b9e24e8a5241f803`.
-Its exact source and deployment metadata are saved in
-`supabase/releases/gps-placement/live-creation-v6.json`. The only difference from
-the existing GitHub entry is the pending organization-access import and serving
-wrapper. The release test verifies this precise difference and stops on extra drift.
-The pending wrapper remains in source for its separate paywall release.
+## Bounded release and source reconciliation
 
-This pilot does not redeploy the existing creation endpoint. GPS creation instead
-uses the new `lead-gps-placement` endpoint, protected by the same organization gate
-already used by deployed `lead-admin`, plus the transaction's role, assignment,
-consent and pilot checks. Its source is the exact release candidate; there is no
-live-only GPS implementation. Existing sale functions and the broad paywall rollout
-are outside this release.
+Keep the original applied `20260911222724_field_gps_placement_pilot.sql` unchanged.
+Apply only the follow-up `20260911225650_knock_door_gps_placement.sql`, then deploy
+`lead-gps-placement/index.ts` and `_shared/organization-paywall.ts` with JWT
+verification. Never run a blanket database push. Verify exact deployed source,
+RPC grants, retired action rejection and preservation of pilot/audit counts.
 
-Release only `20260911222724_field_gps_placement_pilot.sql`, then deploy
-`lead-gps-placement/index.ts` with `_shared/organization-paywall.ts` and JWT
-verification enabled. Do not run a blanket database push. The migration adds four
-private tables, address helpers, one index and one service-role-only RPC. Verify
-the resulting source, ACLs, empty initial pilot membership and unauthorized HTTP
-rejection before inviting a doorway pilot. No production lead is needed for checks.
+The legacy creation v6 source is frozen in
+`supabase/releases/gps-placement/live-creation-v6.json`. Its known GitHub-only
+organization wrapper is still reserved for the separate paywall release. This
+change deploys no legacy creation, sale or broader paywall functions.
+`verified-release.json` records the initial v1 release; the follow-up receipt
+records the KNOCK DOOR backend separately.
 
 ## Acceptance before broader rollout
 
-Use a field-confirmed doorway on iPad, iPhone and Android browser/PWA. Start the
-pilot on the chosen Admin account, then:
+Use field-confirmed doors on iPad, iPhone and Android browser/PWA:
 
-1. Enter a new complete address and press ADD ADDRESS. Confirm its map point is
-   the physical doorway and record the displayed GPS accuracy.
-2. Repeat with a known duplicate/multifamily group. Confirm all existing units
-   stack, each retains its identity and customer information, and spiral selection
-   opens the intended unit. Test both typed and imported apartment formats.
-3. Save a physical Visit on one unit with a better reading. Confirm only that unit
-   improves. Repeat with equal/worse accuracy; confirm no movement. ADD ADDRESS
-   itself must still relocate deliberately even with worse accuracy.
-4. Test denied GPS, an expired fix, an unauthorized mixed-assignment group, an
-   interrupted response/retry and a simultaneous MOVE PIN. Confirm honest status,
-   retained address, no duplicate insertion and no partial group writes.
-5. Keep an unfinished address edit focused, open the map, and wait at least 70
-   seconds through background refresh. Confirm first-tap focus, stable dropdowns,
-   retained selection and no automatic nearest-lead selection.
-6. Pause the pilot and confirm normal manual address sales still work.
+1. ADD ADDRESS: existing coordinates stay unchanged; a new address is retained
+   without a GPS prompt. SALE remains available.
+2. KNOCK DOOR: the visit starts once and its complete permitted group moves.
+   Confirm exact-unit identity, duplicate stacking and spiral selection.
+3. Save disposition and sale: confirm neither repositions the group. Start a
+   later visit and confirm KNOCK DOOR can place it again.
+4. Deny GPS, interrupt a response, retry, and make a concurrent MOVE PIN. Confirm
+   clear status, one visit, no duplicate audit and no partial group movement.
+5. Change address/account while a request is pending. Confirm no stale selection
+   takes over. Open the map and wait at least 70 seconds during unfinished input;
+   require first-tap focus, stable keyboard/dropdowns and preserved edits.
+6. Pause the pilot and confirm ordinary address/sale actions still work.
 
-Record device/browser, lead IDs (in the private test record), reported accuracy,
-physical doorway comparison, group count, before/after outcome and any error code.
-Automated synthetic tests are not field-doorway acceptance. Broader enablement and
-a newly bundled native Android release remain separate steps after acceptance.
+Automated synthetic tests are not physical-doorway acceptance. Broader production
+rollout and a newly bundled native Android release remain separate after acceptance.
 
-## Backend verification — September 11, 2026
+## Eight-code review
 
-The pilot migration is applied as version `20260911222724`; its repository filename
-matches the version recorded by Supabase. `lead-gps-placement` v1 is active with
-JWT verification enabled, and both deployed source files match the reviewed
-release. Verification found zero enrolled accounts and zero location writes.
-Anonymous and authenticated browser roles cannot execute the database RPC; only
-the authenticated Edge service can call it. The production creation endpoint
-remains the verified v6 baseline. See `supabase/releases/gps-placement/verified-release.json`.
-
-The security advisor reports four informational “RLS enabled, no policy” notices
-for the private pilot tables. This is intentional: browser roles have neither
-table grants nor row policies, and the authorized Edge service uses its server
-role. No client allow-all policy was added to silence the notice.
-[Advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+- /PLAINLY: KNOCK DOOR is the GPS placement trigger.
+- /ATTACK: Old placement actions and non-manual/completed visit receipts are rejected.
+- /HOLES: Physical-device and actual-door accuracy still require the field pilot.
+- /STEELMAN: Recording a knock gives placement a clear physical-action meaning.
+- /SOWHAT: Address preparation and disposition entry cannot unexpectedly move a pin.
+- /ODDS: Synthetic database and runtime tests establish code behavior, not GPS accuracy.
+- /FAILHOW: A wrong typed address or poor GPS can still relocate the permitted group;
+  original coordinates remain in the audit, and no false verification claim is made.
+- /NEXT: Verify the revised preview at known doors before broader enablement.

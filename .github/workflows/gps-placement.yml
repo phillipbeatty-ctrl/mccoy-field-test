@@ -10,6 +10,7 @@ on:
       - 'test-support/gps-placement-schema.sql'
       - 'supabase/functions/lead-gps-placement/**'
       - 'supabase/migrations/*field_gps_placement_pilot.sql'
+      - 'supabase/migrations/*knock_door_gps_placement.sql'
       - 'supabase/releases/gps-placement/**'
       - '.github/workflows/gps-placement.yml'
   push:

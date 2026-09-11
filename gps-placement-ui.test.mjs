@@ -27,16 +27,16 @@ function harness({enabled=true,consent=true,production=false,handler=null}={}){
 }
 test('pilot stays off on production and has no GPS watchers or polling',async()=>{
   const h=harness({production:true});try{
-    assert.equal(await h.api.placeAddress({address}),null);assert.equal(h.calls.length,0);assert.equal(h.positions.length,0);assert.equal(h.intervals.length,0);
+    assert.equal(await h.api.knockDoor({visitId:"visit-a",address}),null);assert.equal(h.calls.length,0);assert.equal(h.positions.length,0);assert.equal(h.intervals.length,0);
   }finally{h.close();}
 });
 test('disabled pilot retains legacy address behavior without prompting for GPS',async()=>{
-  const h=harness({enabled:false});try{assert.equal(await h.api.placeAddress({address}),null);assert.equal(h.positions.length,0);}finally{h.close();}
+  const h=harness({enabled:false});try{assert.equal(await h.api.knockDoor({visitId:"visit-a",address}),null);assert.equal(h.positions.length,0);}finally{h.close();}
 });
 test('poor GPS places the group, retains the browser capture time and does not choose a duplicate',async()=>{
   const h=harness();try{
-    const p=h.api.placeAddress({address});await turn();const captured=Date.now()-1000;h.fix(200,captured);const result=await p;
-    const call=h.calls.find(c=>c.action==='place_address');assert.equal(call.input.gps.captured_at,new Date(captured).toISOString());
+    const p=h.api.knockDoor({visitId:"visit-a",address});await turn();const captured=Date.now()-1000;h.fix(200,captured);const result=await p;
+    const call=h.calls.find(c=>c.action==='knock_door');assert.equal(call.input.gps.captured_at,new Date(captured).toISOString());
     assert.equal(call.input.gps.accuracy_meters,200);assert.equal(call.input.address.address1,address.address1);assert.ok(call.input.request_id);
     assert.match(h.api.placementMessage(result),/2 pins placed/);assert.match(h.api.placementMessage(result),/Low accuracy/);assert.match(h.api.placementMessage(result),/stacked pins/);
     assert.equal(result.lead,null);assert.equal(h.positions[0].options.maximumAge,0);assert.equal(h.intervals.length,0);
@@ -44,31 +44,31 @@ test('poor GPS places the group, retains the browser capture time and does not c
 });
 test('late GPS cannot submit a changed address or changed account',async()=>{
   for(const accountChange of [false,true]){
-    const h=harness();try{let current=true;const p=h.api.placeAddress({address,isCurrent:()=>current});await turn();
+    const h=harness();try{let current=true;const p=h.api.knockDoor({visitId:"visit-a",address,isCurrent:()=>current});await turn();
       if(accountChange)h.w.MCCOY_ACCESS.user.id='other';else current=false;
-      h.fix();assert.equal(await p,null);assert.equal(h.calls.filter(c=>c.action==='place_address').length,0);
+      h.fix();assert.equal(await p,null);assert.equal(h.calls.filter(c=>c.action==='knock_door').length,0);
     }finally{h.close();}
   }
 });
 test('denied consent and invalid or expired GPS leave the address unchanged',async()=>{
-  const no=harness({consent:false});try{await assert.rejects(no.api.placeAddress({address}),/location notice/);assert.equal(no.positions.length,0);}finally{no.close();}
+  const no=harness({consent:false});try{await assert.rejects(no.api.knockDoor({visitId:"visit-a",address}),/location notice/);assert.equal(no.positions.length,0);}finally{no.close();}
   for(const accuracy of [-1,null,NaN]){
-    const h=harness();try{const p=h.api.placeAddress({address});await turn();h.fix(accuracy);await assert.rejects(p,/current GPS/);assert.equal(h.calls.filter(c=>c.action==='place_address').length,0);}finally{h.close();}
+    const h=harness();try{const p=h.api.knockDoor({visitId:"visit-a",address});await turn();h.fix(accuracy);await assert.rejects(p,/current GPS/);assert.equal(h.calls.filter(c=>c.action==='knock_door').length,0);}finally{h.close();}
   }
-  const h=harness();try{const p=h.api.placeAddress({address});await turn();h.fix(10,Date.now()-60000);await assert.rejects(p,/current GPS/);}finally{h.close();}
+  const h=harness();try{const p=h.api.knockDoor({visitId:"visit-a",address});await turn();h.fix(10,Date.now()-60000);await assert.rejects(p,/current GPS/);}finally{h.close();}
 });
 test('a lost response retries the same immutable request without moving twice',async()=>{
   let tries=0;const h=harness({handler:()=>++tries===1?{error:new Error('offline')}:{data:{ok:true,replayed:true}}});
-  try{const p=h.api.placeAddress({address});await turn();h.fix();await assert.rejects(p,/retry/);
-    assert.equal((await h.api.placeAddress({address})).replayed,true);
-    const calls=h.calls.filter(c=>c.action==='place_address');assert.equal(JSON.stringify(calls[0].input),JSON.stringify(calls[1].input));assert.equal(h.positions.length,1);
+  try{const p=h.api.knockDoor({visitId:"visit-a",address});await turn();h.fix();await assert.rejects(p,/retry/);
+    assert.equal((await h.api.knockDoor({visitId:"visit-a",address})).replayed,true);
+    const calls=h.calls.filter(c=>c.action==='knock_door');assert.equal(JSON.stringify(calls[0].input),JSON.stringify(calls[1].input));assert.equal(h.positions.length,1);
   }finally{h.close();}
 });
 test('a definite stale-location rejection asks for a fresh reading on the next press',async()=>{
   let tries=0;const h=harness({handler:()=>++tries===1?{data:{ok:false,error:'stale_location'}}:{data:{ok:true}}});
-  try{const p=h.api.placeAddress({address});await turn();h.fix();await assert.rejects(p,/pin changed/);
-    const retry=h.api.placeAddress({address});await turn();h.fix();await retry;
-    const calls=h.calls.filter(c=>c.action==='place_address');assert.notEqual(calls[0].input.request_id,calls[1].input.request_id);assert.equal(h.positions.length,2);
+  try{const p=h.api.knockDoor({visitId:"visit-a",address});await turn();h.fix();await assert.rejects(p,/pin changed/);
+    const retry=h.api.knockDoor({visitId:"visit-a",address});await turn();h.fix();await retry;
+    const calls=h.calls.filter(c=>c.action==='knock_door');assert.notEqual(calls[0].input.request_id,calls[1].input.request_id);assert.equal(h.positions.length,2);
   }finally{h.close();}
 });
 test('status and layout events retain first-tap focus, selection, draft and one address input',async()=>{
@@ -81,23 +81,18 @@ test('status and layout events retain first-tap focus, selection, draft and one 
     assert.equal(h.w.document.querySelector('#gpsPlacementPilotNotice').parentElement,input.closest('.field-lead-combobox'));
   }finally{h.close();}
 });
-test('only explicit physical visits acquire refinement GPS',async()=>{
-  const h=harness();try{
-    for(const activityType of ['Call','Text','Appointment'])assert.equal(await h.api.captureForDisposition({activityType}),null);
-    assert.equal(await h.api.captureForDisposition({activityType:'Visit',automatic:true}),null);assert.equal(h.positions.length,0);
-    const p=h.api.captureForDisposition({activityType:'Visit'});await turn();h.fix(10);assert.equal((await p).placementAccount,'actor:org');
+test('ADD ADDRESS never prompts for GPS and disposition hooks are absent',async()=>{
+  const h=harness({consent:false});try{
+    await h.api.addAddress({address});assert.equal(h.positions.length,0);
+    assert.equal(h.calls.filter(c=>c.action==='add_address').length,1);
+    assert.equal(h.api.captureForDisposition,undefined);assert.equal(h.api.dispositionSaved,undefined);
   }finally{h.close();}
 });
-test('refinement updates only its pin and preserves a successful disposition when location saving fails',async()=>{
-  const h=harness({handler:()=>({data:{ok:true,source:'user_reported_door',lead_ids:['a'],moved_count:1,latitude:46,longitude:-123,accuracy_meters:5,pin_version:new Date().toISOString()}})});
+test('late GPS responses cannot apply to a changed account or edited address',async()=>{
+  let resolve;const h=harness({handler:()=>new Promise(r=>resolve=r)});
   try{
-    h.w.state.realLeads=[{dbId:'a',lat:40},{dbId:'b',lat:40}];
-    const gps={lat:46,lng:-123,accuracy:5,capturedAt:Date.now(),placementAccount:'actor:org'};
-    assert.match(await h.api.dispositionSaved({visitId:'v',leadId:'a',gps}),/improved/);
-    assert.equal(h.w.state.realLeads[0].lat,46);assert.equal(h.w.state.realLeads[1].lat,40);
-    h.w.sb.functions.invoke=async()=>({error:new Error('offline')});
-    assert.match(await h.api.dispositionSaved({visitId:'v2',leadId:'a',gps}),/Disposition saved/);
-    h.w.MCCOY_ACCESS.user.id='other';assert.equal(await h.api.dispositionSaved({visitId:'v3',leadId:'a',gps}),'');
+    let current=true;const p=h.api.knockDoor({visitId:'v',address,isCurrent:()=>current});await turn();h.fix();await turn();
+    current=false;resolve({data:{ok:true,source:'user_reported_door'}});assert.equal(await p,null);
   }finally{h.close();}
 });
 test('an older lead-list response cannot undo placement and newer pin edits remain',()=>{
@@ -116,5 +111,85 @@ test('a sub-millisecond newer pin edit is not overwritten and duplicate updates 
     h.api.applyPlacement(data);assert.equal(h.w.state.realLeads[0].lat,49);assert.equal(events,0);
     data.pin_version='2026-02-01T00:00:00.123458Z';h.api.applyPlacement(data);h.api.applyPlacement(data);
     assert.equal(h.w.state.realLeads[0].lat,46);assert.equal(events,1);
+  }finally{h.close();}
+});
+
+function doorHarness({startHandler=null,...options}={}){
+  const h=harness(options),w=h.w,rpcs=[];
+  w.document.body.insertAdjacentHTML('beforeend','<button id="arriveDoorBtn">KNOCK DOOR</button><div id="doorVisitStatus"></div><div id="doorElapsed"></div><button id="savePinDispositionBtn"></button>');
+  Object.assign(w.state,{session:{startedAt:Date.now()},activities:[],breadcrumbs:[],leads:[]});
+  const lead={id:'a',dbId:'a',address:'100 Test St',fullAddress:'100 Test St, Portland, OR 97201'};
+  w.state.leads=[lead];w.state.realLeads=[lead];w.telemetrySessionId='session';
+  let revision=0;
+  w.MCCOY_LEAD_ADDRESS={current:()=>({kind:'assigned',valid:true,address:lead.fullAddress,lead}),revision:()=>revision};
+  vm.runInContext(readFileSync(new URL('./app-lead-address-core.js',import.meta.url),'utf8'),h.dom.getInternalVMContext());
+  w.snapshotGpsInstant=()=>null;w.saveTestEvent=()=>{};w.alert=()=>{};
+  w.renderDashboard=w.renderTeams=w.renderLeads=()=>{};
+  vm.runInContext(readFileSync(new URL('./app-door-workflow-core.js',import.meta.url),'utf8'),h.dom.getInternalVMContext());
+  w.sb.rpc=async(name,params)=>{
+    rpcs.push({name,params});
+    if(startHandler&&name==='record_door_visit_start')return startHandler();
+    return{data:{ok:true,visit_id:'visit-a',started_at:new Date().toISOString(),activity_type:'Visit',visit_result:'No Answer'}};
+  };
+  vm.runInContext(readFileSync(new URL('./app-part2.js',import.meta.url),'utf8'),h.dom.getInternalVMContext());
+  return{...h,rpcs,edit:()=>revision++,button:w.document.getElementById('arriveDoorBtn'),status:w.document.getElementById('doorVisitStatus')};
+}
+test('one KNOCK DOOR click starts a visit then submits its GPS; repeated taps do not duplicate it',async()=>{
+  const h=doorHarness();try{
+    h.button.click();await turn();assert.equal(h.rpcs[0].name,'record_door_visit_start');
+    assert.equal(h.positions.length,1);assert.equal(h.button.disabled,true);h.button.click();assert.equal(h.rpcs.length,1);
+    h.fix();await turn();assert.equal(h.calls.filter(c=>c.action==='knock_door').length,1);
+    assert.equal(h.calls.find(c=>c.action==='knock_door').input.visit_id,'visit-a');
+    assert.equal(h.w.state.activeDoorVisit.gpsKnockPending,false);assert.equal(h.button.disabled,false);
+    h.button.click();await turn();assert.equal(h.positions.length,1);assert.equal(h.rpcs.length,1);
+    assert.match(h.status.textContent,/Door visit started.*2 pins placed/);
+  }finally{h.close();}
+});
+test('GPS rejection retains the saved visit and KNOCK DOOR retries only its GPS',async()=>{
+  const h=doorHarness();try{
+    const p=h.w.MCCOY_START_DOOR_VISIT();await turn();h.positions[0].fail({code:1});assert.equal(await p,true);
+    assert.equal(h.w.state.activeDoorVisit.serverVisitId,'visit-a');assert.match(h.status.textContent,/Door visit started.*permission was denied/);
+    const retry=h.w.MCCOY_START_DOOR_VISIT();await turn();h.fix();assert.equal(await retry,true);
+    assert.equal(h.rpcs.length,1);assert.equal(h.calls.filter(c=>c.action==='knock_door').length,1);
+  }finally{h.close();}
+});
+test('an unsaved visit, automatic start, or changed address never submits pin GPS',async()=>{
+  const failed=doorHarness({startHandler:()=>({data:{ok:false,reason:'session_expired'}})});
+  try{assert.equal(await failed.w.MCCOY_START_DOOR_VISIT(),false);assert.equal(failed.positions.length,0);}finally{failed.close();}
+  const automatic=doorHarness();try{assert.equal(await automatic.w.MCCOY_START_DOOR_VISIT({automatic:true}),true);assert.equal(automatic.positions.length,0);}finally{automatic.close();}
+  const changed=doorHarness();try{
+    const p=changed.w.MCCOY_START_DOOR_VISIT();await turn();changed.edit();changed.fix();assert.equal(await p,true);
+    assert.equal(changed.calls.filter(c=>c.action==='knock_door').length,0);
+  }finally{changed.close();}
+});
+test('saving the disposition after a knock does not acquire or submit another pin location',async()=>{
+  const h=doorHarness();try{
+    const p=h.w.MCCOY_START_DOOR_VISIT();await turn();h.fix();await p;
+    const positions=h.positions.length,calls=h.calls.length;
+    assert.equal(await h.w.MCCOY_COMPLETE_DOOR_VISIT('spotio',{activityType:'Visit',visitResult:'No Answer'}),true);
+    assert.equal(h.positions.length,positions);assert.equal(h.calls.length,calls);assert.equal(h.w.state.activeDoorVisit,null);
+    assert.equal(h.rpcs.at(-1).name,'record_spotio_door_visit_completion');
+  }finally{h.close();}
+});
+test('a newly placed exact typed door stays linked to its visit and immediate sale',async()=>{
+  const h=doorHarness({handler:()=>({data:{ok:true,created:true,source:'user_reported_door',lead:{id:'new-door'},lead_ids:['new-door'],moved_count:1,latitude:45.5,longitude:-122.6,pin_version:new Date().toISOString(),accuracy_meters:20}})});
+  try{
+    let context={kind:'typed',address:'999 New St, Portland, OR 97201',valid:true,lead:null};
+    h.w.MCCOY_LEAD_ADDRESS.current=()=>context;
+    h.w.MCCOY_LEAD_ADDRESS.setLead=lead=>context={kind:'assigned',address:lead.fullAddress,valid:true,lead};
+    const p=h.w.MCCOY_START_DOOR_VISIT();await turn();h.fix();await p;
+    assert.equal(h.rpcs[0].name,'record_ad_hoc_door_visit_start');
+    assert.equal(h.w.state.activeDoorVisit.lead.dbId,'new-door');
+    assert.ok(h.w.state.leads.some(lead=>lead.dbId==='new-door'));
+    const source=h.w.MCCOY_LEAD_ADDRESS_CORE.saleSource({addressContext:context,activeVisit:h.w.state.activeDoorVisit,sessionId:'session'});
+    assert.equal(source.lead_id,'new-door');assert.equal(source.source_door_visit_id,'visit-a');
+  }finally{h.close();}
+});
+test('a late visit-start response cannot restore another account or request its GPS',async()=>{
+  let resolve;const h=doorHarness({startHandler:()=>new Promise(r=>resolve=r)});
+  try{
+    const p=h.w.MCCOY_START_DOOR_VISIT();await turn();h.w.MCCOY_ACCESS.user.id='other';
+    resolve({data:{ok:true,visit_id:'old-account-visit'}});await p;
+    assert.equal(h.w.state.activeDoorVisit,undefined);assert.equal(h.positions.length,0);
   }finally{h.close();}
 });

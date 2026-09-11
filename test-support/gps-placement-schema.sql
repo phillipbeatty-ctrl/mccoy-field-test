@@ -23,6 +23,7 @@ create table public.app_user_access(
   assigned_admin_name text,
   organization_id uuid not null
 );
+create table public.test_sessions(id uuid primary key,tester_user_id uuid not null,started_at timestamptz not null,ended_at timestamptz);
 create table public.door_visits(
   id uuid default gen_random_uuid() not null,
   lead_id uuid,

@@ -17,9 +17,18 @@ test('production creation drift is reconciled against a frozen exact source, wit
 });
 test('every changed GPS script is versioned and the nearest-lead pause remains intact',()=>{
   const html=read('./index.html'),loader=read('./app-page-layout.js'),worker=read('./service-worker.js');
-  for(const name of ['app-gps-placement.js','app-part2.js','app-page-layout.js','app-field-lead-editor.js','app-lead-pool-independent-activity.js']){
-    assert.ok((html+loader).includes(name+'?v=2026091107'),name+' must be loaded');
-    assert.ok(worker.includes(name+'?v=2026091107'),name+' must be cached');
+  for(const name of ['app-gps-placement.js','app-part2.js','app-page-layout.js','app-field-lead-editor.js','app-lead-pool-independent-activity.js','app-auth.js','app-typed-lead-address.js']){
+    assert.ok((html+loader).includes(name+'?v=2026091108'),name+' must be loaded');
+    assert.ok(worker.includes(name+'?v=2026091108'),name+' must be cached');
   }
   assert.match(read('./app-field-features.js'),/automaticNearestLead:false/);
+});
+test('all label writers say KNOCK DOOR and ADD ADDRESS/dispositions cannot invoke GPS placement',()=>{
+  assert.match(read('./index.html'),/id="arriveDoorBtn"[^>]*>KNOCK DOOR</);
+  assert.match(read('./app-typed-lead-address.js'),/setText\(arrive,'KNOCK DOOR'\)/);
+  assert.equal((read('./app-auth.js').match(/textContent='KNOCK DOOR'/g)||[]).length,2);
+  assert.doesNotMatch(read('./app-field-lead-editor.js'),/\.placeAddress\(|\.knockDoor\(/);
+  assert.doesNotMatch(read('./app-part2.js')+read('./app-lead-pool-independent-activity.js'),/captureForDisposition|dispositionSaved/);
+  const endpoint=read('./supabase/functions/lead-gps-placement/index.ts');
+  assert.match(endpoint,/\['status', 'set_pilot', 'add_address', 'knock_door'\]/);
 });

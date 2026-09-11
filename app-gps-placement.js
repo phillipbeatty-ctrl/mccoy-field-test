@@ -14,10 +14,13 @@
     gps_pilot_not_enabled:'The GPS pilot is paused for this account. Your address is retained.',
     address_group_not_authorized:'Some pins at this address are outside your movement permissions. No pins moved. Ask your Manager or Admin to place the group.',
     lead_not_authorized:'This pin is outside your movement permissions.',
-    stale_location:'A pin changed while this GPS reading was being captured. No pins moved. Press ADD ADDRESS again for a fresh reading.',
-    fresh_gps_required:'The GPS reading expired before saving. Press ADD ADDRESS again for a fresh reading.',
+    stale_location:'A pin changed while this GPS reading was being captured. No pins moved. Tap KNOCK DOOR again for a fresh reading.',
+    fresh_gps_required:'The GPS reading expired before saving. Tap KNOCK DOOR again for a fresh reading.',
     valid_gps_required:'A current GPS position with accuracy information is required. Your address is retained.',
     use_selected_door_contact_editor:'Select the customer’s door on the map to update its contact information. No pins moved.',
+    active_manual_knock_required:'Start a manual door visit before updating its pin.',
+    knock_address_changed:'The address differs from the started visit. No pins moved.',
+    unsupported_action:'Reload this preview to use KNOCK DOOR for GPS placement.',
     organization_access_denied:'This organization does not currently have lead-management access.',
   };
   async function call(action,input={}){
@@ -48,8 +51,8 @@
     const toggle=notice.querySelector('button');toggle.hidden=!status?.can_manage;
     toggle.textContent=status?.enabled?'PAUSE GPS PILOT':'START GPS PILOT';
     notice.querySelector('span').textContent=status?.enabled?
-      'ADD ADDRESS moves this address and its units to your current GPS location. Accuracy is recorded.':
-      'Admin doorway pilot for this account. Existing matching pins will move when you add an address.';
+      'KNOCK DOOR places this address and its units at your GPS location. ADD ADDRESS does not move pins.':
+      'Admin doorway pilot for this account. Matching pins move when you tap KNOCK DOOR.';
   }
   function refreshStatus(){
     if(!preview||!window.MCCOY_ACCESS?.access?.active||!window.MCCOY_ACCESS?.user?.id){status=null;renderNotice();return Promise.resolve(null);}
@@ -91,33 +94,44 @@
       {enableHighAccuracy:true,maximumAge:0,timeout:7000});
     });
   }
-  async function placeAddress({address,contact={},isCurrent=()=>true,onProgress=()=>{}}){
-    const key=identity();
-    if(!(await ready())?.enabled)return null;
-    if(!isCurrent()||key!==identity())return null;
-    const fingerprint=JSON.stringify([key,address,contact]);
-    let input=pending.get(fingerprint);
-    if(!input){
-      onProgress('Capturing your door location. Existing matching pins and units will move here…');
-      const gps=await freshGps();
-      if(!isCurrent()||key!==identity())return null;
-      input={address:{...address},contact:{...contact},gps,request_id:crypto.randomUUID()};
-      pending.set(fingerprint,input);
-    }else onProgress('Checking the previous placement request…');
+  async function submit(action,fingerprint,input){
+    pending.set(fingerprint,input);
     try{
-      const data=await call('place_address',input);pending.delete(fingerprint);return data;
+      const data=await call(action,input);pending.delete(fingerprint);return data;
     }catch(error){
-      // A lost response may follow a committed transaction. Reuse the exact body
-      // and UUID until the server confirms the result or a definite rejection.
+      // Lost responses retry the exact payload; definite rejections permit a new fix.
       if(!['network_uncertain','gps_placement_unavailable','gps_placement_failed'].includes(error.code))pending.delete(fingerprint);
       throw error;
     }
   }
+  async function addAddress({address,contact={},isCurrent=()=>true}){
+    const key=identity();
+    if(!(await ready())?.enabled||!isCurrent()||key!==identity())return null;
+    const fingerprint=JSON.stringify(['add',key,address,contact]);
+    const input=pending.get(fingerprint)||{address:{...address},contact:{...contact},request_id:crypto.randomUUID()};
+    return submit('add_address',fingerprint,input);
+  }
+  async function knockDoor({visitId,address,isCurrent=()=>true,onProgress=()=>{}}){
+    const key=identity();
+    if(!(await ready())?.enabled||!isCurrent()||key!==identity())return null;
+    if(!visitId)throw new Error(messages.active_manual_knock_required);
+    const fingerprint=JSON.stringify(['knock',key,visitId,address]);
+    let input=pending.get(fingerprint);
+    if(!input){
+      onProgress('Door visit started. Capturing GPS to place this address and its units…');
+      const gps=await freshGps();
+      if(!isCurrent()||key!==identity())return null;
+      input={visit_id:visitId,address:address?{...address}:null,gps,request_id:crypto.randomUUID()};
+    }else onProgress('Door visit started. Checking the previous GPS save…');
+    const data=await submit('knock_door',fingerprint,input);
+    return isCurrent()&&key===identity()?data:null;
+  }
   function placementMessage(data){
     if(!data?.source)return null;
+    if(data.source==='address_only')return `${data.created?'Address added to the Lead Pool.':'Address found in the Lead Pool.'} Tap KNOCK DOOR at the door to place its pin.`+(data.requires_door_selection?' Choose a specific door from the map’s stacked pins when needed.':'');
     const count=Number(data.moved_count||0);
     return `${data.created?'Address added. ':''}${count} ${count===1?'pin placed':'pins placed'} at your GPS location (±${Math.round(data.accuracy_meters)} m).`+
-      (data.low_accuracy?' Low accuracy recorded; a better reading on a later door visit can improve this pin.':'')+
+      (data.low_accuracy?' Low accuracy recorded; the next KNOCK DOOR can update this location.':'')+
       (data.requires_door_selection?' Choose a door from the map’s stacked pins to work with a specific lead.':'');
   }
   function versionMicros(value){
@@ -145,32 +159,7 @@
     }
     if(changed)window.dispatchEvent(new CustomEvent('mccoy-leads-updated',{detail:{source:'gps_placement',leadIds:data.lead_ids}}));
   }
-  async function captureForDisposition({activityType,automatic=false}){
-    if(automatic||activityType!=='Visit'||!preview)return null;
-    const key=identity();
-    try{
-      if(!(await ready())?.enabled)return null;
-      const gps=await freshGps();
-      if(identity()!==key)return null;
-      return{lat:gps.latitude,lng:gps.longitude,accuracy:gps.accuracy_meters,capturedAt:Date.parse(gps.captured_at),placementAccount:key};
-    }catch(_){return null;} // A missing fix must not prevent a door disposition.
-  }
-  async function dispositionSaved({visitId,leadId,gps}){
-    if(!visitId||!leadId||!gps?.placementAccount||gps.placementAccount!==identity())return '';
-    const key=identity();
-    try{
-      const data=await call('refine_disposition',{request_id:visitId,visit_id:visitId,gps:{latitude:gps.lat,longitude:gps.lng,accuracy_meters:gps.accuracy,captured_at:new Date(gps.capturedAt).toISOString()}});
-      if(key!==identity())return '';
-      if(data.moved_count){
-        applyPlacement(data);
-        return ` Pin location improved (±${Math.round(data.accuracy_meters)} m).`;
-      }
-      return ' Pin retained: the GPS reading was not more accurate.';
-    }catch(_){
-      return key===identity()?' Disposition saved; the pin location could not be updated.':'';
-    }
-  }
-  window.MCCOY_GPS_PLACEMENT=Object.freeze({placeAddress,placementMessage,applyPlacement,captureForDisposition,dispositionSaved,refreshStatus});
+  window.MCCOY_GPS_PLACEMENT=Object.freeze({addAddress,knockDoor,placementMessage,applyPlacement,refreshStatus});
   window.addEventListener('mccoy-access-ready',()=>{refreshStatus().catch(()=>{});});
   window.addEventListener('mccoy-sales-hub-layout-ready',renderNotice);
   if(preview&&window.MCCOY_ACCESS?.access?.active)refreshStatus().catch(()=>{});
