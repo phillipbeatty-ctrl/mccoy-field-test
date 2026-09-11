@@ -16,7 +16,9 @@ hidden; Sales Hub has no lead dropdown or address suggestion list.
 ## Current behavior
 
 Type a full service address in Sales Hub and press SALE. In Lead Pool, use
-"Sale for any address" and PROCESS SALE immediately; CENTER MAP is optional.
+"Phone sale by address" and PROCESS SALE immediately; CENTER MAP is optional.
+That existing phone flow retains its outside-system classification and Admin
+approval requirement. Sales Hub uses the field-sale workflow.
 No lead, permanent pin, GPS fix, geocode result, or active field session is required
 to start the provider capture. Existing authentication, organization access,
 provider completion and evidence requirements still apply.
@@ -60,9 +62,11 @@ address identity, unrelated-visit isolation, provider-intent snapshot, stale
 geocode responses, geocode failure, role visibility and duplicate-contact checks.
 The workflow also runs the existing sale completion, phone sale, map and access
 regressions. These use controlled test inputs; they do not create production sales.
-The full related suite passes 174 tests. The latest ten cover the one-line
+The full related suite passes 176 tests. The latest ten cover the one-line
 interface, full-address parsing, unit preservation, shared creation, duplicate
 clicks, late responses, inline errors and feedback retained through refresh/blur.
+Review regressions also verify phone-sale classification through the provider
+router and the loader's resolved-empty-array error path after a successful save.
 
 Before accepting the mobile flow, verify on the preview with an active field
 account: blank address stays blank as GPS changes; type an address absent from the

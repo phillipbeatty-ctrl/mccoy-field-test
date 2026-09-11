@@ -259,7 +259,7 @@
   function ensurePhoneSearch(){
     const controls=byId('leadGeoControls');if(!controls||byId('leadPoolPhoneSaleSearch'))return false;
     const panel=document.createElement('div');panel.id='leadPoolPhoneSaleSearch';panel.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid #dbe4f0';
-    panel.innerHTML='<strong>Sale for any address</strong><div class="muted small" style="margin:3px 0 7px">Enter the full service address, including unit, city, state and ZIP. You can process a sale without a map pin.</div><div style="display:flex;flex-wrap:wrap;gap:7px"><input id="leadPoolPhoneAddress" aria-label="Sale service address" maxlength="240" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="flex:1 1 240px;min-width:0;min-height:44px;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER MAP (OPTIONAL)</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">Type an address and process the sale. Centering the map and adding a pin are optional.</div>';
+    panel.innerHTML='<strong>Phone sale by address</strong><div class="muted small" style="margin:3px 0 7px">Enter the full service address, including unit, city, state and ZIP. Phone sales require Admin approval; a map pin is optional.</div><div style="display:flex;flex-wrap:wrap;gap:7px"><input id="leadPoolPhoneAddress" aria-label="Sale service address" maxlength="240" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="flex:1 1 240px;min-width:0;min-height:44px;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER MAP (OPTIONAL)</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">Type an address and process the sale. Centering the map and adding a pin are optional.</div>';
     controls.appendChild(panel);
     byId('leadPoolCenterAddressBtn').addEventListener('click',searchPhoneAddress);
     byId('leadPoolPhoneSaleBtn').addEventListener('click',()=>{updateAddressIntent();if(phoneContext)startExplicitSale({...phoneContext});});
@@ -283,9 +283,7 @@
   function updateAddressIntent(){
     const address=String(byId('leadPoolPhoneAddress')?.value||'').trim();
     const lead=localAddressMatch(address);
-    phoneContext=address.length>=5?{
-      ...explicitSaleContext({lead,address,source:'lead_pool_address_sale'}),sale_context:'field'
-    }:null;
+    phoneContext=address.length>=5?explicitSaleContext({lead,address,source:'lead_pool_address_sale'}):null;
     byId('leadPoolPhoneSaleBtn').disabled=!phoneContext;
     phoneMessage(phoneContext?'Ready to process this address. Centering the map and adding a pin are optional.':'Enter a complete service address.');
     return phoneContext;

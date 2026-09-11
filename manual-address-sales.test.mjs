@@ -97,6 +97,18 @@ test('typing immediately enables SALE without running geocoding',()=>{
   nodes.leadPoolPhoneAddress.value='';vm.runInContext('updateAddressIntent()',s);assert.equal(nodes.leadPoolPhoneSaleBtn.disabled,true);
 });
 
+test('the Lead Pool phone-address flow retains the classification used for Admin approval',()=>{
+  const nodes={leadPoolPhoneAddress:element(other),leadPoolPhoneSaleBtn:element()};
+  const s=scope({byId:id=>nodes[id],state:{realLeads:[lead]},phoneContext:null,MCCOY_LEAD_ADDRESS_CORE:core,currentSessionId:()=>null,validPoint:()=>null,leadAddress:value=>value?.fullAddress||'',phoneMessage(){}});
+  vm.runInContext(['explicitSaleContext','localAddressMatch','updateAddressIntent'].map(name=>fn('./app-lead-pool-independent-activity.js',name)).join('\n'),s);
+  vm.runInContext('updateAddressIntent()',s);
+  assert.equal(s.phoneContext.sale_context,'out_of_area_phone');assert.equal(s.phoneContext.service_address,other);
+  s.MCCOY_PENDING_SALE_CONTEXT=s.phoneContext;vm.runInContext(fn('./app-provider-sale-router.js','saleSourceContext'),s);
+  const captureSource=vm.runInContext('saleSourceContext()',s);
+  assert.equal(captureSource.sale_context,'out_of_area_phone');assert.equal(captureSource.preserve_active_visit,true);assert.equal(captureSource.source_door_visit_id,null);
+  assert.equal(core.saleSource({addressContext:core.context({value:other})}).sale_context,'field');
+});
+
 for(const failure of [false,true])test(`late ${failure?'failed':'successful'} map lookup cannot replace a newly typed sale address`,async()=>{
   const{s,nodes,resolve}=addressSearchHarness();const pending=vm.runInContext('searchPhoneAddress()',s);
   nodes.leadPoolPhoneAddress.value='800 Oak Ave, Boise, ID 83702';s.addressRevision++;vm.runInContext('updateAddressIntent()',s);
@@ -125,8 +137,8 @@ test('blank optional contact fields cannot erase a matched existing lead',async(
 test('web cache loads the pause before all legacy automatic selectors',()=>{
   const html=read('./index.html'),worker=read('./service-worker.js'),layout=read('./app-page-layout.js');
   for(const name of ['app-part1.js','app-distance-to-lead.js','app-auto-door-arrival.js'])assert.ok(html.indexOf('app-field-features.js')<html.indexOf(name));
-  assert.match(worker,/field-coach-app-shell-v17-20260911-single-address/);
-  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v=2026091102'));
-  assert.match(layout,/app-closest-lead-autofill-v2.js\?v=2026091102/);
+  assert.match(worker,/field-coach-app-shell-v18-20260911-single-address/);
+  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v=2026091103'));
+  assert.match(layout,/app-closest-lead-autofill-v2.js\?v=2026091103/);
   assert.match(read('./app-part1.js'),/<option value="">Type an address or select a lead<\/option>/);
 });

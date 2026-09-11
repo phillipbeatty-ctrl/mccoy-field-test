@@ -268,10 +268,13 @@
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();
       if(!isCurrent())return;
+      // The loader resolves [] after exhausting retries; it does not reject.
+      if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
       if(leadId){
         // An already-running load may have started before the insert. Retry once after it finishes.
         if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
         if(!isCurrent())return;
+        if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
         const lead=leadByAnyId(leadId);
         const shown=lead&&showSavedPin(lead);
         message(savedMessage+(shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));

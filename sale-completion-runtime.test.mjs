@@ -333,7 +333,7 @@ test('client and cache contracts ship the fixed runtime to web, PWA, iOS, and An
   assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026090201')<indexSource.indexOf('app-page-layout.js'))
   assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026090201/)
   assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026090201/)
-  assert.match(workerSource,/field-coach-app-shell-v17-20260911-single-address/)
+  assert.match(workerSource,/field-coach-app-shell-v18-20260911-single-address/)
   assert.match(workerSource,/app-supabase-client\.js\?v=2026090201/)
   assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026090201/)
   assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026090201/)

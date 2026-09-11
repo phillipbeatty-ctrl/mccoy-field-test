@@ -77,3 +77,12 @@ test('failed pin creation restores ADD ADDRESS and reports the error in the same
   const h=creationHarness();h.s.call=async()=>{throw new Error('Map lookup is unavailable. You can still process a sale for this address.');};
   await h.start();assert.equal(h.button.disabled,false);assert.match(h.messages.at(-1),/still process a sale/);
 });
+
+test('a loader that resolves an error as [] reports a saved address without a second retry cycle',async()=>{
+  const h=creationHarness();let loads=0;
+  h.s.loadMcCoyLeads=async()=>{loads++;h.s.MCCOY_LAST_LEAD_LOAD={error:'offline'};return[];};
+  const pending=h.start();h.resolve({created:true,lead:{id:'lead-a'}});await pending;
+  assert.equal(loads,1);assert.equal(h.calls.includes('select'),false);
+  assert.match(h.messages.at(-1),/address was saved, but its pin could not be refreshed/);
+  assert.equal(h.button.disabled,false);
+});
