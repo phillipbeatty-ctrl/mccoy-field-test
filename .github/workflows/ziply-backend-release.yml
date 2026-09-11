@@ -1,0 +1,143 @@
+name: Ziply backend package and protected release
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/releases/ziply-20260911/**'
+      - 'supabase/migrations/20260911121718_add_ziply_sale_provider.sql'
+      - 'supabase/functions/_shared/provider-sale-capture-core*'
+      - 'scripts/ziply-release-package.mjs'
+      - 'scripts/deploy-ziply-backend.mjs'
+      - 'scripts/test-ziply-migration.mjs'
+      - 'ziply-backend-release.test.mjs'
+      - '.github/workflows/ziply-backend-release.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/releases/ziply-20260911/**'
+      - 'supabase/migrations/20260911121718_add_ziply_sale_provider.sql'
+      - 'supabase/functions/_shared/provider-sale-capture-core*'
+      - 'scripts/ziply-release-package.mjs'
+      - 'scripts/deploy-ziply-backend.mjs'
+      - 'scripts/test-ziply-migration.mjs'
+      - 'ziply-backend-release.test.mjs'
+      - '.github/workflows/ziply-backend-release.yml'
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Inspect only, or apply the separately approved Ziply backend release.
+        required: true
+        default: preflight
+        type: choice
+        options: [preflight, deploy]
+      expected_sha:
+        description: Full reviewed main commit SHA; must equal this workflow's checked-out commit.
+        required: true
+        type: string
+      confirmation:
+        description: Type DEPLOY_ZIPLY only for an approved production deployment.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Test actual bundled handlers, provider compatibility and deployment stops
+        run: node --test ziply-backend-release.test.mjs supabase/functions/_shared/provider-sale-capture-core.test.mjs
+      - name: Build deterministic candidate and rollback source packages
+        run: node scripts/ziply-release-package.mjs "${RUNNER_TEMP}/ziply-package"
+      - name: Retain reviewed source packages and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: ziply-backend-package-${{ github.sha }}
+          path: ${{ runner.temp }}/ziply-package/
+          if-no-files-found: error
+          retention-days: 30
+
+  migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_DB: ziply_release_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: ziply_release_test
+      PGUSER: postgres
+      PGPASSWORD: local_ci_only
+      ZIPLY_MIGRATION_TEST: '1'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Exercise the actual migration and atomic history on disposable PostgreSQL
+        run: node scripts/test-ziply-migration.mjs
+
+  protected-release:
+    needs: [package, migration]
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.actor == 'phillipbeatty-ctrl' &&
+      (inputs.operation == 'preflight' || (inputs.operation == 'deploy' && inputs.confirmation == 'DEPLOY_ZIPLY'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: field-coach-paywall-phase2-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Revalidate canonical security guards before the scoped release
+        run: |
+          node scripts/apply-edge-paywall-guards.mjs
+          node --test organization-access-gate.test.mjs paywall-phase2.test.mjs paywall-deployment.test.mjs
+          deno check --node-modules-dir=auto supabase/functions/_shared/organization-paywall.ts
+      - name: Verify reviewed main and execute the exact Ziply operation
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EXPECTED_RELEASE_SHA: ${{ inputs.expected_sha }}
+          ZIPLY_OPERATION: ${{ inputs.operation }}
+          ZIPLY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/deploy-ziply-backend.mjs
+      - name: Retain success or partial-release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ziply-backend-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/ziply-backend-evidence/
+          if-no-files-found: warn
+          retention-days: 90
