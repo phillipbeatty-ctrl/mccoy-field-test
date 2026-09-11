@@ -11,6 +11,7 @@ on:
       - 'supabase/functions/lead-gps-placement/**'
       - 'supabase/migrations/*field_gps_placement_pilot.sql'
       - 'supabase/migrations/*knock_door_gps_placement.sql'
+      - 'supabase/migrations/*field_gps_production_rollout.sql'
       - 'supabase/releases/gps-placement/**'
       - '.github/workflows/gps-placement.yml'
   push:

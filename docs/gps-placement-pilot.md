@@ -1,4 +1,4 @@
-# KNOCK DOOR GPS pilot
+# KNOCK DOOR GPS placement
 
 The September 11 follow-up moves GPS placement from ADD ADDRESS and disposition
 completion to **KNOCK DOOR** (formerly Start Address). All runtime label writers,
@@ -26,17 +26,23 @@ what failed, and KNOCK DOOR retries GPS without creating another visit. A lost G
 response reuses the exact request UUID/body until confirmed. A definite rejection
 permits a fresh fix. Rapid repeated taps cannot start duplicate requests.
 
-## Pilot and permission boundary
+## Production and permission boundary
 
-GPS UI remains enabled only on this project's Vercel previews and localhost.
-Broader production-domain enablement is off. Server membership in
-`private.field_gps_pilot` is also required and expires. An Admin with current
-consent can START/PAUSE their own seven-day pilot. Existing enrollments and audits
-are preserved; this follow-up does not enroll any user or relocate any customer pin.
+The user reported testing complete and authorized implementation on September 11.
+The production follow-up enables the existing tested flow on McCoy's HTTPS web/PWA
+domains. An operator-controlled `private.field_gps_rollout` setting enables only
+the active `mccoy-platform-llc` organization. Current and future eligible users do
+not need individual pilot enrollment. The production UI has no pilot toggle.
+Existing preview pilot enrollments and audits are preserved.
+
+The organization setting has no browser grants. The service role can read it but
+cannot change it; production enablement requires an operator database operation.
+Other organizations remain disabled unless separately enrolled for a pilot or
+explicitly enabled. Existing account pilots still expire and work on previews.
 
 The Edge endpoint derives actor identity with auth.getUser and applies the
 existing organization gate. The service-role-only RPC rechecks active identity,
-organization, pilot, current GPS consent and assignment rights. Admin may move
+organization, rollout/pilot access, current GPS consent and assignment rights. Admin may move
 pins in their organization; Manager/Trainer and Rep retain their assigned scope.
 Tester has no expanded right to move existing rows. A mixed unauthorized group
 rejects atomically without exposing other organizations or partially moving rows.
@@ -50,7 +56,7 @@ unit is linked back to the visit. Ambiguous buildings remain unselected for spir
 selection. A new exact lead is available immediately to the visit and sale context.
 
 ADD ADDRESS and disposition GPS actions from older previews are rejected by the
-new endpoint/RPC. Reload the current preview to get KNOCK DOOR behavior. Ordinary
+new endpoint/RPC. Reload Field Coach to get KNOCK DOOR behavior. Ordinary
 manual sales and the paused nearest-lead code remain available as before.
 
 ## Data integrity and responsiveness
@@ -74,20 +80,35 @@ Background updates retain active input elements, keyboard, cursor and edits.
 
 ## Bounded release and source reconciliation
 
-Keep the original applied `20260911222724_field_gps_placement_pilot.sql` unchanged.
-Apply only the follow-up `20260911231228_knock_door_gps_placement.sql`, then deploy
-`lead-gps-placement/index.ts` and `_shared/organization-paywall.ts` with JWT
-verification. Never run a blanket database push. Verify exact deployed source,
-RPC grants, retired action rejection and preservation of pilot/audit counts.
+Keep the already-applied `20260911222724_field_gps_placement_pilot.sql` and
+`20260911231228_knock_door_gps_placement.sql` unchanged. Apply only
+`20260911233605_field_gps_production_rollout.sql`, verify its recorded migration
+version and RPC body, then run
+`supabase/releases/gps-placement/enable-production.sql` for the approved McCoy
+organization. The existing JWT-verified `lead-gps-placement` v2 bundle already
+passes through the new status fields; no Edge function redeployment is required.
+Never run a blanket database push. Verify exact deployed source, RPC/table grants,
+retired action rejection and preservation of pilot/audit counts.
+
+To pause new production placements, an operator sets the organization's rollout
+row to `enabled=false`. Existing independent pilot enrollments must also be
+disabled for a complete organization stop. Reload the app to refresh displayed
+availability; server authorization is checked on every operation. Manual visits
+and sales remain available, and previous pin coordinates remain in the audit.
 
 The legacy creation v6 source is frozen in
 `supabase/releases/gps-placement/live-creation-v6.json`. Its known GitHub-only
 organization wrapper is still reserved for the separate paywall release. This
 change deploys no legacy creation, sale or broader paywall functions.
 `verified-release.json` records the initial v1 release; the follow-up receipt
-records the KNOCK DOOR backend separately.
+records the KNOCK DOOR backend separately. `production-release.json` records the
+production rollout and the user's acceptance without replacing historical receipts.
 
-## Acceptance before broader rollout
+## Acceptance checklist
+
+The user reports testing complete for the accepted PR #136 preview at commit
+`2ff864a0e1f5e3e765a4ea9d55b6546ea8e2039d`. This is user-reported acceptance;
+the release record does not claim separately observed device-by-device results.
 
 Use field-confirmed doors on iPad, iPhone and Android browser/PWA:
 
@@ -102,22 +123,23 @@ Use field-confirmed doors on iPad, iPhone and Android browser/PWA:
 5. Change address/account while a request is pending. Confirm no stale selection
    takes over. Open the map and wait at least 70 seconds during unfinished input;
    require first-tap focus, stable keyboard/dropdowns and preserved edits.
-6. Pause the pilot and confirm ordinary address/sale actions still work.
+6. Confirm ordinary address/sale actions still work when GPS is unavailable.
 
-Automated synthetic tests are not physical-doorway acceptance. Broader production
-rollout and a newly bundled native Android release remain separate after acceptance.
+Automated synthetic tests are not physical-doorway acceptance. This release
+publishes the production web/PWA. A newly bundled and signed native Android
+release is separate; previously installed native bundles do not update with Vercel.
 
 ## Eight-code review
 
 - /PLAINLY: KNOCK DOOR is the GPS placement trigger.
 - /ATTACK: Old placement actions and non-manual/completed visit receipts are rejected.
-- /HOLES: Physical-device and actual-door accuracy still require the field pilot.
+- /HOLES: Acceptance is user-reported; native Android bundle publication is separate.
 - /STEELMAN: Recording a knock gives placement a clear physical-action meaning.
 - /SOWHAT: Address preparation and disposition entry cannot unexpectedly move a pin.
 - /ODDS: Synthetic database and runtime tests establish code behavior, not GPS accuracy.
 - /FAILHOW: A wrong typed address or poor GPS can still relocate the permitted group;
   original coordinates remain in the audit, and no false verification claim is made.
-- /NEXT: Verify the revised preview at known doors before broader enablement.
+- /NEXT: Enable the approved organization, merge PR #136 and verify production assets.
 
 Backend follow-up is verified: migration `20260911231228` is applied and
 `lead-gps-placement` v2 is ACTIVE. Source bytes match review, browser RPC execution

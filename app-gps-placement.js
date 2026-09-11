@@ -5,13 +5,15 @@
   const preview=/^https?:$/.test(location.protocol)&&(
     /^(localhost|127\.0\.0\.1)$/.test(location.hostname)||
     /^mccoy-field-test-(?:git-|[a-z0-9]+-)[a-z0-9-]+\.vercel\.app$/.test(location.hostname));
+  const productionHost=location.protocol==='https:'&&['www.mccoyplatform.com','mccoyplatform.com','mccoy-field-test.vercel.app'].includes(location.hostname);
+  const enabledHost=preview||productionHost;
   const identity=()=>`${window.MCCOY_ACCESS?.user?.id||''}:${window.MCCOY_ACCESS?.access?.organization_id||''}`;
   const consented=()=>typeof mccoyConsentAccepted!=='undefined'&&mccoyConsentAccepted===true;
   let account='',status=null,loading=null,notice=null;
   const pending=new Map();
   const messages={
     current_location_consent_required:'Accept the current location notice before placing a pin.',
-    gps_pilot_not_enabled:'The GPS pilot is paused for this account. Your address is retained.',
+    gps_pilot_not_enabled:'GPS placement is unavailable for this account. Your address is retained.',
     address_group_not_authorized:'Some pins at this address are outside your movement permissions. No pins moved. Ask your Manager or Admin to place the group.',
     lead_not_authorized:'This pin is outside your movement permissions.',
     stale_location:'A pin changed while this GPS reading was being captured. No pins moved. Tap KNOCK DOOR again for a fresh reading.',
@@ -20,7 +22,7 @@
     use_selected_door_contact_editor:'Select the customer’s door on the map to update its contact information. No pins moved.',
     active_manual_knock_required:'Start a manual door visit before updating its pin.',
     knock_address_changed:'The address differs from the started visit. No pins moved.',
-    unsupported_action:'Reload this preview to use KNOCK DOOR for GPS placement.',
+    unsupported_action:'Reload Field Coach to use KNOCK DOOR for GPS placement.',
     organization_access_denied:'This organization does not currently have lead-management access.',
   };
   async function call(action,input={}){
@@ -35,7 +37,7 @@
     return data;
   }
   function renderNotice(){
-    if(!preview)return;
+    if(!enabledHost)return;
     const button=document.getElementById('addFieldAddressBtn');
     if(!button)return;
     if(!notice?.isConnected){
@@ -48,14 +50,14 @@
       notice.append(toggle,text);(button.closest('.field-lead-combobox')||button.parentElement).appendChild(notice);
     }
     notice.hidden=!status?.can_manage&&!status?.enabled;
-    const toggle=notice.querySelector('button');toggle.hidden=!status?.can_manage;
+    const toggle=notice.querySelector('button');toggle.hidden=productionHost||status?.production_enabled||!status?.can_manage;
     toggle.textContent=status?.enabled?'PAUSE GPS PILOT':'START GPS PILOT';
     notice.querySelector('span').textContent=status?.enabled?
       'KNOCK DOOR places this address and its units at your GPS location. ADD ADDRESS does not move pins.':
       'Admin doorway pilot for this account. Matching pins move when you tap KNOCK DOOR.';
   }
   function refreshStatus(){
-    if(!preview||!window.MCCOY_ACCESS?.access?.active||!window.MCCOY_ACCESS?.user?.id){status=null;renderNotice();return Promise.resolve(null);}
+    if(!enabledHost||!window.MCCOY_ACCESS?.access?.active||!window.MCCOY_ACCESS?.user?.id){status=null;renderNotice();return Promise.resolve(null);}
     const key=identity();
     if(key!==account){account=key;status=null;loading=null;pending.clear();}
     if(loading)return loading;
@@ -65,7 +67,7 @@
     return request;
   }
   async function ready(){
-    if(!preview)return null;
+    if(!enabledHost)return null;
     if(identity()!==account||!status)await refreshStatus();
     return status;
   }
@@ -162,5 +164,5 @@
   window.MCCOY_GPS_PLACEMENT=Object.freeze({addAddress,knockDoor,placementMessage,applyPlacement,refreshStatus});
   window.addEventListener('mccoy-access-ready',()=>{refreshStatus().catch(()=>{});});
   window.addEventListener('mccoy-sales-hub-layout-ready',renderNotice);
-  if(preview&&window.MCCOY_ACCESS?.access?.active)refreshStatus().catch(()=>{});
+  if(enabledHost&&window.MCCOY_ACCESS?.access?.active)refreshStatus().catch(()=>{});
 })();

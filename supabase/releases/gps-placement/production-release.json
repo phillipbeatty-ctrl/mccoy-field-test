@@ -1,0 +1,36 @@
+{
+  "project_id": "athxxrfqxwlfnuvbqadp",
+  "organization_slug": "mccoy-platform-llc",
+  "acceptance": {
+    "status": "user-reported testing complete; production implementation authorized",
+    "accepted_preview_commit": "2ff864a0e1f5e3e765a4ea9d55b6546ea8e2039d",
+    "accepted_preview_url": "https://mccoy-field-test-o127o5plv-phillipbeatty-6762s-projects.vercel.app/",
+    "device_by_device_observation": "not independently recorded by Codex"
+  },
+  "migration": {
+    "file": "supabase/migrations/20260911233605_field_gps_production_rollout.sql",
+    "status": "prepared; not yet applied"
+  },
+  "activation": {
+    "file": "supabase/releases/gps-placement/enable-production.sql",
+    "status": "prepared; not yet enabled"
+  },
+  "edge": {
+    "name": "lead-gps-placement",
+    "version": 2,
+    "redeployment_required": false
+  },
+  "verification": {
+    "local_database_tests": 19,
+    "gps_ui_tests": 19,
+    "release_tests": 3,
+    "responsiveness_tests": 67,
+    "release_checks": "pending"
+  },
+  "scope": "McCoy production web/PWA; KNOCK DOOR only placement trigger; no native binary, legacy sale function or broader paywall release",
+  "sha256": {
+    "supabase/migrations/20260911233605_field_gps_production_rollout.sql": "e280198fdae6c49069f5b2536feaa9343efacb778476176726d605ce2bd79e90",
+    "supabase/releases/gps-placement/enable-production.sql": "30f90c0b4da09668b9f295d6646f7a253daf1a761bd37356f91dbdd507c068dc",
+    "app-gps-placement.js": "49fbfffc725c2d6d5091e95aecd574efe221a020c673417ffeb7e234c7a772a8"
+  }
+}

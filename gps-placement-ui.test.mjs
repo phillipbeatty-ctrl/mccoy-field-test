@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const source=readFileSync(new URL('./app-gps-placement.js',import.meta.url),'utf8');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const address={address1:'100 Test St',address2:'',city:'Portland',state:'OR',zip:'97201'};
-function harness({enabled=true,consent=true,production=false,handler=null}={}){
+function harness({enabled=true,consent=true,production=false,productionEnabled=false,handler=null}={}){
   const dom=new JSDOM('<div class="field-lead-combobox"><div><input id="fieldLeadAddressInput"><button id="addFieldAddressBtn">ADD ADDRESS</button></div><div id="fieldLeadAddressStatus"></div></div>',{
     runScripts:'outside-only',pretendToBeVisual:true,url:production?'https://www.mccoyplatform.com/':'http://localhost:3000/'});
   const w=dom.window,calls=[],positions=[],intervals=[];
@@ -16,18 +16,18 @@ function harness({enabled=true,consent=true,production=false,handler=null}={}){
   Object.defineProperty(w.navigator,'geolocation',{value:{getCurrentPosition:(ok,fail,options)=>positions.push({ok,fail,options})}});
   w.sb={functions:{invoke:async(name,{body})=>{
     calls.push({name,...body});
-    if(body.action==='status')return{data:{ok:true,enabled,can_manage:true,consented:consent}};
+    if(body.action==='status')return{data:{ok:true,enabled,production_enabled:productionEnabled,can_manage:!productionEnabled,consented:consent}};
     if(handler)return handler(body);
-    if(body.action==='set_pilot')return{data:{ok:true,enabled:body.input.enabled,can_manage:true,consented:consent}};
+    if(body.action==='set_pilot')return{data:{ok:true,enabled:body.input.enabled,production_enabled:productionEnabled,can_manage:!productionEnabled,consented:consent}};
     return{data:{ok:true,source:'user_reported_door',moved_count:2,accuracy_meters:200,low_accuracy:true,requires_door_selection:true,lead:null}};
   }}};
   vm.runInContext(source,dom.getInternalVMContext());
   const fix=(accuracy=200,timestamp=Date.now())=>positions.at(-1).ok({timestamp,coords:{latitude:45.5,longitude:-122.6,accuracy}});
   return{w,dom,calls,positions,intervals,fix,api:w.MCCOY_GPS_PLACEMENT,close:()=>w.close()};
 }
-test('pilot stays off on production and has no GPS watchers or polling',async()=>{
-  const h=harness({production:true});try{
-    assert.equal(await h.api.knockDoor({visitId:"visit-a",address}),null);assert.equal(h.calls.length,0);assert.equal(h.positions.length,0);assert.equal(h.intervals.length,0);
+test('production stays disabled when the server has not enabled the organization',async()=>{
+  const h=harness({production:true,enabled:false});try{
+    assert.equal(await h.api.knockDoor({visitId:"visit-a",address}),null);assert.equal(h.calls.filter(c=>c.action!=='status').length,0);assert.equal(h.positions.length,0);assert.equal(h.intervals.length,0);
   }finally{h.close();}
 });
 test('disabled pilot retains legacy address behavior without prompting for GPS',async()=>{
@@ -191,5 +191,16 @@ test('a late visit-start response cannot restore another account or request its 
     const p=h.w.MCCOY_START_DOOR_VISIT();await turn();h.w.MCCOY_ACCESS.user.id='other';
     resolve({data:{ok:true,visit_id:'old-account-visit'}});await p;
     assert.equal(h.w.state.activeDoorVisit,undefined);assert.equal(h.positions.length,0);
+  }finally{h.close();}
+});
+
+test('production enables KNOCK DOOR without exposing pilot enrollment controls',async()=>{
+  const h=harness({production:true,productionEnabled:true});try{
+    await h.api.addAddress({address});assert.equal(h.positions.length,0);
+    const p=h.api.knockDoor({visitId:'production-visit',address});await turn();h.fix();await p;
+    assert.equal(h.calls.filter(c=>c.action==='knock_door').length,1);
+    assert.equal(h.w.document.getElementById('gpsPlacementPilotToggle').hidden,true);
+    assert.match(h.w.document.getElementById('gpsPlacementPilotStatus').textContent,/KNOCK DOOR/);
+    assert.equal(h.intervals.length,0);
   }finally{h.close();}
 });

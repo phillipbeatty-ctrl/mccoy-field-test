@@ -137,7 +137,7 @@ test('blank optional contact fields cannot erase a matched existing lead',async(
 test('web cache loads the pause before all legacy automatic selectors',()=>{
   const html=read('./index.html'),worker=read('./service-worker.js'),layout=read('./app-page-layout.js');
   for(const name of ['app-part1.js','app-distance-to-lead.js','app-auto-door-arrival.js'])assert.ok(html.indexOf('app-field-features.js')<html.indexOf(name));
-  assert.match(worker,/field-coach-app-shell-v22-20260911-knock-door/);
+  assert.match(worker,/field-coach-app-shell-v23-20260911-knock-production/);
   for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091103':name==='app-field-lead-editor.js'?'2026091108':'2026091108')));
   assert.match(layout,/app-closest-lead-autofill-v2.js\?v=2026091106/);
   assert.match(read('./app-part1.js'),/<option value="">Type an address or select a lead<\/option>/);

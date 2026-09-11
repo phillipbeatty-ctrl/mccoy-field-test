@@ -49,6 +49,7 @@ before(async()=>{
   await db.exec(await readFile(new URL('./test-support/gps-placement-schema.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('./supabase/migrations/20260911222724_field_gps_placement_pilot.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('./supabase/migrations/20260911231228_knock_door_gps_placement.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('./supabase/migrations/20260911233605_field_gps_production_rollout.sql',import.meta.url),'utf8'));
   await query('insert into public.organizations values($1),($2)',[org,otherOrg]);
   await query("insert into public.app_config(key,value) values('privacy_notice_version','test-notice')");
   let n=0;
@@ -192,4 +193,23 @@ test('disable and expiry immediately stop new placements',async()=>{
   await call(admin,'set_pilot',{enabled:false});await assert.rejects(knock(admin,input(address('111 Test St'))),/gps_pilot_not_enabled/);
   await query("update private.field_gps_pilot set enabled_until=now()-interval '1 second' where user_id=$1",[rep.id]);
   await assert.rejects(knock(rep,input(address('112 Test St'))),/gps_pilot_not_enabled/);
+});
+
+test('production rollout enables the organization without individual pilot enrollment',async()=>{
+  await query('delete from private.field_gps_pilot');
+  assert.equal((await call(rep,'status')).enabled,false);
+  await query("insert into private.field_gps_rollout(organization_id,enabled,release_ref) values($1,true,'test-accepted-release')",[org]);
+  for(const who of [admin,manager,trainer,rep]){
+    const status=await call(who,'status');assert.equal(status.enabled,true);assert.equal(status.production_enabled,true);assert.equal(status.can_manage,false);
+  }
+  assert.equal((await call(other,'status')).enabled,false);
+  assert.equal((await call(admin,'set_pilot',{enabled:false})).enabled,true);
+  assert.equal(Number((await first('select count(*) n from private.field_gps_pilot')).n),0);
+  const a=address('Production Enabled St');const added=await call(rep,'add_address',{request_id:randomUUID(),address:a});
+  const placed=await knock(rep,input(a));assert.equal(placed.lead.id,added.lead.id);assert.equal(placed.moved_count,1);
+  const mixed=address('Production Scope St');await lead({a:mixed});await lead({a:mixed,owner:tester});
+  await assert.rejects(knock(rep,input(mixed)),/address_group_not_authorized/);
+  assert.equal((await first("select has_table_privilege('authenticated','private.field_gps_rollout','UPDATE') allowed")).allowed,false);
+  await query("update private.field_gps_rollout set enabled=false where organization_id=$1",[org]);
+  await assert.rejects(knock(rep,input(a)),/gps_pilot_not_enabled/);
 });
