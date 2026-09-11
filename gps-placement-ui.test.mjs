@@ -89,7 +89,7 @@ test('only explicit physical visits acquire refinement GPS',async()=>{
   }finally{h.close();}
 });
 test('refinement updates only its pin and preserves a successful disposition when location saving fails',async()=>{
-  const h=harness({handler:()=>({data:{ok:true,moved_count:1,latitude:46,longitude:-123,accuracy_meters:5,pin_version:'v2'}})});
+  const h=harness({handler:()=>({data:{ok:true,source:'user_reported_door',lead_ids:['a'],moved_count:1,latitude:46,longitude:-123,accuracy_meters:5,pin_version:new Date().toISOString()}})});
   try{
     h.w.state.realLeads=[{dbId:'a',lat:40},{dbId:'b',lat:40}];
     const gps={lat:46,lng:-123,accuracy:5,capturedAt:Date.now(),placementAccount:'actor:org'};
@@ -98,5 +98,23 @@ test('refinement updates only its pin and preserves a successful disposition whe
     h.w.sb.functions.invoke=async()=>({error:new Error('offline')});
     assert.match(await h.api.dispositionSaved({visitId:'v2',leadId:'a',gps}),/Disposition saved/);
     h.w.MCCOY_ACCESS.user.id='other';assert.equal(await h.api.dispositionSaved({visitId:'v3',leadId:'a',gps}),'');
+  }finally{h.close();}
+});
+test('an older lead-list response cannot undo placement and newer pin edits remain',()=>{
+  const h=harness();try{
+    h.w.state.realLeads=[{dbId:'a',lat:40,updatedAt:'2026-01-01T00:00:00Z'},{dbId:'b',lat:49,updatedAt:'2026-03-01T00:00:00Z'}];
+    h.api.applyPlacement({source:'user_reported_door',lead_ids:['a','b'],pin_version:'2026-02-01T00:00:00Z',latitude:46,longitude:-123,low_accuracy:true});
+    assert.equal(h.w.state.realLeads[0].lat,46);assert.equal(h.w.state.realLeads[0].updatedAt,'2026-02-01T00:00:00Z');
+    assert.equal(h.w.state.realLeads[1].lat,49);assert.equal(h.w.state.realLeads[1].updatedAt,'2026-03-01T00:00:00Z');
+  }finally{h.close();}
+});
+test('a sub-millisecond newer pin edit is not overwritten and duplicate updates emit no event',()=>{
+  const h=harness();try{
+    h.w.state.realLeads=[{dbId:'a',lat:49,updatedAt:'2026-02-01T00:00:00.123457+00:00'}];
+    let events=0;h.w.addEventListener('mccoy-leads-updated',()=>events++);
+    const data={source:'user_reported_door',lead_ids:['a'],pin_version:'2026-02-01T00:00:00.123456Z',latitude:46,longitude:-123};
+    h.api.applyPlacement(data);assert.equal(h.w.state.realLeads[0].lat,49);assert.equal(events,0);
+    data.pin_version='2026-02-01T00:00:00.123458Z';h.api.applyPlacement(data);h.api.applyPlacement(data);
+    assert.equal(h.w.state.realLeads[0].lat,46);assert.equal(events,1);
   }finally{h.close();}
 });

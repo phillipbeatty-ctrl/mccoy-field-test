@@ -45,7 +45,7 @@ async function visit(id,g,{who=admin,activity='Visit',auto=false}={}){
 }
 before(async()=>{
   await db.exec(await readFile(new URL('./test-support/gps-placement-schema.sql',import.meta.url),'utf8'));
-  await db.exec(await readFile(new URL('./supabase/migrations/20260911215359_field_gps_placement_pilot.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('./supabase/migrations/20260911222724_field_gps_placement_pilot.sql',import.meta.url),'utf8'));
   await query('insert into public.organizations values($1),($2)',[org,otherOrg]);
   await query("insert into public.app_config(key,value) values('privacy_notice_version','test-notice')");
   let n=0;

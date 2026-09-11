@@ -329,10 +329,12 @@
         if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
         if(!isCurrent())return;
         if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
+        window.MCCOY_GPS_PLACEMENT?.applyPlacement?.(data);
         const lead=leadByAnyId(leadId);
         const shown=lead&&showSavedPin(lead);
         message(savedMessage+(shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));
       }else{
+        window.MCCOY_GPS_PLACEMENT?.applyPlacement?.(data);
         message(savedMessage+' Ready for SALE.');
       }
       // Keep the address available for PROCESS SALE without requiring re-entry.

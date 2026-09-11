@@ -120,6 +120,31 @@
       (data.low_accuracy?' Low accuracy recorded; a better reading on a later door visit can improve this pin.':'')+
       (data.requires_door_selection?' Choose a door from the map’s stacked pins to work with a specific lead.':'');
   }
+  function versionMicros(value){
+    const match=String(value||'').match(/^(.*:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/);
+    if(!match)return null;
+    const seconds=Date.parse(match[1]+match[3]);
+    return Number.isFinite(seconds)?BigInt(seconds)*1000n+BigInt((match[2]||'').padEnd(6,'0').slice(0,6)):null;
+  }
+  function applyPlacement(data){
+    if(data?.source!=='user_reported_door'||!Array.isArray(data.lead_ids)||!data.pin_version)return;
+    const ids=new Set(data.lead_ids.map(String)),version=versionMicros(data.pin_version);
+    if(version===null)return;
+    // A list request can have started before the placement transaction. Apply its
+    // confirmed coordinates after that list resolves, but retain any newer edit.
+    const rows=typeof state!=='undefined'?[...(state.realLeads||[]),...(state.leads||[])]:[];
+    let changed=false;
+    for(const lead of new Set(rows))if(ids.has(String(lead.dbId||lead.id))){
+      const current=versionMicros(lead.updatedAt);
+      if(current!==null&&current>version)continue;
+      if(current===version&&lead.lat===data.latitude&&lead.lng===data.longitude)continue;
+      changed=true;
+      lead.lat=data.latitude;lead.lng=data.longitude;lead.updatedAt=data.pin_version;
+      lead.geocodeProvider='device_gps';lead.geocodePrecision='reported_door';
+      lead.geocodeStatus='field_reported';lead.geocodeVerificationStatus=data.low_accuracy?'gps_reported_door_low_accuracy':'gps_reported_door';
+    }
+    if(changed)window.dispatchEvent(new CustomEvent('mccoy-leads-updated',{detail:{source:'gps_placement',leadIds:data.lead_ids}}));
+  }
   async function captureForDisposition({activityType,automatic=false}){
     if(automatic||activityType!=='Visit'||!preview)return null;
     const key=identity();
@@ -137,10 +162,7 @@
       const data=await call('refine_disposition',{request_id:visitId,visit_id:visitId,gps:{latitude:gps.lat,longitude:gps.lng,accuracy_meters:gps.accuracy,captured_at:new Date(gps.capturedAt).toISOString()}});
       if(key!==identity())return '';
       if(data.moved_count){
-        for(const lead of (typeof state!=='undefined'?state.realLeads||[]:[]))if(String(lead.dbId||lead.id)===String(leadId)){
-          lead.lat=data.latitude;lead.lng=data.longitude;lead.pinLocationUpdatedAt=data.pin_version;
-        }
-        window.dispatchEvent(new CustomEvent('mccoy-leads-updated',{detail:{source:'gps_disposition_refinement',leadId}}));
+        applyPlacement(data);
         return ` Pin location improved (±${Math.round(data.accuracy_meters)} m).`;
       }
       return ' Pin retained: the GPS reading was not more accurate.';
@@ -148,7 +170,7 @@
       return key===identity()?' Disposition saved; the pin location could not be updated.':'';
     }
   }
-  window.MCCOY_GPS_PLACEMENT=Object.freeze({placeAddress,placementMessage,captureForDisposition,dispositionSaved,refreshStatus});
+  window.MCCOY_GPS_PLACEMENT=Object.freeze({placeAddress,placementMessage,applyPlacement,captureForDisposition,dispositionSaved,refreshStatus});
   window.addEventListener('mccoy-access-ready',()=>{refreshStatus().catch(()=>{});});
   window.addEventListener('mccoy-sales-hub-layout-ready',renderNotice);
   if(preview&&window.MCCOY_ACCESS?.access?.active)refreshStatus().catch(()=>{});

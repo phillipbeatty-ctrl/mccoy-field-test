@@ -80,7 +80,7 @@ consent and pilot checks. Its source is the exact release candidate; there is no
 live-only GPS implementation. Existing sale functions and the broad paywall rollout
 are outside this release.
 
-Release only `20260911215359_field_gps_placement_pilot.sql`, then deploy
+Release only `20260911222724_field_gps_placement_pilot.sql`, then deploy
 `lead-gps-placement/index.ts` with `_shared/organization-paywall.ts` and JWT
 verification enabled. Do not run a blanket database push. The migration adds four
 private tables, address helpers, one index and one service-role-only RPC. Verify
@@ -112,3 +112,19 @@ Record device/browser, lead IDs (in the private test record), reported accuracy,
 physical doorway comparison, group count, before/after outcome and any error code.
 Automated synthetic tests are not field-doorway acceptance. Broader enablement and
 a newly bundled native Android release remain separate steps after acceptance.
+
+## Backend verification — September 11, 2026
+
+The pilot migration is applied as version `20260911222724`; its repository filename
+matches the version recorded by Supabase. `lead-gps-placement` v1 is active with
+JWT verification enabled, and both deployed source files match the reviewed
+release. Verification found zero enrolled accounts and zero location writes.
+Anonymous and authenticated browser roles cannot execute the database RPC; only
+the authenticated Edge service can call it. The production creation endpoint
+remains the verified v6 baseline. See `supabase/releases/gps-placement/verified-release.json`.
+
+The security advisor reports four informational “RLS enabled, no policy” notices
+for the private pilot tables. This is intentional: browser roles have neither
+table grants nor row policies, and the authorized Edge service uses its server
+role. No client allow-all policy was added to silence the notice.
+[Advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).

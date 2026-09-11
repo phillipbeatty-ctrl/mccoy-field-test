@@ -1,0 +1,33 @@
+{
+  "project_ref": "athxxrfqxwlfnuvbqadp",
+  "migration_version": "20260911222724",
+  "migration_name": "field_gps_placement_pilot",
+  "edge_function": {
+    "slug": "lead-gps-placement",
+    "version": 1,
+    "verify_jwt": true,
+    "bundle_sha256": "242986e2d80428490309a532eb03a9f87cc601d5be3dd0eec167592bc71bccef"
+  },
+  "verification": {
+    "deployed_sources_match": true,
+    "enrolled_accounts": 0,
+    "location_writes": 0,
+    "anon_rpc_execute": false,
+    "authenticated_rpc_execute": false,
+    "service_role_rpc_execute": true,
+    "unauthenticated_http_status": 401,
+    "active_admin_status_checked": true,
+    "security_advisor": {
+      "level": "INFO",
+      "name": "rls_enabled_no_policy",
+      "gps_table_count": 4,
+      "expected": true,
+      "reason": "Private tables deny browser access; the service_role executes authorized operations."
+    }
+  },
+  "source_sha256": {
+    "supabase/migrations/20260911222724_field_gps_placement_pilot.sql": "f662e9ceb185e56b2de5f03dd31a3f2202a7dae68a3c812a4f728e9f57c61fdb",
+    "supabase/functions/lead-gps-placement/index.ts": "9b61d2a7aa3c60e43e844758eb5f722e97a6a3dfa3f62673d934a9429afb3cab",
+    "supabase/functions/_shared/organization-paywall.ts": "c730e953e81ed68f48c8102039ce43c8e0f29e12e8f5d15a3372e980e7f3bf54"
+  }
+}
