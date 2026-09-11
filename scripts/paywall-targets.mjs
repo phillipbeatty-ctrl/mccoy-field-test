@@ -9,6 +9,7 @@ export const edgePaywallTargets=new Map([
   ['lead-admin','lead_management'],
   ['lead-field-actions','lead_management'],
   ['lead-geocode','lead_management'],
+  ['lead-gps-placement','lead_management'],
   ['lead-map-address-search','lead_management'],
   ['lead-pin-snapshot','lead_management'],
   ['metrics-visibility','analytics'],
