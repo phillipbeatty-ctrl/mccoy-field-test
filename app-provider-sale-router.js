@@ -284,6 +284,8 @@
     const continueButton=document.getElementById('providerRouterContinue');
     continueButton.disabled=false;continueButton.textContent='OPEN PROVIDER DASHBOARD';
     choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
+    // A maximized map sits above the provider chooser and sale-completion UI.
+    window.MCCOY_LEAD_MAP_WINDOW?.restore?.();
     updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
   function closeRouter(){if(routing)return;panel.classList.remove('show');pending=null;window.MCCOY_PENDING_SALE_CONTEXT=null;}

@@ -9,7 +9,7 @@
   root.innerHTML='<label for="fieldLeadAddressInput">Lead or service address</label><div class="field-lead-combobox-row"><input id="fieldLeadAddressInput" list="fieldLeadAddressOptions" autocomplete="street-address" maxlength="240" placeholder="Street, unit, city, state and ZIP" aria-describedby="fieldLeadAddressStatus"><button id="clearFieldLeadAddress" type="button" class="assign-btn" aria-label="Clear lead address">CLEAR</button></div><datalist id="fieldLeadAddressOptions"></datalist><div id="fieldLeadAddressStatus" class="muted small" role="status" aria-live="polite">Type a complete service address or select a lead, then press SALE. A map pin is optional.</div>';
   select.insertAdjacentElement('beforebegin',root);select.classList.add('field-lead-select-native');select.setAttribute('aria-hidden','true');select.tabIndex=-1;
   const input=document.getElementById('fieldLeadAddressInput'),list=document.getElementById('fieldLeadAddressOptions'),status=document.getElementById('fieldLeadAddressStatus'),clear=document.getElementById('clearFieldLeadAddress');
-  let syncing=false,lastContext={kind:'empty',address:'',lead:null,valid:false};
+  let syncing=false,selectionRevision=0,lastContext={kind:'empty',address:'',lead:null,valid:false};
   const leads=()=>Array.isArray(state.leads)?state.leads:[];
   const label=lead=>core.leadLabels(lead)[0]||String(lead?.address||'McCoy lead');
 
@@ -23,13 +23,17 @@
     else status.textContent='Type a complete service address or select a lead, then press SALE. A map pin is optional.';
   }
   function dispatch(ctx,source){
+    if(source!=='refresh'&&source!=='resume')selectionRevision++;
     lastContext=ctx;setStatus(ctx);
     window.dispatchEvent(new CustomEvent('mccoy-lead-address-changed',{detail:{context:{...ctx},source}}));
   }
   function syncFromInput(source='input'){
-    const ctx=core.context({value:input.value,leads:leads(),selectedId:select.value});
+    // Numeric display IDs can be reused when the server returns a new row order.
+    const previous=lastContext.lead;
+    const restored=source==='refresh'&&previous?leads().find(lead=>previous.dbId?String(lead.dbId)===String(previous.dbId):String(lead.id)===String(previous.id)):null;
+    const ctx=core.context({value:input.value,leads:leads(),selectedId:source==='refresh'?restored?.id:select.value});
     syncing=true;
-    if(ctx.kind==='assigned')select.value=String(ctx.lead.id);
+    if(ctx.kind==='assigned')setNativeLead(ctx.lead);
     else select.value='';
     select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;
     dispatch(ctx,source);return ctx;
@@ -44,13 +48,19 @@
     // Keep the datalist bounded for mobile-browser performance.
     const options=leads().slice(0,750).map(lead=>{const option=document.createElement('option');option.value=label(lead);option.label=lead.team?`${lead.address||label(lead)} — ${lead.team}`:label(lead);return option;});
     list.replaceChildren(...options);
-    if(select.value)syncFromSelect('refresh');else if(input.value)syncFromInput('refresh');
+    syncFromInput('refresh');
+  }
+  function setNativeLead(lead){
+    if(![...select.options].some(option=>option.value===String(lead.id))){
+      const option=document.createElement('option');option.value=String(lead.id);option.textContent=label(lead);select.add(option);
+    }
+    select.value=String(lead.id);
   }
   function setTyped(address,source='restore'){
     input.value=core.cleanAddress(address);syncing=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;return syncFromInput(source);
   }
   function setLead(lead,source='assigned'){
-    if(!lead)return null;input.value=label(lead);syncing=true;select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;const ctx={kind:'assigned',address:label(lead),lead,valid:true};dispatch(ctx,source);return ctx;
+    if(!lead)return null;input.value=label(lead);syncing=true;setNativeLead(lead);select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;const ctx={kind:'assigned',address:label(lead),lead,valid:true};dispatch(ctx,source);return ctx;
   }
   function clearValue(source='clear'){
     input.value='';syncing=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));syncing=false;dispatch(core.context({value:'',leads:leads()}),source);input.focus();
@@ -63,6 +73,6 @@
   for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded','mccoy-door-visit-corrected'])window.addEventListener(eventName,()=>setTimeout(refresh,0));
   window.addEventListener('mccoy-door-visit-started',()=>{input.disabled=false;clear.disabled=false;});
   window.addEventListener('mccoy-door-visit-completed',()=>{input.disabled=false;clear.disabled=false;setTimeout(refresh,0);});
-  window.MCCOY_LEAD_ADDRESS={current:()=>core.context({value:input.value,leads:leads(),selectedId:select.value}),refresh,setTyped,setLead,clear:clearValue,focus:()=>input.focus(),setDisabled(value){input.disabled=!!value;clear.disabled=!!value;}};
+  window.MCCOY_LEAD_ADDRESS={current:()=>core.context({value:input.value,leads:leads(),selectedId:select.value}),revision:()=>selectionRevision,refresh,setTyped,setLead,clear:clearValue,focus:()=>input.focus(),setDisabled(value){input.disabled=!!value;clear.disabled=!!value;}};
   [0,120,350,800,1500].forEach(delay=>setTimeout(refresh,delay));
 })();

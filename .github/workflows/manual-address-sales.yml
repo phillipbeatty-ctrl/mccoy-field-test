@@ -14,7 +14,7 @@ jobs:
           node-version: '22'
       - name: Address selection, sale completion, map and access regressions
         run: >-
-          node --test manual-address-sales.test.mjs typed-lead-address.test.mjs
+          node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs typed-lead-address.test.mjs
           distance-to-lead-door-workflow.test.mjs provider-return-closest-lead-customer-list.test.mjs
           sales-hub-production-photo-closest.test.mjs lead-pool-independent-disposition-phone-sales.test.mjs
           map-contact-address-controls.test.mjs sale-completion-runtime.test.mjs

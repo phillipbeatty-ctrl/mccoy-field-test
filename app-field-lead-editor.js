@@ -18,7 +18,7 @@
   }
   function leadByAnyId(id){
     const raw=String(id??'');
-    return (window.state?.realLeads||[]).find(lead=>String(lead.id)===raw||String(lead.dbId)===raw)||null;
+    return (typeof state!=='undefined'?state.realLeads||[]:[]).find(lead=>String(lead.id)===raw||String(lead.dbId)===raw)||null;
   }
   async function call(action,body={}){
     const {data,error}=await sb.functions.invoke('lead-field-actions',{body:{action,...body}});
@@ -31,7 +31,8 @@
         active_field_role_required:'Sign in with an active field account to add a pin.',
         complete_valid_address_required:'Enter street, city, a two-letter state, and a valid ZIP.'
       };
-      throw new Error(messages[failure?.error]||'The pin could not be saved. Your address is retained; retry or process the sale without a pin.');
+      const fallback=action==='create_lead'?'The pin could not be saved. Your address is retained; retry or process the sale without a pin.':'Customer information could not be saved. Check your connection and retry.';
+      throw new Error(messages[failure?.error]||fallback);
     }
     return data;
   }
@@ -201,31 +202,54 @@
     return fields;
   }
 
+  function showSavedPin(lead){
+    const leadId=lead.dbId||lead.id;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(leadId))return false;
+    // These are display filters; server-side assignment and organization scope remain intact.
+    if(window.MCCOY_LEAD_MATCHES_FILTER&&!window.MCCOY_LEAD_MATCHES_FILTER(lead)){
+      for(const id of ['teamFilter','leadOwnerFilter','leadSearch']){const filter=byId(id);if(filter)filter.value='';}
+      if(typeof renderLeads==='function')renderLeads();
+    }
+    window.MCCOY_RENDER_LEAD_MAP?.(false);
+    window.MCCOY_SELECT_MAP_LEAD?.(leadId);
+    window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId,source:'field_created_address'}}));
+    const lat=lead.lat,lng=lead.lng,map=window.MCCOY_LEAD_MAP?.map;
+    if(lat!=null&&lng!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180&&map){
+      map.setView([Number(lat),Number(lng)],Math.max(Number(map.getZoom?.()||0),18),{animate:false});
+    }
+    return true;
+  }
+
   async function createLead(){
     if(creatingLead)return;
     const address=addressFields();if(!address)return;
     const button=byId('createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
     for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=true;
     setCreateMessage('Checking the Lead Pool and locating the address…');
+    let saved=false;
     try{
       // Blank optional fields must not erase an existing matched lead's contact.
       const contact={};
       for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
       const data=await call('create_lead',{...address,...contact});
-      setCreateMessage(data.created?'Address added to the Lead Pool.':'An existing lead matched this address and its customer information was updated.');
+      saved=true;
+      const message=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
+      setCreateMessage(message+' Loading its pin…');
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();
       if(leadId){
+        // An already-running load may have started before the insert. Retry once after it finishes.
+        if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
         const lead=leadByAnyId(leadId);
-        if(lead){
-          window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id,source:'field_created_address'}}));
-          window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id);
-        }
+        const shown=lead&&showSavedPin(lead);
+        setCreateMessage(message+(shown?' Its pin is selected on the map. You can process the sale below.':' Its pin is not visible in the current Lead Pool. You can still process the sale below.'));
+      }else{
+        setCreateMessage(message+' You can process the sale below.');
       }
       // Keep the address available for PROCESS SALE without requiring re-entry.
     }catch(error){
       console.error('Field lead creation failed',error);
-      setCreateMessage(String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+      setCreateMessage(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
     }finally{creatingLead=false;for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=false;if(button){button.disabled=false;button.textContent='ADD TO LEAD POOL';}}
   }
 

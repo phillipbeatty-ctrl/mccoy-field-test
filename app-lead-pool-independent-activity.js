@@ -192,7 +192,7 @@
   async function deleteLead(lead){
     const button=byId('mapDeleteLeadBtn');if(button)button.disabled=true;
     const removed=await window.MCCOY_DELETE_LEAD?.(lead);
-    if(removed){selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
+    if(removed){selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Choose another pin or type a sale address.</div>';scheduleAutoSelect(100);}
     else if(button)button.disabled=false;
   }
   function configureDetail(lead){

@@ -49,7 +49,7 @@ test('sale distance remains an informational field attached to the saved sale',(
 
 test('cache versions force the cleaned Sales Hub assets to replace the redundant UI',()=>{
   for(const asset of ['app-door-workflow-core.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082423`));
-  assert.match(html,/app-typed-lead-address\.js\?v=2026091002/);
-  for(const asset of ['app-part1.js','app-field-addresses.js','app-distance-to-lead.js','app-provider-sale-router.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026091002`));
+  assert.match(html,/app-typed-lead-address\.js\?v=2026091101/);
+  for(const asset of ['app-part1.js','app-field-addresses.js','app-distance-to-lead.js','app-provider-sale-router.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026091101`));
   assert.match(html,/app-sales\.js\?v=2026082417/);
 });

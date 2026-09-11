@@ -71,16 +71,18 @@
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
+    const hadAddress=!!addressContext().address,revision=window.MCCOY_LEAD_ADDRESS?.revision?.()||0;
     try{
       const {data,error}=await sb.rpc('resume_door_workflow');if(error||!data?.ok)throw error||new Error('resume_failed');
       const session=data.session;if(!session||state.session)return;
+      const restoreAddress=!hadAddress&&!addressContext().address&&revision===(window.MCCOY_LEAD_ADDRESS?.revision?.()||0);
       telemetrySessionId=session.id;state.session={startedAt:Date.parse(session.started_at)||Date.now(),startGps:null,resumed:true};state.lastTelemetryBreadcrumbAt=0;
       startGpsWatch();startTimer();byId('fieldState').textContent='Knocking — Session Resumed';byId('startKnockingBtn').classList.add('hidden');const stopBtn=byId('stopKnockingBtn');stopBtn.classList.remove('hidden');stopBtn.disabled=false;stopBtn.textContent='STOP SESSION';telemetryStatus('Field session resumed after provider return.',true);
       const visit=data.visit;
       if(visit){
         let lead=(state.leads||[]).find(item=>String(item.dbId)===String(visit.lead_id));
-        if(visit.selection_source==='typed_address'&&!visit.lead_id){lead=window.MCCOY_LEAD_ADDRESS_CORE?.adHocLead(visit.lead_label)||{id:`typed:${visit.id}`,dbId:null,address:visit.lead_label,fullAddress:visit.lead_label,isAdHoc:true,selectionSource:'typed_address'};window.MCCOY_LEAD_ADDRESS?.setTyped?.(visit.lead_label,'resume');}
-        else{if(!lead){const address=[visit.address1,visit.address2].filter(Boolean).join(' ')||visit.lead_label;lead={id:`resumed-${visit.lead_id}`,dbId:visit.lead_id,address,fullAddress:visit.lead_label,city:visit.city||'',stateCode:visit.state||'',zip:visit.zip||'',lat:Number(visit.lead_latitude),lng:Number(visit.lead_longitude),geocodeStatus:visit.geocode_status,isDemo:false,disposition:'Uncontacted'};(state.leads||[]).unshift(lead);}chooseLead(lead,false);}
+        if(visit.selection_source==='typed_address'&&!visit.lead_id){lead=window.MCCOY_LEAD_ADDRESS_CORE?.adHocLead(visit.lead_label)||{id:`typed:${visit.id}`,dbId:null,address:visit.lead_label,fullAddress:visit.lead_label,isAdHoc:true,selectionSource:'typed_address'};if(restoreAddress)window.MCCOY_LEAD_ADDRESS?.setTyped?.(visit.lead_label,'resume');}
+        else{if(!lead){const address=[visit.address1,visit.address2].filter(Boolean).join(' ')||visit.lead_label;lead={id:`resumed-${visit.lead_id}`,dbId:visit.lead_id,address,fullAddress:visit.lead_label,city:visit.city||'',stateCode:visit.state||'',zip:visit.zip||'',lat:Number(visit.lead_latitude),lng:Number(visit.lead_longitude),geocodeStatus:visit.geocode_status,isDemo:false,disposition:'Uncontacted'};(state.leads||[]).unshift(lead);}if(restoreAddress)chooseLead(lead,false);}
         manualLeadLocked=['manual_lead','typed_address'].includes(visit.selection_source);
         state.activeDoorVisit={serverVisitId:visit.id,lead,arrivedAt:Date.parse(visit.started_at)||Date.now(),arrivalGps:{lat:visit.arrival_latitude,lng:visit.arrival_longitude,accuracy:visit.arrival_accuracy_meters,capturedAt:Date.parse(visit.started_at)||Date.now()},arrivalDistanceMeters:Number(visit.arrival_distance_meters),restored:true};
         startDoorTimer();const visitStatus=byId('doorVisitStatus');if(visitStatus)visitStatus.textContent=`Resumed active visit for ${lead.address}.`;

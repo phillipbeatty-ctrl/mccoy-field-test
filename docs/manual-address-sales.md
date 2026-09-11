@@ -25,23 +25,34 @@ SALE freezes the address before provider selection. Typed addresses do not inher
 an unrelated active door's lead, coordinates, or visit ID. Only an explicitly
 selected matching door can be closed by that sale. Local matching uses the full
 address, including locality/unit; stale map responses cannot replace newer input.
+Refreshing the lead list preserves the address and database lead identity even
+when numeric display IDs change. A delayed session restore cannot replace input
+the user entered or cleared while it was loading.
 
 ADD PIN / ADDRESS opens the shared field-user form from Sales Hub, Lead Pool, or
 the maximized map's action menu. Pin creation uses the existing `lead-field-actions`
 endpoint and still requires geocoding. PROCESS SALE FOR THIS ADDRESS can proceed
 without creating a pin. Blank optional fields do not clear an existing matched
 lead's contact information.
+The editor now reads the app's actual lead state. After saving, it retries a stale
+list once, clears display filters that hide the accessible lead, and selects and
+centers its pin. A successful save followed by a refresh failure is reported as a
+saved address, with the sale option retained. Choosing SALE restores a maximized
+map so it cannot cover the provider chooser.
 
 No Edge Function or database migration is changed in this release. Backend
 permission and provider completion checks remain authoritative.
 
 ## Validation
 
-Run `node --test manual-address-sales.test.mjs` for the pause, explicit selection,
+Run `node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs`
+for the pause, explicit selection,
 address identity, unrelated-visit isolation, provider-intent snapshot, stale
 geocode responses, geocode failure, role visibility and duplicate-contact checks.
 The workflow also runs the existing sale completion, phone sale, map and access
 regressions. These use controlled test inputs; they do not create production sales.
+The full related suite passes 164 tests, including 12 added for refresh, session
+restore, lexical lead state, saved-pin recovery and the maximized-map handoff.
 
 Before accepting the mobile flow, verify on the preview with an active field
 account: blank address stays blank as GPS changes; type an address absent from the
