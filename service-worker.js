@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v23-20260911-knock-production';
+const VERSION='field-coach-app-shell-v24-20260911-knock-status';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/app-ui-refresh.js?v=2026091106',
@@ -17,7 +17,7 @@ const SHELL=[
   '/app-part2.js?v=2026091108',
   '/app-page-layout.js?v=2026091108',
   '/app-gps-placement.js?v=2026091109',
-  '/app-auth.js?v=2026091108',
+  '/app-auth.js?v=2026091110',
   '/app-field-features.js?v=2026091103',
   '/app-lead-address-core.js?v=2026091106',
   '/app-typed-lead-address.js?v=2026091108',

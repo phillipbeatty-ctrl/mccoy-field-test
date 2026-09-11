@@ -77,6 +77,9 @@ late lead-list response cannot undo placement or a newer edit.
 
 There is no new timer, GPS watcher, dropdown, address input or nearest selection.
 Background updates retain active input elements, keyboard, cursor and edits.
+The existing door status remains visible to every field role, with a polite live
+region for GPS progress, success, low accuracy, failure and retry instructions.
+Other coaching diagnostics retain their existing visibility rules.
 
 ## Bounded release and source reconciliation
 

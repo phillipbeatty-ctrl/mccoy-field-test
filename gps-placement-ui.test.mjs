@@ -6,11 +6,11 @@ import vm from 'node:vm';
 const source=readFileSync(new URL('./app-gps-placement.js',import.meta.url),'utf8');
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const address={address1:'100 Test St',address2:'',city:'Portland',state:'OR',zip:'97201'};
-function harness({enabled=true,consent=true,production=false,productionEnabled=false,handler=null}={}){
+function harness({enabled=true,consent=true,production=false,productionEnabled=false,role='admin',handler=null}={}){
   const dom=new JSDOM('<div class="field-lead-combobox"><div><input id="fieldLeadAddressInput"><button id="addFieldAddressBtn">ADD ADDRESS</button></div><div id="fieldLeadAddressStatus"></div></div>',{
     runScripts:'outside-only',pretendToBeVisual:true,url:production?'https://www.mccoyplatform.com/':'http://localhost:3000/'});
   const w=dom.window,calls=[],positions=[],intervals=[];
-  w.MCCOY_ACCESS={user:{id:'actor'},access:{organization_id:'org',active:true,role:'admin'}};
+  w.MCCOY_ACCESS={user:{id:'actor'},access:{organization_id:'org',active:true,role}};
   w.mccoyConsentAccepted=consent;w.state={realLeads:[]};
   w.setInterval=(...args)=>{intervals.push(args);return 1;};
   Object.defineProperty(w.navigator,'geolocation',{value:{getCurrentPosition:(ok,fail,options)=>positions.push({ok,fail,options})}});
@@ -116,7 +116,7 @@ test('a sub-millisecond newer pin edit is not overwritten and duplicate updates 
 
 function doorHarness({startHandler=null,...options}={}){
   const h=harness(options),w=h.w,rpcs=[];
-  w.document.body.insertAdjacentHTML('beforeend','<button id="arriveDoorBtn">KNOCK DOOR</button><div id="doorVisitStatus"></div><div id="doorElapsed"></div><button id="savePinDispositionBtn"></button>');
+  w.document.body.insertAdjacentHTML('beforeend','<div class="door-visit-panel"><button id="arriveDoorBtn">KNOCK DOOR</button>'+readFileSync(new URL('./index.html',import.meta.url),'utf8').match(/<div id="doorVisitStatus"[^>]*>[^<]*<\/div>/)[0]+'<div class="door-timer"><div id="doorElapsed"></div></div><p class="muted" id="hiddenCoachingNote">Coaching diagnostics</p></div><button id="savePinDispositionBtn"></button>');
   Object.assign(w.state,{session:{startedAt:Date.now()},activities:[],breadcrumbs:[],leads:[]});
   const lead={id:'a',dbId:'a',address:'100 Test St',fullAddress:'100 Test St, Portland, OR 97201'};
   w.state.leads=[lead];w.state.realLeads=[lead];w.telemetrySessionId='session';
@@ -203,4 +203,27 @@ test('production enables KNOCK DOOR without exposing pilot enrollment controls',
     assert.match(h.w.document.getElementById('gpsPlacementPilotStatus').textContent,/KNOCK DOOR/);
     assert.equal(h.intervals.length,0);
   }finally{h.close();}
+});
+
+test('field roles see GPS progress, denial/retry and low-accuracy success under real auth styles',async()=>{
+  const authCss=readFileSync(new URL('./app-auth.js',import.meta.url),'utf8').match(/css\.textContent=`([\s\S]*?)`;/)[1];
+  for(const role of ['rep','manager','trainer','tester']){
+    const h=doorHarness({production:true,productionEnabled:true,role});try{
+      h.w.document.body.classList.add('blind-tester');
+      const style=h.w.document.createElement('style');style.textContent=authCss;h.w.document.head.appendChild(style);
+      const input=h.w.document.getElementById('fieldLeadAddressInput');input.focus();input.value='unfinished edit';input.setSelectionRange(2,5);
+      const visible=()=>assert.notEqual(h.w.getComputedStyle(h.status).display,'none',role+' GPS status must be visible');
+      const p=h.w.MCCOY_START_DOOR_VISIT();await turn();
+      assert.match(h.status.textContent,/Capturing GPS/);visible();
+      h.positions[0].fail({code:1});await p;
+      assert.match(h.status.textContent,/permission was denied.*KNOCK DOOR to retry/);visible();
+      assert.equal(h.status.getAttribute('role'),'status');assert.equal(h.status.getAttribute('aria-live'),'polite');
+      await h.api.refreshStatus();h.w.dispatchEvent(new h.w.Event('mccoy-sales-hub-layout-ready'));
+      assert.match(h.status.textContent,/permission was denied/);visible();
+      const retry=h.w.MCCOY_START_DOOR_VISIT();await turn();h.fix(200);await retry;
+      assert.match(h.status.textContent,/2 pins placed.*Low accuracy/);visible();assert.equal(h.rpcs.length,1);
+      assert.equal(h.w.getComputedStyle(h.w.document.getElementById('hiddenCoachingNote')).display,'none');
+      assert.equal(h.w.document.activeElement,input);assert.equal(input.value,'unfinished edit');assert.equal(input.selectionStart,2);assert.equal(input.selectionEnd,5);
+    }finally{h.close();}
+  }
 });
