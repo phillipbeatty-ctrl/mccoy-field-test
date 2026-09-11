@@ -58,13 +58,13 @@ test('Sales Hub routes typed addresses through the dedicated RPC and preserves s
   assert.match(client,/isTyped\?'record_ad_hoc_door_visit_start':'record_door_visit_start'/);
   assert.match(client,/p_service_address:addressContext\.address/);
   assert.match(distance,/selectionSource:'typed_address'/);
-  assert.match(providerRouter,/selection_source:typedAddress\?'typed_address':null/);
-  assert.match(typedUi,/not added to the McCoy lead pool/);
+  assert.match(providerRouter,/MCCOY_LEAD_ADDRESS_CORE\?\.saleSource/);
+  assert.match(typedUi,/SALE can proceed without a pin/);
   assert.match(autoArrival,/MCCOY_LEAD_ADDRESS\?\.current\?\.\(\)\.kind==='typed'/);
 });
 
-test('nearest address UI is event-driven and avoids continuous DOM observation',()=>{
-  assert.match(typedUi,/closest mapped McCoy lead/i);
+test('manual address UI is event-driven and avoids continuous DOM observation',()=>{
+  assert.match(typedUi,/Type a complete service address/i);
   assert.doesNotMatch(typedUi,/MutationObserver/);
   assert.match(typedUi,/mccoy-real-leads-loaded/);
 });

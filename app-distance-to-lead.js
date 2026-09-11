@@ -2,6 +2,7 @@
 // and sale-only distance audit context. Distance is never rendered as a field metric.
 (function(){
   if(window.MCCOY_DISTANCE_TO_LEAD_CONTROL)return;
+  const autoNearestEnabled=()=>window.MCCOY_FIELD_FEATURES?.automaticNearestLead===true;
   const core=window.MCCOY_DOOR_WORKFLOW_CORE,select=document.getElementById('fieldLeadSelect');
   if(!core||!select)return;
   document.getElementById('closestDoorAddress')?.remove();
@@ -15,15 +16,15 @@
   const selectedLead=()=>{const value=String(select.value||'');return(state.leads||[]).find(lead=>String(lead.id)===value||String(lead.dbId)===value)||state.activeDoorVisit?.lead||null;};
   const addressContext=()=>window.MCCOY_LEAD_ADDRESS?.current?.()||{kind:'empty',address:'',lead:null,valid:false};
   function ensureOption(lead){if(!lead)return;let option=[...select.options].find(item=>item.value===String(lead.id));if(!option){option=new Option(label(lead),String(lead.id));select.add(option);}}
-  function chooseLead(lead,automatic=true){if(!lead)return;ensureOption(lead);autoChanging=true;select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;if(automatic)manualLeadLocked=false;}
+  function chooseLead(lead,automatic=true){if(!lead||(automatic&&!autoNearestEnabled()))return;ensureOption(lead);autoChanging=true;select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;if(automatic)manualLeadLocked=false;}
   function activeCapture(){const capture=window.MCCOY_ACTIVE_PROVIDER_CAPTURE;return capture&&['dashboard_opened','details_required'].includes(capture.status)?capture:null;}
   function resetArrival(){arrivalCandidate=null;arrivalHits=0;}
   function resetDeparture(){departureCandidate=null;departureHits=0;}
 
   function calculate(){
-    const gps=state.latestGps||null,nearest=core.nearestLead(state.leads||[],gps);
-    const typed=!state.activeDoorVisit&&addressContext().kind==='typed'?addressContext():null;
-    if(!manualLeadLocked&&!typed&&!state.activeDoorVisit){
+    const gps=state.latestGps||null,nearest=autoNearestEnabled()?core.nearestLead(state.leads||[],gps):null;
+    const typed=addressContext().kind==='typed'?addressContext():null;
+    if(autoNearestEnabled()&&!manualLeadLocked&&!typed&&!state.activeDoorVisit){
       // The address box should always show the nearest usable McCoy lead when
       // location is available. Quarter-mile remains a coaching/arrival signal,
       // not a prerequisite for populating the address.
@@ -39,7 +40,8 @@
     const current=calculate(),correct=byId('correctDoorLeadBtn');
     if(correct)correct.hidden=!state.activeDoorVisit;
     select.disabled=!!state.activeDoorVisit;
-    window.MCCOY_LEAD_ADDRESS?.setDisabled?.(!!state.activeDoorVisit);
+    // The sale address can differ from the active physical-door visit.
+    window.MCCOY_LEAD_ADDRESS?.setDisabled?.(false);
     return current;
   }
 
@@ -65,20 +67,22 @@
     return{ok:!!address,address,source:context.kind==='typed'?'typed_address':contextAddress?'lead':providerAddress?'provider':'lead',withinRange:current.withinRange,lead:context.kind==='typed'?null:lead,distanceMeters:current.distance,selectionSource:context.kind==='typed'?'typed_address':null};
   }
 
-  function useClosest(){manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest)chooseLead(nearest.lead,true);return render();}
+  function useClosest(){if(!autoNearestEnabled())return render();manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest)chooseLead(nearest.lead,true);return render();}
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
+    const hadAddress=!!addressContext().address,revision=window.MCCOY_LEAD_ADDRESS?.revision?.()||0;
     try{
       const {data,error}=await sb.rpc('resume_door_workflow');if(error||!data?.ok)throw error||new Error('resume_failed');
       const session=data.session;if(!session||state.session)return;
+      const restoreAddress=!hadAddress&&!addressContext().address&&revision===(window.MCCOY_LEAD_ADDRESS?.revision?.()||0);
       telemetrySessionId=session.id;state.session={startedAt:Date.parse(session.started_at)||Date.now(),startGps:null,resumed:true};state.lastTelemetryBreadcrumbAt=0;
       startGpsWatch();startTimer();byId('fieldState').textContent='Knocking — Session Resumed';byId('startKnockingBtn').classList.add('hidden');const stopBtn=byId('stopKnockingBtn');stopBtn.classList.remove('hidden');stopBtn.disabled=false;stopBtn.textContent='STOP SESSION';telemetryStatus('Field session resumed after provider return.',true);
       const visit=data.visit;
       if(visit){
         let lead=(state.leads||[]).find(item=>String(item.dbId)===String(visit.lead_id));
-        if(visit.selection_source==='typed_address'&&!visit.lead_id){lead=window.MCCOY_LEAD_ADDRESS_CORE?.adHocLead(visit.lead_label)||{id:`typed:${visit.id}`,dbId:null,address:visit.lead_label,fullAddress:visit.lead_label,isAdHoc:true,selectionSource:'typed_address'};window.MCCOY_LEAD_ADDRESS?.setTyped?.(visit.lead_label,'resume');}
-        else{if(!lead){const address=[visit.address1,visit.address2].filter(Boolean).join(' ')||visit.lead_label;lead={id:`resumed-${visit.lead_id}`,dbId:visit.lead_id,address,fullAddress:visit.lead_label,city:visit.city||'',stateCode:visit.state||'',zip:visit.zip||'',lat:Number(visit.lead_latitude),lng:Number(visit.lead_longitude),geocodeStatus:visit.geocode_status,isDemo:false,disposition:'Uncontacted'};(state.leads||[]).unshift(lead);}chooseLead(lead,false);}
+        if(visit.selection_source==='typed_address'&&!visit.lead_id){lead=window.MCCOY_LEAD_ADDRESS_CORE?.adHocLead(visit.lead_label)||{id:`typed:${visit.id}`,dbId:null,address:visit.lead_label,fullAddress:visit.lead_label,isAdHoc:true,selectionSource:'typed_address'};if(restoreAddress)window.MCCOY_LEAD_ADDRESS?.setTyped?.(visit.lead_label,'resume');}
+        else{if(!lead){const address=[visit.address1,visit.address2].filter(Boolean).join(' ')||visit.lead_label;lead={id:`resumed-${visit.lead_id}`,dbId:visit.lead_id,address,fullAddress:visit.lead_label,city:visit.city||'',stateCode:visit.state||'',zip:visit.zip||'',lat:Number(visit.lead_latitude),lng:Number(visit.lead_longitude),geocodeStatus:visit.geocode_status,isDemo:false,disposition:'Uncontacted'};(state.leads||[]).unshift(lead);}if(restoreAddress)chooseLead(lead,false);}
         manualLeadLocked=['manual_lead','typed_address'].includes(visit.selection_source);
         state.activeDoorVisit={serverVisitId:visit.id,lead,arrivedAt:Date.parse(visit.started_at)||Date.now(),arrivalGps:{lat:visit.arrival_latitude,lng:visit.arrival_longitude,accuracy:visit.arrival_accuracy_meters,capturedAt:Date.parse(visit.started_at)||Date.now()},arrivalDistanceMeters:Number(visit.arrival_distance_meters),restored:true};
         startDoorTimer();const visitStatus=byId('doorVisitStatus');if(visitStatus)visitStatus.textContent=`Resumed active visit for ${lead.address}.`;
@@ -89,6 +93,7 @@
 
   function evaluateAutomation(){
     const current=render(),gps=state.latestGps||null;
+    if(!autoNearestEnabled()){resetArrival();resetDeparture();return;}
     if(!state.session||!telemetrySessionId||!core.isFreshGps(gps)){resetArrival();resetDeparture();return;}
     if(!state.activeDoorVisit){
       // Automatic arrival remains restricted to field/manual-verified pins even
@@ -112,7 +117,7 @@
   for(const eventName of ['mccoy-provider-sale-capture-started','mccoy-provider-sale-capture-ready','mccoy-provider-sale-returned','mccoy-provider-sale-capture-restored'])window.addEventListener(eventName,event=>providerAddressFrom(event.detail?.capture));
   window.addEventListener('mccoy-provider-sale-abandoned',()=>{providerAddress='';setTimeout(evaluateAutomation,150);});
   window.addEventListener('mccoy-door-visit-started',render);window.addEventListener('mccoy-door-visit-completed',()=>{manualLeadLocked=false;providerAddress='';resetArrival();resetDeparture();render();});
-  for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded'])window.addEventListener(eventName,()=>{if(state.activeDoorVisit?.lead?.dbId){const loaded=(state.leads||[]).find(item=>String(item.dbId)===String(state.activeDoorVisit.lead.dbId));if(loaded){state.activeDoorVisit.lead=loaded;chooseLead(loaded,false);}}render();});
+  for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded'])window.addEventListener(eventName,()=>{if(state.activeDoorVisit?.lead?.dbId){const loaded=(state.leads||[]).find(item=>String(item.dbId)===String(state.activeDoorVisit.lead.dbId));if(loaded){state.activeDoorVisit.lead=loaded;}}render();});
   window.addEventListener('mccoy-access-ready',resumeWorkflow);setTimeout(()=>{if(window.MCCOY_ACCESS?.access)resumeWorkflow();},900);
   const timer=setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750);
   window.addEventListener('beforeunload',()=>clearInterval(timer));

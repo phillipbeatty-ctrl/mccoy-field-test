@@ -11,9 +11,9 @@ const saleSubmit=fs.readFileSync(new URL('./supabase/functions/sale-submit/index
 const distanceMigration=fs.readFileSync(new URL('./supabase/migrations/20260822200054_sale_distance_audit.sql',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 
-test('Sales Hub exposes one lead or service address control and no distance panel',()=>{
+test('Sales Hub exposes one service address control and no distance panel',()=>{
   assert.match(typedAddress,/fieldLeadAddressInput/);
-  assert.match(typedAddress,/Lead or service address/);
+  assert.match(typedAddress,/>Service address<\/label>/);
   for(const source of [distanceUi,fieldAddresses,typedAddress]){
     assert.doesNotMatch(source,/outsideSaleAddress|outsideSaleAddressWrap/);
     assert.doesNotMatch(source,/DISTANCE TO LEAD|distanceLeadStatus|distanceLeadMode|distanceLeadRule/);
@@ -33,14 +33,14 @@ test('distance never decides which service address or lead label reaches sale pr
   assert.doesNotMatch(sales,/doorContext\?\.withinRange\?\(lead\?\.address/);
   assert.match(sales,/capture\.service_address\|\|doorContext\?\.address\|\|\(lead\?\.address\|\|lead\?\.fullAddress\)/);
   assert.doesNotMatch(providerRouter,/distanceContext&&!distanceContext\.withinRange/);
-  assert.match(providerRouter,/lead_label:typedAddress\|\|\(lead\?\.address\|\|lead\?\.fullAddress\|\|null\)/);
+  assert.match(providerRouter,/MCCOY_LEAD_ADDRESS_CORE\?\.saleSource/);
 });
 
 test('sale distance remains an informational field attached to the saved sale',()=>{
   assert.match(sales,/async function saleDistanceInput\(lead,serviceAddress\)/);
   assert.match(sales,/payload\.rep_location=/);
   assert.match(sales,/payload\.customer_map_location=/);
-  assert.match(saleSubmit,/const distanceAudit = saleDistanceAudit\(body\.rep_location, body\.customer_map_location\)/);
+  assert.match(saleSubmit,/const distanceAudit = saleDistanceAudit\(body\.rep_location, customerMapLocation\)/);
   assert.match(saleSubmit,/rep_distance_from_customer_meters: distanceAudit\.distance_meters/);
   assert.match(saleSubmit,/distance_measurement_status: distanceAudit\.status/);
   assert.match(saleSubmit,/informational_only: true/);
@@ -48,8 +48,8 @@ test('sale distance remains an informational field attached to the saved sale',(
 });
 
 test('cache versions force the cleaned Sales Hub assets to replace the redundant UI',()=>{
-  for(const asset of ['app-door-workflow-core.js','app-field-addresses.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082423`));
-  assert.match(html,/app-typed-lead-address\.js\?v=2026082414/);
-  for(const asset of ['app-part1.js','app-distance-to-lead.js','app-provider-sale-router.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082416`));
+  for(const asset of ['app-door-workflow-core.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026082423`));
+  assert.match(html,/app-typed-lead-address\.js\?v=2026091103/);
+  for(const asset of ['app-part1.js','app-field-addresses.js','app-distance-to-lead.js','app-provider-sale-router.js'])assert.match(html,new RegExp(`${asset.replaceAll('.','\\.')}\\?v=2026091103`));
   assert.match(html,/app-sales\.js\?v=2026082417/);
 });

@@ -40,7 +40,8 @@
     +'<div id="fieldAddressMsg" class="muted small" aria-live="polite"></div></div>';
   select.insertAdjacentElement('afterend',panel);
 
-  function applyAddressEntryAccess(){panel.hidden=window.MCCOY_ACCESS?.access?.role!=='admin';}
+  // The shared field-user dialog replaces this legacy Admin-only entry point.
+  function applyAddressEntryAccess(){panel.hidden=true;}
   window.addEventListener('mccoy-access-ready',applyAddressEntryAccess);
   applyAddressEntryAccess();
 

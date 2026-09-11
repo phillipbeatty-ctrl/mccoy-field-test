@@ -15,6 +15,7 @@
   let visitTimerHandle=null;
   let phoneContext=null;
   let phoneSearchBusy=false;
+  let addressRevision=0;
   let phoneSearchMarker=null;
   let autoSelectTimer=null;
 
@@ -35,6 +36,7 @@
     return null;
   }
   function validPoint(value){
+    if((value?.latitude??value?.lat)==null||(value?.longitude??value?.lng)==null)return null;
     const latitude=Number(value?.latitude??value?.lat),longitude=Number(value?.longitude??value?.lng);
     return Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180?{latitude,longitude}:null;
   }
@@ -123,15 +125,15 @@
   function startExplicitSale(context){
     if(!context?.service_address){setMessage('Enter or select a complete customer address first.',true);return;}
     try{
-      if(typeof window.MCCOY_START_EXPLICIT_SALE==='function')window.MCCOY_START_EXPLICIT_SALE(context);
-      else{
-        window.MCCOY_PENDING_SALE_CONTEXT=context;
-        const button=byId('processSaleBtn')||document.querySelector('[data-disp="Sale"]');
-        if(!button)throw new Error('sale_button_not_ready');
-        button.click();
-      }
-    }catch(error){console.error('Explicit Lead Pool sale failed',error);setMessage('The provider sale control is still loading. Retry in a moment.',true);}
+      if(typeof window.MCCOY_START_EXPLICIT_SALE!=='function')throw new Error('Sale controls are still loading. Please retry.');
+      window.MCCOY_START_EXPLICIT_SALE(context);
+    }catch(error){
+      console.error('Explicit Lead Pool sale failed',error);
+      const message=String(error?.message||'Could not start this sale. Please retry.');
+      setMessage(message,true);phoneMessage(message,true);
+    }
   }
+
   async function saveIndependentDisposition(lead){
     if(saveBusy)return;
     if(!state.session||!currentSessionId()){setMessage('Start a field session before saving Lead Pool activity.',true);byId('startKnockingBtn')?.focus();return;}
@@ -190,7 +192,7 @@
   async function deleteLead(lead){
     const button=byId('mapDeleteLeadBtn');if(button)button.disabled=true;
     const removed=await window.MCCOY_DELETE_LEAD?.(lead);
-    if(removed){selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. The nearest available pin will be selected when location is available.</div>';scheduleAutoSelect(100);}
+    if(removed){selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Choose another pin or type a sale address.</div>';scheduleAutoSelect(100);}
     else if(button)button.disabled=false;
   }
   function configureDetail(lead){
@@ -237,7 +239,9 @@
     }
     return nearest;
   }
+  const autoNearestEnabled=()=>window.MCCOY_FIELD_FEATURES?.automaticNearestLead===true;
   function autoSelectNearest(){
+    if(!autoNearestEnabled())return;
     if(window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
     if(manualViewportHold||!mapVisible()||manualSelectedLeadId||phoneContext)return;
     const nearest=nearestVisibleLead();if(!nearest)return;
@@ -247,6 +251,7 @@
   }
   function scheduleAutoSelect(delay=150){
     clearTimeout(autoSelectTimer);
+    if(!autoNearestEnabled())return;
     if(manualViewportHold||window.MCCOY_MAP_VIEWPORT_LOCK?.owner?.()==='move-pin')return;
     autoSelectTimer=setTimeout(autoSelectNearest,delay);
   }
@@ -254,11 +259,11 @@
   function ensurePhoneSearch(){
     const controls=byId('leadGeoControls');if(!controls||byId('leadPoolPhoneSaleSearch'))return false;
     const panel=document.createElement('div');panel.id='leadPoolPhoneSaleSearch';panel.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid #dbe4f0';
-    panel.innerHTML='<strong>Phone sale address</strong><div class="muted small" style="margin:3px 0 7px">Enter the caller’s service address. McCoy will center the map, select a matching lead when available, and preserve the current physical-door activity.</div><div style="display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:7px"><input id="leadPoolPhoneAddress" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="min-width:0;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER ADDRESS / LEAD</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS PHONE SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">The nearest lead remains auto-selected until a different pin or address is chosen.</div>';
+    panel.innerHTML='<strong>Phone sale by address</strong><div class="muted small" style="margin:3px 0 7px">Enter the full service address, including unit, city, state and ZIP. Phone sales require Admin approval; a map pin is optional.</div><div style="display:flex;flex-wrap:wrap;gap:7px"><input id="leadPoolPhoneAddress" aria-label="Sale service address" maxlength="240" list="leadPoolPhoneAddressOptions" autocomplete="street-address" placeholder="Customer service address" style="flex:1 1 240px;min-width:0;min-height:44px;padding:9px;border:1px solid #cbd5e1;border-radius:8px"><datalist id="leadPoolPhoneAddressOptions"></datalist><button id="leadPoolCenterAddressBtn" type="button" class="assign-btn">CENTER MAP (OPTIONAL)</button><button id="leadPoolPhoneSaleBtn" type="button" class="success" disabled>PROCESS SALE</button></div><div id="leadPoolPhoneAddressMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">Type an address and process the sale. Centering the map and adding a pin are optional.</div>';
     controls.appendChild(panel);
     byId('leadPoolCenterAddressBtn').addEventListener('click',searchPhoneAddress);
-    byId('leadPoolPhoneSaleBtn').addEventListener('click',()=>{if(phoneContext)startExplicitSale(phoneContext);});
-    byId('leadPoolPhoneAddress').addEventListener('input',()=>{phoneContext=null;byId('leadPoolPhoneSaleBtn').disabled=true;if(!byId('leadPoolPhoneAddress').value.trim()){manualSelectedLeadId=null;manualViewportHold=false;removePhoneMarker();scheduleAutoSelect(100);}});
+    byId('leadPoolPhoneSaleBtn').addEventListener('click',()=>{updateAddressIntent();if(phoneContext)startExplicitSale({...phoneContext});});
+    byId('leadPoolPhoneAddress').addEventListener('input',()=>{addressRevision++;removePhoneMarker();updateAddressIntent();});
     refreshPhoneOptions();return true;
   }
   function refreshPhoneOptions(){
@@ -272,44 +277,53 @@
     phoneSearchMarker=null;
   }
   function localAddressMatch(address){
-    const key=compact(address);if(!key)return null;
-    const exact=(state.realLeads||[]).filter(lead=>[leadAddress(lead),lead.address].some(value=>compact(value)===key));
-    if(exact.length===1)return exact[0];
-    const street=compact(String(address).split(',')[0]);
-    const streetMatches=(state.realLeads||[]).filter(lead=>compact(lead.address)===street);
-    return streetMatches.length===1?streetMatches[0]:null;
+    const matches=window.MCCOY_LEAD_ADDRESS_CORE?.matchingLeads(address,state.realLeads||[])||[];
+    return matches.length===1?matches[0]:null;
+  }
+  function updateAddressIntent(){
+    const address=String(byId('leadPoolPhoneAddress')?.value||'').trim();
+    const lead=localAddressMatch(address);
+    phoneContext=address.length>=5?explicitSaleContext({lead,address,source:'lead_pool_address_sale'}):null;
+    byId('leadPoolPhoneSaleBtn').disabled=!phoneContext;
+    phoneMessage(phoneContext?'Ready to process this address. Centering the map and adding a pin are optional.':'Enter a complete service address.');
+    return phoneContext;
   }
   function applyPhoneSearchResult(data,address){
     removePhoneMarker();
-    const matchedLead=data?.lead?leadByAnyId(data.lead.id):localAddressMatch(address);
+    const matchedLead=localAddressMatch(address);
     const center=validPoint(data?.center)||validPoint(data?.geocoded_center)||validPoint(matchedLead);
-    const serviceAddress=String(data?.service_address||leadAddress(matchedLead)||address).trim();
-    phoneContext=explicitSaleContext({lead:matchedLead,address:serviceAddress,point:center,source:matchedLead?'lead_pool_phone_matched_lead':'lead_pool_phone_typed_address'});
+    const serviceAddress=address;
+    updateAddressIntent();
     manualSelectedLeadId=matchedLead?.dbId||matchedLead?.id||'phone_address';manualViewportHold=false;
     byId('leadPoolPhoneSaleBtn').disabled=false;
     if(matchedLead)focusLead(matchedLead,{source:'address_search',center:true,zoom:18});
     else if(center&&window.MCCOY_LEAD_MAP?.map){
       const map=window.MCCOY_LEAD_MAP.map;map.setView([center.latitude,center.longitude],18,{animate:false});
-      if(window.L){phoneSearchMarker=window.L.marker([center.latitude,center.longitude],{title:serviceAddress}).addTo(map).bindTooltip('Phone-sale address',{direction:'top'}).openTooltip();}
+      if(window.L){phoneSearchMarker=window.L.marker([center.latitude,center.longitude],{title:serviceAddress}).addTo(map).bindTooltip('Sale address',{direction:'top'}).openTooltip();}
     }
-    phoneMessage(matchedLead?`Matching McCoy lead selected: ${leadAddress(matchedLead)}. Completing the sale will update this pin.`:`Map centered on ${serviceAddress}. No exact McCoy lead matched; the typed address will be used for the phone sale.`);
+    phoneMessage(matchedLead?`Matching McCoy lead selected: ${leadAddress(matchedLead)}. Completing the sale will update this pin.`:`Map centered on ${serviceAddress}. No exact McCoy lead matched; the typed address will be used for the sale.`);
   }
   async function searchPhoneAddress(){
     if(phoneSearchBusy)return;
-    const input=byId('leadPoolPhoneAddress'),address=String(input?.value||'').trim();
+    const input=byId('leadPoolPhoneAddress'),address=String(input?.value||'').trim(),revision=addressRevision;
+    const accessKey=()=>`${window.MCCOY_ACCESS?.user?.id||''}:${window.MCCOY_ACCESS?.access?.organization_id||''}`;
+    const owner=accessKey(),stillCurrent=()=>revision===addressRevision&&input.value.trim()===address&&owner===accessKey();
     if(address.length<5){phoneMessage('Enter a complete customer service address.',true);return;}
+    updateAddressIntent();
     const local=localAddressMatch(address);
     if(local){applyPhoneSearchResult({lead:{id:local.dbId},service_address:leadAddress(local),center:validPoint(local)},address);return;}
     phoneSearchBusy=true;const button=byId('leadPoolCenterAddressBtn');button.disabled=true;button.textContent='SEARCHING…';phoneMessage('Finding this address and checking for a matching McCoy lead…');
     try{
       const{data,error}=await sb.functions.invoke('lead-map-address-search',{body:{address}});
+      if(!stillCurrent())return;
       if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'address_search_failed');
       applyPhoneSearchResult(data,address);
     }catch(error){
-      console.error('Lead Pool phone address search failed',error);
-      phoneContext=explicitSaleContext({address,source:'lead_pool_phone_ungeocoded_address'});manualSelectedLeadId='phone_address';manualViewportHold=false;byId('leadPoolPhoneSaleBtn').disabled=false;
-      phoneMessage('The address could not be centered, but it is retained for phone-sale processing. Verify the address before continuing.',true);
-    }finally{phoneSearchBusy=false;button.disabled=false;button.textContent='CENTER ADDRESS / LEAD';}
+      if(!stillCurrent())return;
+      console.error('Lead Pool address search failed',error);
+      updateAddressIntent();
+      phoneMessage('Map lookup is unavailable. You can still process the sale for the address you entered.',true);
+    }finally{phoneSearchBusy=false;button.disabled=false;button.textContent='CENTER MAP (OPTIONAL)';}
   }
 
   window.addEventListener('mccoy-map-lead-selected',event=>{
@@ -326,7 +340,7 @@
   window.addEventListener('mccoy-real-leads-loaded',()=>{
     ensurePhoneSearch();refreshPhoneOptions();
     if(selectedLeadId&&!leadByAnyId(selectedLeadId)){
-      selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. The nearest available pin will be selected.</div>';
+      selectedLeadId=null;manualSelectedLeadId=null;manualViewportHold=false;resetVisitTimer();const detail=byId('mapLeadDetail');if(detail)detail.innerHTML='<div class="muted small">The selected lead was removed. Choose another pin or type a sale address.</div>';
     }else if(selectedLeadId)configureSelectedDetail();
     scheduleAutoSelect(150);
   });

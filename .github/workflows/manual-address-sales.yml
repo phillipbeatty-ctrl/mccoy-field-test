@@ -1,0 +1,24 @@
+name: Manual address sales
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  address-and-sale-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Address selection, sale completion, map and access regressions
+        run: >-
+          node --test manual-address-sales.test.mjs manual-address-refresh.test.mjs single-sales-hub-address.test.mjs typed-lead-address.test.mjs
+          distance-to-lead-door-workflow.test.mjs provider-return-closest-lead-customer-list.test.mjs
+          sales-hub-production-photo-closest.test.mjs lead-pool-independent-disposition-phone-sales.test.mjs
+          map-contact-address-controls.test.mjs sale-completion-runtime.test.mjs
+          sale-button-provider-capture.test.mjs sales-hub-production-layout.test.mjs
+          sales-hub-distance-cleanup.test.mjs move-pin-admin-diagnostics.test.mjs
+          move-pin-snapshot.test.mjs lead-map-window-controls.test.mjs
+          lead-pool-map-layout.test.mjs organization-access-gate.test.mjs

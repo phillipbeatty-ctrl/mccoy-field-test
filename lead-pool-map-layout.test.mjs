@@ -33,7 +33,7 @@ test('demo creation moves left and map/list mode toggles the workspace safely',(
 
 test('Lead Pool hides the server-control badge and cache-busts layout assets',()=>{
   assert.match(styles,/body:has\(#leads\.view\.active\) #modeBadge\{display:none\}/);
-  assert.match(html,/styles\.css\?v=2026091001/);
+  assert.match(html,/styles\.css\?v=2026091103/);
   assert.match(html,/app-lead-pool-layout\.js\?v=2026082424/);
 });
 

@@ -86,7 +86,9 @@
     return true;
   }
 
+  const autoNearestEnabled=()=>window.MCCOY_FIELD_FEATURES?.automaticNearestLead===true;
   function applyLead(lead){
+    if(!autoNearestEnabled())return false;
     if(!lead?.address||hasManualAddress())return false;
     const input=addressInput();
     if(input){
@@ -103,11 +105,12 @@
   }
 
   async function run({force=false,allowGpsPrompt=false}={}){
+    if(!autoNearestEnabled())return;
     if(state.busy||!window.sb?.rpc||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
     const now=Date.now();
     let gps=currentCoordinates();
     if(!gps&&allowGpsPrompt)gps=await getGpsOnce();
-    if(!gps)return;
+    if(!gps||!autoNearestEnabled())return;
     const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
     if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
     state.busy=true;
@@ -121,7 +124,7 @@
     finally{state.busy=false;}
   }
 
-  function schedule(options={}){clearTimeout(state.timer);state.timer=setTimeout(()=>run(options),120);}
+  function schedule(options={}){clearTimeout(state.timer);if(!autoNearestEnabled())return;state.timer=setTimeout(()=>run(options),120);}
 
   document.addEventListener('input',event=>{
     const input=addressInput();if(!input||event.target!==input)return;

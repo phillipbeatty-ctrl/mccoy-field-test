@@ -18,11 +18,22 @@
   }
   function leadByAnyId(id){
     const raw=String(id??'');
-    return (window.state?.realLeads||[]).find(lead=>String(lead.id)===raw||String(lead.dbId)===raw)||null;
+    return (typeof state!=='undefined'?state.realLeads||[]:[]).find(lead=>String(lead.id)===raw||String(lead.dbId)===raw)||null;
   }
   async function call(action,body={}){
     const {data,error}=await sb.functions.invoke('lead-field-actions',{body:{action,...body}});
-    if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'lead_field_action_failed');
+    let failure=data;
+    if(error?.context?.clone){try{failure=await error.context.clone().json();}catch(_){}}
+    if(error||!data?.ok){
+      const messages={
+        address_not_found:'The address could not be placed on the map. Check its details, or process the sale without a pin.',
+        google_maps_key_not_configured:'Map lookup is unavailable. You can still process a sale for this address.',
+        active_field_role_required:'Sign in with an active field account to add a pin.',
+        complete_valid_address_required:'Enter street, city, a two-letter state, and a valid ZIP.'
+      };
+      const fallback=action==='create_lead'?'The pin could not be saved. Your address is retained; retry or process the sale without a pin.':'Customer information could not be saved. Check your connection and retry.';
+      throw new Error(messages[failure?.error]||fallback);
+    }
     return data;
   }
   function inputValue(id){return String(byId(id)?.value||'').trim();}
@@ -121,10 +132,10 @@
     panel.id='fieldLeadCreatePanel';
     panel.style.cssText='margin-top:10px;padding-top:10px;border-top:1px solid #dbe4f0';
     panel.innerHTML=`
-      <button id="toggleFieldLeadCreateBtn" type="button" class="assign-btn">ADD ADDRESS NOT LISTED</button>
+      <button id="toggleFieldLeadCreateBtn" type="button" class="assign-btn">ADD PIN / ADDRESS</button>
       <div id="fieldLeadCreateForm" hidden style="margin-top:9px;padding:10px;border:1px solid #dbe4f0;border-radius:10px;background:#f8fafc">
-        <strong>Add a lead to the Lead Pool</strong>
-        <div class="muted small" style="margin:3px 0 8px">Available to every active field user. McCoy checks for an existing address first and audits who added or enriched the lead.</div>
+        <strong id="fieldLeadCreateTitle">Add a pin or process a sale</strong>
+        <div class="muted small" style="margin:3px 0 8px">Enter the service address. Add a pin to the Lead Pool, or process the sale directly.</div>
         <label class="small">Street address<input id="newLeadAddress1" maxlength="180" autocomplete="street-address" style="width:100%;padding:8px;margin-top:3px"></label>
         <label class="small" style="display:block;margin-top:7px">Unit / apartment / suite<input id="newLeadAddress2" maxlength="80" style="width:100%;padding:8px;margin-top:3px"></label>
         <div style="display:grid;grid-template-columns:minmax(120px,1fr) 64px 92px;gap:7px;margin-top:7px">
@@ -138,45 +149,143 @@
         </div>
         <label class="small" style="display:block;margin-top:7px">Notes<textarea id="newLeadNotes" maxlength="5000" rows="3" style="width:100%;padding:8px;margin-top:3px;resize:vertical"></textarea></label>
         <button id="createFieldLeadBtn" type="button" class="primary" style="margin-top:8px">ADD TO LEAD POOL</button>
+        <button id="saleFromFieldAddressBtn" type="button" class="success" style="margin-top:8px">PROCESS SALE FOR THIS ADDRESS</button>
         <div id="fieldLeadCreateMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">A matching existing address will be enriched instead of duplicated.</div>
       </div>`;
     controls.appendChild(panel);
-    byId('toggleFieldLeadCreateBtn')?.addEventListener('click',()=>{
-      const form=byId('fieldLeadCreateForm');if(!form)return;
-      form.hidden=!form.hidden;
-      byId('toggleFieldLeadCreateBtn').textContent=form.hidden?'ADD ADDRESS NOT LISTED':'CLOSE ADD ADDRESS';
-      if(!form.hidden)byId('newLeadAddress1')?.focus();
-    });
+    byId('toggleFieldLeadCreateBtn')?.addEventListener('click',openAddressEntry);
     byId('createFieldLeadBtn')?.addEventListener('click',createLead);
+    byId('saleFromFieldAddressBtn')?.addEventListener('click',()=>{
+      const address=addressFields();if(!address)return;
+      const serviceAddress=[[address.address1,address.address2].filter(Boolean).join(' '),address.city,`${address.state} ${address.zip}`].join(', ');
+      try{
+        if(!window.MCCOY_START_EXPLICIT_SALE)throw new Error('Sale controls are still loading. Please retry.');
+        window.MCCOY_START_EXPLICIT_SALE({sale_context:'field',service_address:serviceAddress,source:'address_entry_sale',selection_source:'typed_address',lead_id:null,source_door_visit_id:null,preserve_active_visit:true});
+        byId('fieldAddressDialog')?.close();
+      }catch(error){setCreateMessage(error.message,true);}
+    });
     return panel;
   }
 
-  async function createLead(){
+  function openAddressEntry(){
+    if(!fieldRole())return;
+    ensureCreatePanel();
+    const form=byId('fieldLeadCreateForm');if(!form)return;
+    let dialog=byId('fieldAddressDialog');
+    if(!dialog){
+      dialog=document.createElement('dialog');dialog.id='fieldAddressDialog';dialog.setAttribute('aria-labelledby','fieldLeadCreateTitle');
+      const close=document.createElement('button');close.type='button';close.className='assign-btn';close.textContent='CLOSE';close.addEventListener('click',()=>dialog.close());dialog.append(close);
+      document.body.append(dialog);
+    }
+    form.hidden=false;dialog.append(form);if(!dialog.open)dialog.showModal();
+    byId('newLeadAddress1')?.focus();
+  }
+
+  function ensureAddressShortcuts(){
+    ensureSalesHubAddressAction();
+    if(!fieldRole())return;
+    for(const [host,id,label] of [
+      [byId('leadMapActionMenu'),'leadMapAddAddressAction','ADD PIN / ADDRESS']
+    ]){
+      if(!host||byId(id))continue;
+      const button=document.createElement('button');button.id=id;button.type='button';button.className='assign-btn';button.textContent=label;
+      if(id==='leadMapAddAddressAction')button.setAttribute('role','menuitem');
+      button.addEventListener('click',event=>{event.stopPropagation();openAddressEntry();});host.append(button);
+    }
+  }
+
+  function ensureSalesHubAddressAction(){
+    byId('salesHubAddPinBtn')?.remove();
+    const button=byId('addFieldAddressBtn');if(!button)return;
+    button.hidden=!fieldRole();button.disabled=creatingLead||!fieldRole();
+    if(button.dataset.mccoyAddressBound==='1')return;
+    button.dataset.mccoyAddressBound='1';
+    button.addEventListener('click',addSalesHubAddress);
+    byId('fieldLeadAddressInput')?.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'||event.isComposing)return;
+      event.preventDefault();addSalesHubAddress();
+    });
+  }
+
+  async function addSalesHubAddress(){
+    if(creatingLead||!fieldRole())return;
+    const entry=window.MCCOY_LEAD_ADDRESS,context=entry?.current?.();
+    const address=window.MCCOY_LEAD_ADDRESS_CORE?.fieldAddress(context?.address);
+    if(!address){
+      entry?.setMessage?.('Use street, city, ST ZIP. Include a unit when needed. Example: 123 Main St, Apt 2, Portland, OR 97201.',true);
+      entry?.focus?.();return;
+    }
+    return createLead({suppliedAddress:address,source:'sales_hub',revision:entry.revision()});
+  }
+
+  function addressFields(){
+    const fields={address1:inputValue('newLeadAddress1'),address2:inputValue('newLeadAddress2'),city:inputValue('newLeadCity'),state:inputValue('newLeadState').toUpperCase(),zip:inputValue('newLeadZip')};
+    if(!fields.address1||!fields.city||!/^[A-Z]{2}$/.test(fields.state)||!/^\d{5}(?:-\d{4})?$/.test(fields.zip)){
+      setCreateMessage('Street, city, two-letter state, and a valid ZIP are required.',true);return null;
+    }
+    return fields;
+  }
+
+  function showSavedPin(lead){
+    const leadId=lead.dbId||lead.id;
+    if(window.MCCOY_MAP_VIEWPORT_LOCK?.blocksSelection?.(leadId))return false;
+    // These are display filters; server-side assignment and organization scope remain intact.
+    if(window.MCCOY_LEAD_MATCHES_FILTER&&!window.MCCOY_LEAD_MATCHES_FILTER(lead)){
+      for(const id of ['teamFilter','leadOwnerFilter','leadSearch']){const filter=byId(id);if(filter)filter.value='';}
+      if(typeof renderLeads==='function')renderLeads();
+    }
+    window.MCCOY_RENDER_LEAD_MAP?.(false);
+    window.MCCOY_SELECT_MAP_LEAD?.(leadId);
+    window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId,source:'field_created_address'}}));
+    const lat=lead.lat,lng=lead.lng,map=window.MCCOY_LEAD_MAP?.map;
+    if(lat!=null&&lng!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Math.abs(Number(lat))<=90&&Math.abs(Number(lng))<=180&&map){
+      map.setView([Number(lat),Number(lng)],Math.max(Number(map.getZoom?.()||0),18),{animate:false});
+    }
+    return true;
+  }
+
+  async function createLead({suppliedAddress=null,source='lead_pool',revision=null}={}){
     if(creatingLead)return;
-    const address1=inputValue('newLeadAddress1'),city=inputValue('newLeadCity'),stateCode=inputValue('newLeadState').toUpperCase(),zip=inputValue('newLeadZip');
-    if(!address1||!city||!stateCode||!zip){setCreateMessage('Street, city, state, and ZIP are required.',true);return;}
-    const button=byId('createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
-    setCreateMessage('Checking the Lead Pool and locating the address…');
+    const address=suppliedAddress||addressFields();if(!address)return;
+    const salesHub=source==='sales_hub';
+    const accessKey=()=>`${window.MCCOY_ACCESS?.user?.id||''}:${window.MCCOY_ACCESS?.access?.organization_id||''}`;
+    const requestAccess=accessKey();
+    const isCurrent=()=>requestAccess===accessKey()&&(!salesHub||revision===window.MCCOY_LEAD_ADDRESS?.revision?.());
+    const message=(text,error=false)=>{if(!isCurrent())return;if(salesHub)window.MCCOY_LEAD_ADDRESS?.setMessage?.(text,error);else setCreateMessage(text,error);};
+    const button=byId(salesHub?'addFieldAddressBtn':'createFieldLeadBtn');creatingLead=true;if(button){button.disabled=true;button.textContent='ADDING…';}
+    if(!salesHub)for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=true;
+    message('Checking the Lead Pool and locating the address…');
+    let saved=false;
     try{
-      const data=await call('create_lead',{
-        address1,address2:inputValue('newLeadAddress2'),city,state:stateCode,zip,
-        customer_name:inputValue('newLeadCustomerName'),phone:inputValue('newLeadPhone'),notes:inputValue('newLeadNotes')
-      });
-      setCreateMessage(data.created?'Address added to the Lead Pool.':'An existing lead matched this address and its customer information was updated.');
+      // Blank optional fields must not erase an existing matched lead's contact.
+      const contact={};
+      if(!salesHub)for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
+      const data=await call('create_lead',{...address,...contact});
+      saved=true;
+      if(!isCurrent())return;
+      const savedMessage=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
+      message(savedMessage+' Loading its pin…');
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();
+      if(!isCurrent())return;
+      // The loader resolves [] after exhausting retries; it does not reject.
+      if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
       if(leadId){
+        // An already-running load may have started before the insert. Retry once after it finishes.
+        if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
+        if(!isCurrent())return;
+        if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
         const lead=leadByAnyId(leadId);
-        if(lead){
-          window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id,source:'field_created_address'}}));
-          window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id);
-        }
+        const shown=lead&&showSavedPin(lead);
+        message(savedMessage+(shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));
+      }else{
+        message(savedMessage+' Ready for SALE.');
       }
-      for(const id of ['newLeadAddress1','newLeadAddress2','newLeadCity','newLeadState','newLeadZip','newLeadCustomerName','newLeadPhone','newLeadNotes'])if(byId(id))byId(id).value='';
+      // Keep the address available for PROCESS SALE without requiring re-entry.
     }catch(error){
       console.error('Field lead creation failed',error);
-      setCreateMessage(String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
-    }finally{creatingLead=false;if(button){button.disabled=false;button.textContent='ADD TO LEAD POOL';}}
+      message(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+    }finally{creatingLead=false;if(!salesHub)for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=false;if(button){button.disabled=salesHub&&!fieldRole();button.textContent=salesHub?'ADD ADDRESS':'ADD TO LEAD POOL';}}
   }
 
   function selectedLeadFromEvent(event){
@@ -200,13 +309,14 @@
     if(pick?.dataset?.id){const lead=leadByAnyId(pick.dataset.id);if(lead){activeLeadId=lead.dbId||lead.id;setTimeout(()=>loadContact(lead),80);}}
   },true);
   const observer=new MutationObserver(()=>{
-    ensureCreatePanel();
+    ensureCreatePanel();ensureAddressShortcuts();
     if(activeLeadId&&!byId('leadContactEditor'))refreshSelected();
   });
   const start=()=>{
-    ensureCreatePanel();
+    ensureCreatePanel();ensureAddressShortcuts();
     const mapPanel=byId('leadMapPanel');if(mapPanel)observer.observe(mapPanel,{childList:true,subtree:true});
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  [0,250,800,1600,3000].forEach(delay=>setTimeout(()=>{ensureCreatePanel();refreshSelected();},delay));
+  for(const name of ['mccoy-access-ready','mccoy-sales-hub-layout-ready'])window.addEventListener(name,()=>{ensureCreatePanel();ensureAddressShortcuts();});
+  [0,250,800,1600,3000].forEach(delay=>setTimeout(()=>{ensureCreatePanel();ensureAddressShortcuts();refreshSelected();},delay));
 })();

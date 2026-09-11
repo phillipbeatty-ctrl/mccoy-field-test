@@ -197,6 +197,13 @@
       primary.append(label,arrive);
     }
 
+    const addressBox=byId('fieldLeadAddressInput')?.closest('.field-lead-combobox');
+    const primary=byId('salesHubDoorPrimary');
+    if(addressBox&&primary&&!primary.contains(addressBox)){
+      const oldLabel=select.closest('label');
+      primary.prepend(addressBox);addressBox.appendChild(select);oldLabel?.remove();
+    }
+
     const status=byId('doorVisitStatus');
     const timer=byId('doorElapsed')?.closest('.door-timer');
     if(status&&timer&&!byId('salesHubDoorStatusRow')){
