@@ -82,7 +82,7 @@ Background updates retain active input elements, keyboard, cursor and edits.
 
 Keep the already-applied `20260911222724_field_gps_placement_pilot.sql` and
 `20260911231228_knock_door_gps_placement.sql` unchanged. Apply only
-`20260911233605_field_gps_production_rollout.sql`, verify its recorded migration
+`20260911234631_field_gps_production_rollout.sql`, verify its recorded migration
 version and RPC body, then run
 `supabase/releases/gps-placement/enable-production.sql` for the approved McCoy
 organization. The existing JWT-verified `lead-gps-placement` v2 bundle already
@@ -148,3 +148,11 @@ The release preserved the existing one enrolled account and five audit rows.
 See `supabase/releases/gps-placement/knock-door-release.json`. The four existing
 private-table RLS-without-policy INFO notices are deliberate: no browser grants
 are present. [Advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+
+Production backend verified: migration `20260911234631` is applied and the McCoy
+organization setting is enabled. All 13 active linked field accounts tested
+(Admin, Manager and Rep) return production-enabled status without a pilot toggle.
+RPC and table grants match the intended boundary. Pilot enrollment and audit
+counts remain one and five; release verification moved no customer pins. The new
+private rollout table has the same deliberate RLS-without-policy INFO notice.
+See `supabase/releases/gps-placement/production-release.json`.
