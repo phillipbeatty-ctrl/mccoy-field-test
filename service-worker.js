@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v18-20260911-single-address';
+const VERSION='field-coach-app-shell-v19-20260911-ziply';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/',
@@ -14,7 +14,11 @@ const SHELL=[
   '/app-distance-to-lead.js?v=2026091103',
   '/app-auto-door-arrival.js?v=2026091103',
   '/app-closest-lead-autofill-v2.js?v=2026091103',
-  '/app-provider-sale-router.js?v=2026091103',
+  '/app-provider-portals.js?v=2026091105',
+  '/app-provider-verification.js?v=2026091105',
+  '/app-sale-order-photo-admin.js?v=2026091105',
+  '/app-sale-order-photo-pilot.js?v=2026091105',
+  '/app-provider-sale-router.js?v=2026091105',
   '/app-field-lead-editor.js?v=2026091103',
   '/app-sales-hub-layout.js?v=2026091103',
   '/app-sales-hub-production-layout.js?v=2026091103',
@@ -36,12 +40,12 @@ const SHELL=[
   '/app-lead-pool-independent-activity.js?v=2026091103',
   '/app-map-viewport-lock.js?v=2026090402',
   '/app-map-manual-control.js?v=2026090402',
-  '/app-sales.js?v=2026082417',
-  '/app-sales-products.js?v=2026090201',
+  '/app-sales.js?v=2026091105',
+  '/app-sales-products.js?v=2026091105',
   '/app-accounting-records.js?v=2026090301',
-  '/app-customer-list-approval-refresh.js?v=2026090301',
+  '/app-customer-list-approval-refresh.js?v=2026091105',
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
-  '/app-page-layout.js?v=2026091103',
+  '/app-page-layout.js?v=2026091105',
   '/app-sale-lifecycle.js?v=2026090201',
   '/app-sale-photo-staging.js?v=2026090201',
   '/confirm-email.html',

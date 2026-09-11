@@ -43,7 +43,7 @@
       'app-sale-photo-staging.js?v=2026082803',
       'app-closest-lead-autofill-v2.js?v=2026091103',
       'app-sales-to-complete.js?v=2026082602',
-      'app-sale-order-photo-admin.js?v=2026082601',
+      'app-sale-order-photo-admin.js?v=2026091105',
       'app-admin-session-history.js?v=2026082901',
       'app-lead-pool-independent-activity.js?v=2026091103',
       'app-map-viewport-lock.js?v=2026090402',

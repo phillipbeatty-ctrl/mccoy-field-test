@@ -22,3 +22,4 @@ jobs:
           sales-hub-distance-cleanup.test.mjs move-pin-admin-diagnostics.test.mjs
           move-pin-snapshot.test.mjs lead-map-window-controls.test.mjs
           lead-pool-map-layout.test.mjs organization-access-gate.test.mjs
+          app-provider-portals.test.mjs supabase/functions/_shared/provider-sale-capture-core.test.mjs

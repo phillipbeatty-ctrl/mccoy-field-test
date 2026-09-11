@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import { SALE_PROVIDERS } from './supabase/functions/_shared/provider-sale-capture-core.mjs'
 
 function loadPortals() {
   const window = {}
@@ -39,4 +40,28 @@ test('provider sale routing keeps McCoy open and returns when the provider tab c
   assert.ok(continueFlow.indexOf('const reservedWindow=destination.opened?reserveProviderWindow():null') < continueFlow.indexOf('await waitForCaptureReady(draft)'))
   assert.ok(continueFlow.indexOf('await waitForCaptureReady(draft)') < continueFlow.indexOf('navigateSellerAccount(provider,destination,reservedWindow)'))
   assert.match(source, /markCaptureReturned\(true\)/)
+})
+
+test('Ziply uses its own account context on the session-free SaraPlus login', () => {
+  const portals = loadPortals()
+  assert.equal(portals.Ziply.url, 'https://www.saraplus.com/e/ServicePages/Login.aspx')
+  assert.equal(portals.Ziply.accountContext, 'Ziply')
+  assert.equal(portals.Ziply.sessionGroup, 'sara_plus')
+  assert.notEqual(portals.Ziply.label, portals.Fidium.label)
+  assert.doesNotMatch(portals.Ziply.url, /\/\(S\(/i)
+  assert.equal(portals.Ziply.reportUrl, undefined)
+})
+
+test('all provider selectors agree with server sale validation', () => {
+  assert.deepEqual(Object.keys(loadPortals()), [...SALE_PROVIDERS])
+  for (const file of ['app-provider-sale-router.js', 'app-provider-verification.js', 'app-sales.js', 'app-customer-list-approval-refresh.js', 'app-sale-order-photo-pilot.js']) {
+    const source = fs.readFileSync(new URL(file, import.meta.url), 'utf8')
+    const list = source.match(/const (?:providers|PROVIDERS|fallbackProviders)=\[([^\]]+)\]/)
+    assert.ok(list, file)
+    assert.deepEqual([...vm.runInNewContext(`[${list[1]}]`)], [...SALE_PROVIDERS], file)
+  }
+  const products = fs.readFileSync(new URL('./app-sales-products.js', import.meta.url), 'utf8')
+  const list = products.match(/const ISP_PROVIDERS=new Set\(\[([^\]]+)\]/)
+  assert.ok(list)
+  assert.deepEqual([...vm.runInNewContext(`[${list[1]}]`)], SALE_PROVIDERS.filter(provider => !['DIRECTV', 'Vivint'].includes(provider)))
 })

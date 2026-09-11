@@ -19,6 +19,12 @@ window.MCCOY_PROVIDER_PORTALS=Object.freeze({
     sessionGroup:'sara_plus',
     url:'https://www.saraplus.com/e/ServicePages/Login.aspx'
   }),
+  Ziply:Object.freeze({
+    label:'Sara Plus — Ziply account',
+    accountContext:'Ziply',
+    sessionGroup:'sara_plus',
+    url:'https://www.saraplus.com/e/ServicePages/Login.aspx'
+  }),
   'Ascend Fiber':Object.freeze({label:'Ascend Fiber seller account',url:''}),
   Lightcurve:Object.freeze({label:'Lightcurve seller account',url:''}),
   'Ripple Fiber':Object.freeze({label:'Ripple Fiber seller account',url:''}),
