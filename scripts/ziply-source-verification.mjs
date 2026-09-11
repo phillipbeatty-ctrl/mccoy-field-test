@@ -14,8 +14,12 @@ export async function verifyOriginalSource(response, metadata, expectedFiles) {
   const seen = new Set(), hashes = []
   const prefix = `/tmp/user_fn_${PROJECT}_${metadata.id}_${metadata.version}/`
   for (const [, file] of form) {
-    assert.ok(typeof file !== 'string' && typeof file.name === 'string' && typeof file.arrayBuffer === 'function',
-      'Function source contains a non-file part')
+    // The API also returns ordinary form fields. The official Supabase MCP
+    // selects only file parts; those fields are not deployed source files.
+    // Never use a form field's name or value as a substitute for a missing file.
+    if (typeof file === 'string') continue
+    assert.ok(typeof file.name === 'string' && file.name && typeof file.arrayBuffer === 'function',
+      'Function source contains a malformed file part')
     let name = file.name
     assert.equal(name.includes('\\'), false, 'Unexpected source path separator')
     if (name.startsWith('/')) {

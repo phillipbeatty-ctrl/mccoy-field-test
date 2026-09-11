@@ -5,13 +5,13 @@ import { verifyOriginalSource } from './scripts/ziply-source-verification.mjs'
 
 const release = await loadPackage()
 
-function multipart(files, { transform = name => name, extraField = false } = {}) {
+function multipart(files, { transform = name => name, fields = [] } = {}) {
   const chunks = []
   for (const file of files) {
     chunks.push(Buffer.from(`--ziply-source-test\r\nContent-Disposition: form-data; name="file"; filename="${transform(file.name)}"\r\nContent-Type: application/octet-stream\r\n\r\n`))
     chunks.push(Buffer.from(file.content), Buffer.from('\r\n'))
   }
-  if (extraField) chunks.push(Buffer.from('--ziply-source-test\r\nContent-Disposition: form-data; name="unexpected"\r\n\r\nvalue\r\n'))
+  for (const [name, value] of fields) chunks.push(Buffer.from(`--ziply-source-test\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`))
   chunks.push(Buffer.from('--ziply-source-test--\r\n'))
   return new Response(Buffer.concat(chunks), { headers: { 'Content-Type': 'multipart/form-data; boundary=ziply-source-test' } })
 }
@@ -35,6 +35,26 @@ test('UTF-8, BOM, CRLF and final newlines are verified as original bytes, never 
   }
 })
 
+test('API non-file fields coexist with all reviewed source files without changing verified hashes', async () => {
+  for (const fn of release.functions) {
+    const metadata = fn.slug === RECOVERY_CAPTURE.slug ? RECOVERY_CAPTURE : fn
+    const fields = [['metadata', JSON.stringify({ entrypoint_path: fn.entrypoint, verify_jwt: true })], ['info', 'API envelope'], ['metadata', 'another envelope field']]
+    const expected = await verifyOriginalSource(multipart(fn.files), metadata, fn.files)
+    assert.deepEqual(await verifyOriginalSource(multipart(fn.files, { fields }), metadata, fn.files), expected)
+  }
+})
+
+test('a non-file field cannot supply a missing source file or hide modified or additional files', async () => {
+  const files = release.functions[0].files
+  const fields = files.map(file => [file.name, file.content])
+  for (const response of [
+    multipart([], { fields }),
+    multipart(files.slice(1), { fields }),
+    multipart(files.map((file, i) => i ? file : { ...file, content: file.content + '\n' }), { fields }),
+    multipart([...files, { name: '_shared/unreviewed.mjs', content: 'unexpected' }], { fields }),
+  ]) await assert.rejects(verifyOriginalSource(response, RECOVERY_CAPTURE, files))
+})
+
 test('original bytes reject any missing, added, duplicated, traversing or wrong-deployment file', async () => {
   const files = release.functions[0].files
   const responses = [
@@ -42,7 +62,6 @@ test('original bytes reject any missing, added, duplicated, traversing or wrong-
     multipart([...files, { name: '_shared/unreviewed.mjs', content: 'unexpected' }]),
     multipart([...files, files[0]]),
     multipart([...files, { ...files[0], name: `functions/${files[0].name}` }]),
-    multipart(files, { extraField: true }),
     ...['../', 'functions/../', '/tmp/user_fn_other_project_id_14/source/functions/', 'functions\\'].map(prefix => multipart(files, { transform: name => prefix + name })),
   ]
   for (const response of responses) await assert.rejects(verifyOriginalSource(response, RECOVERY_CAPTURE, files))
