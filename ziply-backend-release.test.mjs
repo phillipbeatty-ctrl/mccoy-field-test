@@ -4,7 +4,7 @@ import { stripTypeScriptTypes } from 'node:module'
 import path from 'node:path'
 import test from 'node:test'
 import vm from 'node:vm'
-import { CORE, ROOT, TARGETS, MIGRATION_VERSION, MIGRATION_NAME, addZiply, assertLiveBaseline, assertReleaseContext, constraintContract, loadPackage } from './scripts/ziply-release-package.mjs'
+import { CORE, ROOT, TARGETS, MIGRATION_VERSION, MIGRATION_NAME, RECOVERY_PROFILE, RECOVERY_CAPTURE, addZiply, assertLiveBaseline, assertReleaseContext, constraintContract, loadPackage, sha256 } from './scripts/ziply-release-package.mjs'
 import { runRelease } from './scripts/deploy-ziply-backend.mjs'
 
 const release = await loadPackage()
@@ -56,30 +56,43 @@ const sha = 'a'.repeat(40)
 const authorized = { GITHUB_REPOSITORY: 'phillipbeatty-ctrl/mccoy-field-test', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main', GITHUB_ACTOR: 'phillipbeatty-ctrl', GITHUB_TRIGGERING_ACTOR: 'phillipbeatty-ctrl', EXPECTED_RELEASE_SHA: sha, GITHUB_SHA: sha, ZIPLY_OPERATION: 'deploy', ZIPLY_CONFIRMATION: 'DEPLOY_ZIPLY' }
 test('production action requires the owner, reviewed main commit, and exact Ziply confirmation', () => {
   assert.doesNotThrow(() => assertReleaseContext(authorized, sha))
-  for (const changed of [{GITHUB_REPOSITORY: 'other/repo'}, {GITHUB_EVENT_NAME: 'pull_request'}, {GITHUB_REF: 'refs/heads/preview'}, {GITHUB_ACTOR: 'other'}, {GITHUB_TRIGGERING_ACTOR: 'other'}, {EXPECTED_RELEASE_SHA: 'b'.repeat(40)}, {ZIPLY_CONFIRMATION: 'DEPLOY'}, {ZIPLY_OPERATION: 'paywall'}]) {
+  assert.doesNotThrow(() => assertReleaseContext({ ...authorized, ZIPLY_RELEASE_PROFILE: RECOVERY_PROFILE }, sha))
+  for (const changed of [{GITHUB_REPOSITORY: 'other/repo'}, {GITHUB_EVENT_NAME: 'pull_request'}, {GITHUB_REF: 'refs/heads/preview'}, {GITHUB_ACTOR: 'other'}, {GITHUB_TRIGGERING_ACTOR: 'other'}, {EXPECTED_RELEASE_SHA: 'b'.repeat(40)}, {ZIPLY_CONFIRMATION: 'DEPLOY'}, {ZIPLY_OPERATION: 'paywall'}, {ZIPLY_RELEASE_PROFILE: 'accept-current'}]) {
     assert.throws(() => assertReleaseContext({ ...authorized, ...changed }, sha))
   }
 })
 
-function adapterFixture() {
+const migratedState = () => ({ definition: contract.after, migration: { version: MIGRATION_VERSION, name: MIGRATION_NAME, statements: [release.migration] } })
+
+function adapterFixture(profile = 'original') {
   const calls = []
   const metadata = new Map(release.functions.map(fn => [fn.slug, { ...fn, status: 'ACTIVE' }]))
   let state = { definition: contract.before, migration: null }
+  if (profile === RECOVERY_PROFILE) {
+    metadata.set(RECOVERY_CAPTURE.slug, { ...RECOVERY_CAPTURE })
+    state = migratedState()
+  }
   const adapter = {
     metadata: async slug => { calls.push(`inspect:${slug}`); return metadata.get(slug) },
     databaseState: async () => { calls.push('database:read'); return state },
-    applyMigration: async query => { calls.push('database:write'); assert.match(query, /insert into supabase_migrations.schema_migrations/); state = { definition: contract.after, migration: { version: MIGRATION_VERSION, name: MIGRATION_NAME, statements: [release.migration] } } },
+    applyMigration: async query => { calls.push('database:write'); assert.match(query, /insert into supabase_migrations.schema_migrations/); state = migratedState() },
     deploy: async fn => { calls.push(`deploy:${fn.slug}`); metadata.set(fn.slug, {...metadata.get(fn.slug), version: fn.version + 1}) },
-    verifySource: async fn => { calls.push(`verify:${fn.slug}`) },
+    verifySource: async (fn, actual, kind) => {
+      calls.push(`verify:${fn.slug}:${kind}`)
+      assert.equal(actual.version, fn.version + (kind === 'candidate' ? 1 : 0))
+      return (kind === 'candidate' ? fn.files : fn.baseline_files).map(file => ({ name: file.name, sha256: sha256(file.content) }))
+    },
   }
   return { adapter, calls, metadata, setState: value => { state = value } }
 }
 
-test('read-only preflight performs no migration, deployment or source download', async () => {
+test('read-only preflight verifies metadata, all original source bytes and database state without writes', async () => {
   const fixture = adapterFixture()
   const result = await runRelease({ release, operation: 'preflight', adapter: fixture.adapter })
   assert.equal(result.status, 'preflight_passed')
-  assert.deepEqual(fixture.calls, [...TARGETS.map(slug => `inspect:${slug}`), 'database:read'])
+  assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
+  assert.deepEqual(fixture.calls.filter(call => call.startsWith('verify:')), TARGETS.map(slug => `verify:${slug}:baseline`))
+  assert.equal(result.checked_functions.length, 3)
 })
 
 test('a mismatch in the LAST function prevents ALL production writes', async () => {
@@ -101,18 +114,103 @@ test('database verifies before the three fixed deployments; each deployed source
   const fixture = adapterFixture()
   const result = await runRelease({ release, operation: 'deploy', adapter: fixture.adapter })
   assert.equal(result.status, 'backend_verified_ui_pending')
-  assert.deepEqual(fixture.calls.filter(call => /write|deploy|verify/.test(call)), ['database:write', ...TARGETS.flatMap(slug => [`deploy:${slug}`, `verify:${slug}`])])
+  assert.deepEqual(fixture.calls.filter(call => /write|deploy|verify/.test(call)), [...TARGETS.map(slug => `verify:${slug}:baseline`), 'database:write', ...TARGETS.flatMap(slug => [`deploy:${slug}`, `verify:${slug}:candidate`])])
   assert.deepEqual(result.completed_functions.map(fn => fn.slug), TARGETS)
 })
 
 test('migration failure or source mismatch stops remaining deployments and records partial evidence', async () => {
   for (const point of ['applyMigration', 'verifySource']) {
     const fixture = adapterFixture(), records = []
-    fixture.adapter[point] = async () => { throw new Error('simulated failure') }
+    const original = fixture.adapter[point]
+    fixture.adapter[point] = async (...args) => {
+      if (point === 'applyMigration' || args[2] === 'candidate') throw new Error('simulated failure')
+      return original(...args)
+    }
     await assert.rejects(runRelease({release, operation: 'deploy', adapter: fixture.adapter, record: async evidence => records.push(structuredClone(evidence))}))
     assert.equal(records.at(-1).status, 'stopped_review_required')
     assert.equal(fixture.calls.some(call => call === 'deploy:sale-submit'), false)
   }
+})
+
+test('recovery preflight proves the exact retained migration and capture, with no writes', async () => {
+  const fixture = adapterFixture(RECOVERY_PROFILE)
+  const result = await runRelease({ release, operation: 'preflight', profile: RECOVERY_PROFILE, adapter: fixture.adapter })
+  assert.equal(result.status, 'preflight_passed')
+  assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
+  assert.deepEqual(fixture.calls.filter(call => call.startsWith('verify:')), [
+    'verify:provider-sale-capture:candidate', 'verify:sale-submit:baseline', 'verify:provider-reconcile:baseline',
+  ])
+})
+
+test('recovery retains capture v14 and the migration, deploying only submit v32 and reconcile v19', async () => {
+  const fixture = adapterFixture(RECOVERY_PROFILE)
+  const result = await runRelease({ release, operation: 'deploy', profile: RECOVERY_PROFILE, adapter: fixture.adapter })
+  assert.equal(result.status, 'backend_verified_ui_pending')
+  assert.deepEqual(fixture.calls.filter(call => /write|deploy/.test(call)), ['deploy:sale-submit', 'deploy:provider-reconcile'])
+  assert.deepEqual(result.completed_functions.map(fn => [fn.slug, fn.version, fn.disposition]), [
+    ['provider-sale-capture', 14, 'retained'], ['sale-submit', 32, 'deployed'], ['provider-reconcile', 19, 'deployed'],
+  ])
+  assert.equal(result.completed_functions.every(fn => fn.source.length > 0), true)
+})
+
+test('original mode rejects the partial release; recovery rejects original and unknown states', async () => {
+  for (const [live, profile] of [[RECOVERY_PROFILE, 'original'], ['original', RECOVERY_PROFILE], [RECOVERY_PROFILE, 'accept-current']]) {
+    const fixture = adapterFixture(live)
+    await assert.rejects(runRelease({ release, operation: 'deploy', profile, adapter: fixture.adapter }))
+    assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
+  }
+})
+
+test('recovery refuses any target metadata drift or changed/missing migration history before writes', async () => {
+  const changes = []
+  for (const slug of TARGETS) {
+    for (const [key, value] of Object.entries({ version: 99, id: 'other', ezbr_sha256: 'f'.repeat(64), verify_jwt: false, import_map: true, status: 'REMOVED' })) {
+      changes.push(fixture => { fixture.metadata.get(slug)[key] = value })
+    }
+  }
+  for (const state of [{ definition: contract.before, migration: null }, { ...migratedState(), migration: null },
+    ...[{ version: 'other' }, { name: 'other' }, { statements: [release.migration + '\n'] }].map(change => ({ ...migratedState(), migration: { ...migratedState().migration, ...change } }))]) {
+    changes.push(fixture => fixture.setState(state))
+  }
+  for (const change of changes) {
+    const fixture = adapterFixture(RECOVERY_PROFILE); change(fixture)
+    await assert.rejects(runRelease({ release, operation: 'deploy', profile: RECOVERY_PROFILE, adapter: fixture.adapter }))
+    assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
+  }
+})
+
+test('source mismatch or metadata change during any recovery preflight source read blocks all writes', async () => {
+  for (const slug of TARGETS) {
+    for (const failure of ['source', 'metadata']) {
+      const fixture = adapterFixture(RECOVERY_PROFILE), original = fixture.adapter.verifySource
+      fixture.adapter.verifySource = async (...args) => {
+        if (args[0].slug === slug) {
+          if (failure === 'source') throw new Error('source mismatch')
+          fixture.metadata.set(slug, { ...fixture.metadata.get(slug), version: 99 })
+        }
+        return original(...args)
+      }
+      await assert.rejects(runRelease({ release, operation: 'deploy', profile: RECOVERY_PROFILE, adapter: fixture.adapter }))
+      assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
+    }
+  }
+})
+
+test('recovery stops after a failed submit verification, records v32, and refuses a replay', async () => {
+  const fixture = adapterFixture(RECOVERY_PROFILE), records = [], original = fixture.adapter.verifySource
+  fixture.adapter.verifySource = async (...args) => {
+    if (args[0].slug === 'sale-submit' && args[2] === 'candidate') throw new Error('source mismatch')
+    return original(...args)
+  }
+  await assert.rejects(runRelease({ release, operation: 'deploy', profile: RECOVERY_PROFILE, adapter: fixture.adapter, record: async evidence => records.push(structuredClone(evidence)) }))
+  assert.deepEqual(fixture.calls.filter(call => /write|deploy/.test(call)), ['deploy:sale-submit'])
+  assert.equal(records.at(-1).status, 'stopped_review_required')
+  assert.equal(records.at(-1).attempting_function, 'sale-submit')
+  assert.equal(records.at(-1).last_observed_function.version, 32)
+  assert.deepEqual(records.at(-1).completed_functions.map(fn => fn.slug), ['provider-sale-capture'])
+  fixture.calls.length = 0
+  await assert.rejects(runRelease({ release, operation: 'deploy', profile: RECOVERY_PROFILE, adapter: fixture.adapter }))
+  assert.equal(fixture.calls.some(call => /write|deploy/.test(call)), false)
 })
 
 const USER = '11111111-1111-4111-8111-111111111111', ORG = '22222222-2222-4222-8222-222222222222'

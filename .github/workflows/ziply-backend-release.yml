@@ -7,9 +7,11 @@ on:
       - 'supabase/migrations/20260911121718_add_ziply_sale_provider.sql'
       - 'supabase/functions/_shared/provider-sale-capture-core*'
       - 'scripts/ziply-release-package.mjs'
+      - 'scripts/ziply-source-verification.mjs'
       - 'scripts/deploy-ziply-backend.mjs'
       - 'scripts/test-ziply-migration.mjs'
       - 'ziply-backend-release.test.mjs'
+      - 'ziply-source-verification.test.mjs'
       - '.github/workflows/ziply-backend-release.yml'
   push:
     branches: [main]
@@ -18,9 +20,11 @@ on:
       - 'supabase/migrations/20260911121718_add_ziply_sale_provider.sql'
       - 'supabase/functions/_shared/provider-sale-capture-core*'
       - 'scripts/ziply-release-package.mjs'
+      - 'scripts/ziply-source-verification.mjs'
       - 'scripts/deploy-ziply-backend.mjs'
       - 'scripts/test-ziply-migration.mjs'
       - 'ziply-backend-release.test.mjs'
+      - 'ziply-source-verification.test.mjs'
       - '.github/workflows/ziply-backend-release.yml'
   workflow_dispatch:
     inputs:
@@ -30,6 +34,12 @@ on:
         default: preflight
         type: choice
         options: [preflight, deploy]
+      release_profile:
+        description: Original baseline, or the exact reviewed partial deployment from run 34611945575.
+        required: true
+        default: original
+        type: choice
+        options: [original, after-34611945575]
       expected_sha:
         description: Full reviewed main commit SHA; must equal this workflow's checked-out commit.
         required: true
@@ -54,7 +64,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test actual bundled handlers, provider compatibility and deployment stops
-        run: node --test ziply-backend-release.test.mjs supabase/functions/_shared/provider-sale-capture-core.test.mjs
+        run: node --test ziply-backend-release.test.mjs ziply-source-verification.test.mjs supabase/functions/_shared/provider-sale-capture-core.test.mjs
       - name: Build deterministic candidate and rollback source packages
         run: node scripts/ziply-release-package.mjs "${RUNNER_TEMP}/ziply-package"
       - name: Retain reviewed source packages and checksums
@@ -131,6 +141,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           EXPECTED_RELEASE_SHA: ${{ inputs.expected_sha }}
           ZIPLY_OPERATION: ${{ inputs.operation }}
+          ZIPLY_RELEASE_PROFILE: ${{ inputs.release_profile }}
           ZIPLY_CONFIRMATION: ${{ inputs.confirmation }}
         run: node scripts/deploy-ziply-backend.mjs
       - name: Retain success or partial-release evidence
