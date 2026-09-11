@@ -17,23 +17,41 @@
     const locality=[lead.city,[lead.stateCode||lead.state,lead.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
     return [...new Set([lead.fullAddress,locality?`${street}, ${locality}`:street,street].map(cleanAddress).filter(Boolean))];
   }
-  function matchingLeads(value,leads){
+  function createIndex(leads){
+    const rows=Array.isArray(leads)?leads:[],byId=new Map(),byAddress=new Map(),labels=new Map();
+    for(const lead of rows){
+      if(!lead)continue;
+      for(const id of [lead.id,lead.dbId])if(id!=null&&!byId.has(String(id)))byId.set(String(id),lead);
+      const label=leadLabels(lead)[0]||'',key=normalizeAddress(label);
+      labels.set(lead,label);
+      if(!key)continue;
+      if(!byAddress.has(key))byAddress.set(key,[]);
+      byAddress.get(key).push(lead);
+    }
+    return{leads:rows,length:rows.length,byId,byAddress,labels};
+  }
+  function usableIndex(index,leads){return index&&index.leads===leads&&index.length===leads.length?index:null;}
+  function matchingLeads(value,leads,index){
     const key=normalizeAddress(value);if(!key)return[];
     // Do not attach a sale to a different city or apartment by street alone.
+    const lookup=usableIndex(index,leads);if(lookup)return lookup.byAddress.get(key)||[];
     return (Array.isArray(leads)?leads:[]).filter(lead=>normalizeAddress(leadLabels(lead)[0])===key);
   }
-  function selectedLead(selectedId,leads){
-    const value=String(selectedId||'');
+  function selectedLead(selectedId,leads,index){
+    const value=String(selectedId||'');if(!value)return null;
+    const lookup=usableIndex(index,leads);if(lookup)return lookup.byId.get(value)||null;
     return (Array.isArray(leads)?leads:[]).find(lead=>String(lead.id)===value||String(lead.dbId)===value)||null;
   }
-  function context({value,leads,selectedId}={}){
-    const address=cleanAddress(value),selected=selectedLead(selectedId,leads);
-    if(selected&&normalizeAddress(leadLabels(selected)[0])===normalizeAddress(address)){
-      return{kind:'assigned',address:leadLabels(selected)[0]||address,lead:selected,valid:true};
-    }
-    const matches=matchingLeads(address,leads);
-    if(matches.length===1)return{kind:'assigned',address:leadLabels(matches[0])[0]||address,lead:matches[0],valid:true};
+  function context({value,leads,selectedId,index}={}){
+    const address=cleanAddress(value);
     if(!address)return{kind:'empty',address:'',lead:null,valid:false};
+    const lookup=usableIndex(index,leads),selected=selectedLead(selectedId,leads,lookup);
+    const selectedLabel=selected?(lookup?.labels.get(selected)??leadLabels(selected)[0]):'';
+    if(selected&&normalizeAddress(selectedLabel)===normalizeAddress(address)){
+      return{kind:'assigned',address:selectedLabel||address,lead:selected,valid:true};
+    }
+    const matches=matchingLeads(address,leads,lookup);
+    if(matches.length===1)return{kind:'assigned',address:lookup?.labels.get(matches[0])||leadLabels(matches[0])[0]||address,lead:matches[0],valid:true};
     if(address.length<MIN_ADDRESS_LENGTH)return{kind:'invalid',address,lead:null,valid:false,reason:'address_too_short'};
     return{kind:'typed',address,lead:null,valid:true,ambiguousAssignedMatch:matches.length>1};
   }
@@ -78,5 +96,5 @@
       customer_map_location:mapped?{latitude:Number(lat),longitude:Number(lng)}:null
     };
   }
-  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,matchingLeads,selectedLead,context,adHocLead,fieldAddress,saleSource};
+  return{MIN_ADDRESS_LENGTH,MAX_ADDRESS_LENGTH,cleanAddress,normalizeAddress,leadLabels,createIndex,matchingLeads,selectedLead,context,adHocLead,fieldAddress,saleSource};
 });

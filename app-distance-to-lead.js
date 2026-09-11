@@ -13,7 +13,7 @@
   let arrivalCandidate=null,arrivalHits=0,departureCandidate=null,departureHits=0,resumeAttempted=false;
   const byId=id=>document.getElementById(id);
   const label=lead=>lead?.fullAddress||[lead?.address,lead?.city,[lead?.stateCode,lead?.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Selected lead';
-  const selectedLead=()=>{const value=String(select.value||'');return(state.leads||[]).find(lead=>String(lead.id)===value||String(lead.dbId)===value)||state.activeDoorVisit?.lead||null;};
+  const selectedLead=()=>window.MCCOY_LEAD_ADDRESS?.current?.().lead||state.activeDoorVisit?.lead||null;
   const addressContext=()=>window.MCCOY_LEAD_ADDRESS?.current?.()||{kind:'empty',address:'',lead:null,valid:false};
   function ensureOption(lead){if(!lead)return;let option=[...select.options].find(item=>item.value===String(lead.id));if(!option){option=new Option(label(lead),String(lead.id));select.add(option);}}
   function chooseLead(lead,automatic=true){if(!lead||(automatic&&!autoNearestEnabled()))return;ensureOption(lead);autoChanging=true;select.value=String(lead.id);select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;if(automatic)manualLeadLocked=false;}
@@ -23,7 +23,7 @@
 
   function calculate(){
     const gps=state.latestGps||null,nearest=autoNearestEnabled()?core.nearestLead(state.leads||[],gps):null;
-    const typed=addressContext().kind==='typed'?addressContext():null;
+    const context=addressContext(),typed=context.kind==='typed'?context:null;
     if(autoNearestEnabled()&&!manualLeadLocked&&!typed&&!state.activeDoorVisit){
       // The address box should always show the nearest usable McCoy lead when
       // location is available. Quarter-mile remains a coaching/arrival signal,
@@ -92,8 +92,8 @@
   }
 
   function evaluateAutomation(){
-    const current=render(),gps=state.latestGps||null;
     if(!autoNearestEnabled()){resetArrival();resetDeparture();return;}
+    const current=render(),gps=state.latestGps||null;
     if(!state.session||!telemetrySessionId||!core.isFreshGps(gps)){resetArrival();resetDeparture();return;}
     if(!state.activeDoorVisit){
       // Automatic arrival remains restricted to field/manual-verified pins even
@@ -119,7 +119,8 @@
   window.addEventListener('mccoy-door-visit-started',render);window.addEventListener('mccoy-door-visit-completed',()=>{manualLeadLocked=false;providerAddress='';resetArrival();resetDeparture();render();});
   for(const eventName of ['mccoy-real-leads-progress','mccoy-real-leads-loaded'])window.addEventListener(eventName,()=>{if(state.activeDoorVisit?.lead?.dbId){const loaded=(state.leads||[]).find(item=>String(item.dbId)===String(state.activeDoorVisit.lead.dbId));if(loaded){state.activeDoorVisit.lead=loaded;}}render();});
   window.addEventListener('mccoy-access-ready',resumeWorkflow);setTimeout(()=>{if(window.MCCOY_ACCESS?.access)resumeWorkflow();},900);
-  const timer=setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750);
+  // The shared manual workflow remains installed; a paused release owns no automation timer.
+  const timer=autoNearestEnabled()?setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750):null;
   window.addEventListener('beforeunload',()=>clearInterval(timer));
   window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,useClosest,correctLead};
   render();

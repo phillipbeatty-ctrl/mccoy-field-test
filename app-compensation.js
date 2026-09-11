@@ -78,23 +78,36 @@
   function renderGhostAdminSettings(data){
     const root=document.getElementById('ghostRankingAdminSettings'),settings=data?.ghost_admin_settings;
     if(!root)return;
-    root.replaceChildren();
     root.hidden=!settings;
-    if(!settings)return;
+    root._ghostSettings=settings;
+    if(!settings){if(root.children.length)root.replaceChildren();return;}
     root.className='ghost-ranking-admin';
     const minimums=settings.minimums||{};
-    root.innerHTML='<strong>👻 Ghost Ranking Records · Admin Controlled</strong><p>Overtake comparison stays active. Ghost test sales remain available for testing and accounting, but Admin-set records control Ghost\'s day, week, month, and year rankings.</p><div class="ghost-goal-grid"><label>Best Day<input id="ghostDayGoal" type="number" inputmode="numeric"></label><label>Best Week<input id="ghostWeekGoal" type="number" inputmode="numeric"></label><label>Best Month<input id="ghostMonthGoal" type="number" inputmode="numeric"></label><label>Best Year<input id="ghostYearGoal" type="number" inputmode="numeric"></label></div><div class="ghost-ranking-actions"><button id="saveGhostRankingGoals" class="primary" type="button">Save Ghost Records</button><span id="ghostRankingSaveStatus" role="status" aria-live="polite"></span></div>';
     const fields=[
       ['ghostDayGoal','day_goal',minimums.day||3],
       ['ghostWeekGoal','week_goal',minimums.week||15],
       ['ghostMonthGoal','month_goal',minimums.month||30],
       ['ghostYearGoal','year_goal',minimums.year||600]
     ];
-    for(const [id,key,minimum] of fields){const input=document.getElementById(id);input.min=String(minimum);input.max=key==='year_goal'?'100000':key==='month_goal'?'20000':key==='week_goal'?'5000':'1000';input.value=String(Number(settings[key]||minimum));}
+    if(!root.querySelector('#ghostDayGoal')){
+      root.innerHTML='<strong>👻 Ghost Ranking Records · Admin Controlled</strong><p>Overtake comparison stays active. Ghost test sales remain available for testing and accounting, but Admin-set records control Ghost\'s day, week, month, and year rankings.</p><div class="ghost-goal-grid"><label>Best Day<input id="ghostDayGoal" type="number" inputmode="numeric"></label><label>Best Week<input id="ghostWeekGoal" type="number" inputmode="numeric"></label><label>Best Month<input id="ghostMonthGoal" type="number" inputmode="numeric"></label><label>Best Year<input id="ghostYearGoal" type="number" inputmode="numeric"></label></div><div class="ghost-ranking-actions"><button id="saveGhostRankingGoals" class="primary" type="button">Save Ghost Records</button><span id="ghostRankingSaveStatus" role="status" aria-live="polite"></span></div>';
+      for(const [id] of fields){
+        const input=document.getElementById(id);
+        input.addEventListener('input',()=>{input.dataset.dirty='1';input._editRevision=(input._editRevision||0)+1;});
+        input.addEventListener('blur',()=>{if(input.dataset.dirty!=='1'&&input._serverValue!=null&&input.value!==input._serverValue)input.value=input._serverValue;});
+      }
+    }
+    for(const [id,key,minimum] of fields){
+      const input=document.getElementById(id),value=String(Number(settings[key]||minimum));
+      input.min=String(minimum);input.max=key==='year_goal'?'100000':key==='month_goal'?'20000':key==='week_goal'?'5000':'1000';input._serverValue=value;
+      if(input.dataset.dirty!=='1'&&document.activeElement!==input&&input.value!==value)input.value=value;
+    }
     const save=document.getElementById('saveGhostRankingGoals'),status=document.getElementById('ghostRankingSaveStatus');
-    save.disabled=settings.can_edit!==true;
+    save.disabled=settings.can_edit!==true||root._ghostSaving===true;
     save.onclick=async()=>{
-      save.disabled=true;status.textContent='Saving…';
+      if(root._ghostSaving||root._ghostSettings?.can_edit!==true)return;
+      root._ghostSaving=true;save.disabled=true;status.textContent='Saving…';
+      const revisions=fields.map(([id])=>document.getElementById(id)._editRevision||0);
       try{
         const values=Object.fromEntries(fields.map(([id,key,minimum])=>[key,Math.trunc(Number(document.getElementById(id).value)||minimum)]));
         const {data,error}=await sb.rpc('admin_set_ghost_ranking_goals',{
@@ -102,12 +115,14 @@
           p_month_goal:values.month_goal,p_year_goal:values.year_goal
         });
         if(error)throw error;
-        status.textContent='Ghost ranking records saved.';
+        let newerEdits=false;
+        fields.forEach(([id],index)=>{const input=document.getElementById(id);if(!input)return;if((input._editRevision||0)===revisions[index])delete input.dataset.dirty;else newerEdits=true;});
+        status.textContent=newerEdits?'Ghost ranking records saved. Your newer edits are still unsaved.':'Ghost ranking records saved.';
         await loadLeaders();
       }catch(error){
         console.error('Ghost record update failed',error);
         status.textContent=error?.message||'Unable to save Ghost records.';
-      }finally{save.disabled=settings.can_edit!==true;}
+      }finally{root._ghostSaving=false;save.disabled=root._ghostSettings?.can_edit!==true;}
     };
   }
 
@@ -168,7 +183,7 @@
     const authority=document.getElementById('rankingAuthorityStatus');
     if(authority){const updated=data.generated_at?new Date(data.generated_at).toLocaleString():'now';const pending=Number(data.pending_review_sales||0);authority.textContent=`Official database ranking · Updated ${updated} · Completed McCoy sales rank immediately · ${pending} excluded record${pending===1?'':'s'} (abandoned, incomplete, rejected, or not-a-sale) · Provider verification remains separate for accounting · Sales/Hr is provisional below 1 tracked field hour and generated from authenticated McCoy workday sessions · Equal totals: faster accumulation wins.`;}
     const body=document.getElementById('repRankingRows');
-    if(!body)return;
+    if(!body||!window.MCCOY_UI.changed(body,{period:selectedRankingPeriod,rankings}))return;
     body.replaceChildren();
     if(!rankings.length){
       const empty=document.createElement('tr'),cell=document.createElement('td');
@@ -193,17 +208,18 @@
   ensureDashboardRankings();
 
   async function invoke(name,body){const {data,error}=await sb.functions.invoke(name,body?{body}:undefined);if(error)throw error;return data;}
-  async function loadPayProgress(){try{const d=await invoke('pay-progress');if(!d?.ok)return;const main=document.getElementById('payProgressMain'),sub=document.getElementById('payProgressSub');if(!main||!sub)return;const estimate=Number(d.estimated_weekly_commission||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}),weekLabel=recordPeriodLabel('week',d.week_start),dateRule=`Current week: ${weekLabel}, based on order entry date.`;if(!d.pay_level_assigned){main.textContent=`${d.weekly_sales} sales this week — pay level not assigned`;sub.textContent=`${dateRule} Ask an Admin to assign your commission pay level before the next sale. Verified sales remain recorded, but an exact commission estimate is unavailable.`;return;}const progress=d.next_threshold==null?'highest extra-pay tier reached':`${d.sales_needed_for_next} more to reach ${d.next_threshold}`;main.textContent=`${d.pay_level_label} · ${d.weekly_sales} sales · ${progress}`;sub.textContent=`${dateRule} Estimated qualifying commission: ${estimate}. Current production increase: +$${d.current_increase_per_sale}/sale.${d.unpriced_sales?` ${d.unpriced_sales} sale${d.unpriced_sales===1?'':'s'} need Accounting review.`:''} ISP verification, Admin approval when required, installs, provider payment, and chargebacks control final pay.`;}catch(e){console.error('Pay progress failed',e);}}
+  window.MCCOY_LOAD_COMPANY_LEADERS=window.MCCOY_UI.coalesceRefresh(()=>invoke('company-leaders'));
+  async function loadPayProgress(){try{const d=await invoke('pay-progress');if(!d?.ok)return;const main=document.getElementById('payProgressMain'),sub=document.getElementById('payProgressSub');if(!main||!sub)return;const estimate=Number(d.estimated_weekly_commission||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}),weekLabel=recordPeriodLabel('week',d.week_start),dateRule=`Current week: ${weekLabel}, based on order entry date.`;if(!d.pay_level_assigned){window.MCCOY_UI.text(main,`${d.weekly_sales} sales this week — pay level not assigned`);window.MCCOY_UI.text(sub,`${dateRule} Ask an Admin to assign your commission pay level before the next sale. Verified sales remain recorded, but an exact commission estimate is unavailable.`);return;}const progress=d.next_threshold==null?'highest extra-pay tier reached':`${d.sales_needed_for_next} more to reach ${d.next_threshold}`;window.MCCOY_UI.text(main,`${d.pay_level_label} · ${d.weekly_sales} sales · ${progress}`);window.MCCOY_UI.text(sub,`${dateRule} Estimated qualifying commission: ${estimate}. Current production increase: +$${d.current_increase_per_sale}/sale.${d.unpriced_sales?` ${d.unpriced_sales} sale${d.unpriced_sales===1?'':'s'} need Accounting review.`:''} ISP verification, Admin approval when required, installs, provider payment, and chargebacks control final pay.`);}catch(e){console.error('Pay progress failed',e);}}
 
   async function loadLeaders(){
     try{
-      const data=await invoke('company-leaders');
+      const data=await window.MCCOY_LOAD_COMPANY_LEADERS();
       if(!data?.ok)return;
       const map=[['today','leadToday','leadTodayCount'],['week','leadWeek','leadWeekCount'],['month','leadMonth','leadMonthCount'],['year','leadYear','leadYearCount'],['all_time','leadAll','leadAllCount']];
       for(const [key,nameId,countId] of map){
         const leader=data.leaders?.[key],name=document.getElementById(nameId),count=document.getElementById(countId);
-        if(name)name.textContent=leader?.name||'No sales yet';
-        if(count)count.textContent=leader?(leader.hidden||leader.count==null?'Hidden':leader.count+' sale'+(leader.count===1?'':'s')):'';
+        if(name)window.MCCOY_UI.text(name,leader?.name||'No sales yet');
+        if(count)window.MCCOY_UI.text(count,leader?(leader.hidden||leader.count==null?'Hidden':leader.count+' sale'+(leader.count===1?'':'s')):'');
       }
       renderDashboardRankings(data);
     }catch(error){
@@ -278,7 +294,10 @@
     }catch(error){root.textContent='Unable to load compensation controls.';console.error(error);}
   }
 
-  const poll=setInterval(()=>{if(!window.MCCOY_ACCESS?.user)return;clearInterval(poll);loadPayProgress();loadLeaders();probe();setInterval(()=>{loadPayProgress();loadLeaders();},60000);},400);
+  loadPayProgress=window.MCCOY_UI.coalesceRefresh(loadPayProgress);
+  loadLeaders=window.MCCOY_UI.coalesceRefresh(loadLeaders);
+  const poll=setInterval(()=>{if(!window.MCCOY_ACCESS?.user)return;clearInterval(poll);loadPayProgress();loadLeaders();probe();},400);
+  window.MCCOY_UI.backgroundRefresh(()=>{loadPayProgress();loadLeaders();});
   window.MCCOY_REFRESH_RANKINGS=()=>Promise.all([loadPayProgress(),loadLeaders()]);
   window.addEventListener('mccoy-sale-saved',()=>{loadPayProgress();loadLeaders();});
   window.addEventListener('mccoy-live-sales-changed',()=>{loadPayProgress();loadLeaders();});

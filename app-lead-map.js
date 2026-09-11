@@ -86,16 +86,22 @@
   function restoreGrabCursor(){
     lassoMode=false;lassoDrawing=false;window.MCCOY_LASSO_ACTIVE=false;const btn=document.getElementById('lassoSelectBtn');if(btn){btn.textContent='LASSO SELECT';btn.className='assign-btn';}canvas.style.cursor='grab';canvas.style.touchAction='';map.dragging.enable();map.touchZoom?.enable();map.doubleClickZoom.enable();map.boxZoom.enable();
   }
-  function setMarkerSelectedStyle(id){const marker=markerByLead.get(id);if(!marker)return;const selected=selectedIds.has(id);if(marker._mccoySelected===selected)return;marker._mccoySelected=selected;marker.setIcon(leadPinIcon(marker._mccoyLead,selected));}
+  function styleMarker(marker){
+    const element=marker.getElement?.(),lead=marker._mccoyLead;if(!element||!lead)return;
+    element.dataset.mccoyLeadId=String(lead.dbId||lead.id);
+    window.MCCOY_COLOR_LEAD_MARKER?.(element,lead);
+  }
+  function setMarkerSelectedStyle(id){const marker=markerByLead.get(id);if(!marker)return;const selected=selectedIds.has(id);if(marker._mccoySelected===selected)return;marker._mccoySelected=selected;marker.setIcon(leadPinIcon(marker._mccoyLead,selected));styleMarker(marker);}
   function toggleLeadSelection(l){if(selectedIds.has(l.dbId))selectedIds.delete(l.dbId);else selectedIds.add(l.dbId);setMarkerSelectedStyle(l.dbId);updateSelectionStatus(selectedIds.has(l.dbId)?'Lead added to selection':'Lead removed from selection');}
 
   function renderPins(fit=false){
     const source=state.realLeads||[],filterKey=`${document.getElementById('teamFilter')?.value||''}|${document.getElementById('leadOwnerFilter')?.value||''}|${(document.getElementById('leadSearch')?.value||'').toLowerCase()}`;
-    if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(lead,selected));}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
+    if(renderedLeadSource===source&&renderedFilterKey===filterKey){for(const [id,marker] of markerByLead){const location=marker.getLatLng?.(),lead=marker._mccoyLead;if(location&&lead&&(location.lat!==Number(lead.lat)||location.lng!==Number(lead.lng))){renderedLeadSource=null;return renderPins(fit);}const selected=selectedIds.has(id);if(marker._mccoySelected!==selected){marker._mccoySelected=selected;marker.setIcon(leadPinIcon(lead,selected));styleMarker(marker);}}updateSelectionStatus();if(renderedBounds.length&&(fit||firstFit)){map.fitBounds(renderedBounds,{padding:[18,18],maxZoom:16});firstFit=false;}return;}
     leadLayer.clearLayers();markerByLead.clear();
     const leads=currentRealFiltered(),bounds=[],markers=[];
     for(const lead of leads){
       const selected=selectedIds.has(lead.dbId),marker=L.marker([Number(lead.lat),Number(lead.lng)],{icon:leadPinIcon(lead,selected),keyboard:false,title:lead.address||'Lead'});marker._mccoySelected=selected;marker._mccoyLead=lead;
+      marker.on('add',()=>styleMarker(marker));
       marker.bindTooltip(`${lead.address}${lead.ownerName&&lead.ownerRole!=='unassigned'?' · Owner: '+lead.ownerName:''} · ${pinLocationQuality(lead)==='verified'?'Location verified':'Location needs review'}`);
       marker.on('click',event=>{if(lassoMode){L.DomEvent.stopPropagation(event);return;}toggleLeadSelection(lead);selectCorrectionLead(lead);window.dispatchEvent(new CustomEvent('mccoy-map-lead-selected',{detail:{leadId:lead.dbId||lead.id}}));});
       markerByLead.set(lead.dbId,marker);markers.push(marker);bounds.push([Number(lead.lat),Number(lead.lng)]);
@@ -173,6 +179,7 @@
     l.lat=movePinOriginal.latitude;l.lng=movePinOriginal.longitude;l.updatedAt=movePinOriginal.updatedAt;movePinProposed=null;
     markerByLead.get(l.dbId)?.setOpacity?.(.38);
     correctionMarker=L.marker([movePinOriginal.lat,movePinOriginal.lng],{draggable:true,autoPan:true,title:'Move pin to the actual door',icon:leadPinIcon(l,false,true)}).addTo(map);
+    correctionMarker._mccoyLead=l;styleMarker(correctionMarker);
     correctionMarker.bindTooltip('MOVE TO ACTUAL DOOR',{direction:'top'}).openTooltip();syncMovePinButtons(true);
     correctionMarker.on('dragstart',()=>correctionMsg('Move the large pin to the correct property, then release to preview.'));
     correctionMarker.on('dragend',()=>{const pos=correctionMarker.getLatLng();movePinProposed={lat:pos.lat,lng:pos.lng};const meters=metersBetween(movePinOriginal,movePinProposed);const distance=document.getElementById('movePinDistance');if(distance)distance.textContent=`Proposed move: ${meters<30?Math.round(meters*3.28084)+' ft':Math.round(meters)+' m'} from the original pin.`;correctionMsg('Review the proposed position, then select CONFIRM LOCATION.');syncMovePinButtons(true);});
@@ -196,7 +203,7 @@
         const failureError=new Error(safeCodes.includes(code)?code:'location_save_failed');failureError.status=failure.status;failureError.backendReason=[failure.payload?.error,failure.payload?.detail].filter(Boolean).join(': ')||failure.payload?.message||error?.message||failureError.message;throw failureError;
       }
       l.lat=data.lead.latitude;l.lng=data.lead.longitude;l.updatedAt=data.lead.updated_at;l.geocodeStatus=data.lead.geocode_status;l.geocodeProvider=data.lead.geocode_provider;l.geocodePrecision=data.lead.geocode_precision;l.geocodeVerificationStatus=data.lead.geocode_verification_status;
-      const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));endMovePin(data.decision==='review_required'?'Location saved and flagged for Admin review.':'Location confirmed and saved.');
+      const marker=markerByLead.get(l.dbId);marker?.setLatLng([l.lat,l.lng]);marker?.setIcon(leadPinIcon(l,selectedIds.has(l.dbId)));if(marker)styleMarker(marker);endMovePin(data.decision==='review_required'?'Location saved and flagged for Admin review.':'Location confirmed and saved.');
     }catch(error){
       const reason=String(error?.message||error);
       if(reason.includes('stale_lead')){

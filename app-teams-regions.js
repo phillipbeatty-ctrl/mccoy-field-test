@@ -3,7 +3,6 @@
   let users=[];
   let regions=REGIONS.map(name=>({name,manager_email:null,manager_name:null,manager_role:null}));
   let rosters=[],unassignedReps=[];
-  let loadPromise=null;
 
   const css=document.createElement('style');css.textContent=`.team-roster-card{margin-top:14px}.team-roster-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px}.manager-team{border:1px solid #e5e7eb;border-radius:12px;background:#fff;overflow:hidden}.manager-team-head{padding:13px 14px;background:#f8fafc;border-bottom:1px solid #e5e7eb}.manager-team-head h3{margin:0;font-size:15px}.manager-team-regions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.manager-team-region{display:inline-block;padding:3px 7px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700}.manager-team-reps{list-style:none;margin:0;padding:5px 14px 11px}.manager-team-reps li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #f0f2f4;font-size:13px}.manager-team-reps li:last-child{border-bottom:0}.manager-team-empty{padding:13px 14px;color:#6b7280;font-size:12px}.manager-team.unassigned{border-color:#f3d28b}.manager-team.unassigned .manager-team-head{background:#fffbeb}`;document.head.appendChild(css);
 
@@ -51,38 +50,44 @@
     root.querySelectorAll?.('#teamFilter,#signupTeam,#requestTeam,select[id^="arTeam"],select[id^="uaTeam"]').forEach(populateSelect);
   }
 
-  function renderRegions(){
-    const root=document.getElementById('teamsTable');
-    if(!root)return;
-    if(!isAdmin()){
-      root.innerHTML='<div class="muted">Regional manager assignments are available to administrators.</div>';
-      return;
+  function updateRegionSelect(select,region,options){
+    const editing=document.activeElement===select||select.dataset.dirty==='1';
+    if(select.dataset.options!==options){
+      if(editing){select._pendingRegion={region,options};return;}
+      select.innerHTML=options;select.dataset.options=options;
     }
+    if(!editing)select.value=region.manager_email||'';
+    select._pendingRegion=editing?{region,options}:null;
+  }
+
+  function renderRegions(){
+    const root=document.getElementById('teamsTable');if(!root)return;
+    if(!isAdmin()){window.MCCOY_UI.html(root,'<div class="muted">Regional manager assignments are available to administrators.</div>');return;}
     const roleLabel=role=>role==='admin'?'Admin':role==='trainer'?'Trainer':role==='manager'?'Manager':'Rep';
-    const options=users.map(user=>`<option value="${esc(user.email)}">${esc(user.display_name||user.email)} · ${esc(roleLabel(user.role))}</option>`).join('');
-    root.innerHTML=`<div id="regionManagerMessage" class="muted small" aria-live="polite" style="margin-bottom:10px">Select an active account to manage a region. Existing Trainers remain Trainers.</div><table><thead><tr><th>Region</th><th>Manager / Trainer</th><th>Lead Pool</th><th>Assign Team Lead</th></tr></thead><tbody>${regions.map((region,index)=>`<tr><td><strong>${esc(region.name)}</strong></td><td>${region.manager_name?`${esc(region.manager_name)}${region.manager_role?` <span class="muted small">(${esc(roleLabel(region.manager_role))})</span>`:''}`:'<span class="status-warn">Team Lead Needed</span>'}</td><td>${leadCount(region.name).toLocaleString()}</td><td><div style="display:flex;gap:8px;align-items:center;min-width:280px"><select id="regionManager${index}" aria-label="Manager or Trainer for ${esc(region.name)}" style="min-width:190px;max-width:260px"><option value="">No team lead</option>${options}</select><button id="saveRegionManager${index}" class="primary">Assign</button></div></td></tr>`).join('')}</tbody></table>`;
+    const options='<option value="">No team lead</option>'+users.map(user=>`<option value="${esc(user.email)}">${esc(user.display_name||user.email)} · ${esc(roleLabel(user.role))}</option>`).join('');
+    if(!root.querySelector('#regionManager0')){
+      root.innerHTML=`<div id="regionManagerMessage" class="muted small" aria-live="polite" style="margin-bottom:10px">Select an active account to manage a region. Existing Trainers remain Trainers.</div><table><thead><tr><th>Region</th><th>Manager / Trainer</th><th>Lead Pool</th><th>Assign Team Lead</th></tr></thead><tbody>${regions.map((region,index)=>`<tr><td><strong>${esc(region.name)}</strong></td><td id="regionManagerName${index}"></td><td id="regionLeadCount${index}"></td><td><div style="display:flex;gap:8px;align-items:center;min-width:280px"><select id="regionManager${index}" aria-label="Manager or Trainer for ${esc(region.name)}" style="min-width:190px;max-width:260px"></select><button id="saveRegionManager${index}" class="primary">Assign</button></div></td></tr>`).join('')}</tbody></table>`;
+      regions.forEach((region,index)=>{
+        const select=document.getElementById('regionManager'+index),button=document.getElementById('saveRegionManager'+index);
+        select.addEventListener('change',()=>{select.dataset.dirty='1';});
+        select.addEventListener('blur',()=>{const pending=select._pendingRegion;if(pending)updateRegionSelect(select,pending.region,pending.options);});
+        button.onclick=async()=>{
+          const message=document.getElementById('regionManagerMessage'),submitted=select.value;
+          button.disabled=true;button.textContent='Saving…';message.textContent=`Updating ${region.name}…`;
+          try{
+            const result=await onboarding('assign_region_manager',{region_name:region.name,manager_email:submitted});
+            if(select.value===submitted)delete select.dataset.dirty;
+            message.style.color='#166534';message.textContent=result.manager_name?`${result.manager_name} is now the manager of ${region.name}.`:`${region.name} no longer has an assigned manager.`;
+            await loadRegions(true);
+          }catch(error){console.error('Region manager assignment failed',error);message.style.color='#991b1b';message.textContent=`Unable to update ${region.name}${error?.message?': '+error.message:''}.`;}
+          finally{button.disabled=false;button.textContent='Assign';}
+        };
+      });
+    }
     regions.forEach((region,index)=>{
-      const select=document.getElementById('regionManager'+index);
-      if(region.manager_email&&users.some(user=>user.email===region.manager_email))select.value=region.manager_email;
-      document.getElementById('saveRegionManager'+index).onclick=async()=>{
-        const button=document.getElementById('saveRegionManager'+index);
-        const message=document.getElementById('regionManagerMessage');
-        button.disabled=true;
-        button.textContent='Saving…';
-        message.textContent=`Updating ${region.name}…`;
-        try{
-          const result=await onboarding('assign_region_manager',{region_name:region.name,manager_email:select.value});
-          message.style.color='#166534';
-          message.textContent=result.manager_name?`${result.manager_name} is now the manager of ${region.name}.`:`${region.name} no longer has an assigned manager.`;
-          await loadRegions(true);
-        }catch(error){
-          console.error('Region manager assignment failed',error);
-          message.style.color='#991b1b';
-          message.textContent=`Unable to update ${region.name}${error?.message?': '+error.message:''}.`;
-          button.disabled=false;
-          button.textContent='Assign';
-        }
-      };
+      window.MCCOY_UI.text(document.getElementById('regionManagerName'+index),region.manager_name?`${region.manager_name}${region.manager_role?' ('+roleLabel(region.manager_role)+')':''}`:'Team Lead Needed');
+      window.MCCOY_UI.text(document.getElementById('regionLeadCount'+index),leadCount(region.name).toLocaleString());
+      updateRegionSelect(document.getElementById('regionManager'+index),region,options);
     });
   }
 
@@ -102,18 +107,13 @@
     grid.innerHTML=groups.join('')||'<div class="muted">No Manager or Trainer teams are available yet.</div>';message.textContent=`${rosters.length} team lead${rosters.length===1?'':'s'} · ${rosters.reduce((sum,roster)=>sum+(roster.reps||[]).length,0)} assigned rep${rosters.reduce((sum,roster)=>sum+(roster.reps||[]).length,0)===1?'':'s'}`;
   }
 
-  async function loadRegions(force=false){
-    if(loadPromise&&!force)return loadPromise;
-    loadPromise=(async()=>{
-      const [rosterData,data]=await Promise.all([onboarding('team_rosters'),isAdmin()?onboarding('list_regions'):Promise.resolve(null)]);
-      rosters=Array.isArray(rosterData.rosters)?rosterData.rosters:[];unassignedReps=Array.isArray(rosterData.unassigned_reps)?rosterData.unassigned_reps:[];
-      if(data){regions=REGIONS.map(name=>data.regions?.find(region=>region.name===name)||{name,manager_email:null,manager_name:null,manager_role:null});users=(data.users||[]).filter(user=>user?.email);syncState();}
-      renderRegions();
-      renderRosters();
-      populateRegionSelects();
-    })();
-    try{return await loadPromise;}finally{loadPromise=null;}
+  async function loadRegions(){
+    const [rosterData,data]=await Promise.all([onboarding('team_rosters'),isAdmin()?onboarding('list_regions'):Promise.resolve(null)]);
+    rosters=Array.isArray(rosterData.rosters)?rosterData.rosters:[];unassignedReps=Array.isArray(rosterData.unassigned_reps)?rosterData.unassigned_reps:[];
+    if(data){regions=REGIONS.map(name=>data.regions?.find(region=>region.name===name)||{name,manager_email:null,manager_name:null,manager_role:null});users=(data.users||[]).filter(user=>user?.email);syncState();}
+    renderRegions();renderRosters();populateRegionSelects();
   }
+  loadRegions=window.MCCOY_UI.coalesceRefresh(loadRegions);
 
   const existing=new Map((state.teams||[]).map(team=>[team.name,team]));
   state.teams=REGIONS.map(name=>({...existing.get(name),name,manager:existing.get(name)?.manager||null,leads:existing.get(name)?.leads||0}));

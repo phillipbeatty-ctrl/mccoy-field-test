@@ -1,0 +1,32 @@
+name: Field Coach input responsiveness
+
+on:
+  pull_request:
+    paths:
+      - 'app-*.js'
+      - index.html
+      - service-worker.js
+      - package.json
+      - package-lock.json
+      - input-responsiveness.test.mjs
+      - 'test-support/**'
+      - '*address*.test.mjs'
+      - 'sales-hub-*.test.mjs'
+      - .github/workflows/input-responsiveness.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:responsiveness
+      - run: node --test move-pin-admin-diagnostics.test.mjs move-pin-snapshot.test.mjs lead-map-window-controls.test.mjs lead-pool-independent-disposition-phone-sales.test.mjs capture-only-sale-outcome.test.mjs app-provider-portals.test.mjs

@@ -1,6 +1,7 @@
 // Fill an empty Sales Hub Lead or Service Address with the closest active lead
 // in the signed-in user's organization, regardless of assignment.
 (function(){
+  if(window.MCCOY_FIELD_FEATURES?.automaticNearestLead!==true)return;
   if(window.MCCOY_CLOSEST_LEAD_AUTOFILL_V2)return;
   window.MCCOY_CLOSEST_LEAD_AUTOFILL_V2=true;
 

@@ -10,7 +10,11 @@
   let activeLeadId=null;
   let detailRequest=0;
   let savingContact=false;
+  let savingContactLeadId=null;
   let creatingLead=false;
+  const contactDrafts=new Map(),contactLoads=new Map();
+  const contactFields={customer_name:'leadCustomerNameInput',phone:'leadCustomerPhoneInput',notes:'leadNotesInput'};
+  let contactRefreshPending=false;
 
   function fieldRole(){
     const access=window.MCCOY_ACCESS?.access;
@@ -68,6 +72,19 @@
     const customer=data?.lead?.customer_name??lead.customerName??'';
     const phone=data?.lead?.phone??lead.phone??'';
     const notes=data?.lead?.notes??lead.notes??'';
+    const leadId=String(lead.dbId||lead.id),serverValues={customer_name:customer,phone,notes};
+    const existing=body.dataset.leadId===leadId&&byId('leadCustomerNameInput');
+    const wasLoaded=body.dataset.leadId===leadId&&body.dataset.loaded==='true';
+    body._contactServerValues=serverValues;
+    if(data?.lead)body.dataset.loaded='true';
+    if(existing){
+      applyContactValues(body,leadId);
+      const save=byId('saveLeadContactBtn');if(save)save.disabled=savingContact||body.dataset.loaded!=='true';
+      if(data?.lead&&!wasLoaded)setContactMessage('Saved customer information loaded. Your edits are retained.');
+      return;
+    }
+    body.dataset.leadId=leadId;
+    body.dataset.loaded=data?.lead?'true':'false';
     body.className='';
     body.innerHTML=`
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.65fr);gap:8px;margin-top:8px">
@@ -77,18 +94,44 @@
       <label class="small" style="display:block;margin-top:8px">Notes<textarea id="leadNotesInput" maxlength="5000" rows="4" style="width:100%;padding:8px;margin-top:3px;resize:vertical">${esc(notes)}</textarea></label>
       <button id="saveLeadContactBtn" type="button" class="primary" style="margin-top:8px">SAVE CUSTOMER INFO</button>
       <div id="leadContactEditorMsg" class="muted small" role="status" aria-live="polite" style="margin-top:6px">Customer name, number, and notes are shared with the whole organization.</div>`;
-    byId('saveLeadContactBtn')?.addEventListener('click',()=>saveContact(lead));
+    byId('saveLeadContactBtn')?.addEventListener('click',()=>saveContact(leadByAnyId(leadId)||lead));
+    for(const [key,id] of Object.entries(contactFields)){
+      byId(id)?.addEventListener('input',()=>{
+        const previous=contactDrafts.get(leadId);
+        const values={...previous?.values,[key]:byId(id)?.value||''};
+        contactDrafts.set(leadId,{values,revision:(previous?.revision||0)+1});
+      });
+      byId(id)?.addEventListener('blur',()=>applyContactValues(body,leadId));
+    }
+    applyContactValues(body,leadId);
+    const save=byId('saveLeadContactBtn');if(save)save.disabled=savingContact||body.dataset.loaded!=='true';
+    if(body.dataset.loaded!=='true')setContactMessage('Loading saved customer information. You can type while it loads.');
+  }
+
+  function applyContactValues(body,leadId){
+    if(body.dataset.leadId!==leadId)return;
+    const values={...body._contactServerValues,...contactDrafts.get(leadId)?.values};
+    for(const [key,id] of Object.entries(contactFields)){
+      const input=body.querySelector('#'+id),value=String(values[key]??'');
+      if(input&&document.activeElement!==input&&input.value!==value)input.value=value;
+    }
   }
 
   async function loadContact(lead){
     if(!lead||!fieldRole())return;
     activeLeadId=lead.dbId||lead.id;
+    const leadId=String(activeLeadId);
     const request=++detailRequest;
     const panel=ensureContactShell();
     const body=panel?.querySelector('#leadContactEditorBody');
-    if(body){body.className='muted small';body.textContent='Loading customer information…';}
+    // Keep the current inputs mounted while their server values refresh.
+    if(body&&body.dataset.leadId!==leadId)renderContactForm(lead,null);
+    if(savingContactLeadId===leadId){setContactMessage('Saving customer information…');return;}
     try{
-      const data=await call('get_lead',{lead_id:activeLeadId});
+      let pending=contactLoads.get(leadId);
+      if(!pending){pending=call('get_lead',{lead_id:activeLeadId});contactLoads.set(leadId,pending);}
+      let data;
+      try{data=await pending;}finally{if(contactLoads.get(leadId)===pending)contactLoads.delete(leadId);}
       if(request!==detailRequest||String(activeLeadId)!==String(lead.dbId||lead.id))return;
       lead.customerName=data.lead?.customer_name||'';
       lead.phone=data.lead?.phone||'';
@@ -96,32 +139,41 @@
       renderContactForm(lead,data);
     }catch(error){
       if(request!==detailRequest)return;
-      if(body){body.className='muted small';body.textContent='Customer information could not be loaded.';}
+      setContactMessage('Customer information could not be refreshed. Your edits are retained.',true);
       console.error('Lead contact load failed',error);
     }
   }
 
   async function saveContact(lead){
     if(savingContact||!lead)return;
+    if(byId('leadContactEditorBody')?.dataset.loaded!=='true')return;
     const button=byId('saveLeadContactBtn');
-    savingContact=true;if(button){button.disabled=true;button.textContent='SAVING…';}
+    const leadId=String(lead.dbId||lead.id),draftRevision=contactDrafts.get(leadId)?.revision||0;
+    const submitted={customer_name:inputValue('leadCustomerNameInput'),phone:inputValue('leadCustomerPhoneInput'),notes:inputValue('leadNotesInput')};
+    savingContact=true;savingContactLeadId=leadId;
+    // A read begun before this write must not overwrite the saved response later.
+    detailRequest++;contactLoads.delete(leadId);
+    if(button){button.disabled=true;button.textContent='SAVING…';}
     setContactMessage('Saving customer information…');
     try{
       const data=await call('update_contact',{
         lead_id:lead.dbId||lead.id,
-        customer_name:inputValue('leadCustomerNameInput'),
-        phone:inputValue('leadCustomerPhoneInput'),
-        notes:inputValue('leadNotesInput')
+        ...submitted
       });
       lead.customerName=data.lead?.customer_name||'';
       lead.phone=data.lead?.phone||'';
       lead.notes=data.lead?.notes||'';
-      setContactMessage('Customer name, number, and notes saved.');
+      const newerEdits=(contactDrafts.get(leadId)?.revision||0)!==draftRevision;
+      if(!newerEdits)contactDrafts.delete(leadId);
+      if(String(activeLeadId)===leadId){renderContactForm(lead,data);setContactMessage(newerEdits?'Customer information saved. Your newer edits are still unsaved.':'Customer name, number, and notes saved.');}
       window.dispatchEvent(new CustomEvent('mccoy-lead-contact-updated',{detail:{leadId:lead.dbId||lead.id}}));
     }catch(error){
       console.error('Lead contact save failed',error);
-      setContactMessage(String(error?.message||'Customer information could not be saved.').replace(/_/g,' '),true);
-    }finally{savingContact=false;if(button){button.disabled=false;button.textContent='SAVE CUSTOMER INFO';}}
+      if(String(activeLeadId)===leadId)setContactMessage(String(error?.message||'Customer information could not be saved.').replace(/_/g,' '),true);
+    }finally{
+      savingContact=false;savingContactLeadId=null;
+      const currentButton=byId('saveLeadContactBtn');if(currentButton){currentButton.disabled=byId('leadContactEditorBody')?.dataset.loaded!=='true';currentButton.textContent='SAVE CUSTOMER INFO';}
+    }
   }
 
   function ensureCreatePanel(){
@@ -294,8 +346,8 @@
     return leadByAnyId(id);
   }
   function refreshSelected(){
-    const lead=leadByAnyId(activeLeadId);
-    if(lead)setTimeout(()=>loadContact(lead),0);
+    if(contactRefreshPending)return;
+    contactRefreshPending=true;setTimeout(()=>{contactRefreshPending=false;const lead=leadByAnyId(activeLeadId);if(lead)loadContact(lead);},0);
   }
 
   window.addEventListener('mccoy-map-lead-selected',event=>{
