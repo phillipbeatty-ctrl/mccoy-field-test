@@ -1,10 +1,10 @@
-// Approved compact Sales Hub layout:
-// Field Session | (Live Stats over Pay) | Door Workflow, with the compact
-// Sales / Hour Workday spanning beneath the first two columns.
-// Uses bounded retries and explicit events only; no DOM observer.
+// Single Sales Hub layout owner. Preserve mounted controls during every refresh.
+// Field Session, Workday, Live Stats and Pay form the left stack; Door Workflow is right.
 (function(){
   if(window.MCCOY_SALES_HUB_COMPACT_LAYOUT)return;
   window.MCCOY_SALES_HUB_COMPACT_LAYOUT=true;
+  // Prevent an older cached loader from installing the retired second controller.
+  window.MCCOY_FIELDCOACH_WORKDAY_LAYOUT=true;
 
   const byId=id=>document.getElementById(id);
   const style=document.createElement('style');
@@ -108,6 +108,135 @@
       #salesHubTopGrid .sales-hub-door-workflow .spotio-disposition-actions button{font-size:10px;padding:8px 4px}
       #salesHubDoorPrimary #arriveDoorBtn{flex-basis:84px;width:84px}
     }
+
+    #salesHubTopGrid{
+      display:grid!important;
+      grid-template-columns:minmax(280px,.72fr) minmax(430px,1.28fr)!important;
+      grid-template-areas:"left door"!important;
+      gap:6px!important;
+      align-items:stretch!important;
+      min-width:0!important;
+      margin-bottom:6px!important
+    }
+    #salesHubLeftStack{
+      grid-area:left;
+      display:grid;
+      grid-template-columns:minmax(0,1fr);
+      grid-template-rows:auto auto auto minmax(0,1fr);
+      gap:6px;
+      min-width:0;
+      min-height:0;
+      height:100%;
+      align-self:stretch
+    }
+    #salesHubLeftStack>.card{
+      width:100%;
+      min-width:0;
+      margin:0!important;
+      border-radius:12px;
+      overflow:hidden
+    }
+    #salesHubLeftStack .sales-hub-field-session{
+      grid-area:auto!important;
+      min-height:0!important;
+      height:auto!important;
+      align-self:start!important
+    }
+    #salesHubLeftStack .sales-hub-workday{
+      grid-area:auto!important;
+      width:100%!important;
+      min-width:0!important;
+      min-height:0!important;
+      height:auto!important;
+      margin:0!important;
+      padding:8px 10px!important;
+      align-self:stretch!important
+    }
+    #salesHubLeftStack .sales-hub-workday .sph-workday-summary{min-height:34px!important;gap:8px!important}
+    #salesHubLeftStack .sales-hub-workday .sph-workday-copy{gap:2px!important}
+    #salesHubLeftStack .sales-hub-workday .sph-workday-title{font-size:9px!important;line-height:1.15!important}
+    #salesHubLeftStack .sales-hub-workday #sphHomeAddressDisplay{font-size:11px!important;line-height:1.25!important;white-space:normal!important}
+    #salesHubLeftStack .sales-hub-workday #sphEditHome{min-width:52px!important;min-height:30px!important;padding:6px 9px!important;font-size:10px!important}
+    #salesHubLeftStack .sales-hub-live-stats{
+      grid-area:auto!important;
+      min-height:0!important;
+      height:auto!important;
+      margin:0!important;
+      padding:12px!important
+    }
+    #salesHubLeftStack .sales-hub-live-stats .mini-stats{
+      display:grid!important;
+      grid-template-columns:repeat(2,minmax(0,1fr))!important;
+      gap:6px!important
+    }
+    #salesHubLeftStack .sales-hub-live-stats .mini-stats>div{min-width:0;padding:8px!important;border-radius:8px}
+    #salesHubLeftStack .sales-hub-live-stats .mini-stats span{font-size:9px!important;line-height:1.15}
+    #salesHubLeftStack .sales-hub-live-stats .mini-stats strong{font-size:17px!important;line-height:1.1;margin-top:3px}
+    #salesHubLeftStack #payProgressCard{
+      grid-area:auto!important;
+      min-height:0!important;
+      height:100%!important;
+      margin:0!important;
+      padding:12px!important;
+      display:flex!important;
+      flex-direction:column;
+      align-self:stretch!important
+    }
+    #salesHubLeftStack #payProgressCard .pay-progress-main{font-size:15px!important;line-height:1.25;margin:6px 0 3px!important}
+    #salesHubLeftStack #payProgressCard .pay-progress-sub{font-size:10px!important;line-height:1.35;margin-top:3px!important}
+    #salesHubTopGrid .sales-hub-door-workflow{
+      grid-area:door!important;
+      min-width:0!important;
+      min-height:100%!important;
+      height:100%!important;
+      align-self:stretch!important;
+      margin:0!important
+    }
+    #salesHubTopGrid .sales-hub-background-button-only{
+      display:block!important;
+      margin:0!important;
+      padding:0!important;
+      border:0!important;
+      background:transparent!important;
+      box-shadow:none!important
+    }
+    #salesHubTopGrid .sales-hub-background-button-only #backgroundModeToggle{
+      display:block!important;
+      width:100%!important;
+      min-height:36px!important;
+      margin:0!important;
+      padding:8px 10px!important;
+      border-radius:8px!important;
+      font-size:10px!important;
+      text-align:center!important
+    }
+    #field>.sales-hub-field-coach-below{
+      width:100%;
+      min-width:0;
+      min-height:0;
+      height:auto;
+      margin:6px 0!important;
+      padding:12px 14px!important
+    }
+    #field>.sales-hub-field-coach-below .card-head{margin-bottom:7px!important}
+    #field>.sales-hub-field-coach-below #fieldPerformanceLabel{margin-bottom:6px!important}
+    #field>.sales-hub-field-coach-below #coachMetricsBody{font-size:10px;line-height:1.35}
+    #field>#saleHubActivity,#field>.leaders-card,#field>#salesToCompleteCard{margin-top:6px!important;margin-bottom:6px!important}
+
+    @media(max-width:980px){
+      #salesHubTopGrid{
+        grid-template-columns:minmax(0,1fr)!important;
+        grid-template-areas:"left" "door"!important;
+        gap:6px!important
+      }
+      #salesHubLeftStack{height:auto;grid-template-rows:auto;gap:6px}
+      #salesHubLeftStack #payProgressCard{height:auto!important}
+      #salesHubTopGrid .sales-hub-door-workflow{min-height:0!important;height:auto!important}
+    }
+    @media(max-width:560px){
+      #salesHubLeftStack .sales-hub-workday{padding:7px 8px!important}
+      #salesHubLeftStack .sales-hub-live-stats .mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+    }
   `;
   document.head.appendChild(style);
 
@@ -165,52 +294,62 @@
     }
 
     const save=byId('savePinDispositionBtn');
-    if(save){save.textContent='SAVE';save.title='Save disposition';save.setAttribute('aria-label','Save disposition');}
+    if(save){if(save.textContent!=='SAVE')save.textContent='SAVE';save.title='Save disposition';save.setAttribute('aria-label','Save disposition');}
   }
 
+  function makeBackgroundButtonOnly(fieldSession){
+    const panel=byId('backgroundModePanel'),toggle=byId('backgroundModeToggle');
+    if(!panel||!toggle||!fieldSession.contains(panel))return;
+    if(toggle.parentElement!==panel)panel.appendChild(toggle);
+    [...panel.children].forEach(child=>{if(child!==toggle)child.hidden=true;});
+    panel.classList.add('sales-hub-background-button-only');toggle.hidden=false;
+  }
+
+  function placeChildren(parent,nodes){
+    let changed=false;
+    nodes.filter(Boolean).forEach((node,index)=>{
+      if(parent.children[index]===node)return;
+      parent.insertBefore(node,parent.children[index]||null);changed=true;
+    });
+    return changed;
+  }
+
+  let scheduled=false,announced=false;
   function mount(){
     const field=byId('field');if(!field)return false;
     const fieldSession=byId('startKnockingBtn')?.closest('.card');
     const liveStats=byId('elapsed')?.closest('.card')||cardWithTitle(field,'Live Session Stats');
-    const pay=byId('payProgressCard');
     const door=byId('fieldLeadSelect')?.closest('.card');
-    const workday=byId('sphWorkdayControl');
     if(!fieldSession||!liveStats||!door)return false;
-
+    const workday=byId('sphWorkdayControl'),pay=byId('payProgressCard'),coach=byId('coachMetrics');
     let top=byId('salesHubTopGrid');
     if(!top){
-      top=field.querySelector(':scope>.grid-2');
-      if(!top)return false;
-      top.id='salesHubTopGrid';
-      top.classList.remove('grid-2','field-session-top-grid');
-      top.classList.add('sales-hub-top-grid');
+      top=field.querySelector(':scope>.grid-2');if(!top)return false;
+      top.id='salesHubTopGrid';top.classList.remove('grid-2','field-session-top-grid');top.classList.add('sales-hub-top-grid');
     }
-
-    let middle=byId('salesHubMiddleStack');
-    if(!middle){middle=document.createElement('div');middle.id='salesHubMiddleStack';}
-    fieldSession.classList.add('sales-hub-field-session');
-    liveStats.classList.add('sales-hub-live-stats');
-    if(pay)pay.classList.add('sales-hub-pay-progress');
-    if(workday)workday.classList.add('sales-hub-workday');
-    compactDoorWorkflow(door);
-
-    if(fieldSession.parentElement!==top)top.appendChild(fieldSession);
-    if(middle.parentElement!==top)top.appendChild(middle);
-    if(door.parentElement!==top)top.appendChild(door);
-    if(workday&&workday.parentElement!==top)top.appendChild(workday);
-    if(liveStats.parentElement!==middle)middle.appendChild(liveStats);
-    if(pay&&pay.parentElement!==middle)middle.appendChild(pay);
-    top.replaceChildren(fieldSession,middle,door,...(workday?[workday]:[]));
-    if(pay)middle.replaceChildren(liveStats,pay);else middle.replaceChildren(liveStats);
-
-    window.dispatchEvent(new CustomEvent('mccoy-sales-hub-layout-ready',{detail:{workdayReady:!!workday}}));
-    return !!pay&&!!workday;
+    let left=byId('salesHubLeftStack');
+    if(!left){left=document.createElement('div');left.id='salesHubLeftStack';left.setAttribute('aria-label','Field Session and workday statistics');}
+    fieldSession.classList.add('sales-hub-field-session');liveStats.classList.add('sales-hub-live-stats');
+    workday?.classList.add('sales-hub-workday');pay?.classList.add('sales-hub-pay-progress');
+    compactDoorWorkflow(door);makeBackgroundButtonOnly(fieldSession);
+    // Insert only a missing or misplaced card. Existing form ancestors stay connected.
+    const leftChanged=placeChildren(left,[fieldSession,workday,liveStats,pay]);
+    const topChanged=placeChildren(top,[left,door]);
+    const middle=byId('salesHubMiddleStack');if(middle&&!middle.children.length)middle.remove();
+    if(coach){coach.classList.remove('sales-hub-field-coach');coach.classList.add('sales-hub-field-coach-below');if(top.nextElementSibling!==coach)top.insertAdjacentElement('afterend',coach);}
+    if(!announced||leftChanged||topChanged){
+      announced=true;
+      const detail={ready:!!workday&&!!pay,workdayReady:!!workday,order:['Field Session','Sales / Hour Workday','Live Session Stats','Weekly Pay Progress'],doorWorkflowColumn:'right'};
+      window.dispatchEvent(new CustomEvent('mccoy-sales-hub-layout-ready',{detail}));
+      window.dispatchEvent(new CustomEvent('mccoy-sales-hub-fieldcoach-workday-layout-ready',{detail}));
+    }
+    return true;
   }
-
-  function schedule(){[0,80,220,500,900,1500,2500].forEach(delay=>setTimeout(mount,delay));}
-  document.addEventListener('click',event=>{if(event.target?.closest?.('.nav-btn[data-view="field"]'))schedule();},true);
-  window.addEventListener('mccoy-access-ready',schedule);
-  window.addEventListener('mccoy-sale-saved',schedule);
-  window.addEventListener('mccoy-sph-workday-ready',schedule);
+  function schedule(){
+    if(scheduled)return;scheduled=true;
+    setTimeout(()=>{scheduled=false;mount();},0);
+  }
+  document.addEventListener('click',event=>{if(event.target?.closest?.('.nav-btn[data-view="field"]'))schedule();});
+  for(const name of ['mccoy-access-ready','mccoy-sale-saved','mccoy-sph-workday-ready','mccoy-background-mode-ready','mccoy-background-mode-changed'])window.addEventListener(name,schedule);
   schedule();
 })();

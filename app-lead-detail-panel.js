@@ -63,6 +63,7 @@
     sale.addEventListener('click',()=>{selectLeadForWorkflow(lead);document.getElementById('processSaleBtn')?.click();});
     remove.addEventListener('click',async()=>{remove.disabled=true;const removed=await window.MCCOY_DELETE_LEAD?.(lead);if(removed){activeLeadId=null;window.dispatchEvent(new CustomEvent('mccoy-map-lead-deleted',{detail:{leadId:lead.dbId||lead.id}}));const detail=ensureDetailPanel();if(detail)detail.innerHTML='<div class="muted small">Lead deleted. Select another lead to view details.</div>';}else remove.disabled=false;});
     sync();
+    const detail=ensureDetailPanel();if(detail)detail._refreshWorkflowLead=updated=>{lead=updated;sync();};
   }
 
   function renderDetail(lead){
@@ -70,7 +71,7 @@
     if(!detail||!lead)return;
     activeLeadId=lead.dbId||lead.id;
     const address=[lead.address,lead.city,lead.stateCode,lead.zip].filter(Boolean).join(', ');
-    detail.innerHTML=`
+    const summary=`
       <div class="lead-detail-head"><strong>${esc(lead.address||'Lead')}</strong><span class="tag">${esc(lead.disposition||'Uncontacted')}</span></div>
       <div class="lead-detail-address">${esc(address||'No address')}</div>
       <div class="lead-detail-grid">
@@ -85,6 +86,14 @@
         <div><span>Assigned rep</span><strong>${esc(lead.assignedRepName||lead.rep||'Unassigned')}</strong></div>
         <div><span>Team</span><strong>${esc(lead.team||'Unassigned')}</strong></div>
       </div>
+      `;
+    if(detail.dataset.leadId===String(activeLeadId)&&detail.querySelector('.lead-detail-summary')){
+      window.MCCOY_UI.html(detail.querySelector('.lead-detail-summary'),summary);
+      detail._refreshWorkflowLead?.(lead);
+      return;
+    }
+    detail.dataset.leadId=String(activeLeadId);
+    detail.innerHTML=`<div class="lead-detail-summary">${summary}</div>
       <div class="map-pin-disposition" aria-label="Map pin disposition">
         <strong>Disposition</strong>
         <div class="map-pin-disposition-grid">
@@ -157,6 +166,7 @@
       else if(String(data.decision||'').includes('preserved'))correctionMsg('Address saved. The trusted manual/imported pin was preserved and the Google comparison was recorded.');
       else correctionMsg('Address saved, but Google did not return a matching rooftop result. The lead is safely left off the map until Admin places the pin manually.');
       window.MCCOY_RENDER_LEAD_MAP?.(false);if(Number.isFinite(Number(lead.lat))&&Number.isFinite(Number(lead.lng)))setTimeout(()=>window.MCCOY_SELECT_MAP_LEAD?.(lead.dbId||lead.id),80);
+      window.dispatchEvent(new CustomEvent('mccoy-lead-address-corrected',{detail:{leadId:lead.dbId||lead.id}}));
       renderDetail(lead);enhanceList();if(typeof window.renderLeads==='function')window.renderLeads();
     }catch(e){console.error('Address/location correction failed',e);correctionMsg(`Unable to correct address location${e?.message?': '+e.message:''}.`);}finally{correcting=false;correctionIds.forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});}
   }

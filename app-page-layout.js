@@ -38,17 +38,16 @@
   function loadSaleLifecycle(){
     for(const src of [
       'app-sale-lifecycle.js?v=2026082801',
-      'app-sales-hub-layout.js?v=2026091103',
-      'app-sales-hub-fieldcoach-workday-layout.js?v=2026082803',
+      'app-sales-hub-layout.js?v=2026091106',
       'app-sale-photo-staging.js?v=2026082803',
-      'app-closest-lead-autofill-v2.js?v=2026091103',
+      'app-closest-lead-autofill-v2.js?v=2026091106',
       'app-sales-to-complete.js?v=2026082602',
       'app-sale-order-photo-admin.js?v=2026091105',
       'app-admin-session-history.js?v=2026082901',
       'app-lead-pool-independent-activity.js?v=2026091103',
       'app-map-viewport-lock.js?v=2026090402',
       'app-map-manual-control.js?v=2026090402',
-      'app-field-lead-editor.js?v=2026091103',
+      'app-field-lead-editor.js?v=2026091106',
       'app-sale-visit-isolation.js?v=2026082901',
       'app-lead-pool-independent-refresh.js?v=2026082901',
       'app-lead-map-window-entry-fix.js?v=2026091001'

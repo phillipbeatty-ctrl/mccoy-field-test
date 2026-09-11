@@ -51,32 +51,35 @@
     return colorFor(lead?.disposition);
   }
 
-  function leadForMarker(el){
-    const title=(el.getAttribute('title')||'').trim();
-    const leads=state?.realLeads||[];
-    if(title&&title!=='Drag to correct lead location'){
-      const exact=leads.find(l=>String(l.address||'').trim()===title);
-      if(exact)return exact;
-    }
-    if(el.classList.contains('correction')||title==='Drag to correct lead location'){
-      const a1=document.getElementById('editLeadAddress1')?.value?.trim()||'';
-      const a2=document.getElementById('editLeadAddress2')?.value?.trim()||'';
-      const city=document.getElementById('editLeadCity')?.value?.trim()||'';
-      const st=document.getElementById('editLeadState')?.value?.trim()||'';
-      const zip=document.getElementById('editLeadZip')?.value?.trim()||'';
-      return leads.find(l=>(l.address1||l.address||'').trim()===a1&&(l.address2||'').trim()===a2&&(l.city||'').trim()===city&&(l.stateCode||'').trim()===st&&(l.zip||'').trim()===zip)
-        ||leads.find(l=>(l.address1||l.address||'').trim()===a1);
-    }
-    return null;
+  let indexedRows=null,indexedLength=0,byId=new Map(),pending=false,dirty=true;
+  function mapVisible(){
+    const map=document.getElementById('leadMapFrame');
+    return !document.hidden&&!!map?.getClientRects().length;
   }
-
+  function indexLeads(){
+    const rows=state.realLeads||[];
+    if(indexedRows===rows&&indexedLength===rows.length)return;
+    indexedRows=rows;indexedLength=rows.length;byId=new Map();
+    for(const lead of rows)byId.set(String(lead.dbId||lead.id),lead);
+  }
+  function paint(el,lead){
+    if(!lead)return;
+    const color=colorForLead(lead),disposition=lead.pinDisposition||lead.disposition||'';
+    if(el.style.getPropertyValue('--mccoy-lead-color')!==color)el.style.setProperty('--mccoy-lead-color',color);
+    if(el.dataset.disposition!==disposition)el.dataset.disposition=disposition;
+  }
+  function colorMarker(el,lead){
+    if(!mapVisible()){dirty=true;return;}
+    paint(el,lead);
+  }
   function applyColors(){
-    document.querySelectorAll('.lead-house-icon').forEach(el=>{
-      const lead=leadForMarker(el);
-      const color=colorForLead(lead);
-      el.style.setProperty('--mccoy-lead-color',color);
-      if(lead?.pinDisposition||lead?.disposition)el.dataset.disposition=lead.pinDisposition||lead.disposition;
-    });
+    dirty=true;
+    if(pending||!mapVisible())return;
+    pending=true;setTimeout(()=>{
+      pending=false;if(!dirty||!mapVisible())return;
+      dirty=false;indexLeads();ensureLegend();
+      document.querySelectorAll('#leadMapFrame .lead-house-icon').forEach(el=>paint(el,byId.get(el.dataset.mccoyLeadId)));
+    },0);
   }
 
   function ensureLegend(){
@@ -90,18 +93,21 @@
     controls.appendChild(legend);
   }
 
-  const observer=new MutationObserver(()=>{applyColors();ensureLegend();});
+  const observer=new MutationObserver(applyColors);
+  const visibilityObserver=new MutationObserver(()=>{if(dirty)applyColors();});
   function start(){
     const map=document.getElementById('leadMapFrame');
-    if(map)observer.observe(map,{childList:true,subtree:true,attributes:true,attributeFilter:['class','title']});
+    if(map)observer.observe(map,{childList:true,subtree:true});
+    for(const node of [document.getElementById('leadMapPanel'),document.getElementById('leads')])if(node)visibilityObserver.observe(node,{attributes:true,attributeFilter:['class','style','hidden']});
     ensureLegend();
     applyColors();
   }
 
+  window.MCCOY_COLOR_LEAD_MARKER=colorMarker;
   window.MCCOY_APPLY_DISPOSITION_COLORS=applyColors;
-  window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(start,250));
-  window.addEventListener('mccoy-lead-address-corrected',()=>setTimeout(applyColors,100));
-  document.addEventListener('click',()=>setTimeout(applyColors,40),true);
-  setInterval(applyColors,1200);
-  setTimeout(start,1000);
+  for(const name of ['mccoy-real-leads-loaded','mccoy-lead-address-corrected','mccoy-door-visit-completed','mccoy-lead-pool-disposition-saved','mccoy-map-move-pin-ended'])window.addEventListener(name,applyColors);
+  for(const name of ['mccoy-lead-map-window-mode-changed','mccoy-lead-pool-position-changed'])window.addEventListener(name,()=>{if(dirty)applyColors();});
+  document.addEventListener('visibilitychange',()=>{if(dirty)applyColors();});
+  window.addEventListener('beforeunload',()=>{observer.disconnect();visibilityObserver.disconnect();});
+  start();
 })();

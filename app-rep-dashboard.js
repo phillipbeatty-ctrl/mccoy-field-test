@@ -2,7 +2,7 @@
 (()=>{
   const byId=id=>document.getElementById(id);
   const isRep=()=>['rep','tester'].includes(String(window.MCCOY_ACCESS?.access?.role||'').toLowerCase());
-  let initialized=false,refreshTimer=null,salesChannel=null;
+  let initialized=false,salesChannel=null;
 
   const css=document.createElement('style');
   css.textContent=`
@@ -55,7 +55,7 @@
   }
 
   async function loadCompanyLeaders(){
-    const {data,error}=await sb.functions.invoke('company-leaders');if(error)throw error;if(!data?.ok)throw new Error(data?.error||'company_leaders_failed');
+    const data=await window.MCCOY_LOAD_COMPANY_LEADERS();if(!data?.ok)throw new Error(data?.error||'company_leaders_failed');
     const targets={today:['repLeadToday','repLeadTodayCount'],week:['repLeadWeek','repLeadWeekCount'],month:['repLeadMonth','repLeadMonthCount'],year:['repLeadYear','repLeadYearCount'],all_time:['repLeadAll','repLeadAllCount']};
     for(const [period,[nameId,countId]] of Object.entries(targets)){
       const leader=data.leaders?.[period];byId(nameId).textContent=leader?.name||'No sales yet';byId(countId).textContent=leader?leader.count+' sale'+(leader.count===1?'':'s'):'';
@@ -64,14 +64,14 @@
   }
 
   function renderMonthlySales(rankings){
-    const root=byId('dashboardMonthlyLeaders');if(!root)return;root.replaceChildren();
+    const root=byId('dashboardMonthlyLeaders');if(!root||!window.MCCOY_UI.changed(root,rankings))return;root.replaceChildren();
     const leaders=(rankings||[]).filter(row=>row.is_ghost||Number(row.month_sales||0)>0).sort((left,right)=>(left.ranks?.month||Number.MAX_SAFE_INTEGER)-(right.ranks?.month||Number.MAX_SAFE_INTEGER)).slice(0,10);
     if(!leaders.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No ISP-verified monthly totals yet.';root.appendChild(empty);return;}
     leaders.forEach((leader,index)=>{const line=document.createElement('div');line.className='leader-row';const name=document.createElement('span'),count=document.createElement('strong'),sales=Number(leader.month_sales||0),ghostRevealed=leader.ghost_visibility?.month?.revealed!==false;name.textContent=`${index+1}. ${leader.rep_name||'Rep'}`;count.textContent=leader.is_ghost&&!ghostRevealed?'Hidden':`${sales} sale${sales===1?'':'s'}`;line.append(name,count);const detail=document.createElement('div');detail.className='muted small';detail.textContent=leader.is_ghost?(ghostRevealed?'Verified Ghost-account sales · overtaken':'Ghost is #1 · total hidden until overtaken'):`${Number(leader.month_mobile_lines||0)} mobile lines · ${Number(leader.month_directv||0)} DIRECTV · ${Number(leader.month_vivint||0)} Vivint`;root.append(line,detail);});
   }
 
   function renderLiveWins(rows){
-    const root=byId('dashboardSalesFeed');if(!root)return;root.replaceChildren();
+    const root=byId('dashboardSalesFeed');if(!root||!window.MCCOY_UI.changed(root,rows))return;root.replaceChildren();
     const wins=[];for(const row of rows){const messages=Array.isArray(row.celebration_messages)&&row.celebration_messages.length?row.celebration_messages:[row.message||`${row.rep_name||'A rep'} logged a sale`];for(const message of messages)wins.push({message,created_at:row.created_at});}
     if(!wins.length){const empty=document.createElement('div');empty.className='muted small';empty.textContent='No verified sales posted this month yet.';root.appendChild(empty);return;}
     for(const win of wins.slice(0,30)){const item=document.createElement('div');item.className='feed-item';const message=document.createElement('strong'),time=document.createElement('div');message.textContent=win.message;time.className='muted small';time.textContent=new Date(win.created_at).toLocaleString();item.append(message,time);root.appendChild(item);}
@@ -93,14 +93,15 @@
 
   function initialize(){
     if(initialized||!isRep())return;initialized=true;ensureDashboard();renderSummary();byId('repDashboardSalesRefresh').onclick=refresh;refresh();
-    refreshTimer=setInterval(refresh,60000);
   }
 
+  refresh=window.MCCOY_UI.coalesceRefresh(refresh);
+  window.MCCOY_UI.backgroundRefresh(refresh);
   window.addEventListener('mccoy-access-ready',initialize);
   window.addEventListener('mccoy-real-leads-progress',renderSummary);
   window.addEventListener('mccoy-real-leads-loaded',renderSummary);
   window.addEventListener('mccoy-sale-saved',refresh);
   window.addEventListener('mccoy-live-sales-changed',()=>refresh());
   const accessPoll=setInterval(()=>{if(window.MCCOY_ACCESS?.access){clearInterval(accessPoll);initialize();}},300);
-  window.addEventListener('beforeunload',()=>{if(refreshTimer)clearInterval(refreshTimer);if(salesChannel)sb.removeChannel(salesChannel);});
+  window.addEventListener('beforeunload',()=>{if(salesChannel)sb.removeChannel(salesChannel);});
 })();
