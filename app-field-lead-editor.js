@@ -312,10 +312,12 @@
       // Blank optional fields must not erase an existing matched lead's contact.
       const contact={};
       if(!salesHub)for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
-      const data=await call('create_lead',{...address,...contact});
+      const placement=window.MCCOY_GPS_PLACEMENT?await window.MCCOY_GPS_PLACEMENT.placeAddress({address,contact,isCurrent,onProgress:message}):null;
+      if(!isCurrent())return;
+      const data=placement||await call('create_lead',{...address,...contact});
       saved=true;
       if(!isCurrent())return;
-      const savedMessage=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
+      const savedMessage=window.MCCOY_GPS_PLACEMENT?.placementMessage?.(data)||(data.created?'Address added to the Lead Pool.':'An existing lead matched this address.');
       message(savedMessage+' Loading its pin…');
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();

@@ -86,11 +86,15 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     if(!automatic)alert('Arrive at the selected door first.');
     return false;
   }
-  const gps=currentGps(),gpsParams=gpsAuditParams(gps);
-  if(!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps))window.requestFreshGpsInBackground?.();
   const button=disposition==='sale'?document.querySelector('[data-disp="Sale"]'):document.getElementById('savePinDispositionBtn');doorCompletionInFlight=true;if(button)button.disabled=true;
+  const requestAccount=window.MCCOY_ACCESS?.user?.id;
+  let gps=currentGps();
   setDoorStatus(automatic?'Applying automatic door outcome…':'Saving door outcome…');
   try{
+    const placementGps=await window.MCCOY_GPS_PLACEMENT?.captureForDisposition?.({activityType:disposition==='sale'?'Visit':activityType,automatic});
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return false;
+    gps=placementGps||gps;
+    const gpsParams=gpsAuditParams(gps);
     let data,error;
     if(disposition==='sale')({data,error}=await sb.rpc('record_door_visit_completion',{
       p_visit_id:visit.serverVisitId,p_disposition:'sale',...gpsParams,p_automatic:automatic,p_auto_reason:autoReason,p_provider_sale_id:saleId,p_service_address:serviceAddress
@@ -104,6 +108,7 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
       }));
     }
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_completion_failed');
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return true;
     const endedAt=Date.now(),lead=visit.lead,isSale=disposition==='sale',display=isSale?'Sale Made':(data.effective_disposition||data.visit_result||data.visit_outcome||disposition),contactStatus=data.contact_status||null,dwellMs=Number(data.dwell_ms??endedAt-visit.arrivedAt);
     if(lead){lead.disposition=display;lead.lastActivityType=isSale?'Visit':data.activity_type;lead.visitResult=isSale?'Contacted':data.visit_result;lead.stage=isSale?'Sale Made':(data.stage||lead.stage||'Prospecting');lead.pinColor=isSale?'#22c55e':(data.pin_color||lead.pinColor);lead.pinColorSource=isSale?'stage':(data.pin_color_source||lead.pinColorSource);lead.pinDisposition=display;}
     state.activities.unshift({lead:lead||{address:serviceAddress||'Customer address'},disposition:display,activityType:isSale?'Visit':data.activity_type,visitOutcome:data.visit_result||display,contactStatus,stage:isSale?'Sale Made':data.stage,at:new Date(endedAt),gps,dwellMs,automatic});
@@ -111,7 +116,9 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     state.lastDispositionEndedAt=endedAt;state.activeDoorVisit=null;clearInterval(doorTimerHandle);
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
     const coachingStatus=data.door_location_verified?'Door location verified for coaching.':'Door location not verified; the disposition was still saved.';
-    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}. ${coachingStatus}`);
+    const locationMessage=await window.MCCOY_GPS_PLACEMENT?.dispositionSaved?.({visitId:visit.serverVisitId,leadId:lead?.dbId,gps})||'';
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return true;
+    setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}. ${coachingStatus}${locationMessage}`);
     renderActivities();renderStats();renderLeads();
     renderPinDispositionControls();window.MCCOY_APPLY_DISPOSITION_COLORS?.();
     window.dispatchEvent(new CustomEvent('mccoy-door-visit-completed',{detail:{visitId:visit.serverVisitId,leadId:lead?.dbId||null,disposition:display,activityType:data.activity_type||null,visitResult:data.visit_result||null,stage:data.stage||null,contactStatus,automatic}}));

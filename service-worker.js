@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v20-20260911-responsiveness';
+const VERSION='field-coach-app-shell-v21-20260911-gps-pilot';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/app-ui-refresh.js?v=2026091106',
@@ -14,6 +14,9 @@ const SHELL=[
   '/download.html',
   '/styles.css?v=2026091103',
   '/app-part1.js?v=2026091103',
+  '/app-part2.js?v=2026091107',
+  '/app-page-layout.js?v=2026091107',
+  '/app-gps-placement.js?v=2026091107',
   '/app-field-features.js?v=2026091103',
   '/app-lead-address-core.js?v=2026091106',
   '/app-typed-lead-address.js?v=2026091106',
@@ -25,7 +28,7 @@ const SHELL=[
   '/app-sale-order-photo-admin.js?v=2026091105',
   '/app-sale-order-photo-pilot.js?v=2026091105',
   '/app-provider-sale-router.js?v=2026091105',
-  '/app-field-lead-editor.js?v=2026091106',
+  '/app-field-lead-editor.js?v=2026091107',
   '/app-sales-hub-layout.js?v=2026091106',
   '/app-field-addresses.js?v=2026091103',
   '/manifest.webmanifest',
@@ -42,7 +45,7 @@ const SHELL=[
   '/app-lead-map-window-controls.js?v=2026091001',
   '/app-lead-map.js?v=2026091106',
   '/app-lead-map-window-entry-fix.js?v=2026091001',
-  '/app-lead-pool-independent-activity.js?v=2026091103',
+  '/app-lead-pool-independent-activity.js?v=2026091107',
   '/app-map-viewport-lock.js?v=2026090402',
   '/app-map-manual-control.js?v=2026090402',
   '/app-sales.js?v=2026091105',
