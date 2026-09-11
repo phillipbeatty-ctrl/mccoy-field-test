@@ -33,6 +33,17 @@ Stopped-run evidence artifact ID: `10268467824`, SHA-256:
 `50febdf9a7120442593e3110e1c1be4fa461675d5de597a0c199aacfd8b7c008`.
 The frozen baseline, migration and all candidate runtime source remain unchanged.
 
+Recovery run [34615005562](https://github.com/phillipbeatty-ctrl/mccoy-field-test/actions/runs/34615005562)
+used the correct commit, credential and recovery inputs, but stopped before any
+write with `Function source contains a non-file part`. PR #133's verifier
+incorrectly treated ordinary multipart form fields as unreviewed source files.
+Supabase's official MCP reads only parts with a filename and ignores non-file
+fields. The verifier now follows that distinction while still requiring every
+reviewed source file, rejecting extra or duplicate files and comparing their
+exact bytes. A text field cannot replace a missing file or override a file hash.
+Production remains at the same reviewed migration and versions 14/31/18; the
+existing `after-34611945575` profile and all release guards remain unchanged.
+
 After merging the recovery repair, start a **new** manual run on its reviewed
 main commit with `operation=deploy`, `release_profile=after-34611945575`,
 `expected_sha=<full new main SHA>`, and `confirmation=DEPLOY_ZIPLY`.
@@ -149,9 +160,9 @@ This avoids applying unrelated pending migrations through a general db push.
 
 ## Verification boundaries and thinking codes
 
-- /PLAINLY: The first deploy stopped after the database and capture function; recovery finishes the two remaining functions before the Ziply UI.
+- /PLAINLY: The first deploy stopped after the database and capture function; the next recovery stopped during read-only source inspection because it rejected ordinary form fields.
 - /ATTACK: Hash verification remains exact. A CLI representation mismatch must not become permission to accept changed code or incidental access/ranking changes.
-- /HOLES: Real Ziply seller/report acceptance and broader source/live drift remain open.
+- /HOLES: The first multipart tests omitted ordinary API form fields. Regression tests now cover those fields, missing-file substitution and unchanged exact-file checks. Real Ziply seller/report acceptance and broader source/live drift remain open.
 - /STEELMAN: The original stop prevented an unverified release. A pinned recovery preserves that protection while retaining independently verified work.
 - /SOWHAT: Ziply becomes acceptable across capture, save and reconciliation without selecting Other.
 - /ODDS: Independent source reads confirm the current partial state. Local handler and recovery tests provide code evidence; CI exercises Node 22 and real PostgreSQL. Neither proves real seller acceptance.
