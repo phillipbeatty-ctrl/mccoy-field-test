@@ -11,6 +11,14 @@ export const BASELINE_PATH = 'supabase/releases/ziply-20260911/baseline.json'
 export const MIGRATION_PATH = 'supabase/migrations/20260911121718_add_ziply_sale_provider.sql'
 export const MIGRATION_VERSION = '20260911121718'
 export const MIGRATION_NAME = 'add_ziply_sale_provider'
+export const RECOVERY_PROFILE = 'after-34611945575'
+// Independently inspected after this protected run applied the migration and
+// deployed capture v14, then stopped at the CLI-based source verification.
+export const RECOVERY_CAPTURE = Object.freeze({
+  id: '70a2e4fc-d925-4aa6-95c2-de2d1b7ad9ae', slug: 'provider-sale-capture',
+  version: 14, verify_jwt: true, import_map: false, status: 'ACTIVE',
+  ezbr_sha256: '78fa1bb80b27b0220da27986c283d6ec684984d3baeec10b7dd91aeb210c081c',
+})
 const BASELINE_HASH = 'ba86855c7236655b8c35fb35f81e0d562bd315c43155117b49ab997dc2c70c91'
 const MIGRATION_HASH = '4cf583acdf9154a6a76309bf08bdeb5e60069c2213b905187ac96738917ab426'
 export const CORE = '_shared/provider-sale-capture-core.mjs'
@@ -93,6 +101,7 @@ export function assertReleaseContext(env, checkedOutSha) {
   assert.equal(checkedOutSha, env.EXPECTED_RELEASE_SHA)
   assert.equal(env.GITHUB_SHA, checkedOutSha)
   assert.ok(['preflight', 'deploy'].includes(env.ZIPLY_OPERATION))
+  assert.ok(['original', RECOVERY_PROFILE].includes(env.ZIPLY_RELEASE_PROFILE || 'original'), 'Unreviewed release profile')
   if (env.ZIPLY_OPERATION === 'deploy') assert.equal(env.ZIPLY_CONFIRMATION, 'DEPLOY_ZIPLY')
 }
 

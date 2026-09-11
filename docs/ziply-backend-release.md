@@ -1,8 +1,46 @@
-# Ziply backend release preparation
+# Ziply backend release and reviewed recovery
 
-This is the backend prerequisite for UI PR #131. Preparation is authorized;
-production deployment has not been run. This backend PR can merge independently
-without exposing Ziply in the live user interface.
+This is the backend prerequisite for UI PR #131. Production release is authorized.
+Run [34611945575](https://github.com/phillipbeatty-ctrl/mccoy-field-test/actions/runs/34611945575)
+applied the migration and deployed provider-sale-capture v14, then stopped at
+source verification. The other functions remain v31/v18 and UI PR #131 stays
+draft until the protected backend recovery finishes successfully.
+
+## September 11 partial release and exact recovery
+
+The stopped run used main `bf71f7c459c0a30eefa3b5a5cbd316ae3d2f82cd`.
+Its CLI download returned an unbundled eszip representation whose handler hash
+did not equal the original source hash. An independent Supabase source-file
+read proved both deployed capture files match the reviewed candidate byte for
+byte. Verification now requests the Management API function body with
+`Accept: multipart/form-data`, the same original-source path used by the
+[official Supabase MCP](https://github.com/supabase/mcp/blob/main/packages/mcp-server-supabase/src/platform/api-platform.ts).
+It checks the exact file set and byte hashes, including whitespace and newlines;
+it does not normalize code or weaken the expected hashes.
+
+The explicit `release_profile=after-34611945575` accepts only this reviewed state:
+
+| Component | Required live state | Recovery action |
+|---|---|---|
+| Database | Ziply constraint plus exact version, name and SQL for migration `20260911121718` | Verify and retain; no SQL writes |
+| provider-sale-capture | v14, original ID, JWT on, import map off, ACTIVE; bundle `78fa1bb80b27b0220da27986c283d6ec684984d3baeec10b7dd91aeb210c081c`; exact candidate files | Verify and retain; no redeployment |
+| sale-submit | Original frozen v31 metadata and source bytes | Deploy reviewed Ziply package as v32; verify original files |
+| provider-reconcile | Original frozen v18 metadata and source bytes | Deploy reviewed Ziply package as v19; verify original files |
+
+Migration source SHA-256:
+`4cf583acdf9154a6a76309bf08bdeb5e60069c2213b905187ac96738917ab426`.
+Stopped-run evidence artifact ID: `10268467824`, SHA-256:
+`50febdf9a7120442593e3110e1c1be4fa461675d5de597a0c199aacfd8b7c008`.
+The frozen baseline, migration and all candidate runtime source remain unchanged.
+
+After merging the recovery repair, start a **new** manual run on its reviewed
+main commit with `operation=deploy`, `release_profile=after-34611945575`,
+`expected_sha=<full new main SHA>`, and `confirmation=DEPLOY_ZIPLY`.
+The deploy operation performs all read-only metadata, database/history and
+original-source checks before its first write. The same profile also supports
+`operation=preflight` for inspection only. Do not rerun the stopped old run:
+it still checks out the old verifier. The default `original` profile deliberately
+rejects the partial state; neither profile accepts arbitrary current versions.
 
 ## Exact scope
 
@@ -58,18 +96,23 @@ There is no deployment on a PR or push event, and no production token in PR test
 1. Review and merge the backend PR while UI PR #131 stays draft.
 2. Run `Ziply backend package and protected release` on main with
    `operation=preflight` and `expected_sha=<full reviewed main SHA>`. Preflight
-   only reads function metadata and the provider constraint/migration history.
+   only reads function metadata, original source files, and the provider
+   constraint/migration history. Choose the reviewed recovery profile when
+   recovering the specific partial release described above.
 3. After production release approval, run the same reviewed main version with
    `operation=deploy`, the same exact SHA, and `confirmation=DEPLOY_ZIPLY`.
 4. The script checks all three function IDs, versions, bundle hashes, ACTIVE
    status, JWT verification and import-map settings before any production write.
-   It also requires the original database constraint and no existing migration.
+   It verifies every source file before any write and rechecks metadata around
+   source reads. The original profile also requires the original database
+   constraint and no existing migration; recovery requires the exact retained
+   migration and capture version instead.
 5. Apply only the pinned migration and its exact history entry in one transaction.
    Verify the new constraint and history before deploying any function.
 6. Deploy only provider-sale-capture, sale-submit and provider-reconcile, in
    that order, from the reviewed frozen packages. Each has an isolated build
    directory so their differing helpers cannot overwrite one another.
-7. Re-read metadata and download the deployed source to verify its checksums
+7. Re-read metadata and fetch original multipart source files to verify checksums
    before continuing to the next function. Capture non-secret evidence on
    success or failure. No source downloaded during release is deployed.
 8. Publish UI PR #131 only after the backend result is
@@ -106,15 +149,16 @@ This avoids applying unrelated pending migrations through a general db push.
 
 ## Verification boundaries and thinking codes
 
-- /PLAINLY: This prepares a backend-only release before the Ziply UI.
-- /ATTACK: Handler and helper drift must not introduce incidental access or ranking changes.
+- /PLAINLY: The first deploy stopped after the database and capture function; recovery finishes the two remaining functions before the Ziply UI.
+- /ATTACK: Hash verification remains exact. A CLI representation mismatch must not become permission to accept changed code or incidental access/ranking changes.
 - /HOLES: Real Ziply seller/report acceptance and broader source/live drift remain open.
-- /STEELMAN: A temporary frozen production profile allows a small provider change with an auditable diff.
+- /STEELMAN: The original stop prevented an unverified release. A pinned recovery preserves that protection while retaining independently verified work.
 - /SOWHAT: Ziply becomes acceptable across capture, save and reconciliation without selecting Other.
-- /ODDS: Local handler and release-control tests provide code evidence; CI exercises real PostgreSQL. Neither proves production acceptance.
-- /FAILHOW: UI-first deployment, stale baselines, partial updates and bypassing protected release controls are the main failure paths.
-- /NEXT: Review the backend PR, run protected read-only preflight after merge, approve and deploy this package, then publish UI PR #131.
+- /ODDS: Independent source reads confirm the current partial state. Local handler and recovery tests provide code evidence; CI exercises Node 22 and real PostgreSQL. Neither proves real seller acceptance.
+- /FAILHOW: Replaying the old deployment, accepting changed versions, weakening source checks, or publishing the UI before recovery would leave the release incomplete.
+- /NEXT: Merge the tested recovery repair, run the exact protected recovery profile on the new reviewed main SHA, verify all three functions and database history, then publish UI PR #131.
 
 References: [Supabase function deployment](https://supabase.com/docs/guides/functions/deploy),
 [function metadata](https://supabase.com/docs/reference/api/v1-get-a-function),
+[original function body](https://supabase.com/docs/reference/api/v1-get-a-function-body),
 [Management API SQL](https://supabase.com/docs/reference/api/v1-run-a-query).
