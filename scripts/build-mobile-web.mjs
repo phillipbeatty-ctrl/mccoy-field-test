@@ -12,6 +12,7 @@ const requiredRuntimeFiles=[
   'app-supabase-client.js',
   'app-sale-lifecycle.js',
   'app-sale-photo-staging.js',
+  'app-provider-sale-router.js',
   'app-sales.js'
 ];
 
@@ -87,8 +88,10 @@ for(const runtimeFile of requiredRuntimeFiles){
   if(!content)throw new Error(`Native build failed: mobile-web/${runtimeFile} was not produced.`);
 }
 if(!index.includes('app-supabase-client.js?v=2026090201'))throw new Error('Native build failed: shared Supabase client resolver is not loaded.');
-if(!index.includes('app-sale-lifecycle.js?v=2026090201'))throw new Error('Native build failed: repaired sale lifecycle is not loaded.');
-if(!index.includes('app-sale-photo-staging.js?v=2026090201'))throw new Error('Native build failed: repaired photo staging is not loaded.');
+if(!index.includes('app-sale-lifecycle.js?v=2026091201'))throw new Error('Native build failed: repaired sale lifecycle is not loaded.');
+if(!index.includes('app-sale-photo-staging.js?v=2026091201'))throw new Error('Native build failed: repaired photo staging is not loaded.');
+
+for(const asset of ['app-sales.js','app-provider-sale-router.js'])if(!index.includes(`${asset}?v=2026091201`))throw new Error(`Native build failed: current provider return asset ${asset} is not loaded.`);
 
 const offlinePath=path.join(output,'offline.html');
 const offline=await readFile(offlinePath,'utf8').catch(()=>null);
@@ -119,3 +122,4 @@ await writeFile(path.join(output,'mobile-build.json'),JSON.stringify({
 },null,2));
 
 console.log(`Prepared ${produced.length} bundled Field Coach runtime files in ${path.relative(root,output)}.`);
+
