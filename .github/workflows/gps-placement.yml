@@ -1,0 +1,63 @@
+name: GPS placement pilot
+on:
+  pull_request:
+    paths:
+      - 'app-gps-placement.js'
+      - 'app-field-lead-editor.js'
+      - 'app-part2.js'
+      - 'app-lead-pool-independent-activity.js'
+      - '*gps-placement*'
+      - 'test-support/gps-placement-schema.sql'
+      - 'supabase/functions/lead-gps-placement/**'
+      - 'supabase/migrations/*field_gps_placement_pilot.sql'
+      - 'supabase/migrations/*knock_door_gps_placement.sql'
+      - 'supabase/migrations/*field_gps_production_rollout.sql'
+      - 'supabase/releases/gps-placement/**'
+      - '.github/workflows/gps-placement.yml'
+  push:
+    branches: ['gps-placement-pilot']
+permissions:
+  contents: read
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: gps_placement_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GPS_POSTGRES_TEST: '1'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: gps_placement_test
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test gps-placement-database.test.mjs
+  ui-and-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test gps-placement-ui.test.mjs gps-placement-release.test.mjs
+      - run: npm run test:responsiveness
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --no-lock --node-modules-dir=auto supabase/functions/lead-gps-placement/index.ts

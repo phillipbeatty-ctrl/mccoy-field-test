@@ -49,11 +49,55 @@ document.getElementById('setCalibrationLeadBtn')?.addEventListener('click',async
 });
 
 let doorStartInFlight=false,doorCompletionInFlight=false;
+const doorAccount=()=>`${window.MCCOY_ACCESS?.user?.id||''}:${window.MCCOY_ACCESS?.access?.organization_id||''}`;
+async function saveKnockGps(visit,isCurrent){
+  if(!visit.gpsKnockPending||!window.MCCOY_GPS_PLACEMENT?.knockDoor)return;
+  try{
+    const data=await window.MCCOY_GPS_PLACEMENT.knockDoor({
+      visitId:visit.serverVisitId,address:visit.gpsKnockAddress,isCurrent,
+      onProgress:text=>{if(isCurrent())setDoorStatus(text);}
+    });
+    if(!isCurrent())return;
+    visit.gpsKnockPending=false;
+    if(!data)return;
+    const api=window.MCCOY_GPS_PLACEMENT;
+    api.applyPlacement(data);
+    if(data.lead?.id&&!visit.lead.dbId){
+      // The server linked this exact door to the typed visit. Ambiguous stacks
+      // return no lead, so never attach the visit to an arbitrary apartment.
+      visit.lead={...visit.lead,id:data.lead.id,dbId:data.lead.id,isAdHoc:false,
+        lat:data.latitude,lng:data.longitude,updatedAt:data.pin_version};
+      for(const rows of new Set([state.leads,state.realLeads]))if(Array.isArray(rows)&&!rows.some(row=>String(row.dbId||row.id)===String(data.lead.id)))rows.push(visit.lead);
+      api.applyPlacement(data);
+      window.MCCOY_LEAD_ADDRESS?.setLead?.(visit.lead,'knock_door');
+    }
+    setDoorStatus(`Door visit started. ${api.placementMessage(data)}`);
+    // Refresh new pins in the background without delaying the saved visit or
+    // allowing a late list to overwrite a newer edit or a different account.
+    const key=doorAccount();
+    if(data.created)Promise.resolve(window.loadMcCoyLeads?.()).then(()=>{
+      if(key===doorAccount())api.applyPlacement(data);
+    }).catch(()=>{});
+  }catch(error){
+    if(isCurrent())setDoorStatus(`Door visit started. ${error.message} Tap KNOCK DOOR to retry GPS, or continue with the disposition or sale.`,true);
+  }
+}
 window.MCCOY_START_DOOR_VISIT=async function({automatic=false}={}){
   if(doorStartInFlight)return false;
   if(!state.session||!telemetrySessionId){if(!automatic)alert('Start a field session first.');return false;}
-  if(state.activeDoorVisit)return true;
   const addressContext=leadAddressContext(),isTyped=addressContext.kind==='typed'&&addressContext.valid,selectedLead=addressContext.lead;
+  const requestAccount=doorAccount(),requestSession=telemetrySessionId,revision=window.MCCOY_LEAD_ADDRESS?.revision?.();
+  const isCurrent=()=>requestAccount===doorAccount()&&requestSession===telemetrySessionId&&revision===window.MCCOY_LEAD_ADDRESS?.revision?.();
+  if(state.activeDoorVisit){
+    const visit=state.activeDoorVisit;
+    if(automatic||!visit.gpsKnockPending)return true;
+    const sameDoor=selectedLead?.dbId?String(selectedLead.dbId)===String(visit.lead?.dbId):
+      window.MCCOY_LEAD_ADDRESS_CORE?.normalizeAddress(addressContext.address)===window.MCCOY_LEAD_ADDRESS_CORE?.normalizeAddress(visit.lead?.fullAddress||visit.lead?.address);
+    if(!sameDoor){setDoorStatus('Finish the active visit or use CORRECT LEAD before knocking another door.',true);return false;}
+    const button=document.getElementById('arriveDoorBtn');doorStartInFlight=true;if(button)button.disabled=true;
+    try{await saveKnockGps(visit,()=>isCurrent()&&state.activeDoorVisit===visit);return true;}
+    finally{doorStartInFlight=false;if(button)button.disabled=false;}
+  }
   if(!isTyped&&!selectedLead?.dbId){if(!automatic)alert(addressContext.kind==='invalid'?'Type a complete address (at least 5 characters).':'Choose an assigned lead or type an ad-hoc address first.');return false;}
   const lead=isTyped?window.MCCOY_LEAD_ADDRESS_CORE.adHocLead(addressContext.address):selectedLead;
   const gps=currentGps(),gpsParams=gpsAuditParams(gps);
@@ -61,20 +105,26 @@ window.MCCOY_START_DOOR_VISIT=async function({automatic=false}={}){
   const button=document.getElementById('arriveDoorBtn');doorStartInFlight=true;if(button)button.disabled=true;setDoorStatus(isTyped?'Starting ad-hoc address activity; location is coaching-only…':'Starting activity; door location will be recorded for coaching when available…');
   try{
     const rpc=isTyped?'record_ad_hoc_door_visit_start':'record_door_visit_start',params=isTyped?{
-      p_session_id:telemetrySessionId,p_service_address:addressContext.address,...gpsParams
-    }:{p_session_id:telemetrySessionId,p_lead_id:lead.dbId,p_selection_source:automatic?'automatic_nearest':'manual_lead',...gpsParams};
+      p_session_id:requestSession,p_service_address:addressContext.address,...gpsParams
+    }:{p_session_id:requestSession,p_lead_id:lead.dbId,p_selection_source:automatic?'automatic_nearest':'manual_lead',...gpsParams};
     const {data,error}=await sb.rpc(rpc,params);
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_start_failed');
+    if(requestAccount!==doorAccount()||requestSession!==telemetrySessionId)return true;
     const arrivedAt=Date.parse(data.started_at)||Date.now();
     if(state.lastDispositionEndedAt)saveTestEvent({eventType:'transition_interval',leadLabel:lead.address,eventTime:arrivedAt,gps,dwellMs:arrivedAt-state.lastDispositionEndedAt,payload:{rawEvent:true,fromDispositionToNextPhysicalKnock:true}});
     state.activeDoorVisit={serverVisitId:data.visit_id,lead,arrivedAt,arrivalGps:gps,automaticSelection:isTyped?false:automatic,arrivalDistanceMeters:data.distance_meters==null?null:Number(data.distance_meters),doorLocationVerified:Boolean(data.door_location_verified),selectionSource:isTyped?'typed_address':(automatic?'automatic_nearest':'manual_lead')};
+    const visit=state.activeDoorVisit;
+    visit.gpsKnockPending=!automatic;
+    visit.gpsKnockAddress=window.MCCOY_LEAD_ADDRESS_CORE?.fieldAddress(addressContext.address)||null;
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';startDoorTimer();
     if(gps)state.breadcrumbs.push({...gps,eventType:'door_arrival',leadId:lead.id});
     const coachingStatus=data.door_location_verified?'Door location verified for coaching.':'Door location not verified; disposition remains available.';
     setDoorStatus(`${isTyped?'Ad-hoc activity started':automatic?'Closest lead auto-selected and arrival recorded':'Activity started'} for ${lead.address}. ${coachingStatus}`);
     window.dispatchEvent(new CustomEvent('mccoy-door-visit-started',{detail:{visitId:data.visit_id,leadId:lead.dbId||null,automatic:isTyped?false:automatic,selectionSource:state.activeDoorVisit.selectionSource,address:lead.address}}));
+    if(!automatic&&isCurrent())await saveKnockGps(visit,()=>isCurrent()&&state.activeDoorVisit===visit);
+    else if(!automatic)setDoorStatus(`Door visit started for ${lead.address}. The address changed while starting; no GPS placement was submitted.`);
     return true;
-  }catch(error){console.error('Door visit start failed',error);setDoorStatus(doorErrorMessage(error),true);if(!automatic)alert(doorErrorMessage(error));return false;}
+  }catch(error){console.error('Door visit start failed',error);if(isCurrent()){setDoorStatus(doorErrorMessage(error),true);if(!automatic)alert(doorErrorMessage(error));}return false;}
   finally{doorStartInFlight=false;if(button)button.disabled=false;}
 };
 
@@ -86,11 +136,13 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     if(!automatic)alert('Arrive at the selected door first.');
     return false;
   }
-  const gps=currentGps(),gpsParams=gpsAuditParams(gps);
-  if(!window.MCCOY_DOOR_WORKFLOW_CORE?.isFreshGps(gps))window.requestFreshGpsInBackground?.();
   const button=disposition==='sale'?document.querySelector('[data-disp="Sale"]'):document.getElementById('savePinDispositionBtn');doorCompletionInFlight=true;if(button)button.disabled=true;
+  const requestAccount=window.MCCOY_ACCESS?.user?.id;
+  let gps=currentGps();
   setDoorStatus(automatic?'Applying automatic door outcome…':'Saving door outcome…');
   try{
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return false;
+    const gpsParams=gpsAuditParams(gps);
     let data,error;
     if(disposition==='sale')({data,error}=await sb.rpc('record_door_visit_completion',{
       p_visit_id:visit.serverVisitId,p_disposition:'sale',...gpsParams,p_automatic:automatic,p_auto_reason:autoReason,p_provider_sale_id:saleId,p_service_address:serviceAddress
@@ -104,6 +156,7 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
       }));
     }
     if(error||!data?.ok)throw error||new Error(data?.reason||'door_visit_completion_failed');
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return true;
     const endedAt=Date.now(),lead=visit.lead,isSale=disposition==='sale',display=isSale?'Sale Made':(data.effective_disposition||data.visit_result||data.visit_outcome||disposition),contactStatus=data.contact_status||null,dwellMs=Number(data.dwell_ms??endedAt-visit.arrivedAt);
     if(lead){lead.disposition=display;lead.lastActivityType=isSale?'Visit':data.activity_type;lead.visitResult=isSale?'Contacted':data.visit_result;lead.stage=isSale?'Sale Made':(data.stage||lead.stage||'Prospecting');lead.pinColor=isSale?'#22c55e':(data.pin_color||lead.pinColor);lead.pinColorSource=isSale?'stage':(data.pin_color_source||lead.pinColorSource);lead.pinDisposition=display;}
     state.activities.unshift({lead:lead||{address:serviceAddress||'Customer address'},disposition:display,activityType:isSale?'Visit':data.activity_type,visitOutcome:data.visit_result||display,contactStatus,stage:isSale?'Sale Made':data.stage,at:new Date(endedAt),gps,dwellMs,automatic});
@@ -111,6 +164,7 @@ window.MCCOY_COMPLETE_DOOR_VISIT=async function(disposition,{automatic=false,aut
     state.lastDispositionEndedAt=endedAt;state.activeDoorVisit=null;clearInterval(doorTimerHandle);
     const timer=document.getElementById('doorElapsed');if(timer)timer.textContent='00:00';
     const coachingStatus=data.door_location_verified?'Door location verified for coaching.':'Door location not verified; the disposition was still saved.';
+    if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return true;
     setDoorStatus(`${automatic?'Auto-dispositioned':'Visit completed'}: ${display}${data.activity_type?` · ${data.activity_type}`:''}. ${coachingStatus}`);
     renderActivities();renderStats();renderLeads();
     renderPinDispositionControls();window.MCCOY_APPLY_DISPOSITION_COLORS?.();

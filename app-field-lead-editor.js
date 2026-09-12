@@ -312,11 +312,13 @@
       // Blank optional fields must not erase an existing matched lead's contact.
       const contact={};
       if(!salesHub)for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
-      const data=await call('create_lead',{...address,...contact});
+      const placement=window.MCCOY_GPS_PLACEMENT?await window.MCCOY_GPS_PLACEMENT.addAddress({address,contact,isCurrent}):null;
+      if(!isCurrent())return;
+      const data=placement||await call('create_lead',{...address,...contact});
       saved=true;
       if(!isCurrent())return;
-      const savedMessage=data.created?'Address added to the Lead Pool.':'An existing lead matched this address.';
-      message(savedMessage+' Loading its pin…');
+      const savedMessage=window.MCCOY_GPS_PLACEMENT?.placementMessage?.(data)||(data.created?'Address added to the Lead Pool.':'An existing lead matched this address.');
+      message(savedMessage+(data.source==='address_only'?'':' Loading its pin…'));
       const leadId=data.lead?.id;
       await window.loadMcCoyLeads?.();
       if(!isCurrent())return;
@@ -327,10 +329,12 @@
         if(!leadByAnyId(leadId))await window.loadMcCoyLeads?.();
         if(!isCurrent())return;
         if(window.MCCOY_LAST_LEAD_LOAD?.error)throw new Error('lead_pool_refresh_failed');
+        window.MCCOY_GPS_PLACEMENT?.applyPlacement?.(data);
         const lead=leadByAnyId(leadId);
         const shown=lead&&showSavedPin(lead);
-        message(savedMessage+(shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));
+        message(savedMessage+(data.source==='address_only'&&lead?.lat==null?' Ready for KNOCK DOOR or SALE.':shown?' Its pin is selected on the map. Ready for SALE.':' Its pin is not visible in the current Lead Pool. You can still process the sale.'));
       }else{
+        window.MCCOY_GPS_PLACEMENT?.applyPlacement?.(data);
         message(savedMessage+' Ready for SALE.');
       }
       // Keep the address available for PROCESS SALE without requiring re-entry.

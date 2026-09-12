@@ -5,7 +5,7 @@
   if(!core||!select)return;
 
   const root=document.createElement('div');root.className='field-lead-combobox';
-  root.innerHTML='<label for="fieldLeadAddressInput">Service address</label><div class="field-lead-combobox-row"><input id="fieldLeadAddressInput" type="text" autocomplete="off" maxlength="240" placeholder="Street, unit, city, ST ZIP" aria-describedby="fieldLeadAddressStatus"><button id="addFieldAddressBtn" type="button" class="primary" disabled>ADD ADDRESS</button></div><div id="fieldLeadAddressStatus" class="muted small" role="status" aria-live="polite">Type a complete service address. ADD ADDRESS saves its pin; SALE can proceed without a pin.</div>';
+  root.innerHTML='<label for="fieldLeadAddressInput">Service address</label><div class="field-lead-combobox-row"><input id="fieldLeadAddressInput" type="text" autocomplete="off" maxlength="240" placeholder="Street, unit, city, ST ZIP" aria-describedby="fieldLeadAddressStatus"><button id="addFieldAddressBtn" type="button" class="primary" disabled>ADD ADDRESS</button></div><div id="fieldLeadAddressStatus" class="muted small" role="status" aria-live="polite">Type a complete service address. ADD ADDRESS saves the address; KNOCK DOOR starts the visit. SALE can proceed without a pin.</div>';
   // Retain the hidden selection bridge for existing map/door handlers, with no dropdown UI.
   select.insertAdjacentElement('beforebegin',root);select.hidden=true;select.classList.add('field-lead-select-native');select.setAttribute('aria-hidden','true');select.tabIndex=-1;
   const input=document.getElementById('fieldLeadAddressInput'),status=document.getElementById('fieldLeadAddressStatus');
@@ -32,14 +32,14 @@
   }
 
   function setStatus(ctx){
-    const arrive=document.getElementById('arriveDoorBtn');if(arrive&&!state.activeDoorVisit)setText(arrive,ctx.kind==='typed'?'START ADDRESS ACTIVITY':'ARRIVED AT DOOR');
+    const arrive=document.getElementById('arriveDoorBtn');if(arrive&&!state.activeDoorVisit)setText(arrive,'KNOCK DOOR');
     status.classList.toggle('field-lead-address-ad-hoc',ctx.kind==='typed');
     status.classList.toggle('field-lead-address-invalid',ctx.kind==='invalid');
     if(feedback&&feedback.revision===selectionRevision){setText(status,feedback.text);status.classList.toggle('field-lead-address-invalid',feedback.error);return;}
     if(ctx.kind==='assigned')setText(status,'This address is in the Lead Pool. Use it for door activity or SALE.');
     else if(ctx.kind==='typed')setText(status,'Ready for SALE. ADD ADDRESS saves this address to the Lead Pool.');
     else if(ctx.kind==='invalid')setText(status,'Enter a complete service address, including city, state and ZIP.');
-    else setText(status,'Type a complete service address. ADD ADDRESS saves its pin; SALE can proceed without a pin.');
+    else setText(status,'Type a complete service address. ADD ADDRESS saves the address; KNOCK DOOR starts the visit. SALE can proceed without a pin.');
   }
   function dispatch(ctx,source,nativeChanged=false){
     const changed=!sameContext(ctx,lastContext);

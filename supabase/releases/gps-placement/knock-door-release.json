@@ -1,0 +1,67 @@
+{
+  "project_id": "athxxrfqxwlfnuvbqadp",
+  "migration": {
+    "version": "20260911231228",
+    "name": "knock_door_gps_placement",
+    "file": "supabase/migrations/20260911231228_knock_door_gps_placement.sql",
+    "rpc_body_matches_reviewed_source": true
+  },
+  "edge": {
+    "name": "lead-gps-placement",
+    "version": 2,
+    "status": "ACTIVE",
+    "verify_jwt": true,
+    "ezbr_sha256": "7e2a008c2551cf7dc612cfaff926311b4794c29d54131bbb4efd25c7bd12b225",
+    "deployed_files_match_reviewed_source": true
+  },
+  "verification": {
+    "synthetic_postgres_17_tests": 18,
+    "gps_ui_tests": 18,
+    "release_tests": 3,
+    "source_commit": "017024d48701fee49072bdf6a5c88d49a25fe686",
+    "unauthenticated_http": 401,
+    "anon_rpc_execute": false,
+    "authenticated_rpc_execute": false,
+    "service_role_rpc_execute": true,
+    "retired_place_address": "unsupported_action",
+    "retired_refine_disposition": "unsupported_action",
+    "pilot_accounts_before": 1,
+    "pilot_accounts_after": 1,
+    "audit_rows_before": 5,
+    "audit_rows_after": 5,
+    "customer_pin_writes_by_release": 0,
+    "physical_device_acceptance": "pending"
+  },
+  "advisors": {
+    "gps_findings": [
+      {
+        "category": "rls_enabled_no_policy",
+        "level": "INFO",
+        "table": "field_gps_audit"
+      },
+      {
+        "category": "rls_enabled_no_policy",
+        "level": "INFO",
+        "table": "field_gps_locations"
+      },
+      {
+        "category": "rls_enabled_no_policy",
+        "level": "INFO",
+        "table": "field_gps_pilot"
+      },
+      {
+        "category": "rls_enabled_no_policy",
+        "level": "INFO",
+        "table": "field_gps_requests"
+      }
+    ],
+    "explanation": "These four existing private tables intentionally have no browser grants or RLS policies; authorized service-role operations use the gated RPC.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+  },
+  "release_scope": "Existing preview/account pilot only; no broad production enablement, no legacy creation/sale function or paywall rollout.",
+  "sha256": {
+    "supabase/migrations/20260911231228_knock_door_gps_placement.sql": "7013256f41376193a264fe47b62e69ef5b19049374fa8eafdd80ce6dd304514f",
+    "supabase/functions/lead-gps-placement/index.ts": "bc5202c597fe18a351f3d0b2683d57dc02c47b64f44e69310c9ad196c1e0ce81",
+    "supabase/functions/_shared/organization-paywall.ts": "c730e953e81ed68f48c8102039ce43c8e0f29e12e8f5d15a3372e980e7f3bf54"
+  }
+}

@@ -145,16 +145,21 @@
 
     const requestId=pendingSaveRequestId||uuid();pendingSaveRequestId=requestId;
     const save=byId('mapPinSaveBtn');saveBusy=true;if(save){save.disabled=true;save.textContent='SAVING…';}
-    const occurredAt=visitTimerStartedAt||Date.now(),dwellSeconds=activityType==='Visit'?Math.floor(timerElapsedMs()/1000):0,gps=currentGps();
+    const occurredAt=visitTimerStartedAt||Date.now(),dwellSeconds=activityType==='Visit'?Math.floor(timerElapsedMs()/1000):0;
+    const requestAccount=window.MCCOY_ACCESS?.user?.id;
+    let gps=currentGps();
     setMessage('Saving independent Lead Pool activity…');
     try{
+      if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return;
       const{data,error}=await sb.rpc('record_lead_pool_pin_disposition',{
         p_session_id:currentSessionId(),p_lead_id:current.dbId,p_client_request_id:requestId,
         p_activity_type:activityType,p_visit_result:visitResult,p_stage:stage,
         p_occurred_at:new Date(occurredAt).toISOString(),p_dwell_seconds:dwellSeconds,...gpsRpc(gps)
       });
       if(error||!data?.ok)throw error||new Error(data?.error||'lead_pool_disposition_failed');
+      if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return;
       updateLocalLead(current,data);pendingSaveRequestId=null;resetVisitTimer();
+      if(requestAccount!==window.MCCOY_ACCESS?.user?.id)return;
       setMessage(`${data.duplicate?'Already saved':'Saved'} ${data.effective_disposition||visitResult} for ${current.address}. The Sales Hub activity was left unchanged.`);
       window.MCCOY_RENDER_LEAD_MAP?.(false);window.MCCOY_APPLY_DISPOSITION_COLORS?.();
       window.dispatchEvent(new CustomEvent('mccoy-lead-pool-disposition-saved',{detail:{leadId:current.dbId,visitId:data.visit_id,occurredAt:data.occurred_at,dwellSeconds:data.dwell_seconds,duplicate:Boolean(data.duplicate)}}));

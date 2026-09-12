@@ -1,0 +1,86 @@
+{
+  "project_id": "athxxrfqxwlfnuvbqadp",
+  "organization_slug": "mccoy-platform-llc",
+  "acceptance": {
+    "status": "user-reported testing complete; production implementation authorized",
+    "accepted_preview_commit": "2ff864a0e1f5e3e765a4ea9d55b6546ea8e2039d",
+    "accepted_preview_url": "https://mccoy-field-test-o127o5plv-phillipbeatty-6762s-projects.vercel.app/",
+    "device_by_device_observation": "not independently recorded by Codex"
+  },
+  "migration": {
+    "version": "20260911234631",
+    "name": "field_gps_production_rollout",
+    "file": "supabase/migrations/20260911234631_field_gps_production_rollout.sql",
+    "status": "applied",
+    "rpc_body_md5": "8350389777ef5b91f72c086176ef23a8",
+    "rpc_body_matches_reviewed_source": true
+  },
+  "activation": {
+    "file": "supabase/releases/gps-placement/enable-production.sql",
+    "status": "enabled",
+    "organization_slug": "mccoy-platform-llc",
+    "enabled_at": "2026-09-11T23:47:12.597168+00:00"
+  },
+  "edge": {
+    "name": "lead-gps-placement",
+    "version": 2,
+    "redeployment_required": false,
+    "status": "ACTIVE",
+    "verify_jwt": true,
+    "bundle_sha256": "7e2a008c2551cf7dc612cfaff926311b4794c29d54131bbb4efd25c7bd12b225"
+  },
+  "verification": {
+    "local_database_tests": 19,
+    "gps_ui_tests": 20,
+    "release_tests": 3,
+    "responsiveness_tests": 67,
+    "release_checks": "PostgreSQL 17, UI/source, responsiveness, sale, map and access checks passed; final-head checks recorded in PR #136",
+    "source_commit": "965828127db3f147f72e47c7a2faa6006472abeb",
+    "rpc_anon_execute": false,
+    "rpc_authenticated_execute": false,
+    "rpc_service_execute": true,
+    "rollout_browser_select": false,
+    "rollout_browser_update": false,
+    "rollout_service_select": true,
+    "rollout_service_update": false,
+    "rollout_rls": true,
+    "production_status_accounts": {
+      "admin": 1,
+      "manager": 3,
+      "rep": 9
+    },
+    "all_checked_accounts_production_enabled": true,
+    "pilot_accounts_before": 1,
+    "pilot_accounts_after": 1,
+    "audit_rows_before": 5,
+    "audit_rows_after": 5,
+    "customer_pin_writes_by_release": 0,
+    "field_user_status_regression": "Real auth CSS: Rep, Manager, Trainer and Tester see GPS progress, denied-permission retry and low-accuracy success; input focus and draft preserved.",
+    "prior_final_head_checks": {
+      "commit": "b043a1e71ad9d31e191bf7460415679da92a1458",
+      "passed": 19,
+      "skipped": "publish-signed-internal-beta",
+      "followup": "Field-user status visibility fix; final follow-up checks recorded in PR #136."
+    }
+  },
+  "scope": "McCoy production web/PWA; KNOCK DOOR only placement trigger; no native binary, legacy sale function or broader paywall release",
+  "sha256": {
+    "supabase/migrations/20260911234631_field_gps_production_rollout.sql": "e280198fdae6c49069f5b2536feaa9343efacb778476176726d605ce2bd79e90",
+    "supabase/releases/gps-placement/enable-production.sql": "30f90c0b4da09668b9f295d6646f7a253daf1a761bd37356f91dbdd507c068dc",
+    "app-gps-placement.js": "49fbfffc725c2d6d5091e95aecd574efe221a020c673417ffeb7e234c7a772a8",
+    "app-auth.js": "d87657cdd7d27c44dbc2bfd48f067b7b84429c1090ad616a0eb8979d85574050",
+    "index.html": "c219d95968bd34ac0903703ae1a1c8a1451a4d83838b1e56ab71ee3b0b88ec20",
+    "service-worker.js": "0f73d09aaae110c93d7439740caf06451059df4be619cb7d91e03c923648ebc3"
+  },
+  "advisors": {
+    "gps_tables_info_only": [
+      "field_gps_audit",
+      "field_gps_locations",
+      "field_gps_pilot",
+      "field_gps_requests",
+      "field_gps_rollout"
+    ],
+    "finding": "rls_enabled_no_policy",
+    "explanation": "Private service-only tables intentionally have no browser grants or policies; rollout is read-only to service_role."
+  }
+}
