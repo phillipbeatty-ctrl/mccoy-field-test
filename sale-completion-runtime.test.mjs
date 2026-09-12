@@ -192,7 +192,10 @@ function completionHarness({serverError=null}={}){
   Object.assign(context,{
     state:{},
     telemetrySessionId:null,
-    submitting:false,
+    submitting:false,lockedOutcome:null,
+    freezeOutcome:()=>({capture:model.capture,account:'actor:org'}),
+    currentOutcome:()=>true,
+    finishReturn:()=>{model.modalHidden=true},
     byId:()=>null,
     setOutcomeButtonsBusy(){},
     setSaleMsg(text,type=''){model.messages.push({text,type})},
@@ -232,7 +235,7 @@ test('the lifecycle no longer intercepts COMPLETE SALE and still restores curren
     return{data:{ok:true,captures:[capture]},error:null}
   }}}
   const context=createBrowserContext(client)
-  context.MCCOY_ACCESS={access:{active:true}}
+  context.MCCOY_ACCESS={user:{id:'actor'},access:{active:true,organization_id:'org'}}
   vm.runInContext(lifecycleSource,context)
 
   const event={
@@ -330,13 +333,13 @@ test('client and cache contracts ship the fixed runtime to web, PWA, iOS, and An
   assert.ok(indexSource.indexOf('app-supabase-client.js?v=2026090201')<indexSource.indexOf('app-sales.js?v='))
   assert.match(indexSource,/app-sales-products\.js\?v=2026091105/)
   assert.match(indexSource,/app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
-  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026090201')<indexSource.indexOf('app-page-layout.js'))
-  assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026090201/)
-  assert.match(workerSource,/field-coach-app-shell-v24-20260911-knock-status/)
+  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026091201')<indexSource.indexOf('app-page-layout.js'))
+  assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026091201/)
+  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026091201/)
+  assert.match(workerSource,/field-coach-app-shell-v25-20260912-provider-return/)
   assert.match(workerSource,/app-supabase-client\.js\?v=2026090201/)
-  assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026090201/)
+  assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026091201/)
+  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026091201/)
 })
 
 test('server contracts remain authoritative for owner/status checks, canonical sale insert, recorded capture, review, and ranking',()=>{
@@ -349,5 +352,5 @@ test('server contracts remain authoritative for owner/status checks, canonical s
   assert.match(captureSource,/open_only:true|body\.open_only === true/)
   assert.match(captureSource,/query = query\.eq\('rep_user_id', user\.id\)/)
   assert.match(salesSource,/sb\.functions\.invoke\('sale-submit'/)
-  assert.match(salesSource,/setSaleMsg\(error\?\.message\|\|'Sale could not be completed/)
+  assert.match(salesSource,/setSaleMsg\(\(error\?\.message\|\|'Sale could not be completed/)
 })

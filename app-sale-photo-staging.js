@@ -117,7 +117,7 @@
       const data=await invoke('list',{capture_id:capture.id});
       state.capture={...state.capture,...capture};state.rows=Array.isArray(data.rows)?data.rows:[];
       state.lastMessage=state.rows.length
-        ? `${state.rows.length} photo${state.rows.length===1?'':'s'} staged. ${state.rows.length<3?'Add another or ':''}press COMPLETE SALE to attach.`
+        ? `${state.rows.length} photo${state.rows.length===1?'':'s'} staged. ${state.rows.length<3?'Add another or ':''}use the green check on return to attach.`
         : 'Provider attempt secured. PHOTO opens the camera or photo library.';
     }catch(error){
       if(!quiet)state.lastMessage=errorMessage(error,'Unable to load staged photos.');
@@ -194,7 +194,7 @@
       const upload=await supabase.storage.from(BUCKET).uploadToSignedUrl(created.path,created.token,file,{contentType:file.type});
       if(upload.error)throw upload.error;
       await invoke('commit_upload',{photo_id:created.photo_id});
-      state.lastMessage='Photo staged privately. It will attach when COMPLETE SALE succeeds.';
+      state.lastMessage='Photo staged privately. It will attach when the green check saves the sale outcome.';
       await refreshForCapture(capture,true);
     }catch(error){
       if(created?.photo_id)invoke('abort_upload',{photo_id:created.photo_id}).catch(()=>{});

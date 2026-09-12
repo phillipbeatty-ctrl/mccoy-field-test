@@ -55,9 +55,12 @@
   for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
 
   let pending=null,toastTimer=null,routing=false,serverRecoveryStarted=false;
-  let saleGuard=false,returnNotifiedFor=null,providerWindow=null,providerWindowTimer=null;
+  let returnNotifiedFor=null,providerWindow=null,providerWindowTimer=null,saleCheck=false;
+  const actorKey=()=>window.MCCOY_ACCESS?.access?.active&&window.MCCOY_ACCESS?.user?.id?`${window.MCCOY_ACCESS.user.id}:${window.MCCOY_ACCESS.access.organization_id||''}`:'';
+  const sameCapture=(a,b)=>!!(a&&b&&((a.id&&a.id===b.id)||(a.client_request_id&&a.client_request_id===b.client_request_id)));
+  const owned=capture=>!!(actorKey()&&capture?.actor_key===actorKey());
   function readCapture(){
-    try{const value=JSON.parse(localStorage.getItem(CAPTURE_STORAGE_KEY)||'null');return value&&value.client_request_id&&value.provider?value:null;}catch(_){return null;}
+    try{const value=JSON.parse(localStorage.getItem(CAPTURE_STORAGE_KEY)||'null');return value&&value.client_request_id&&value.provider&&owned(value)?value:null;}catch(_){return null;}
   }
   function writeCapture(capture){
     window.MCCOY_ACTIVE_PROVIDER_CAPTURE=capture||null;
@@ -109,22 +112,22 @@
   }
   async function recoverServerCapture(){
     if(serverRecoveryStarted||readCapture()||!window.MCCOY_ACCESS?.access?.active)return;
-    serverRecoveryStarted=true;
+    serverRecoveryStarted=true;const owner=actorKey();
     try{
       const data=await captureCall('list',{open_only:true,mine_only:true}),captures=Array.isArray(data?.captures)?data.captures:[];
+      if(owner!==actorKey()||readCapture())return;
       const cutoff=Date.now()-MAX_AUTO_RECOVERY_AGE_MS;
       const capture=captures.find(item=>['dashboard_opened','details_required'].includes(item?.status)&&Date.parse(item?.created_at||item?.updated_at||0)>=cutoff);
       if(!capture)return;
-      const restored={...capture,client_request_id:capture.client_request_id||capture.id,started_at:capture.created_at||capture.updated_at||new Date().toISOString(),recovered_from_server:true};
+      const restored={...capture,actor_key:owner,client_request_id:capture.client_request_id||capture.id,started_at:capture.created_at||capture.updated_at||new Date().toISOString(),recovered_from_server:true};
       writeCapture(restored);returnNotifiedFor=null;
-      window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture:restored,validated:true}}));
       await markCaptureReturned(true);
     }catch(error){serverRecoveryStarted=false;console.error('Provider sale capture recovery failed',error);}
   }
   function startProviderCapture(provider,portalResult,source=saleSourceContext()){
     if(!source?.service_address)throw new Error('Enter a complete service address before starting a sale.');
     const info=portalInfo(provider),draft={
-      client_request_id:newCaptureRequestId(),provider,sale_context:source.sale_context||'field',
+      actor_key:actorKey(),client_request_id:newCaptureRequestId(),provider,sale_context:source.sale_context||'field',
       service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
       lead_id:source.lead_id||null,source_door_visit_id:source.source_door_visit_id||null,
       preserve_active_visit:source.preserve_active_visit===true,customer_map_location:source.customer_map_location||null,
@@ -135,35 +138,51 @@
     window.MCCOY_PENDING_SALE_CONTEXT=null;
     writeCapture(draft);returnNotifiedFor=null;
     window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-started',{detail:{capture:draft}}));
+    persistProviderCapture(draft);
+    return draft;
+  }
+  function persistProviderCapture(draft){
+    const owner=actorKey();
     const ready=captureCall('start',draft).then(data=>{
       const active=readCapture();
-      if(active?.client_request_id!==draft.client_request_id)return data.capture;
-      const saved={...active,...data.capture};writeCapture(saved);
+      if(owner!==actorKey()||!sameCapture(active,draft))return null;
+      const saved={...active,...data.capture,actor_key:owner};delete saved.capture_error;writeCapture(saved);
       window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-ready',{detail:{capture:saved,validated:true}}));
       return saved;
     }).catch(error=>{
       console.error('Provider sale capture start failed',error);
       const active=readCapture();
-      if(active?.client_request_id===draft.client_request_id){const failed={...active,capture_error:String(error?.message||error)};writeCapture(failed);window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-error',{detail:{capture:failed,error}}));}
-      return readCapture()||draft;
+      if(owner===actorKey()&&sameCapture(active,draft)){const failed={...active,capture_error:String(error?.message||error)};writeCapture(failed);window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-error',{detail:{capture:failed,error}}));return failed;}
+      return null;
     });
-    window.MCCOY_PROVIDER_CAPTURE_READY=ready;
-    return draft;
+    window.MCCOY_PROVIDER_CAPTURE_READY=ready;return ready;
   }
   async function markCaptureReturned(force=false){
-    const capture=readCapture();
-    if(!capture||capture.status==='recorded'||capture.status==='cancelled')return;
+    const capture=readCapture(),owner=actorKey();
+    if(!capture||['recorded','cancelled'].includes(capture.status))return;
     if(!force&&Date.now()-Date.parse(capture.started_at||capture.created_at||0)<900)return;
     if(returnNotifiedFor===capture.client_request_id)return;
     returnNotifiedFor=capture.client_request_id;
-    const returned={...capture,status:'details_required'};writeCapture(returned);
-    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-returned',{detail:{capture:returned}}));
+    window.MCCOY_PROVIDER_DASHBOARD_ACTIVE=false;
+    const ready=await waitForCaptureReady(capture);
+    if(owner!==actorKey()||!sameCapture(capture,readCapture())||!sameCapture(ready,capture)||!ready?.id)return;
+    let returned={...capture,...ready,actor_key:owner,status:'details_required'};
+    // Returning is read-only. Only a deliberate outcome click changes server state;
+    // a delayed return marker must never reopen a completed/cancelled attempt.
     try{
-      const ready=window.MCCOY_PROVIDER_CAPTURE_READY?await window.MCCOY_PROVIDER_CAPTURE_READY:returned;
-      if(!ready?.id)return;
-      const data=await captureCall('mark_returned',{capture_id:ready.id});
-      const active=readCapture();if(active?.client_request_id===capture.client_request_id)writeCapture({...active,...data.capture});
-    }catch(error){console.error('Provider sale return marker failed',error);}
+      const data=await captureCall('list',{mine_only:true});
+      if(owner!==actorKey()||!sameCapture(capture,readCapture()))return;
+      const current=(data.captures||[]).find(row=>sameCapture(row,ready));
+      if(!current||['recorded','cancelled'].includes(current.status)){
+        window.MCCOY_CLEAR_PROVIDER_CAPTURE(ready.id);
+        window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-invalidated',{detail:{reason:'capture_already_resolved',captureId:ready.id}}));
+        notify(current?.status==='recorded'?'This sale was already recorded.':'This provider attempt is already closed.');return;
+      }
+      returned={...returned,...current,actor_key:owner,status:'details_required'};
+    }catch(error){console.warn('Return validation unavailable; outcome endpoints will validate the saved attempt',error);}
+    if(owner!==actorKey()||!sameCapture(capture,readCapture()))return;
+    writeCapture(returned);
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-returned',{detail:{capture:returned,validated:true}}));
   }
   function stopProviderWindowTracking({close=false}={}){
     if(providerWindowTimer){clearInterval(providerWindowTimer);providerWindowTimer=null;}
@@ -194,12 +213,17 @@
   }
   window.MCCOY_CLEAR_PROVIDER_CAPTURE=captureId=>{
     const active=readCapture();
-    if(!active||!captureId||active.id===captureId||active.client_request_id===captureId){writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;stopProviderWindowTracking({close:true});}
+    if(!active||!captureId||active.id===captureId||active.client_request_id===captureId){writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;window.MCCOY_PROVIDER_DASHBOARD_ACTIVE=false;stopProviderWindowTracking({close:true});}
   };
   window.MCCOY_CANCEL_PROVIDER_CAPTURE=async()=>{
     const capture=readCapture();if(!capture)return;
-    try{const ready=window.MCCOY_PROVIDER_CAPTURE_READY?await window.MCCOY_PROVIDER_CAPTURE_READY:capture;if(ready?.id)await captureCall('cancel',{capture_id:ready.id});}catch(error){console.error('Provider sale capture cancellation failed',error);}
-    writeCapture(null);window.MCCOY_PROVIDER_CAPTURE_READY=null;returnNotifiedFor=null;stopProviderWindowTracking({close:true});
+    const owner=actorKey(),ready=await waitForCaptureReady(capture);
+    if(owner!==actorKey()||!sameCapture(capture,readCapture())||!ready?.id)throw new Error('provider_capture_not_ready');
+    await captureCall('set_outcome',{capture_id:ready.id,outcome:'abandoned'});
+    if(owner===actorKey()&&sameCapture(capture,readCapture()))window.MCCOY_CLEAR_PROVIDER_CAPTURE(ready.id);
+  };
+  window.MCCOY_SET_PROVIDER_OUTCOME_PENDING=(captureId,outcome)=>{
+    const capture=readCapture();if(capture?.id===captureId&&['completed','abandoned'].includes(outcome))writeCapture({...capture,outcome_pending:outcome});
   };
   function currentProvider(){
     const selected=document.getElementById('sessionIsp')?.value;
@@ -231,7 +255,7 @@
   function updatePortalStatus(){
     const provider=choice.value,info=portalInfo(provider),message=portalAccountMessage(provider),explicit=pending?.source||window.MCCOY_PENDING_SALE_CONTEXT;
     const contextMessage=explicit?.preserve_active_visit===true?' This sale is isolated from the current physical-door activity.':'';
-    document.getElementById('providerRouterStatus').textContent=(message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Close that tab or tap its X to return directly to McCoy.`))+contextMessage;
+    document.getElementById('providerRouterStatus').textContent=(message||(!info.url?`${provider} seller-account access is not configured yet.`:`${info.label} opens in a separate provider tab. Return to Field Coach when finished, then choose the green check or red X to save the result.`))+contextMessage;
   }
   function sellerAccountDestination(provider){
     const info=portalInfo(provider),raw=String(info.url||'').trim();
@@ -243,11 +267,12 @@
   }
   function navigateSellerAccount(provider,destination,reservedWindow=null){
     if(!destination?.opened)return destination;
+    window.MCCOY_PROVIDER_DASHBOARD_ACTIVE=true;returnNotifiedFor=null;
     const info=portalInfo(provider),accountMessage=portalAccountMessage(provider);
     if(info.sessionGroup){
       try{localStorage.setItem(PORTAL_CONTEXT_STORAGE_KEY,JSON.stringify({provider,sessionGroup:info.sessionGroup,openedAt:new Date().toISOString()}));}catch(_){}
     }
-    notify(accountMessage||`${info.label} is opening in a separate provider tab. Close it or tap X to return to McCoy.`);
+    notify(accountMessage||`${info.label} is opening in a separate provider tab. Return to Field Coach when finished, then choose the green check or red X.`);
     if(reservedWindow&&!reservedWindow.closed){
       try{
         try{reservedWindow.opener=null;}catch(_){}
@@ -256,7 +281,7 @@
       }catch(error){console.warn('Provider separate-tab navigation failed; using same-tab fallback',error);try{reservedWindow.close();}catch(_){} }
     }
     try{window.location.assign(destination.url);return{...destination,mode:'same_tab_fallback'};}
-    catch(error){console.error('Provider navigation failed',error);notify(`${info.label} could not open. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
+    catch(error){window.MCCOY_PROVIDER_DASHBOARD_ACTIVE=false;console.error('Provider navigation failed',error);notify(`${info.label} could not open. Retry from McCoy.`);return{opened:false,reason:'navigation_failed'};}
   }
   function openSellerAccount(provider){
     const destination=sellerAccountDestination(provider),reserved=destination.opened?reserveProviderWindow():null;
@@ -271,15 +296,15 @@
     localStorage.setItem('mccoy_isp',provider);
     if(select&&select.value!==provider){select.value=provider;select.dispatchEvent(new Event('change',{bubbles:true}));}
   }
-  function showRouter(target){
-    const provider=currentProvider(),explicit=saleSourceContext();
+  function showRouter(target,explicit=saleSourceContext()){
+    const provider=currentProvider();
     if(!explicit?.service_address){
       window.MCCOY_PENDING_SALE_CONTEXT=null;
       alert('Enter a complete service address or select a lead before starting a sale.');
       window.MCCOY_LEAD_ADDRESS?.focus?.();return;
     }
     // Freeze the address at SALE, before provider selection or asynchronous GPS work.
-    choice.value=provider;pending={target,source:structuredClone(explicit)};
+    choice.value=provider;pending={target,owner:actorKey(),source:structuredClone(explicit)};
     document.getElementById('providerRouterTitle').textContent=explicit?.sale_context==='out_of_area_phone'?'Choose provider for this phone sale':'Choose provider for this sale';
     document.getElementById('providerRouterDescription').textContent=`Process the sale for ${explicit.service_address}.${explicit.preserve_active_visit?' Any other door activity will remain active.':''}`;
     const continueButton=document.getElementById('providerRouterContinue');
@@ -297,19 +322,26 @@
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
   document.getElementById('providerRouterContinue').addEventListener('click',async()=>{
     if(!pending||routing)return;
+    if(!actorKey()||pending.owner!==actorKey()){closeRouter();return;}
     const provider=choice.value;
     if(!PROVIDERS.includes(provider)){document.getElementById('providerRouterStatus').textContent='Choose an Internet provider.';return;}
-    const next=pending,continueButton=document.getElementById('providerRouterContinue');
+    const owner=actorKey(),next=pending,continueButton=document.getElementById('providerRouterContinue');
     routing=true;continueButton.disabled=true;continueButton.textContent='SAVING CAPTURE…';
     choice.disabled=true;document.getElementById('providerRouterCancel').disabled=true;
     window.MCCOY_SALE_CONTEXT=next.source.sale_context||'field';
     window.MCCOY_TESTER_PKB_SALE=false;setProvider(provider);
     const destination=next.destination||sellerAccountDestination(provider);
     const reservedWindow=destination.opened?reserveProviderWindow():null;
-    const draft=next.capture||startProviderCapture(provider,destination,next.source);
+    const retry=!!next.capture,draft=next.capture||startProviderCapture(provider,destination,next.source);next.capture=draft;next.destination=destination;
+    if(retry&&!draft.id)persistProviderCapture(draft);
+    const ready=await waitForCaptureReady(draft);
+    if(owner!==actorKey()){try{reservedWindow?.close();}catch(_){}panel.classList.remove('show');pending=null;routing=false;return;}
+    if(!ready?.id||ready.capture_error){
+      try{reservedWindow?.close();}catch(_){}next.capture=readCapture()||draft;routing=false;continueButton.disabled=false;continueButton.textContent='RETRY PROVIDER DASHBOARD';choice.disabled=true;document.getElementById('providerRouterCancel').disabled=false;document.getElementById('providerRouterStatus').textContent='The sale attempt could not be saved. Retry to open the dashboard with the same attempt.';return;
+    }
     if(destination.opened){
       document.getElementById('providerRouterStatus').textContent=reservedWindow?'Saving this provider attempt before loading the provider tab…':'The browser blocked a separate tab. McCoy will use a same-tab fallback after saving the capture.';
-      await waitForCaptureReady(draft);panel.classList.remove('show');pending=null;routing=false;
+      panel.classList.remove('show');pending=null;routing=false;
       const navigation=navigateSellerAccount(provider,destination,reservedWindow);
       if(!navigation.opened){
         routing=false;pending={...next,destination,capture:draft};panel.classList.add('show');
@@ -320,23 +352,40 @@
       return;
     }
     routing=false;panel.classList.remove('show');pending=null;choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;
-    saleGuard=true;next.target.click();
+    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-returned',{detail:{capture:ready,validated:true}}));
   });
 
+  async function openSaleFlow(target){
+    if(saleCheck||routing||pending)return;
+    const source=saleSourceContext(),owner=actorKey();
+    if(!source?.service_address){window.MCCOY_PENDING_SALE_CONTEXT=null;alert('Enter a complete service address or select a lead before starting a sale.');window.MCCOY_LEAD_ADDRESS?.focus?.();return;}
+    saleCheck=true;
+    try{
+      const existing=readCapture()||await window.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE?.();
+      if(owner!==actorKey())return;
+      if(existing&&owned(existing)&&!['recorded','cancelled'].includes(existing.status)){
+        if(!existing.id){
+          showRouter(target,existing);choice.value=existing.provider;choice.disabled=true;
+          pending.capture=existing;pending.destination=sellerAccountDestination(existing.provider);
+          document.getElementById('providerRouterContinue').textContent='RETRY PROVIDER DASHBOARD';
+          document.getElementById('providerRouterStatus').textContent='Retry saving this unfinished attempt before opening its provider dashboard.';return;
+        }
+        writeCapture(existing);returnNotifiedFor=null;window.MCCOY_PENDING_SALE_CONTEXT=null;await markCaptureReturned(true);return;
+      }
+      if(isTesterPkb()){
+        const provider=currentProvider();window.MCCOY_SALE_CONTEXT=source.sale_context||'field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
+        const draft=startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'},source),ready=await waitForCaptureReady(draft);
+        if(owner===actorKey()&&ready?.id)window.dispatchEvent(new CustomEvent('mccoy-provider-sale-returned',{detail:{capture:ready,validated:true}}));
+        return;
+      }
+      showRouter(target,structuredClone(source));
+    }catch(error){notify('Could not check unfinished provider attempts. Check your connection and retry SALE.');console.error(error);}
+    finally{saleCheck=false;}
+  }
   document.addEventListener('click',event=>{
     const saleButton=event.target?.closest?.('[data-disp="Sale"]');
-    if(saleButton&&!window.MCCOY_SALE_CONFIRMED){
-      if(saleGuard){saleGuard=false;return;}
-      if(isTesterPkb()){
-        event.preventDefault();event.stopImmediatePropagation();
-        const source=saleSourceContext();
-        if(!source?.service_address){alert('Enter a complete service address before starting a sale.');window.MCCOY_LEAD_ADDRESS?.focus?.();return;}
-        const provider=currentProvider();window.MCCOY_SALE_CONTEXT=window.MCCOY_PENDING_SALE_CONTEXT?.sale_context||'field';window.MCCOY_TESTER_PKB_SALE=true;setProvider(provider);
-        startProviderCapture(provider,{opened:false,reason:'ghost_benchmark_dashboard_bypass'},source);
-        saleGuard=true;saleButton.click();return;
-      }
-      event.preventDefault();event.stopImmediatePropagation();showRouter(saleButton);
-    }
+    if(!saleButton||window.MCCOY_SALE_CONFIRMED)return;
+    event.preventDefault();event.stopImmediatePropagation();openSaleFlow(saleButton);
   },true);
 
   window.MCCOY_START_EXPLICIT_SALE=context=>{
@@ -348,14 +397,15 @@
     button.click();
   };
   window.MCCOY_OPEN_PROVIDER_PORTAL=openSellerAccount;
+  window.MCCOY_RESUME_PROVIDER_DASHBOARD=capture=>{if(!owned(capture)||!sameCapture(capture,readCapture()))return{opened:false};return openSellerAccount(capture.provider);};
   const restored=readCapture();if(restored)writeCapture(restored);
-  window.addEventListener('mccoy-access-ready',recoverServerCapture);
+  let recoveryOwner=actorKey();
+  window.addEventListener('mccoy-access-ready',()=>{if(recoveryOwner!==actorKey()){recoveryOwner=actorKey();serverRecoveryStarted=false;returnNotifiedFor=null;window.MCCOY_PROVIDER_CAPTURE_READY=null;window.MCCOY_ACTIVE_PROVIDER_CAPTURE=readCapture();window.MCCOY_PROVIDER_DASHBOARD_ACTIVE=false;window.MCCOY_PENDING_SALE_CONTEXT=null;pending=null;panel.classList.remove('show');stopProviderWindowTracking({close:true});}recoverServerCapture();});
   const recoveryPoll=setInterval(()=>{if(!window.MCCOY_ACCESS?.access)return;clearInterval(recoveryPoll);recoverServerCapture();},300);
   window.addEventListener('focus',()=>setTimeout(markCaptureReturned,120));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(markCaptureReturned,120);});
   setTimeout(()=>{
     const capture=readCapture();if(!capture)return;
-    window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture}}));
-    if(capture.status==='dashboard_opened')markCaptureReturned(true);
+    if(!window.MCCOY_PROVIDER_DASHBOARD_ACTIVE)markCaptureReturned(true);
   },700);
 })();

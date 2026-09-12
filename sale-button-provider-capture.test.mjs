@@ -15,8 +15,8 @@ test('the visible SALE button starts the standard provider dashboard flow',()=>{
   assert.match(lifecycle,/button\.hidden=false/)
   assert.doesNotMatch(lifecycle,/button\.remove\(\)/)
   assert.doesNotMatch(lifecycle,/new\s+MutationObserver|MutationObserver\s*\(/)
-  assert.match(index,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(index,/app-sale-photo-staging\.js\?v=2026090201/)
+  assert.match(index,/app-sale-lifecycle\.js\?v=2026091201/)
+  assert.match(index,/app-sale-photo-staging\.js\?v=2026091201/)
 })
 
 test('COMPLETE SALE is submitted once to the server without a synthetic validation click',()=>{
@@ -24,7 +24,7 @@ test('COMPLETE SALE is submitted once to the server without a synthetic validati
   assert.doesNotMatch(lifecycle,/mccoyCaptureValidated|CHECKING CAPTURE/)
   assert.match(sales,/sb\.functions\.invoke\('sale-submit',\{body\}\)/)
   assert.match(sales,/byId\('completeSaleBtn'\)\?\.addEventListener\('click',completeSale\)/)
-  assert.match(sales,/setSaleMsg\(error\?\.message\|\|'Sale could not be completed/)
+  assert.match(sales,/setSaleMsg\(\(error\?\.message\|\|'Sale could not be completed/)
 })
 
 test('open-capture recovery remains current-user scoped even for Admin',()=>{

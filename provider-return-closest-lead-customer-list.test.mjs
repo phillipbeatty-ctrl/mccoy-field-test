@@ -19,7 +19,7 @@ const core=loadDoorCore()
 test('provider dashboard opens in a separately closable tab with same-tab fallback',()=>{
   assert.match(router,/window\.open\('about:blank',target\)/)
   assert.match(router,/mccoy_provider_\$\{Date\.now\(\)\}/)
-  assert.match(router,/Close it or tap X to return to McCoy/)
+  assert.match(router,/Return to Field Coach when finished, then choose the green check or red X/)
   assert.match(router,/trackProviderWindow\(reservedWindow\)/)
   assert.match(router,/markCaptureReturned\(true\)/)
   assert.match(router,/window\.location\.assign\(destination\.url\)/)
@@ -56,3 +56,4 @@ test('Customer List return-to-review is a permitted Admin audit action',()=>{
   assert.match(auditMigration,/return_to_review/)
   assert.match(auditMigration,/action in \('edit','approve','return_to_review'\)/)
 })
+

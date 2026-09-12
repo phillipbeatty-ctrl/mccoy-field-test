@@ -7,7 +7,8 @@
 
   const byId=id=>document.getElementById(id);
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
-  let reconciliationPromise=null;
+  let reconciliationPromise=null,reconciliationOwner=null;
+  const actorKey=()=>window.MCCOY_ACCESS?.access?.active&&window.MCCOY_ACCESS?.user?.id?`${window.MCCOY_ACCESS.user.id}:${window.MCCOY_ACCESS.access.organization_id||''}`:'';
 
   function client(){
     return window.MCCOY_GET_SUPABASE_CLIENT?.({functions:true})||null;
@@ -67,7 +68,7 @@
         window.MCCOY_PROVIDER_CAPTURE_READY,
         new Promise(resolve=>setTimeout(()=>resolve(fallback),6000))
       ]);
-      return ready||fallback;
+      return ready?.actor_key===actorKey()?ready:fallback;
     }catch(_){return fallback;}
   }
 
@@ -77,21 +78,27 @@
   }
 
   async function reconcileProviderCapture({announce=true}={}){
-    if(reconciliationPromise)return reconciliationPromise;
-    if(!window.MCCOY_ACCESS?.access?.active)return null;
+    const owner=actorKey();if(!owner)return null;
+    if(reconciliationPromise&&reconciliationOwner===owner)return reconciliationPromise;
     const supabase=client();
     if(!supabase)return null;
 
-    reconciliationPromise=(async()=>{
+    reconciliationOwner=owner;
+    const task=(async()=>{
       const local=await awaitCaptureReady(readLocalCapture());
+      if(owner!==actorKey())return null;
       const {data,error}=await supabase.functions.invoke('provider-sale-capture',{body:{action:'list',open_only:true,mine_only:true}});
       if(error||!data?.ok)throw new Error(data?.detail||data?.error||error?.message||'provider_capture_validation_failed');
+      if(owner!==actorKey())return null;
+      const current=readLocalCapture();
+      if((local||current)&&!sameCapture(local,current))return current?.actor_key===owner?current:null;
       const captures=Array.isArray(data.captures)?data.captures:[];
-      const match=local?captures.find(capture=>sameCapture(capture,local)):null;
-      const selected=match||(!local?captures[0]:null);
+      const candidate=local?.actor_key&&local.actor_key!==owner?null:local;
+      const match=candidate?captures.find(capture=>sameCapture(capture,candidate)):null;
+      const selected=match||(!candidate?captures[0]:null);
 
       if(selected){
-        const restored={...local,...selected,client_request_id:selected.client_request_id||local?.client_request_id||selected.id,recovered_from_server:!match};
+        const restored={...(match?candidate:null),...selected,actor_key:owner,client_request_id:selected.client_request_id||local?.client_request_id||selected.id,recovered_from_server:!match};
         writeLocalCapture(restored);
         if(announce)window.dispatchEvent(new CustomEvent('mccoy-provider-sale-capture-restored',{detail:{capture:restored,validated:true}}));
         return restored;
@@ -101,8 +108,9 @@
       return null;
     })();
 
-    try{return await reconciliationPromise;}
-    finally{reconciliationPromise=null;}
+    reconciliationPromise=task;
+    try{return await task;}
+    finally{if(reconciliationPromise===task)reconciliationPromise=null;}
   }
 
   // PHOTO uses this to confirm that the capture remains open. COMPLETE SALE does
