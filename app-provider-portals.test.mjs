@@ -34,7 +34,7 @@ test('provider sale routing keeps McCoy open and returns when the provider tab c
   const source = fs.readFileSync(new URL('./app-provider-sale-router.js', import.meta.url), 'utf8')
   const continueFlow = source.slice(source.indexOf("providerRouterContinue').addEventListener"))
   assert.match(source, /window\.open\('about:blank',target\)/)
-  assert.match(source, /Close it or tap X to return to McCoy/)
+  assert.match(source, /Return to Field Coach when finished, then choose the green check or red X/)
   assert.match(source, /trackProviderWindow\(reservedWindow\)/)
   assert.match(source, /window\.location\.assign\(destination\.url\)/)
   assert.ok(continueFlow.indexOf('const reservedWindow=destination.opened?reserveProviderWindow():null') < continueFlow.indexOf('await waitForCaptureReady(draft)'))

@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import {vercelConfig} from './scripts/vercel-config.mjs'
 
-const vercel=JSON.parse(fs.readFileSync(new URL('./vercel.json',import.meta.url),'utf8'))
+const vercel=vercelConfig({VERCEL_ENV:'production'})
 const router=fs.readFileSync(new URL('./app-provider-sale-router.js',import.meta.url),'utf8')
 
 function header(name){

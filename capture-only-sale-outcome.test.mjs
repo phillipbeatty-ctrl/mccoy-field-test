@@ -8,9 +8,9 @@ const capture = fs.readFileSync(new URL('./supabase/functions/provider-sale-capt
 const migration = fs.readFileSync(new URL('./supabase/migrations/20260824181500_capture_only_sale_completion.sql', import.meta.url), 'utf8')
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8')
 
-test('provider return shows exactly Complete Sale and Abandoned outcome actions', () => {
-  assert.match(sales, /id="completeSaleBtn"[^>]*>COMPLETE SALE<\/button>/)
-  assert.match(sales, /id="abandonedSaleBtn"[^>]*>ABANDONED<\/button>/)
+test('provider return offers green-check and red-X actions outside Sales Hub', () => {
+  assert.match(sales, /id="completeSaleBtn"[^>]*aria-label="Sale completed — return to Field Coach"/)
+  assert.match(sales, /id="abandonedSaleBtn"[^>]*aria-label="Abandoned — return to Field Coach"/)
   assert.equal((sales.match(/id="completeSaleBtn"/g) || []).length, 1)
   assert.equal((sales.match(/id="abandonedSaleBtn"/g) || []).length, 1)
   assert.doesNotMatch(sales, /SELECT OUTCOME|DECIDE LATER|SAVE COMPLETED SALE|RECORD ABANDONED ORDER/)
@@ -21,7 +21,8 @@ test('customer and provider-order entry controls are absent from the return flow
     'saleFirst', 'saleLast', 'salePhone', 'saleEmail', 'saleAddress', 'saleOrderDate',
     'saleInstallDate', 'saleOrderNumber', 'saleAccountNumber', 'saleConfirm'
   ]) assert.doesNotMatch(sales, new RegExp(`id=["']${removedId}["']`))
-  assert.match(sales, /No customer or order details are required in McCoy/)
+  assert.match(sales, /modal.id='providerReturnScreen'/)
+  assert.doesNotMatch(sales, /modal.id='saleModal'|<h2>Provider Outcome/)
 })
 
 test('Complete Sale sends capture identity and outcome without customer or order fields', () => {
@@ -66,7 +67,7 @@ test('database policy ranks owned capture-only completions while preserving revi
 
 test('Abandoned closes the capture without calling sale-submit', () => {
   assert.match(sales, /action:'set_outcome',capture_id:capture\.id,outcome:'abandoned'/)
-  assert.match(sales, /No sale or celebration was created/)
+  assert.match(sales, /No sale was recorded/)
 })
 
 test('stale field session ids are discarded before a provider capture is inserted', () => {
@@ -77,10 +78,10 @@ test('stale field session ids are discarded before a provider capture is inserte
 
 test('Sales Hub loads the shared client before sale modules and cache-busts changed scripts', () => {
   assert.match(html, /app-supabase-client\.js\?v=2026090201/)
-  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091105'))
-  assert.match(html, /app-sales\.js\?v=2026091105/)
-  assert.match(html, /app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(html, /app-sale-photo-staging\.js\?v=2026090201/)
+  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091301'))
+  assert.match(html, /app-sales\.js\?v=2026091301/)
+  assert.match(html, /app-sale-lifecycle\.js\?v=2026091301/)
+  assert.match(html, /app-sale-photo-staging\.js\?v=2026091301/)
   assert.match(html, /app-sales-products\.js\?v=2026091105/)
   assert.match(html, /app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
 })

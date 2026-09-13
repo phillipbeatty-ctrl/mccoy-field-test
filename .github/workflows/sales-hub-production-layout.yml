@@ -14,7 +14,10 @@ on:
       - app-page-layout.js
       - app-sale-photo-staging.js
       - app-closest-lead-autofill-v2.js
-      - vercel.json
+      - vercel.mjs
+      - scripts/vercel-base.json
+      - scripts/vercel-config.mjs
+      - scripts/backend-environment.mjs
       - sales-hub-production-layout.test.mjs
       - sales-hub-preview-layout-promotion.test.mjs
       - sales-hub-production-photo-closest.test.mjs

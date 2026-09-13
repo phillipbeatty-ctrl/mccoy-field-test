@@ -139,7 +139,7 @@ test('refresh failure after insert reports a saved address and retains the sale 
 
 test('SALE restores a maximized map so the provider chooser is visible',()=>{
   let expanded=true;const nodes=new Map();
-  const s=context({document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);}},currentProvider:()=>'Other',saleSourceContext:()=>({service_address:address,preserve_active_visit:true}),choice:new Element(),pending:null,routing:false,panel:new Element(),updatePortalStatus(){},setTimeout(){},structuredClone,MCCOY_LEAD_MAP_WINDOW:{restore:()=>{expanded=false;}}});
+  const s=context({document:{getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);}},actorKey:()=>'actor:org',currentProvider:()=>'Other',saleSourceContext:()=>({service_address:address,preserve_active_visit:true}),choice:new Element(),pending:null,routing:false,panel:new Element(),updatePortalStatus(){},setTimeout(){},structuredClone,MCCOY_LEAD_MAP_WINDOW:{restore:()=>{expanded=false;}}});
   vm.runInContext(fn('./app-provider-sale-router.js','showRouter'),s);vm.runInContext('showRouter({})',s);
   assert.equal(expanded,false);assert.equal(s.pending.source.service_address,address);
 });

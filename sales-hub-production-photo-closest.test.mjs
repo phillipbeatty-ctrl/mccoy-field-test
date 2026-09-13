@@ -1,11 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
+import {vercelConfig} from './scripts/vercel-config.mjs'
 
 const pageLayout=readFileSync(new URL('./app-page-layout.js',import.meta.url),'utf8')
 const photo=readFileSync(new URL('./app-sale-photo-staging.js',import.meta.url),'utf8')
 const closest=readFileSync(new URL('./app-closest-lead-autofill-v2.js',import.meta.url),'utf8')
-const vercel=readFileSync(new URL('./vercel.json',import.meta.url),'utf8')
+const vercel=JSON.stringify(vercelConfig({VERCEL_ENV:'production'}))
 
 test('production loads the guarded PHOTO and closest-lead controls',()=>{
   assert.match(pageLayout,/app-sale-photo-staging\.js/)
@@ -14,18 +15,19 @@ test('production loads the guarded PHOTO and closest-lead controls',()=>{
   assert.match(closest,/get_closest_mccoy_lead/)
 })
 
-test('PHOTO cannot open before a provider capture started in this Sales Hub attempt',()=>{
-  assert.match(photo,/if\(!state\.captureStartedHere\|\|!state\.capture\?\.id\)/)
-  assert.match(photo,/Press SALE first\. PHOTO cannot open until this Sales Hub attempt has a provider capture\./)
+test('PHOTO requires an owned provider capture, including a server-validated restored attempt',()=>{
+  assert.match(photo,/if\(!owned\(state\.capture\)\|\|!state\.capture\?\.id\)/)
+  assert.match(photo,/Press SALE first\. PHOTO needs your current provider attempt\./)
   assert.match(photo,/if\(!state\.captureValidated\)/)
   assert.match(photo,/input\.click\(\)/)
 })
 
 test('staged photo count, completion handoff, and abandoned deletion are present',()=>{
   assert.match(photo,/PHOTO \(\$\{state\.rows\.length\}\)/)
-  assert.match(photo,/invoke\('finalize',\{capture_id:captureId,sale_id:saleId\}\)/)
+  assert.match(photo,/queueRecovery\('finalize',captureId,\{sale_id:saleId\}\)/)
+  assert.match(photo,/invoke\(record\.action,payload\)/)
   assert.match(photo,/mccoy-provider-sale-abandoned/)
-  assert.match(photo,/invoke\('discard',\{capture_id:captureId\}\)/)
+  assert.match(photo,/queueRecovery\('discard',captureId/)
   assert.match(photo,/mccoy-sale-saved/)
 })
 

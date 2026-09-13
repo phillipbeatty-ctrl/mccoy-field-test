@@ -16,6 +16,8 @@ const captureSource=readFileSync(new URL('./supabase/functions/provider-sale-cap
 
 class MemoryStorage{
   constructor(){this.values=new Map()}
+  get length(){return this.values.size}
+  key(index){return [...this.values.keys()][index]??null}
   getItem(key){return this.values.has(String(key))?this.values.get(String(key)):null}
   setItem(key,value){this.values.set(String(key),String(value))}
   removeItem(key){this.values.delete(String(key))}
@@ -192,7 +194,10 @@ function completionHarness({serverError=null}={}){
   Object.assign(context,{
     state:{},
     telemetrySessionId:null,
-    submitting:false,
+    submitting:false,lockedOutcome:null,
+    freezeOutcome:()=>({capture:model.capture,account:'actor:org'}),
+    currentOutcome:()=>true,
+    finishReturn:()=>{model.modalHidden=true},
     byId:()=>null,
     setOutcomeButtonsBusy(){},
     setSaleMsg(text,type=''){model.messages.push({text,type})},
@@ -232,7 +237,7 @@ test('the lifecycle no longer intercepts COMPLETE SALE and still restores curren
     return{data:{ok:true,captures:[capture]},error:null}
   }}}
   const context=createBrowserContext(client)
-  context.MCCOY_ACCESS={access:{active:true}}
+  context.MCCOY_ACCESS={user:{id:'actor'},access:{active:true,organization_id:'org'}}
   vm.runInContext(lifecycleSource,context)
 
   const event={
@@ -286,7 +291,7 @@ for(const serverError of ['provider_capture_not_open','provider_capture_not_foun
 test('PHOTO uses the shared client, uploads to the staged bucket, and commits the photo row',async()=>{
   const calls=[]
   const stagedRows=[]
-  const capture={id:'capture-photo-1',client_request_id:'request-photo-1',provider:'Quantum',status:'details_required'}
+  const capture={id:'capture-photo-1',client_request_id:'request-photo-1',provider:'Quantum',status:'details_required',actor_key:'actor:org'}
   const client={
     functions:{invoke:async(name,options)=>{
       calls.push({kind:'function',name,body:options.body})
@@ -304,6 +309,7 @@ test('PHOTO uses the shared client, uploads to the staged bucket, and commits th
     }})}
   }
   const context=createBrowserContext(client,{timers:'immediate'})
+  context.MCCOY_ACCESS={user:{id:'actor'},access:{active:true,organization_id:'org'}}
   context.MCCOY_VALIDATE_ACTIVE_PROVIDER_CAPTURE=async()=>capture
   vm.runInContext(photoSource,context)
   context.dispatchEvent(new MiniCustomEvent('mccoy-provider-sale-capture-started',{detail:{capture}}))
@@ -312,6 +318,7 @@ test('PHOTO uses the shared client, uploads to the staged bucket, and commits th
 
   const input=context.document.getElementById('salePhotoStageInput')
   assert.ok(input)
+  await context.document.getElementById('stageSalePhotoBtn').click()
   input.files=[{name:'provider-order.png',type:'image/png',size:125000}]
   await input.emit('change',{target:input})
 
@@ -330,13 +337,13 @@ test('client and cache contracts ship the fixed runtime to web, PWA, iOS, and An
   assert.ok(indexSource.indexOf('app-supabase-client.js?v=2026090201')<indexSource.indexOf('app-sales.js?v='))
   assert.match(indexSource,/app-sales-products\.js\?v=2026091105/)
   assert.match(indexSource,/app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
-  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026090201')<indexSource.indexOf('app-page-layout.js'))
-  assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026090201/)
-  assert.match(workerSource,/field-coach-app-shell-v24-20260911-knock-status/)
+  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026091301')<indexSource.indexOf('app-page-layout.js'))
+  assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026091301/)
+  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026091301/)
+  assert.match(workerSource,/field-coach-app-shell-v28-20260913-photo-recovery/)
   assert.match(workerSource,/app-supabase-client\.js\?v=2026090201/)
-  assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026090201/)
+  assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026091301/)
+  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026091301/)
 })
 
 test('server contracts remain authoritative for owner/status checks, canonical sale insert, recorded capture, review, and ranking',()=>{
@@ -349,5 +356,5 @@ test('server contracts remain authoritative for owner/status checks, canonical s
   assert.match(captureSource,/open_only:true|body\.open_only === true/)
   assert.match(captureSource,/query = query\.eq\('rep_user_id', user\.id\)/)
   assert.match(salesSource,/sb\.functions\.invoke\('sale-submit'/)
-  assert.match(salesSource,/setSaleMsg\(error\?\.message\|\|'Sale could not be completed/)
+  assert.match(salesSource,/setSaleMsg\(\(error\?\.message\|\|'Sale could not be completed/)
 })

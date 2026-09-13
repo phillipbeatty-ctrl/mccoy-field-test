@@ -7,6 +7,11 @@ export function requireEnv(name){
 }
 
 export function adminDb(){
+  // These Vercel APIs manage the live development queue and send SMS. The sale
+  // Preview uses its own Supabase Edge Functions and never needs these APIs.
+  // Stop before constructing a client, including when production secrets were
+  // accidentally inherited by Preview or the environment is unknown.
+  if(process.env.VERCEL_ENV!=='production')throw new Error('server_operations_disabled_outside_production');
   return createClient(requireEnv('SUPABASE_URL'), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
     auth:{persistSession:false,autoRefreshToken:false}
   });

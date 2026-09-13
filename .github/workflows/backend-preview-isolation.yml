@@ -1,0 +1,17 @@
+name: Preview backend isolation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Environment boundaries, emitted clients, redirects, CSP and stale builds
+        run: node --test backend-preview-isolation.test.mjs provider-popup-coop.test.mjs sales-hub-production-photo-closest.test.mjs

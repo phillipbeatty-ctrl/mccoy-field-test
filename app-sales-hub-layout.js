@@ -78,11 +78,6 @@
     #salesHubTopGrid .sales-hub-door-workflow details>summary{font-size:9px;color:#64748b;font-weight:800;cursor:pointer}
     #salesHubTopGrid .sales-hub-door-workflow .calibration-panel{margin:7px 0 0;padding:8px;gap:7px}
     #salesHubTopGrid .sales-hub-door-workflow .activity-log,#salesHubTopGrid .sales-hub-door-workflow .efficiency-summary{margin-top:7px;padding-top:7px;font-size:9px}
-    #salesHubTopGrid .sales-hub-door-workflow #saleModal{margin-top:9px}
-    #salesHubTopGrid .sales-hub-door-workflow #saleModal .sale-form{padding:12px;border-radius:10px}
-    #salesHubTopGrid .sales-hub-door-workflow #saleModal .sale-form h2{font-size:15px;margin-bottom:4px}
-    #salesHubTopGrid .sales-hub-door-workflow #saleModal .sale-outcome-actions{gap:7px;margin-top:9px}
-    #salesHubTopGrid .sales-hub-door-workflow #saleModal .sale-outcome-actions button{min-height:40px}
     #field>#coachMetrics,#field>#saleHubActivity,#field>.leaders-card,#field>#salesToCompleteCard{margin-top:8px!important;margin-bottom:8px!important}
     @media(max-width:1200px) and (min-width:901px){
       #salesHubTopGrid{grid-template-columns:minmax(225px,.9fr) minmax(205px,.72fr) minmax(340px,1.18fr)}
@@ -288,8 +283,7 @@
     if((activity||efficiency)&&!byId('salesHubDoorDetails')){
       const details=document.createElement('details');details.id='salesHubDoorDetails';details.className='sales-hub-door-details';
       const summary=document.createElement('summary');summary.textContent='Visit & efficiency details';details.append(summary);
-      const modal=byId('saleModal');
-      if(modal&&modal.parentElement===doorCard)doorCard.insertBefore(details,modal);else doorCard.appendChild(details);
+      doorCard.appendChild(details);
       if(activity)details.appendChild(activity);if(efficiency)details.appendChild(efficiency);
     }
 

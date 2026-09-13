@@ -78,8 +78,8 @@ jobs:
             test -s "mobile-web/${file}"
           done
           grep -q 'app-supabase-client.js?v=2026090201' mobile-web/index.html
-          grep -q 'app-sale-lifecycle.js?v=2026090201' mobile-web/index.html
-          grep -q 'app-sale-photo-staging.js?v=2026090201' mobile-web/index.html
+          grep -q 'app-sale-lifecycle.js?v=2026091301' mobile-web/index.html
+          grep -q 'app-sale-photo-staging.js?v=2026091301' mobile-web/index.html
           grep -q 'MCCOY_GET_SUPABASE_CLIENT' mobile-web/app-supabase-client.js
           grep -q 'MCCOY_GET_SUPABASE_CLIENT' mobile-web/app-sale-lifecycle.js
           grep -q 'MCCOY_REQUIRE_SUPABASE_CLIENT' mobile-web/app-sale-photo-staging.js
@@ -87,7 +87,7 @@ jobs:
           ! grep -q 'mccoyCaptureValidated' mobile-web/app-sale-lifecycle.js
           ! grep -Fq 'window.sb?.' mobile-web/app-sale-lifecycle.js
           ! grep -Fq 'window.sb?.' mobile-web/app-sale-photo-staging.js
-          grep -q 'field-coach-app-shell-v7-20260902-sale-completion-runtime' mobile-web/service-worker.js
+          grep -q 'field-coach-app-shell-v28-20260913-photo-recovery' mobile-web/service-worker.js
 
       - name: Verify generated Android launcher resources and release doctor
         shell: bash
@@ -273,7 +273,7 @@ jobs:
           grep -q 'MCCOY_REQUIRE_SUPABASE_CLIENT' /tmp/field-coach-apk-runtime/app-sale-photo-staging.js
           grep -q "sb.functions.invoke('sale-submit'" /tmp/field-coach-apk-runtime/app-sales.js
           ! grep -q 'mccoyCaptureValidated' /tmp/field-coach-apk-runtime/app-sale-lifecycle.js
-          grep -q 'field-coach-app-shell-v7-20260902-sale-completion-runtime' /tmp/field-coach-apk-runtime/service-worker.js
+          grep -q 'field-coach-app-shell-v28-20260913-photo-recovery' /tmp/field-coach-apk-runtime/service-worker.js
 
           "${ANDROID_HOME}/build-tools/${ANDROID_BUILD_TOOLS}/aapt2" dump resources "${apk}" > /tmp/field-coach-apk-resources.txt
           python3 - <<'PY'
@@ -400,3 +400,4 @@ jobs:
           rm -f /tmp/field-coach-jarsigner.txt
           rm -f /tmp/field-coach-signing.json
           rm -rf /tmp/field-coach-apk-icons /tmp/field-coach-apk-runtime
+
