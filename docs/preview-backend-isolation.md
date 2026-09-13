@@ -28,7 +28,7 @@ Leave Vercel's `VERCEL_ENV` and `VERCEL_URL` system variables enabled and unmodi
 
 After publication, require a matching READY Preview, inspect `deployment-environment.json`, and verify actual served CSP, scripts and network destinations. The public manifest contains no keys. The current source changes have only been exercised locally with synthetic configuration; no real backend request or provider order was used in these tests.
 
-Vercel documents build-time programmatic configuration and the `config` export at https://vercel.com/docs/project-configuration/vercel-ts . The installed standalone `@vercel/config` 0.7.0 CLI only searched for `vercel.ts`/`router.config.ts` and did not compile this documented `.mjs` entry. Node evaluation succeeds; Vercel's deployed compilation remains a required check.
+Vercel documents build-time programmatic configuration and the `config` export at https://vercel.com/docs/project-configuration/vercel-ts . The installed standalone `@vercel/config` 0.7.0 CLI only searched for `vercel.ts`/`router.config.ts`. Vercel's deployed CLI 59.11.7 did recognize and evaluate `vercel.mjs`; the first published prerequisite stopped at `preview_backend_url_required`, as expected without a test backend. The policy JSON is statically imported so it is included when Vercel bundles its temporary configuration module. A complete build with actual isolated-backend settings remains required.
 
 ## Local validation
 
