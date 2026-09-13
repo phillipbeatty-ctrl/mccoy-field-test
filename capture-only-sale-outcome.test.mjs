@@ -78,10 +78,10 @@ test('stale field session ids are discarded before a provider capture is inserte
 
 test('Sales Hub loads the shared client before sale modules and cache-busts changed scripts', () => {
   assert.match(html, /app-supabase-client\.js\?v=2026090201/)
-  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091201'))
-  assert.match(html, /app-sales\.js\?v=2026091201/)
-  assert.match(html, /app-sale-lifecycle\.js\?v=2026091201/)
-  assert.match(html, /app-sale-photo-staging\.js\?v=2026091201/)
+  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091301'))
+  assert.match(html, /app-sales\.js\?v=2026091301/)
+  assert.match(html, /app-sale-lifecycle\.js\?v=2026091301/)
+  assert.match(html, /app-sale-photo-staging\.js\?v=2026091301/)
   assert.match(html, /app-sales-products\.js\?v=2026091105/)
   assert.match(html, /app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
 })

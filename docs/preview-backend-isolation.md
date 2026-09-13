@@ -1,6 +1,6 @@
 # Isolated Preview prerequisite for PR #137
 
-This change prepares environment separation for the screenshot-upload Sale choices release. It does **not** contain the recovery-reviewed screenshot patch (`2026091203`, app-shell v27). That ZIP must still be recovered and reconciled with this branch before the release candidate is complete.
+This document records the Preview-isolation prerequisite originally published at `5033438`. The branch now also includes a new independently reconstructed screenshot/recovery candidate (`2026091301`, app-shell v28); see [candidate provenance, validation and acceptance](sale-photo-recovery-candidate.md). The previously linked ZIP was unavailable and is not claimed to have been recovered byte-for-byte.
 
 ## Behavior
 
@@ -50,7 +50,7 @@ Vercel documents build-time programmatic configuration and the `config` export a
 | `/SOWHAT` | Test outcomes can be investigated without introducing invented sales, rankings or customer images into production. |
 | `/ODDS` | Local deterministic cases pass. They provide no defensible probability of real-device or deployed-backend success. |
 | `/PLAINLY` | This is the environment-isolation prerequisite. The screenshot feature is not ready for production. |
-| `/NEXT` | Recover the reviewed ZIP, integrate its two patches, provision the approved isolated backend, configure Preview, publish the complete candidate, run applicable CI and record device acceptance. |
+| `/NEXT` | Publish the reconstructed screenshot/recovery candidate, provision the approved isolated backend, configure Preview, run applicable CI and record device acceptance. |
 | `/FAILHOW` | Missing configuration, production refs/keys, credential inheritance, redirects leaving Preview, stale build reuse and cached backend changes are exercised. Real Safari photo-picker and backend recovery behavior still require acceptance. |
 
 Keep PR #137 draft. Do not merge or promote a Preview configured with a test backend. A production release must build the approved revision with Production configuration after acceptance.

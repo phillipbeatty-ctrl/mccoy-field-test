@@ -1,0 +1,26 @@
+name: Screenshot upload Sale choices regression
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  screenshot-and-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Check screenshot and recovery syntax
+        run: |
+          node --check app-sales.js
+          node --check app-sale-photo-staging.js
+          node --check app-provider-sale-router.js
+          node --check app-sale-lifecycle.js
+          node --check app-page-layout.js
+          node --check service-worker.js
+      - name: Verify outcomes, photos, recovery and matching release versions
+        run: node --test provider-return-outcomes.test.mjs sale-photo-return-release.test.mjs

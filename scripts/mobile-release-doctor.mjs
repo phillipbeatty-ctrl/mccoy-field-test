@@ -39,9 +39,9 @@ check('no production navigation allowlist',!capacitorConfig.server?.allowNavigat
 check('local mobile index',Boolean(mobileIndex),'mobile-web/index.html is missing');
 check('native bridge bundled',Boolean(mobileBridge&&mobileIndex?.includes('mobile-native-bridge.js?v=1.0.0-beta.5')),'beta 5 native bridge was not injected into the bundled index');
 check('sale client bundled',Boolean(mobileIndex?.includes('app-supabase-client.js?v=2026090201')),'shared Supabase client resolver is missing from the native bundle');
-check('sale lifecycle bundled',Boolean(mobileIndex?.includes('app-sale-lifecycle.js?v=2026091201')),'repaired sale lifecycle is missing from the native bundle');
-check('sale photo staging bundled',Boolean(mobileIndex?.includes('app-sale-photo-staging.js?v=2026091201')),'repaired photo staging is missing from the native bundle');
-for(const asset of ['app-sales.js','app-provider-sale-router.js'])check(`${asset} bundled`,Boolean(mobileIndex?.includes(`${asset}?v=2026091201`)),`current provider return asset ${asset} is missing from the native bundle`);
+check('sale lifecycle bundled',Boolean(mobileIndex?.includes('app-sale-lifecycle.js?v=2026091301')),'repaired sale lifecycle is missing from the native bundle');
+check('sale photo staging bundled',Boolean(mobileIndex?.includes('app-sale-photo-staging.js?v=2026091301')),'repaired photo staging is missing from the native bundle');
+for(const asset of ['app-sales.js','app-provider-sale-router.js'])check(`${asset} bundled`,Boolean(mobileIndex?.includes(`${asset}?v=2026091301`)),`current provider return asset ${asset} is missing from the native bundle`);
 check('build metadata',mobileMetadata.app_id==='com.mccoyplatform.app','mobile build metadata is missing or incorrect');
 check('build display name',mobileMetadata.app_name==='Field Coach','mobile build metadata must use Field Coach');
 check('build version',mobileMetadata.version==='1.0.0-beta.5','mobile build metadata must use beta 5');

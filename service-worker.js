@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v25-20260912-provider-return';
+const VERSION='field-coach-app-shell-v28-20260913-photo-recovery';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/app-ui-refresh.js?v=2026091106',
@@ -15,7 +15,7 @@ const SHELL=[
   '/styles.css?v=2026091103',
   '/app-part1.js?v=2026091103',
   '/app-part2.js?v=2026091108',
-  '/app-page-layout.js?v=2026091201',
+  '/app-page-layout.js?v=2026091301',
   '/app-gps-placement.js?v=2026091109',
   '/app-auth.js?v=2026091110',
   '/app-field-features.js?v=2026091103',
@@ -28,9 +28,9 @@ const SHELL=[
   '/app-provider-verification.js?v=2026091105',
   '/app-sale-order-photo-admin.js?v=2026091105',
   '/app-sale-order-photo-pilot.js?v=2026091105',
-  '/app-provider-sale-router.js?v=2026091201',
+  '/app-provider-sale-router.js?v=2026091301',
   '/app-field-lead-editor.js?v=2026091108',
-  '/app-sales-hub-layout.js?v=2026091201',
+  '/app-sales-hub-layout.js?v=2026091301',
   '/app-field-addresses.js?v=2026091103',
   '/manifest.webmanifest',
   '/assets/brand/official-logo-source.png',
@@ -49,13 +49,13 @@ const SHELL=[
   '/app-lead-pool-independent-activity.js?v=2026091108',
   '/app-map-viewport-lock.js?v=2026090402',
   '/app-map-manual-control.js?v=2026090402',
-  '/app-sales.js?v=2026091201',
+  '/app-sales.js?v=2026091301',
   '/app-sales-products.js?v=2026091105',
   '/app-accounting-records.js?v=2026090301',
   '/app-customer-list-approval-refresh.js?v=2026091105',
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
-  '/app-sale-lifecycle.js?v=2026091201',
-  '/app-sale-photo-staging.js?v=2026091201',
+  '/app-sale-lifecycle.js?v=2026091301',
+  '/app-sale-photo-staging.js?v=2026091301',
   '/confirm-email.html',
   '/pending-access.html'
 ];

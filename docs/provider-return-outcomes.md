@@ -1,6 +1,6 @@
 # Provider dashboard return outcomes
 
-Prepared September 12, 2026 against main `7e5be837777f7e1f886719def8638b31ee4da12e`.
+Original return-screen design prepared September 12, 2026 against main `7e5be837777f7e1f886719def8638b31ee4da12e`. The current branch also adds screenshot-upload-triggered Sale choices and account-scoped photo recovery; see the [September 13 candidate and acceptance record](sale-photo-recovery-candidate.md).
 
 ## Behavior
 
@@ -32,7 +32,7 @@ The release reuses the deployed `provider-sale-capture` v14 and `sale-submit` v3
 
 `provider-return-outcomes.test.mjs` executes the actual router, sales, lifecycle, shared-client and visit-isolation code against a synthetic backend. It covers both outcomes, duplicate clicks, lost successful responses, reload recovery, explicit retry after failed setup, neutral focus, pending-attempt reuse, unrelated door preservation, account switches, and a capture resolved elsewhere. The existing address, input responsiveness, GPS, map, access and sale regressions remain part of validation. The new interaction tests are included in the Manual address sales CI workflow.
 
-The application shell and all changed script references are versioned together as `field-coach-app-shell-v25-20260912-provider-return` and `2026091201`.
+The application shell and all changed script references are versioned together as `field-coach-app-shell-v28-20260913-photo-recovery` and `2026091301`.
 
 ## Device acceptance
 

@@ -17,11 +17,11 @@
   const modal=document.createElement('section');
   modal.id='providerReturnScreen';modal.hidden=true;modal.tabIndex=-1;
   modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-labelledby','providerReturnTitle');modal.setAttribute('aria-describedby','providerReturnDescription');
-  modal.innerHTML=`<div class="provider-return-card"><h2 id="providerReturnTitle">Return to Field Coach</h2><p id="providerReturnDescription">Choose the result of your provider dashboard visit.</p><div class="provider-return-context"><strong id="providerReturnProvider"></strong><span id="providerReturnAddress"></span></div><div class="provider-return-actions" role="group" aria-label="Save outcome and return"><button type="button" id="completeSaleBtn" class="provider-return-complete" aria-label="Sale completed — return to Field Coach" title="Sale completed — return to Field Coach"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"/></svg><span>Sale completed</span></button><button type="button" id="abandonedSaleBtn" class="provider-return-abandoned" aria-label="Abandoned — return to Field Coach" title="Abandoned — return to Field Coach"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg><span>Abandoned</span></button></div><p id="saleMsg" role="status" aria-live="polite" aria-atomic="true"></p><button type="button" id="providerReturnResume" class="provider-return-resume">Resume provider dashboard</button></div>`;
+  modal.innerHTML=`<div class="provider-return-card"><h2 id="providerReturnTitle">Sale choices</h2><p id="providerReturnDescription">Choose the result of your provider dashboard visit.</p><div class="provider-return-context"><strong id="providerReturnProvider"></strong><span id="providerReturnAddress"></span></div><button type="button" id="providerReturnPhoto" class="provider-return-photo">Add sale screenshot or photo</button><p id="providerReturnPhotoStatus" role="status" aria-live="polite" aria-atomic="true"></p><div class="provider-return-actions" role="group" aria-label="Save outcome and return"><button type="button" id="completeSaleBtn" class="provider-return-complete" aria-label="Sale completed — return to Field Coach" title="Sale completed — return to Field Coach"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6"/></svg><span>Sale completed</span></button><button type="button" id="abandonedSaleBtn" class="provider-return-abandoned" aria-label="Abandoned — return to Field Coach" title="Abandoned — return to Field Coach"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg><span>Abandoned</span></button></div><p id="saleMsg" role="status" aria-live="polite" aria-atomic="true"></p><button type="button" id="providerReturnResume" class="provider-return-resume">Resume provider dashboard</button></div>`;
   document.body.appendChild(modal);
   const returnStyle=document.createElement('style');returnStyle.textContent=`
     #providerReturnScreen{position:fixed;inset:0;z-index:160100;display:flex;align-items:center;justify-content:center;overflow:auto;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:#f4f6f8;overscroll-behavior:contain}
-    #providerReturnScreen[hidden]{display:none!important}.provider-return-card{box-sizing:border-box;width:min(480px,100%);padding:24px;border:1px solid #dbe2ea;border-radius:18px;background:#fff;box-shadow:0 8px 35px #0f172a12}.provider-return-card h2{margin:0 0 8px;font-size:24px}.provider-return-card p{font-size:14px;line-height:1.5}.provider-return-context{display:grid;gap:6px;padding:14px 0;overflow-wrap:anywhere}.provider-return-context span{font-size:14px;color:#475569}.provider-return-actions{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0}.provider-return-actions button{display:flex;flex-direction:column;align-items:center;gap:9px;min-width:0;min-height:92px;padding:14px 8px;border:2px solid transparent;border-radius:14px;font:700 14px/1.3 system-ui;cursor:pointer;touch-action:manipulation}.provider-return-actions svg{display:block;width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.provider-return-complete{background:#dcfce7;color:#166534}.provider-return-abandoned{background:#fee2e2;color:#991b1b}.provider-return-actions button:focus-visible,.provider-return-resume:focus-visible{outline:3px solid #1d4ed8;outline-offset:3px}.provider-return-actions button:disabled{opacity:.5;cursor:wait}.provider-return-resume{display:block;min-height:44px;padding:10px 0;border:0;background:transparent;color:#334155;text-decoration:underline;font-size:14px}.provider-return-card #saleMsg{min-height:21px;margin-bottom:8px}.sale-msg-error{color:#991b1b!important;font-weight:700}.sale-msg-ok{color:#166534!important;font-weight:700}#providerReturnToast{position:fixed;z-index:160200;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100vw - 32px);padding:12px 18px;border-radius:12px;background:#166534;color:white;font:600 14px/1.4 system-ui}
+    #providerReturnScreen[hidden]{display:none!important}.provider-return-card{box-sizing:border-box;width:min(480px,100%);padding:24px;border:1px solid #dbe2ea;border-radius:18px;background:#fff;box-shadow:0 8px 35px #0f172a12}.provider-return-card h2{margin:0 0 8px;font-size:24px}.provider-return-card p{font-size:14px;line-height:1.5}.provider-return-context{display:grid;gap:6px;padding:14px 0;overflow-wrap:anywhere}.provider-return-context span{font-size:14px;color:#475569}.provider-return-actions{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0}.provider-return-actions button{display:flex;flex-direction:column;align-items:center;gap:9px;min-width:0;min-height:92px;padding:14px 8px;border:2px solid transparent;border-radius:14px;font:700 14px/1.3 system-ui;cursor:pointer;touch-action:manipulation}.provider-return-actions svg{display:block;width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.provider-return-complete{background:#dcfce7;color:#166534}.provider-return-abandoned{background:#fee2e2;color:#991b1b}.provider-return-actions button:focus-visible,.provider-return-resume:focus-visible,.provider-return-photo:focus-visible{outline:3px solid #1d4ed8;outline-offset:3px}.provider-return-actions button:disabled{opacity:.5;cursor:wait}.provider-return-photo{min-height:44px;width:100%;padding:10px 14px;border:1px solid #64748b;border-radius:10px;background:#f8fafc;color:#0f172a;font:600 14px/1.4 system-ui;touch-action:manipulation}.provider-return-photo:disabled{opacity:.5}#providerReturnPhotoStatus:empty{display:none}.provider-return-resume{display:block;min-height:44px;padding:10px 0;border:0;background:transparent;color:#334155;text-decoration:underline;font-size:14px}.provider-return-card #saleMsg{min-height:21px;margin-bottom:8px}.sale-msg-error{color:#991b1b!important;font-weight:700}.sale-msg-ok{color:#166534!important;font-weight:700}#providerReturnToast{position:fixed;z-index:160200;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100vw - 32px);padding:12px 18px;border-radius:12px;background:#166534;color:white;font:600 14px/1.4 system-ui}
     @media(max-height:500px){#providerReturnScreen{align-items:flex-start}.provider-return-card{padding:16px}.provider-return-actions{margin:10px 0}.provider-return-actions button{min-height:72px;padding:8px}.provider-return-context{padding:8px 0}}
   `;document.head.appendChild(returnStyle);
   const returnToast=document.createElement('div');returnToast.id='providerReturnToast';returnToast.hidden=true;returnToast.setAttribute('role','status');document.body.appendChild(returnToast);
@@ -34,11 +34,19 @@
     const email=String(window.MCCOY_ACCESS?.user?.email||'').trim().toLowerCase(),displayName=String(window.MCCOY_ACCESS?.access?.display_name||'').trim().toLowerCase();
     return window.MCCOY_TESTER_PKB_SALE===true&&email==='phillipkbeatty@gmail.com'&&displayName==='ghost';
   }
+  function currentPhoto(){
+    const photo=window.MCCOY_SALE_PHOTO_STATE?.();
+    return photo&&ownedCapture(photo.capture)&&sameCapture(photo.capture,pendingProviderCapture)?photo:null;
+  }
   function setOutcomeButtonsBusy(active,action=''){
+    const photo=currentPhoto();
+    active=active||!!photo?.busy;
     for(const [id,outcome] of [['completeSaleBtn','completed'],['abandonedSaleBtn','abandoned']]){
       const button=byId(id);button.disabled=active||!pendingProviderCapture?.id||!ownedCapture(pendingProviderCapture)||!!(lockedOutcome&&lockedOutcome!==outcome);button.setAttribute('aria-busy',String(active&&action===outcome));
     }
     byId('providerReturnResume').disabled=active||!!lockedOutcome;
+    byId('providerReturnPhoto').disabled=active||!!lockedOutcome||!photo?.canAdd;
+    byId('providerReturnPhotoStatus').textContent=photo?.message||'';
   }
   function renderProviderCapture(capture){
     if(!sameCapture(pendingProviderCapture,capture))lockedOutcome=capture?.outcome_pending||null;
@@ -56,6 +64,7 @@
     returnToast.textContent=message;returnToast.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{returnToast.hidden=true;},5000);
   }
   function freezeOutcome(action){
+    if(currentPhoto()?.busy)throw new Error('Wait for the photo upload to finish before choosing the sale result.');
     if(!ownedCapture(pendingProviderCapture)||!pendingProviderCapture.id)throw new Error('This provider attempt is not ready. Reload Field Coach to recover it.');
     if(lockedOutcome&&lockedOutcome!==action)throw new Error('Retry the selected outcome so its saved result can be confirmed.');
     lockedOutcome=action;
@@ -109,9 +118,20 @@
     else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===modal)){event.preventDefault();first.focus();}
   });
   byId('providerReturnResume').addEventListener('click',()=>{
-    if(submitting||lockedOutcome||!ownedCapture(pendingProviderCapture))return;
+    if(submitting||lockedOutcome||currentPhoto()?.busy||!ownedCapture(pendingProviderCapture))return;
     const result=window.MCCOY_RESUME_PROVIDER_DASHBOARD?.(pendingProviderCapture);
     if(result?.opened)hideReturnScreen();else setSaleMsg('The provider dashboard could not reopen. Your attempt remains unfinished.','error');
+  });
+  byId('providerReturnPhoto').addEventListener('click',event=>{
+    if(submitting||lockedOutcome||!currentPhoto()?.canAdd)return;
+    // Forward the original tap synchronously so mobile Safari can open its picker.
+    window.MCCOY_OPEN_SALE_PHOTO_PICKER?.(event);
+  });
+  window.addEventListener('mccoy-sale-photo-state-changed',()=>setOutcomeButtonsBusy(submitting,lockedOutcome));
+  window.addEventListener('mccoy-provider-sale-photo-staged',event=>{
+    const {capture,photoId}=event.detail||{};
+    if(!photoId||submitting||lockedOutcome||!ownedCapture(capture)||!sameCapture(capture,pendingProviderCapture)||!sameCapture(capture,window.MCCOY_ACTIVE_PROVIDER_CAPTURE))return;
+    resumeProviderCapture(capture,true);
   });
   async function functionErrorDetail(error,data){let detail=data?.detail||data?.error||'';try{if(!detail&&error?.context?.clone){const value=await error.context.clone().json();detail=value?.detail||value?.error||'';}}catch(_){}return String(detail||error?.message||'').replace(/_/g,' ').trim();}
   async function readyCapture(expected=pendingProviderCapture){

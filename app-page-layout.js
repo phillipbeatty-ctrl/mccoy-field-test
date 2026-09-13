@@ -37,9 +37,9 @@
   function bindHeaders(){document.querySelectorAll('.nav-btn').forEach(btn=>{if(btn.dataset.mccoyPageHeaderBound==='1')return;btn.dataset.mccoyPageHeaderBound='1';btn.addEventListener('click',()=>setTimeout(()=>setPageHeader(btn.dataset.view,btn.textContent.trim()),0));});}
   function loadSaleLifecycle(){
     for(const src of [
-      'app-sale-lifecycle.js?v=2026091201',
-      'app-sales-hub-layout.js?v=2026091201',
-      'app-sale-photo-staging.js?v=2026091201',
+      'app-sale-lifecycle.js?v=2026091301',
+      'app-sales-hub-layout.js?v=2026091301',
+      'app-sale-photo-staging.js?v=2026091301',
       'app-closest-lead-autofill-v2.js?v=2026091106',
       'app-sales-to-complete.js?v=2026082602',
       'app-sale-order-photo-admin.js?v=2026091105',
