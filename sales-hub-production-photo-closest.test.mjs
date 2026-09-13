@@ -1,11 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
+import {vercelConfig} from './scripts/vercel-config.mjs'
 
 const pageLayout=readFileSync(new URL('./app-page-layout.js',import.meta.url),'utf8')
 const photo=readFileSync(new URL('./app-sale-photo-staging.js',import.meta.url),'utf8')
 const closest=readFileSync(new URL('./app-closest-lead-autofill-v2.js',import.meta.url),'utf8')
-const vercel=readFileSync(new URL('./vercel.json',import.meta.url),'utf8')
+const vercel=JSON.stringify(vercelConfig({VERCEL_ENV:'production'}))
 
 test('production loads the guarded PHOTO and closest-lead controls',()=>{
   assert.match(pageLayout,/app-sale-photo-staging\.js/)

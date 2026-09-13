@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "build:web": "node scripts/build-web.mjs",
     "icons:source:verify": "python3 scripts/verify-approved-logo-source.py",
     "icons:generate": "npm run icons:source:verify && python3 scripts/generate-field-coach-icons.py",
     "icons:verify": "node scripts/verify-png-content.mjs assets/icon-192.png assets/icon-512.png assets/icon-maskable-512.png assets/icon-only.png assets/icon-foreground.png",
