@@ -1,9 +1,9 @@
-// Provider return outcome: one captured attempt, then Complete Sale or Abandoned.
+// Provider return outcome: one captured attempt, confirmed with SALE. If it wasn't a sale, the rep just closes the provider browser tab — no explicit McCoy action is required.
 (function(){
   const byId=id=>document.getElementById(id);
   const providers=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
   const css=document.createElement('style');css.textContent=`
-  .sales-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.sales-card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}.sales-feed{max-height:260px;overflow:auto}.feed-item{padding:10px 0;border-bottom:1px solid #eee;font-size:13px}.feed-item:last-child{border-bottom:0}.leader-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}.sale-modal{position:static;display:none;margin-top:16px;padding:0;background:transparent}.sale-modal.show{display:block}.sale-form{width:100%;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:18px}.sale-form h2{margin-top:0}.provider-capture-banner{display:none;margin:0 0 12px;padding:11px 12px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#78350f;font-size:12px}.provider-capture-banner.show{display:block}.provider-capture-banner strong{display:block;margin-bottom:3px}.sale-outcome-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.sale-outcome-actions button{min-height:50px;touch-action:manipulation;font-weight:800}.sale-msg-error{color:#991b1b!important;font-weight:700}.sale-msg-ok{color:#166534!important;font-weight:700}@media(max-width:650px){.sales-strip,.sale-outcome-actions{grid-template-columns:1fr}}
+  .sales-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.sales-card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}.sales-feed{max-height:260px;overflow:auto}.feed-item{padding:10px 0;border-bottom:1px solid #eee;font-size:13px}.feed-item:last-child{border-bottom:0}.leader-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}.sale-modal{position:static;display:none;margin-top:16px;padding:0;background:transparent}.sale-modal.show{display:block}.sale-form{width:100%;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:18px}.sale-form h2{margin-top:0}.provider-capture-banner{display:none;margin:0 0 12px;padding:11px 12px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#78350f;font-size:12px}.provider-capture-banner.show{display:block}.provider-capture-banner strong{display:block;margin-bottom:3px}.sale-outcome-actions{margin-top:14px}.sale-outcome-actions button{min-height:64px;width:100%;touch-action:manipulation;font-weight:800;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:8px;border-radius:12px;border:2px solid transparent;font-size:16px;letter-spacing:.03em}.sale-outcome-actions button .outcome-icon{font-size:22px;line-height:1}.sale-outcome-actions button:disabled{opacity:.6;cursor:default}.outcome-sale{background:#e7f8ee;border-color:#bde8cc!important;color:#116b3c}.outcome-sale:hover:not(:disabled){background:#d7f3e1}.sale-msg-error{color:#991b1b!important;font-weight:700}.sale-msg-ok{color:#166534!important;font-weight:700}@media(max-width:650px){.sales-strip{grid-template-columns:1fr}}
   `;document.head.appendChild(css);
 
   let providerBar=byId('sessionIsp')?.closest('.sales-card');
@@ -17,7 +17,7 @@
   let modal=byId('saleModal');
   if(!modal){
     modal=document.createElement('div');modal.className='sale-modal';modal.id='saleModal';
-    modal.innerHTML=`<div class="sale-form"><h2>Provider Outcome</h2><p class="muted small">Choose what happened in the ISP sales dashboard. No customer or order details are required in McCoy.</p><div id="providerCaptureBanner" class="provider-capture-banner" role="status" aria-live="polite"></div><div class="sale-outcome-actions" role="group" aria-label="Provider sale outcome"><button type="button" id="completeSaleBtn" class="primary">COMPLETE SALE</button><button type="button" id="abandonedSaleBtn" class="assign-btn">ABANDONED</button></div><div id="saleMsg" class="muted small" role="status" aria-live="polite" style="margin-top:10px;min-height:16px"></div></div>`;
+    modal.innerHTML=`<div class="sale-form"><h2>Provider Outcome</h2><p class="muted small">No customer or order details are required in McCoy. If this was a sale, tap SALE below. If it wasn't, just close the provider browser tab — nothing else is needed here.</p><div id="providerCaptureBanner" class="provider-capture-banner" role="status" aria-live="polite"></div><div class="sale-outcome-actions" role="group" aria-label="Provider sale outcome"><button type="button" id="completeSaleBtn" class="outcome-sale"><span class="outcome-icon" aria-hidden="true">✓</span>SALE</button></div><div id="saleMsg" class="muted small" role="status" aria-live="polite" style="margin-top:10px;min-height:16px"></div></div>`;
     const dispositions=document.querySelector('#field .spotio-disposition-panel')||document.querySelector('#field .disposition-grid');if(dispositions)dispositions.insertAdjacentElement('afterend',modal);else document.body.appendChild(modal);
   }
 
@@ -27,16 +27,15 @@
     const email=String(window.MCCOY_ACCESS?.user?.email||'').trim().toLowerCase(),displayName=String(window.MCCOY_ACCESS?.access?.display_name||'').trim().toLowerCase();
     return window.MCCOY_TESTER_PKB_SALE===true&&email==='phillipkbeatty@gmail.com'&&displayName==='ghost';
   }
-  function setOutcomeButtonsBusy(active,action=''){
-    const complete=byId('completeSaleBtn'),abandoned=byId('abandonedSaleBtn');
-    if(complete){complete.disabled=active;complete.textContent=active&&action==='completed'?'COMPLETING…':'COMPLETE SALE';}
-    if(abandoned){abandoned.disabled=active;abandoned.textContent=active&&action==='abandoned'?'RECORDING…':'ABANDONED';}
+  function setOutcomeButtonsBusy(active){
+    const complete=byId('completeSaleBtn');
+    if(complete){complete.disabled=active;complete.innerHTML=active?'SAVING…':'<span class="outcome-icon" aria-hidden="true">✓</span>SALE';}
   }
   function renderProviderCapture(capture){
     pendingProviderCapture=capture||null;const banner=byId('providerCaptureBanner');if(!banner)return;
     if(!capture){banner.classList.remove('show');banner.textContent='';return;}
     const provider=capture.provider||ispSel?.value||'provider';
-    banner.innerHTML=isTesterPkbSale()?`<strong>Ghost simulation · ${provider}</strong>COMPLETE SALE records a verified Ghost sale for rankings and accounting; no customer information is collected. ABANDONED creates no sale.`:`<strong>${capture?.recovered_from_server?'Unfinished sale recovered':`${provider} dashboard attempt captured`}</strong>COMPLETE SALE updates rankings immediately. Provider evidence remains separate for accounting and review. ABANDONED creates no sale.`;
+    banner.innerHTML=isTesterPkbSale()?`<strong>Ghost simulation · ${provider}</strong>SALE records a verified Ghost sale for rankings and accounting; no customer information is collected.`:`<strong>${capture?.recovered_from_server?'Unfinished sale recovered':`${provider} dashboard attempt captured`}</strong>SALE updates rankings immediately. Provider evidence remains separate for accounting and review. If it wasn't a sale, just close the provider tab.`;
     banner.classList.add('show');
   }
   function selectedSaleLead(currentState){
@@ -77,22 +76,11 @@
   }
   function clearCompletedCapture(captureId){if(window.MCCOY_CLEAR_PROVIDER_CAPTURE)window.MCCOY_CLEAR_PROVIDER_CAPTURE(captureId);pendingProviderCapture=null;renderProviderCapture(null);}
 
-  async function recordAbandoned(){
-    if(submitting)return;submitting=true;setOutcomeButtonsBusy(true,'abandoned');setSaleMsg('Recording abandoned provider attempt…');
-    try{
-      const {data:sessionData,error:sessionError}=await sb.auth.getSession();if(sessionError||!sessionData?.session)throw new Error('Your sign-in session expired. Sign in again and retry.');
-      const capture=await readyCapture();if(!capture?.id)throw new Error('McCoy could not find this provider attempt. Reopen the sale and choose ABANDONED again.');
-      const {data,error}=await sb.functions.invoke('provider-sale-capture',{body:{action:'set_outcome',capture_id:capture.id,outcome:'abandoned'}});if(error||!data?.ok){const detail=await functionErrorDetail(error,data);throw new Error(detail?`Abandoned attempt could not be recorded: ${detail}`:'Abandoned attempt could not be recorded.');}
-      clearCompletedCapture(capture.id);setSaleMsg('Abandoned attempt recorded. No sale or celebration was created.','ok');window.dispatchEvent(new CustomEvent('mccoy-provider-sale-abandoned',{detail:{providerCaptureId:capture.id}}));setTimeout(()=>{modal.classList.remove('show');setSaleMsg('');},850);
-    }catch(error){console.error('ABANDONED failed',error);setSaleMsg(error?.message||'Abandoned attempt could not be recorded. Check connection and retry.','error');}
-    finally{submitting=false;setOutcomeButtonsBusy(false);}
-  }
-
   async function completeSale(){
-    if(submitting)return;submitting=true;setOutcomeButtonsBusy(true,'completed');setSaleMsg('Completing sale and refreshing live rankings…');
+    if(submitting)return;submitting=true;setOutcomeButtonsBusy(true);setSaleMsg('Completing sale and refreshing live rankings…');
     try{
       const {data:sessionData,error:sessionError}=await sb.auth.getSession();if(sessionError||!sessionData?.session)throw new Error('Your sign-in session expired. Sign in again and retry.');
-      const capture=await readyCapture();if(!capture?.id)throw new Error('McCoy could not find this provider attempt. Reopen the sale and choose COMPLETE SALE again.');
+      const capture=await readyCapture();if(!capture?.id)throw new Error('McCoy could not find this provider attempt. Reopen the sale and choose SALE again.');
       const currentState=(typeof state!=='undefined')?state:null,doorContext=window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()||null,lead=doorContext?.lead||selectedSaleLead(currentState);
       const serviceAddress=capture.service_address||doorContext?.address||(lead?.address||lead?.fullAddress)||null;
       const distanceInput=await saleDistanceInput(lead,serviceAddress);
@@ -105,7 +93,6 @@
     finally{submitting=false;setOutcomeButtonsBusy(false);}
   }
   byId('completeSaleBtn')?.addEventListener('click',completeSale);
-  byId('abandonedSaleBtn')?.addEventListener('click',recordAbandoned);
   for(const eventName of ['mccoy-provider-sale-capture-started','mccoy-provider-sale-capture-ready'])window.addEventListener(eventName,event=>resumeProviderCapture(event.detail?.capture,false));
   window.addEventListener('mccoy-provider-sale-returned',event=>resumeProviderCapture(event.detail?.capture,true));
   window.addEventListener('mccoy-provider-sale-capture-restored',event=>resumeProviderCapture(event.detail?.capture,false));

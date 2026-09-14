@@ -1,4 +1,4 @@
-const VERSION='field-coach-app-shell-v24-20260911-knock-status';
+const VERSION='field-coach-app-shell-v25-20260914-photo-outcome-fixes';
 const APP_SHELL_PREFIXES=['mccoy-app-shell-','field-coach-app-shell-'];
 const SHELL=[
   '/app-ui-refresh.js?v=2026091106',
@@ -49,14 +49,14 @@ const SHELL=[
   '/app-lead-pool-independent-activity.js?v=2026091108',
   '/app-map-viewport-lock.js?v=2026090402',
   '/app-map-manual-control.js?v=2026090402',
-  '/app-sales.js?v=2026091105',
+  '/app-sales.js?v=2026091402',
   '/app-sales-products.js?v=2026091105',
   '/app-accounting-records.js?v=2026090301',
   '/app-customer-list-approval-refresh.js?v=2026091105',
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
   '/app-page-layout.js?v=2026091106',
   '/app-sale-lifecycle.js?v=2026090201',
-  '/app-sale-photo-staging.js?v=2026090201',
+  '/app-sale-photo-staging.js?v=2026091403',
   '/confirm-email.html',
   '/pending-access.html'
 ];

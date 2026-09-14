@@ -9,7 +9,7 @@
   const PENDING_FINALIZE_KEY='mccoy_pending_sale_photo_finalize_v1';
   const MAX_UPLOAD_BYTES=10*1024*1024;
   const MAX_DIMENSION=2000;
-  const state={capture:null,captureStartedHere:false,captureValidated:false,rows:[],busy:false,pendingFinalize:null,lastMessage:'Press SALE first, then use PHOTO after the provider attempt is secured.'};
+  const state={capture:null,captureStartedHere:false,captureValidated:false,rows:[],busy:false,pendingFinalize:null,justCompletedSaleId:null,lastMessage:'Press SALE first, then use PHOTO after the provider attempt is secured.'};
   const byId=id=>document.getElementById(id);
 
   function client(requirements={}){
@@ -85,7 +85,7 @@
   }
 
   function resetCapture(message='Press SALE first, then use PHOTO after the provider attempt is secured.'){
-    state.capture=null;state.captureStartedHere=false;state.captureValidated=false;state.rows=[];state.lastMessage=message;renderStatus();
+    state.capture=null;state.captureStartedHere=false;state.captureValidated=false;state.rows=[];state.justCompletedSaleId=null;state.lastMessage=message;renderStatus();
   }
 
   async function invoke(action,payload={}){
@@ -129,7 +129,9 @@
     event?.preventDefault();
     if(state.busy)return;
     if(!state.captureStartedHere||!state.capture?.id){
-      state.lastMessage='Press SALE first. PHOTO cannot open until this Sales Hub attempt has a provider capture.';
+      state.lastMessage=state.justCompletedSaleId
+        ? 'That sale already saved without a photo. PHOTO cannot attach to a completed sale after the fact — stage the photo before completing your next sale.'
+        : 'Press SALE first. PHOTO cannot open until this Sales Hub attempt has a provider capture.';
       renderStatus();
       return;
     }
@@ -231,6 +233,7 @@
       const data=await invoke('finalize',{capture_id:captureId,sale_id:saleId});
       localStorage.removeItem(PENDING_FINALIZE_KEY);state.pendingFinalize=null;state.rows=[];state.capture=null;state.captureStartedHere=false;state.captureValidated=false;
       const count=Array.isArray(data.sale_photo_ids)?data.sale_photo_ids.length:0;
+      state.justCompletedSaleId=count?null:saleId;
       state.lastMessage=count?`${count} photo${count===1?'':'s'} attached to the sale. Extracting visible order details…`:'Sale completed with no staged photo.';
       renderStatus();
       if(count){
@@ -253,7 +256,7 @@
 
   function captureFromEvent(event){return event?.detail?.capture||null;}
   function startCurrentAttempt(capture){
-    state.capture=capture||null;state.captureStartedHere=!!capture;state.captureValidated=false;state.rows=[];
+    state.capture=capture||null;state.captureStartedHere=!!capture;state.captureValidated=false;state.rows=[];state.justCompletedSaleId=null;
     state.lastMessage='Provider attempt started. McCoy is securing it before PHOTO becomes available.';renderStatus();
   }
   function acceptValidatedCapture(capture){
