@@ -1,0 +1,15 @@
+{
+  "status": "xls_export_headers_mapped_report_upload_only",
+  "transport": "manual_html_table_xls_or_csv_report_upload",
+  "fields": {
+    "externalId": ["BASS Order ID", "Order #", "CTLOrderID", "ASAPOrderID", "PRID"],
+    "orderNumber": ["Order #", "CTLOrderID", "BASS Order ID", "ASAPOrderID", "PRID"],
+    "accountNumber": ["Account Number", "AccountNumber"],
+    "sellerIdentifier": ["Sales Person ID", "SalesAgentID", "Sales Person Username", "SalesAgentUserName"],
+    "sellerName": ["Sales Person Name", "SalesAgentName"],
+    "customerName": ["Name", "Customer Name", "CustomerName"],
+    "serviceAddress": ["Service Address", "Street", "Street Address", "StreetAddress"],
+    "saleDate": ["Create Date", "Create Time", "CreateTime"],
+    "providerStatus": ["Order Status", "OrderStatusCode"]
+  }
+}
