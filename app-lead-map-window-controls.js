@@ -97,7 +97,16 @@
     const dispositionOpen=mode===DISPOSITION,moveReady=mode===MOVE_PIN_READY,moveActive=mode===MOVE_PIN,actionOpen=mode===ACTION_MENU,busy=dispositionOpen||moveReady||moveActive
     panel.classList.toggle('lead-map-window-expanded',expanded);document.body.classList.toggle('lead-map-window-open',expanded);document.documentElement.classList.toggle('lead-map-window-open',expanded);menu.classList.toggle('show',actionOpen);sheet.classList.toggle('show',dispositionOpen);moveDock.classList.toggle('show',moveReady||moveActive);address.classList.toggle('show',actionOpen||dispositionOpen||moveReady||moveActive);address.textContent=selectedAddress();actions.setAttribute('aria-expanded',actionOpen?'true':'false')
     setAvailable(maximize,!expanded&&!busy);setAvailable(actions,!busy);setAvailable(restore,expanded&&!busy);moveAction.setAttribute('aria-disabled',mayMoveSelectedLead()?'false':'true');moveAction.classList.toggle('is-disabled',!mayMoveSelectedLead());dispositionAction.setAttribute('aria-disabled',selectedLead?'false':'true');dispositionAction.classList.toggle('is-disabled',!selectedLead);syncCompactConfirm()
-    requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,expanded,leadId:movePinLeadId||selectedLead?.dbId||selectedLead?.id||null}}))
+    // A single requestAnimationFrame can fire before the browser has fully
+    // settled the layout for position:fixed;inset:0 (a bigger jump than a
+    // simple style toggle) -- Leaflet then seeds its tile viewport from a
+    // still-mid-layout size and never gets told to correct it, which is what
+    // produces "only fills the top half of the screen". app-lead-map.js's own
+    // visibility-driven invalidateSize trigger already uses a short setTimeout
+    // rather than a bare RAF for exactly this reason; this adds the same
+    // delayed follow-up call here as a safety net, without removing the
+    // immediate one (which still helps the common, fast case).
+    requestAnimationFrame(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}));setTimeout(()=>window.MCCOY_LEAD_MAP?.invalidateSize?.({pan:false}),150);window.dispatchEvent(new CustomEvent('mccoy-lead-map-window-mode-changed',{detail:{mode,expanded,leadId:movePinLeadId||selectedLead?.dbId||selectedLead?.id||null}}))
   }
   function setMode(next){if(next===STANDARD)restoreMountedWorkflow();if(next!==MOVE_PIN_READY&&next!==MOVE_PIN&&movePinLeadId)releaseMovePinOwnership();mode=next;sync()}
   function maximizeMap(){if(expanded)return;expanded=true;sync()}
