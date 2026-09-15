@@ -16,7 +16,7 @@ test('the visible SALE button starts the standard provider dashboard flow',()=>{
   assert.doesNotMatch(lifecycle,/button\.remove\(\)/)
   assert.doesNotMatch(lifecycle,/new\s+MutationObserver|MutationObserver\s*\(/)
   assert.match(index,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(index,/app-sale-photo-staging\.js\?v=2026091403/)
+  assert.match(index,/app-sale-photo-staging\.js\?v=2026091404/)
 })
 
 test('COMPLETE SALE is submitted once to the server without a synthetic validation click',()=>{

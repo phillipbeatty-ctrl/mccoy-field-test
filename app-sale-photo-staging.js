@@ -220,6 +220,13 @@
     const failed=results.filter(result=>result.status==='rejected'||result.value?.error||result.value?.data?.ok===false).length;
     window.dispatchEvent(new CustomEvent('mccoy-sale-order-photo-updated',{detail:{saleId,photoIds:ids,results}}));
     window.dispatchEvent(new CustomEvent('mccoy-sale-details-updated',{detail:{saleId}}));
+    // Distinct from the two events above: this specifically tells the rep-facing
+    // review card (SALES TO COMPLETE) to open and scroll to THIS sale right now,
+    // rather than leaving the rep to notice a status message and go find it
+    // themselves. Fires whether extraction succeeded or failed, since either way
+    // the rep's next action is in that card (review suggestions, or enter details
+    // manually if extraction didn't work).
+    if(ids.length)window.dispatchEvent(new CustomEvent('mccoy-sale-order-photo-extracted',{detail:{saleId,failed:failed>0}}));
     return{results,failed};
   }
 

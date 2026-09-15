@@ -330,13 +330,13 @@ test('client and cache contracts ship the fixed runtime to web, PWA, iOS, and An
   assert.ok(indexSource.indexOf('app-supabase-client.js?v=2026090201')<indexSource.indexOf('app-sales.js?v='))
   assert.match(indexSource,/app-sales-products\.js\?v=2026091105/)
   assert.match(indexSource,/app-customer-list-credit-ranking-refresh\.js\?v=2026090201/)
-  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026091403')<indexSource.indexOf('app-page-layout.js'))
+  assert.ok(indexSource.indexOf('app-sale-photo-staging.js?v=2026091404')<indexSource.indexOf('app-page-layout.js'))
   assert.match(indexSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026091403/)
+  assert.match(indexSource,/app-sale-photo-staging\.js\?v=2026091404/)
   assert.match(workerSource,/field-coach-app-shell-v25-20260914-photo-outcome-fixes/)
   assert.match(workerSource,/app-supabase-client\.js\?v=2026090201/)
   assert.match(workerSource,/app-sale-lifecycle\.js\?v=2026090201/)
-  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026091403/)
+  assert.match(workerSource,/app-sale-photo-staging\.js\?v=2026091404/)
 })
 
 test('server contracts remain authoritative for owner/status checks, canonical sale insert, recorded capture, review, and ranking',()=>{

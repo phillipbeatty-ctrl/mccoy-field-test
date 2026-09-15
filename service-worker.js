@@ -56,7 +56,7 @@ const SHELL=[
   '/app-customer-list-credit-ranking-refresh.js?v=2026090201',
   '/app-page-layout.js?v=2026091106',
   '/app-sale-lifecycle.js?v=2026090201',
-  '/app-sale-photo-staging.js?v=2026091403',
+  '/app-sale-photo-staging.js?v=2026091404',
   '/confirm-email.html',
   '/pending-access.html'
 ];

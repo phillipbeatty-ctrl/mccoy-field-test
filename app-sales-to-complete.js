@@ -61,5 +61,23 @@
 
   async function save(id,index,button){const sale=rows.find(row=>row.id===id);if(!sale)return;button.disabled=true;button.textContent='SAVING…';const corrections={customer_first_name:value(`stcFirst${index}`),customer_last_name:value(`stcLast${index}`),customer_phone:value(`stcPhone${index}`),customer_email:value(`stcEmail${index}`),service_address:value(`stcAddress${index}`),provider_order_number:value(`stcOrder${index}`),provider_account_number:value(`stcAccount${index}`),order_date:value(`stcOrderDate${index}`),install_date:value(`stcInstall${index}`),isp:value(`stcIsp${index}`),internet_product:value(`stcProduct${index}`),internet_speed_mbps:value(`stcSpeed${index}`),notes:value(`stcNotes${index}`)};try{const {data,error}=await sb.rpc('save_my_sale_details',{p_sale_id:id,p_corrections:corrections});if(error)throw error;const photoId=pendingPhotoBySale[id];if(photoId)await sb.functions.invoke('sale-order-photo',{body:{action:'confirm',photo_id:photoId}}).catch(()=>{});byId('stcMessage').textContent='Customer information saved and rep-confirmed. The sale remains pending until ISP/Admin verification.';rows=rows.map(row=>row.id===id?data:row);render();window.dispatchEvent(new CustomEvent('mccoy-sale-details-updated',{detail:{saleId:id}}));}catch(error){byId('stcMessage').textContent=error?.message||'Customer information could not be saved.';button.disabled=false;button.textContent='SAVE CUSTOMER INFO';}}
 
+  async function openAndReveal(saleId){
+    ensure();
+    openId=saleId;
+    await load(true);
+    const index=rows.findIndex(row=>row.id===saleId);
+    if(index>=0)await loadPhotos(saleId,index);
+    const row=document.querySelector(`[data-stc-open="${CSS.escape(saleId)}"]`)?.closest('.stc-row');
+    row?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
   patchCustomerListGate();const timer=setInterval(()=>{patchCustomerListGate();ensure();if(byId('salesToCompleteCard'))clearInterval(timer);},300);setTimeout(()=>clearInterval(timer),15000);window.addEventListener('mccoy-sale-saved',()=>{rows=[];load(true);});window.addEventListener('mccoy-sale-credit-changed',()=>{rows=[];load(true);});
+  // The rep just finished a provider capture with a photo attached and extraction
+  // ran. Rather than leave them to notice a status message and go find SALES TO
+  // COMPLETE themselves, open this sale's review form and bring it into view —
+  // this is the actual "here's what we read, does this look right?" moment.
+  window.addEventListener('mccoy-sale-order-photo-extracted',event=>{
+    const saleId=String(event.detail?.saleId||'');
+    if(saleId)openAndReveal(saleId);
+  });
 })();
