@@ -8,9 +8,11 @@ const capture = fs.readFileSync(new URL('./supabase/functions/provider-sale-capt
 const migration = fs.readFileSync(new URL('./supabase/migrations/20260824181500_capture_only_sale_completion.sql', import.meta.url), 'utf8')
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8')
 
-test('provider return shows exactly one SALE outcome action', () => {
+test('provider return shows both SALE and ABANDON outcome actions', () => {
   assert.match(sales, /id="completeSaleBtn" class="outcome-sale"><span class="outcome-icon" aria-hidden="true">✓<\/span>SALE<\/button>/)
   assert.equal((sales.match(/id="completeSaleBtn"/g) || []).length, 1)
+  assert.match(sales, /id="abandonSaleBtn" class="outcome-abandon"><span class="outcome-icon" aria-hidden="true">✕<\/span>ABANDON<\/button>/)
+  assert.equal((sales.match(/id="abandonSaleBtn"/g) || []).length, 1)
   assert.doesNotMatch(sales, /SELECT OUTCOME|DECIDE LATER|SAVE COMPLETED SALE|RECORD ABANDONED ORDER/)
 })
 
@@ -62,10 +64,10 @@ test('database policy ranks owned capture-only completions while preserving revi
   assert.match(migration, /provider_capture_id,ranking_eligible/)
 })
 
-test('SALE is the only outcome action; no-sale attempts are resolved by closing the provider tab', () => {
-  assert.doesNotMatch(sales, /abandonedSaleBtn/)
-  assert.doesNotMatch(sales, /recordAbandoned/)
-  assert.match(sales, /just close the provider browser tab/)
+test('ABANDON cancels the provider capture server-side and dispatches the abandonment event', () => {
+  assert.match(sales, /action:'cancel',capture_id:capture\.id/)
+  assert.match(sales, /mccoy-provider-sale-abandoned/)
+  assert.match(sales, /providerCaptureId:captureId/)
 })
 
 test('stale field session ids are discarded before a provider capture is inserted', () => {
@@ -76,8 +78,8 @@ test('stale field session ids are discarded before a provider capture is inserte
 
 test('Sales Hub loads the shared client before sale modules and cache-busts changed scripts', () => {
   assert.match(html, /app-supabase-client\.js\?v=2026090201/)
-  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091402'))
-  assert.match(html, /app-sales\.js\?v=2026091402/)
+  assert.ok(html.indexOf('app-supabase-client.js?v=2026090201') < html.indexOf('app-sales.js?v=2026091801'))
+  assert.match(html, /app-sales\.js\?v=2026091801/)
   assert.match(html, /app-sale-lifecycle\.js\?v=2026090201/)
   assert.match(html, /app-sale-photo-staging\.js\?v=2026091404/)
   assert.match(html, /app-sales-products\.js\?v=2026091105/)
