@@ -28,26 +28,25 @@
   function render(container,data){
     if(!container)return;
     if(!data?.ok){container.innerHTML='<div class="leader-spotlight-period muted">Leaderboard unavailable</div>';return;}
-    container.innerHTML=periodMarkup('Weekly',data.week)+periodMarkup('Daily',data.today)+
+    container.innerHTML='<div class="leader-spotlight-periods">'+periodMarkup('Weekly',data.week)+periodMarkup('Daily',data.today)+'</div>'+
       '<div class="leader-spotlight-key">Key: Top rep 👑 · 20 🏦 · 5 💰 · 1 <span class="leader-spotlight-dollar">$</span></div>';
   }
 
   const style=document.createElement('style');
   style.textContent=`
-    #leaderSpotlightDashboard{position:absolute;top:14px;right:14px;z-index:40;width:min(260px,40vw);padding:14px 16px;border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(15,23,42,.1);font-size:15px}
+    #leaderSpotlightDashboard{width:min(320px,60vw);margin:0 0 12px auto;padding:14px 16px;border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(15,23,42,.1);font-size:15px}
     #leaderSpotlightDashboard .leader-spotlight-period{margin-bottom:10px}
     #leaderSpotlightDashboard .leader-spotlight-period:last-of-type{margin-bottom:6px}
     #leaderSpotlightDashboard .leader-spotlight-period strong{display:block;margin-bottom:3px;font-size:15px}
     #leaderSpotlightDashboard .leader-spotlight-key{font-size:11px;color:#6b7280;border-top:1px solid #f1f5f9;padding-top:6px}
     .leader-spotlight-dollar{color:#15803d;font-weight:800}
-    #dashboard{position:relative}
-    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 10px;padding:9px 12px;border-radius:12px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:12px;max-width:min(220px,60vw);pointer-events:none}
+    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 10px;padding:9px 14px;border-radius:12px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:12px;width:100%;max-width:640px;pointer-events:none}
     #leaderSpotlightField *{pointer-events:none}
-    #leaderSpotlightField .leader-spotlight-period{margin-bottom:5px}
-    #leaderSpotlightField .leader-spotlight-period:last-of-type{margin-bottom:3px}
+    #leaderSpotlightField .leader-spotlight-periods{display:flex;gap:22px}
+    #leaderSpotlightField .leader-spotlight-period{margin-bottom:0;flex:1;min-width:0}
     #leaderSpotlightField .leader-spotlight-period strong{display:block;font-size:12px}
-    #leaderSpotlightField .leader-spotlight-key{font-size:9px;color:#6b7280}
-    @media(max-width:640px){#leaderSpotlightDashboard{position:static;width:auto;margin-bottom:12px}}
+    #leaderSpotlightField .leader-spotlight-key{font-size:9px;color:#6b7280;margin-top:5px;border-top:1px solid #f1f5f9;padding-top:4px}
+    @media(max-width:480px){#leaderSpotlightField .leader-spotlight-periods{flex-direction:column;gap:4px}}
   `;
   document.head.appendChild(style);
 
