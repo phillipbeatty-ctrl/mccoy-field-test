@@ -42,14 +42,14 @@
 
   const style=document.createElement('style');
   style.textContent=`
-    #leaderSpotlightDashboard{width:100%;margin:0 0 12px;padding:5px 0;overflow:hidden}
+    #leaderSpotlightDashboard{width:100%;margin:0 0 2px;padding:1px 0;overflow:hidden}
     #leaderSpotlightDashboardCard{--slide-width:320px;position:relative;left:0;width:var(--slide-width);max-width:60vw;padding:14px 16px;border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(15,23,42,.1);font-size:15px;animation:leaderSpotlightSlide 18s ease-in-out infinite}
     #leaderSpotlightDashboardCard .leader-spotlight-period{margin-bottom:10px}
     #leaderSpotlightDashboardCard .leader-spotlight-period:last-of-type{margin-bottom:6px}
     #leaderSpotlightDashboardCard .leader-spotlight-period strong{display:block;margin-bottom:3px;font-size:15px}
     #leaderSpotlightDashboardCard .leader-spotlight-key{font-size:11px;color:#6b7280;border-top:1px solid #f1f5f9;padding-top:6px}
     .leader-spotlight-dollar{color:#15803d;font-weight:800}
-    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 10px;padding:5px 0;overflow:hidden;pointer-events:none}
+    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 1.5px;padding:1px 0;overflow:hidden;pointer-events:none}
     #leaderSpotlightFieldCard{--slide-width:220px;position:relative;left:0;width:var(--slide-width);max-width:60vw;padding:9px 12px;border-radius:12px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:12px;animation:leaderSpotlightSlide 16s ease-in-out infinite}
     #leaderSpotlightFieldCard *{pointer-events:none}
     #leaderSpotlightFieldCard .leader-spotlight-period{margin-bottom:5px}
