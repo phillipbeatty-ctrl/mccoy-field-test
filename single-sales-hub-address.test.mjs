@@ -9,7 +9,7 @@ const serviceAddress='123 Main St, Apt 2, Portland, OR 97201';
 const fields={address1:'123 Main St',address2:'Apt 2',city:'Portland',state:'OR',zip:'97201'};
 const copy=value=>JSON.parse(JSON.stringify(value));
 function fn(file,name){const source=read(file),start=source.search(new RegExp(`(?:async )?function ${name}\\(`));assert.ok(start>=0);const end=source.indexOf('\n  }',start);assert.ok(end>start);return source.slice(start,end+4);}
-function scope(seed={}){const s=vm.createContext({console:{error(){}},...seed});s.window=s;return s;}
+function scope(seed={}){const s=vm.createContext({console:{error(){}},setTimeout,clearTimeout,...seed});s.window=s;return s;}
 
 test('one-line address parsing preserves unit, city, state and ZIP',()=>{
   for(const value of [serviceAddress,'123 Main St Apt 2, Portland, or 97201','123 Main St, Apt 2, Portland, OR, 97201','123 Main St, Apt 2, Portland, OR 97201, USA'])assert.deepEqual(copy(core.fieldAddress(value)),fields);

@@ -19,7 +19,7 @@ function fn(file,name){
   if(source.slice(start,lineEnd).endsWith('}'))return source.slice(start,lineEnd);
   assert.ok(end>start,`${name} closes`);return source.slice(start,end+4);
 }
-function scope(seed={}){const value={console,structuredClone,Event:class{constructor(type){this.type=type}},...seed};value.window=value;return vm.createContext(value);}
+function scope(seed={}){const value={console,structuredClone,setTimeout,clearTimeout,Event:class{constructor(type){this.type=type}},...seed};value.window=value;return vm.createContext(value);}
 function element(value=''){return{value,disabled:false,textContent:'',classList:{add(){},remove(){}},focus(){},dispatchEvent(){}};}
 
 test('release defaults and missing configuration keep nearest automation paused',()=>{
@@ -138,7 +138,7 @@ test('web cache loads the pause before all legacy automatic selectors',()=>{
   const html=read('./index.html'),worker=read('./service-worker.js'),layout=read('./app-page-layout.js');
   for(const name of ['app-part1.js','app-distance-to-lead.js','app-auto-door-arrival.js'])assert.ok(html.indexOf('app-field-features.js')<html.indexOf(name));
   assert.match(worker,/field-coach-app-shell-v25-20260914-photo-outcome-fixes/);
-  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091103':name==='app-field-lead-editor.js'?'2026091108':'2026091108')));
+  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091103':name==='app-field-lead-editor.js'?'2026092001':'2026091108')));
   assert.match(layout,/app-closest-lead-autofill-v2.js\?v=2026091106/);
   assert.match(read('./app-part1.js'),/<option value="">Type an address or select a lead<\/option>/);
 });

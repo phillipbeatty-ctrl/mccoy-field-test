@@ -312,9 +312,18 @@
       // Blank optional fields must not erase an existing matched lead's contact.
       const contact={};
       if(!salesHub)for(const [key,id] of [['customer_name','newLeadCustomerName'],['phone','newLeadPhone'],['notes','newLeadNotes']])if(inputValue(id))contact[key]=inputValue(id);
-      const placement=window.MCCOY_GPS_PLACEMENT?await window.MCCOY_GPS_PLACEMENT.addAddress({address,contact,isCurrent}):null;
+      // Confirmed directly against server logs: this request completes in
+      // well under a second every time. If it doesn't resolve within 20
+      // seconds, the client -- not the server -- has stalled (the most
+      // likely cause: iOS suspending JS execution mid-await if the app gets
+      // backgrounded even briefly while the request is in flight, which can
+      // leave the button stuck on ADDING... indefinitely even though the
+      // server already succeeded). Race against a timeout so the button
+      // always recovers on its own rather than requiring a manual reload.
+      const withTimeout=(promise,ms)=>{let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Object.assign(new Error('address_add_timed_out'),{code:'address_add_timed_out'})),ms);});return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));};
+      const placement=window.MCCOY_GPS_PLACEMENT?await withTimeout(window.MCCOY_GPS_PLACEMENT.addAddress({address,contact,isCurrent}),20000):null;
       if(!isCurrent())return;
-      const data=placement||await call('create_lead',{...address,...contact});
+      const data=placement||await withTimeout(call('create_lead',{...address,...contact}),20000);
       saved=true;
       if(!isCurrent())return;
       const savedMessage=window.MCCOY_GPS_PLACEMENT?.placementMessage?.(data)||(data.created?'Address added to the Lead Pool.':'An existing lead matched this address.');
@@ -340,7 +349,12 @@
       // Keep the address available for PROCESS SALE without requiring re-entry.
     }catch(error){
       console.error('Field lead creation failed',error);
-      message(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+      if(error?.code==='address_add_timed_out'){
+        message('This is taking longer than expected. The address may have already been added -- checking the Lead Pool now rather than assuming it failed.',true);
+        window.loadMcCoyLeads?.().catch(()=>{});
+      }else{
+        message(saved?'The address was saved, but its pin could not be refreshed. Your address is retained; you can still process the sale.':String(error?.message||'Address could not be added.').replace(/_/g,' '),true);
+      }
     }finally{creatingLead=false;if(!salesHub)for(const input of byId('fieldLeadCreateForm')?.querySelectorAll('input,textarea,button')||[])input.disabled=false;if(button){button.disabled=salesHub&&!fieldRole();button.textContent=salesHub?'ADD ADDRESS':'ADD TO LEAD POOL';}}
   }
 

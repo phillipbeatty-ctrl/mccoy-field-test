@@ -29,7 +29,7 @@ class Element{
   focus(){}
 }
 function context(seed={}){
-  const s=vm.createContext({console:{error(){}},Event:class{constructor(type){this.type=type}},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail}},...seed});
+  const s=vm.createContext({console:{error(){}},setTimeout,clearTimeout,Event:class{constructor(type){this.type=type}},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail}},...seed});
   s.window=s;return s;
 }
 function addressHarness(){

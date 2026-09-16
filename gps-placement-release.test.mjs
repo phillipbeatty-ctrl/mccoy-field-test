@@ -18,7 +18,7 @@ test('production creation drift is reconciled against a frozen exact source, wit
 test('every changed GPS script is versioned and the nearest-lead pause remains intact',()=>{
   const html=read('./index.html'),loader=read('./app-page-layout.js'),worker=read('./service-worker.js');
   for(const name of ['app-gps-placement.js','app-part2.js','app-page-layout.js','app-field-lead-editor.js','app-lead-pool-independent-activity.js','app-auth.js','app-typed-lead-address.js']){
-    const version=name==='app-gps-placement.js'?'2026091109':name==='app-auth.js'?'2026091110':'2026091108';
+    const version=name==='app-gps-placement.js'?'2026091109':name==='app-auth.js'?'2026091110':name==='app-page-layout.js'?'2026091512':name==='app-field-lead-editor.js'?'2026092001':'2026091108';
     assert.ok((html+loader).includes(name+'?v='+version),name+' must be loaded');
     assert.ok(worker.includes(name+'?v='+version),name+' must be cached');
   }
