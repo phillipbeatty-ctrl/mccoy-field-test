@@ -5,7 +5,7 @@
   const correctionIds=['editLeadAddress1','editLeadAddress2','editLeadCity','editLeadState','editLeadZip'];
   const activityTypes=['Visit','Call','Appointment','Text','Qualify','Investigate & Estimate','Make a Proposal','Get Feedback'];
   const visitResults=['No Answer','Contacted','Follow-Up'];
-  const stages=['Prospecting','Hot Lead','Contacted','Follow Up','Migrator','Existing Customer','SMB','Sale Made','No Sale','Admin Hold'];
+  const stages=['Prospecting','Hot Lead','Contacted','Follow Up','Migrator','Existing Customer','SMB','Sale Made','No Sale','Admin Hold','Abandoned/Empty Lot','Do Not Knock'];
 
   function removeLegacyAssign(){
     const old=document.getElementById('mapAssignBtn');

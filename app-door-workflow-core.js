@@ -20,7 +20,9 @@
     {label:'SMB',color:'#ec4899'},
     {label:'Sale Made',color:'#22c55e'},
     {label:'No Sale',color:'#9ca3af'},
-    {label:'Admin Hold',color:'#581c87'}
+    {label:'Admin Hold',color:'#581c87'},
+    {label:'Abandoned/Empty Lot',color:'#ef4444'},
+    {label:'Do Not Knock',color:'#ef4444'}
   ];
 
   function finiteCoordinate(value,min,max){

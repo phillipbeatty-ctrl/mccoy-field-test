@@ -42,7 +42,8 @@ test('SPOTIO-style disposition labels and colors stay exact',()=>{
   assert.equal(JSON.stringify(core.VISIT_RESULTS.map(item=>[item.label,item.color])),JSON.stringify([['No Answer','#fbbf24'],['Contacted','#9ca3af'],['Follow-Up','#3b82f6']]))
   assert.equal(JSON.stringify(core.STAGES.map(item=>[item.label,item.color])),JSON.stringify([
     ['Prospecting','#fbbf24'],['Hot Lead','#c4b5fd'],['Contacted','#93c5fd'],['Follow Up','#1d4ed8'],['Migrator','#f97316'],
-    ['Existing Customer','#ffffff'],['SMB','#ec4899'],['Sale Made','#22c55e'],['No Sale','#9ca3af'],['Admin Hold','#581c87']
+    ['Existing Customer','#ffffff'],['SMB','#ec4899'],['Sale Made','#22c55e'],['No Sale','#9ca3af'],['Admin Hold','#581c87'],
+    ['Abandoned/Empty Lot','#ef4444'],['Do Not Knock','#ef4444']
   ]))
 })
 
