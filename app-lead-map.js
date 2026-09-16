@@ -31,7 +31,7 @@
   const controls=document.createElement('div');
   controls.id='leadGeoControls';
   controls.style.cssText='margin:10px 0;padding:10px;border:1px solid #e5e7eb;border-radius:10px';
-  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">VERIFY NEXT 25 WITH GOOGLE</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="lassoSelectBtn" class="assign-btn">LASSO SELECT</button><button id="clearMapSelectionBtn" class="assign-btn">CLEAR SELECTION</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT CURRENT VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking Google verification status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No leads selected.</div>`;
+  controls.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button id="geocodeRealLeadsBtn" class="primary">VERIFY NEXT 25 WITH GOOGLE</button><button id="geocodeNearMeBtn" class="assign-btn">RE-VERIFY 200 NEAREST TO FAYETTEVILLE</button><button id="fitAllPinsBtn" class="assign-btn">FIT ALL PINS</button><button id="lassoSelectBtn" class="assign-btn">LASSO SELECT</button><button id="clearMapSelectionBtn" class="assign-btn">CLEAR SELECTION</button><button id="selectVisiblePinsBtn" class="assign-btn">SELECT CURRENT VIEW</button></div><div id="geocodeProgress" class="muted small" style="margin-top:8px">Checking Google verification status…</div><div id="mapSelectionStatus" class="muted small" style="margin-top:4px">No leads selected.</div>`;
   leftCard?.insertBefore(controls,canvas);
 
   const oldSingleAssign=document.getElementById('mapAssignBtn');
@@ -264,11 +264,45 @@
   canvas.addEventListener('touchend',event=>{if(!lassoMode||!lassoDrawing)return;event.preventDefault();const adapted=touchAsLeafletEvent(event,true);if(adapted)finishLasso(adapted);},{passive:false});
   canvas.addEventListener('touchcancel',event=>{if(!lassoMode)return;event.preventDefault();lassoDrawing=false;if(lassoPreview){map.removeLayer(lassoPreview);lassoPreview=null;}lassoPoints=[];lastLassoPoint=null;lassoStartPoint=null;updateSelectionStatus('Lasso is still active — drag your finger around the leads');},{passive:false});
 
-  async function geocodeStatus(){if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'status'}});if(error)throw error;const btn=document.getElementById('geocodeRealLeadsBtn');btn.dataset.googleConfigured=data.google_configured?'1':'0';btn.disabled=!data.google_configured;document.getElementById('geocodeProgress').textContent=data.google_configured?`${Number(data.google_verified||0).toLocaleString()} Google verified · ${Number(data.preserved||0).toLocaleString()} trusted pins compared · ${Number(data.review||0).toLocaleString()} need review · ${Number(data.pending||0).toLocaleString()} pending · ${Number(data.unmapped||0).toLocaleString()} safely unmapped.`:'Google verification is unavailable until Admin configures the server-only Maps API key.';return data;}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent='Unable to read Google verification status.';return null;}}
+  async function geocodeStatus(){if(window.MCCOY_ACCESS?.access?.role!=='admin'){document.getElementById('geocodeRealLeadsBtn').style.display='none';document.getElementById('geocodeNearMeBtn').style.display='none';document.getElementById('geocodeProgress').textContent='Lead coordinates are managed by Admin.';return null;}try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'status'}});if(error)throw error;const btn=document.getElementById('geocodeRealLeadsBtn');btn.dataset.googleConfigured=data.google_configured?'1':'0';btn.disabled=!data.google_configured;document.getElementById('geocodeNearMeBtn').disabled=!data.google_configured;document.getElementById('geocodeProgress').textContent=data.google_configured?`${Number(data.google_verified||0).toLocaleString()} Google verified · ${Number(data.preserved||0).toLocaleString()} trusted pins compared · ${Number(data.review||0).toLocaleString()} need review · ${Number(data.pending||0).toLocaleString()} pending · ${Number(data.unmapped||0).toLocaleString()} safely unmapped.`:'Google verification is unavailable until Admin configures the server-only Maps API key.';return data;}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent='Unable to read Google verification status.';return null;}}
   async function geocodeAll(){const btn=document.getElementById('geocodeRealLeadsBtn');if(window.MCCOY_ACCESS?.access?.role!=='admin')return;if(!window.confirm('Verify up to 25 Lead Pool addresses with Google? Google Maps Platform usage charges may apply.'))return;btn.disabled=true;btn.textContent='VERIFYING 25…';try{const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'verify_next',limit:25}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'google_verification_failed');document.getElementById('geocodeProgress').textContent=`Compared ${Number(data.processed||0).toLocaleString()} · applied ${Number(data.applied||0).toLocaleString()} rooftop pins · preserved ${Number(data.preserved||0).toLocaleString()} trusted pins · ${Number(data.review||0).toLocaleString()} need review · ${Number(data.pending||0).toLocaleString()} pending.`;await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(true),250);}catch(e){console.error(e);document.getElementById('geocodeProgress').textContent=e?.message?.includes('google_maps_key_not_configured')?'Google verification is unavailable until Admin configures the server-only Maps API key.':'Google verification stopped safely; no approximate result was applied.';}btn.textContent='VERIFY NEXT 25 WITH GOOGLE';await geocodeStatus();restoreGrabCursor();}
+  // Fixed at exactly 8 calls (200 / 25 per call) -- a bounded, known-length
+  // sequence, not an open-ended loop that keeps going until some condition
+  // clears. Reuses the same verify_next pipeline as the button above, just
+  // adding a center point so the claim function selects by proximity instead
+  // of pulling from the batch backlog queue, and re-checks every status
+  // (including already-verified leads) since this is a one-off pass meant to
+  // catch pins that were "verified" under the older, looser matching rules.
+  const NEAR_ME_CENTER={lat:35.0527,lng:-78.8784} // Fayetteville, NC
+  const NEAR_ME_CALLS=8
+  async function geocodeNearMe(){
+    const btn=document.getElementById('geocodeNearMeBtn'),progress=document.getElementById('geocodeProgress')
+    if(window.MCCOY_ACCESS?.access?.role!=='admin')return
+    if(!window.confirm(`Re-verify the 200 leads nearest Fayetteville, NC with Google? This makes up to ${NEAR_ME_CALLS} verification calls (25 addresses each) and re-checks leads already marked verified. Google Maps Platform usage charges may apply.`))return
+    btn.disabled=true
+    const totals={processed:0,applied:0,preserved:0,review:0,failed:0}
+    try{
+      for(let call=1;call<=NEAR_ME_CALLS;call++){
+        btn.textContent=`RE-VERIFYING… (${call}/${NEAR_ME_CALLS})`
+        const {data,error}=await sb.functions.invoke('lead-geocode',{body:{action:'verify_next',limit:25,center_lat:NEAR_ME_CENTER.lat,center_lng:NEAR_ME_CENTER.lng}})
+        if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'google_verification_failed')
+        totals.processed+=Number(data.processed||0);totals.applied+=Number(data.applied||0)
+        totals.preserved+=Number(data.preserved||0);totals.review+=Number(data.review||0);totals.failed+=Number(data.failed||0)
+        progress.textContent=`Nearest-to-Fayetteville re-check ${call}/${NEAR_ME_CALLS}: compared ${totals.processed.toLocaleString()} · applied ${totals.applied.toLocaleString()} · preserved ${totals.preserved.toLocaleString()} · ${totals.review.toLocaleString()} flagged for review.`
+        if(Number(data.processed||0)===0)break // fewer than 200 eligible leads remained; stop early rather than repeating empty calls
+      }
+      await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(true),250)
+    }catch(e){
+      console.error(e)
+      progress.textContent=e?.message?.includes('google_maps_key_not_configured')?'Google verification is unavailable until Admin configures the server-only Maps API key.':'Re-verification stopped safely partway through; no approximate result was applied for the remaining addresses.'
+    }
+    btn.disabled=false;btn.textContent='RE-VERIFY 200 NEAREST TO FAYETTEVILLE'
+    await geocodeStatus();restoreGrabCursor()
+  }
   async function assignSelectedLeads(){const msg=document.getElementById('mapAssignMsg');if(!['admin','manager','trainer'].includes(window.MCCOY_ACCESS?.access?.role)){msg.textContent='Only Managers, Trainers, and Administrators can assign real leads.';restoreGrabCursor();return;}if(!selectedIds.size){msg.textContent='Select one or more leads first.';restoreGrabCursor();return;}const repEmail=document.getElementById('mapRepSelect').value,ids=[...selectedIds];msg.textContent=`Assigning ${ids.length.toLocaleString()} selected lead${ids.length===1?'':'s'}…`;try{for(let i=0;i<ids.length;i+=500){const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'assign_leads',lead_ids:ids.slice(i,i+500),rep_email:repEmail}});if(error||!data?.ok)throw error||new Error(data?.detail||data?.error||'bulk_assign_failed');}msg.textContent=`${ids.length.toLocaleString()} selected lead${ids.length===1?'':'s'} assigned successfully.`;selectedIds.clear();clearLassoShape();if(correctionMarker){map.removeLayer(correctionMarker);correctionMarker=null;}await window.loadMcCoyLeads?.();setTimeout(()=>renderPins(false),250);}catch(e){console.error(e);msg.textContent=`Assignment failed${e?.message?': '+e.message:''}.`;}finally{restoreGrabCursor();}}
 
   document.getElementById('geocodeRealLeadsBtn').onclick=geocodeAll;
+  document.getElementById('geocodeNearMeBtn').onclick=geocodeNearMe;
   document.getElementById('fitAllPinsBtn').onclick=()=>{restoreGrabCursor();renderPins(true);};
   document.getElementById('lassoSelectBtn').onclick=()=>setLassoMode(!lassoMode);
   document.getElementById('clearMapSelectionBtn').onclick=clearSelection;

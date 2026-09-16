@@ -12,15 +12,17 @@ const baseLead={
   latitude:45.775,longitude:-122.55,geocode_status:'matched'
 }
 
-function result({lat=45.777,lng=-122.553,locationType='ROOFTOP',partial=false,house='413',zip='98604',types=['street_address']}={}){
+function result({lat=45.777,lng=-122.553,locationType='ROOFTOP',partial=false,house='413',zip='98604',route='SW 6th Cir',locality='Battle Ground',types=['street_address']}={}){
   return {
     partial_match:partial,
     types,
-    formatted_address:`${house} SW 6th Cir, Battle Ground, WA ${zip}, USA`,
+    formatted_address:`${house} ${route}, ${locality}, WA ${zip}, USA`,
     place_id:'google-place-1',
     geometry:{location:{lat,lng},location_type:locationType},
     address_components:[
       {short_name:house,long_name:house,types:['street_number']},
+      {short_name:route,long_name:route,types:['route']},
+      {short_name:locality,long_name:locality,types:['locality']},
       {short_name:'WA',long_name:'Washington',types:['administrative_area_level_1']},
       {short_name:zip,long_name:zip,types:['postal_code']},
       {short_name:'US',long_name:'United States',types:['country']}
