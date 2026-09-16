@@ -32,6 +32,10 @@
       '<div class="leader-spotlight-key">Key: Top rep 👑 · 20 🏦 · 5 💰 · 1 <span class="leader-spotlight-dollar">$</span></div>';
   }
 
+  function renderField(data){
+    render(document.getElementById('leaderSpotlightFieldCard'),data);
+  }
+
   const style=document.createElement('style');
   style.textContent=`
     #leaderSpotlightDashboard{width:min(320px,60vw);margin:0 0 12px auto;padding:14px 16px;border-radius:14px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(15,23,42,.1);font-size:15px}
@@ -40,13 +44,16 @@
     #leaderSpotlightDashboard .leader-spotlight-period strong{display:block;margin-bottom:3px;font-size:15px}
     #leaderSpotlightDashboard .leader-spotlight-key{font-size:11px;color:#6b7280;border-top:1px solid #f1f5f9;padding-top:6px}
     .leader-spotlight-dollar{color:#15803d;font-weight:800}
-    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 10px;padding:9px 14px;border-radius:12px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:12px;width:100%;max-width:640px;pointer-events:none}
-    #leaderSpotlightField *{pointer-events:none}
-    #leaderSpotlightField .leader-spotlight-periods{display:flex;gap:22px}
-    #leaderSpotlightField .leader-spotlight-period{margin-bottom:0;flex:1;min-width:0}
-    #leaderSpotlightField .leader-spotlight-period strong{display:block;font-size:12px}
-    #leaderSpotlightField .leader-spotlight-key{font-size:9px;color:#6b7280;margin-top:5px;border-top:1px solid #f1f5f9;padding-top:4px}
-    @media(max-width:480px){#leaderSpotlightField .leader-spotlight-periods{flex-direction:column;gap:4px}}
+    #leaderSpotlightField{position:sticky;top:8px;z-index:900;margin:0 0 10px;height:112px;pointer-events:none}
+    #leaderSpotlightFieldCard{position:absolute;left:0;top:0;width:220px;max-width:60vw;padding:9px 12px;border-radius:12px;background:#ffffff;border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:12px;animation:leaderSpotlightSlide 16s ease-in-out infinite}
+    #leaderSpotlightFieldCard *{pointer-events:none}
+    #leaderSpotlightFieldCard .leader-spotlight-period{margin-bottom:5px}
+    #leaderSpotlightFieldCard .leader-spotlight-period:last-of-type{margin-bottom:3px}
+    #leaderSpotlightFieldCard .leader-spotlight-period strong{display:block;font-size:12px}
+    #leaderSpotlightFieldCard .leader-spotlight-key{font-size:9px;color:#6b7280}
+    @keyframes leaderSpotlightSlide{0%,8%{left:0}50%{left:calc(100% - 220px)}92%,100%{left:0}}
+    @media(max-width:520px){#leaderSpotlightFieldCard{width:180px}@keyframes leaderSpotlightSlide{0%,8%{left:0}50%{left:calc(100% - 180px)}92%,100%{left:0}}}
+    @media(prefers-reduced-motion:reduce){#leaderSpotlightFieldCard{animation:none}}
   `;
   document.head.appendChild(style);
 
@@ -58,8 +65,10 @@
     }
     const field=document.getElementById('field');
     if(field&&!document.getElementById('leaderSpotlightField')){
-      const box=document.createElement('div');box.id='leaderSpotlightField';
-      field.insertBefore(box,field.firstChild);
+      const track=document.createElement('div');track.id='leaderSpotlightField';
+      const card=document.createElement('div');card.id='leaderSpotlightFieldCard';
+      track.appendChild(card);
+      field.insertBefore(track,field.firstChild);
     }
   }
 
@@ -75,7 +84,7 @@
     }
     ensureContainers();
     render(document.getElementById('leaderSpotlightDashboard'),lastData);
-    render(document.getElementById('leaderSpotlightField'),lastData);
+    renderField(lastData);
   }
 
   window.MCCOY_REFRESH_LEADER_SPOTLIGHT=load;
