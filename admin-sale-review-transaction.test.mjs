@@ -34,5 +34,5 @@ test('green APPROVED is the single positive approval action',()=>{
 
 test('production shell loads the unified SALE REVIEW module after legacy Sale Credit',()=>{
   assert.match(html,/app-admin-sale-credit\.js/);
-  assert.match(html,/app-admin-sale-review\.js\?v=2026082601/);
+  assert.match(html,/app-admin-sale-review\.js\?v=2026092301/);
 });
