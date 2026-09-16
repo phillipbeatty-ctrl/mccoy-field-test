@@ -114,7 +114,7 @@
       grid-template-columns:minmax(280px,.72fr) minmax(430px,1.28fr)!important;
       grid-template-areas:"left door"!important;
       gap:6px!important;
-      align-items:stretch!important;
+      align-items:start!important;
       min-width:0!important;
       margin-bottom:6px!important
     }
@@ -157,39 +157,44 @@
     #salesHubLeftStack .sales-hub-workday .sph-workday-title{font-size:9px!important;line-height:1.15!important}
     #salesHubLeftStack .sales-hub-workday #sphHomeAddressDisplay{font-size:11px!important;line-height:1.25!important;white-space:normal!important}
     #salesHubLeftStack .sales-hub-workday #sphEditHome{min-width:52px!important;min-height:30px!important;padding:6px 9px!important;font-size:10px!important}
-    #salesHubLeftStack .sales-hub-live-stats{
-      grid-area:auto!important;
-      min-height:0!important;
-      height:auto!important;
-      margin:0!important;
-      padding:12px!important
-    }
-    #salesHubLeftStack .sales-hub-live-stats .mini-stats{
-      display:grid!important;
-      grid-template-columns:repeat(2,minmax(0,1fr))!important;
-      gap:6px!important
-    }
-    #salesHubLeftStack .sales-hub-live-stats .mini-stats>div{min-width:0;padding:8px!important;border-radius:8px}
-    #salesHubLeftStack .sales-hub-live-stats .mini-stats span{font-size:9px!important;line-height:1.15}
-    #salesHubLeftStack .sales-hub-live-stats .mini-stats strong{font-size:17px!important;line-height:1.1;margin-top:3px}
-    #salesHubLeftStack #payProgressCard{
-      grid-area:auto!important;
-      min-height:0!important;
-      height:100%!important;
-      margin:0!important;
-      padding:12px!important;
+    #salesHubTopStrip{
       display:flex!important;
-      flex-direction:column;
-      align-self:stretch!important
+      align-items:center!important;
+      gap:14px!important;
+      flex-wrap:wrap!important;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:9px 14px!important;
+      margin:0 0 6px!important
     }
-    #salesHubLeftStack #payProgressCard .pay-progress-main{font-size:15px!important;line-height:1.25;margin:6px 0 3px!important}
-    #salesHubLeftStack #payProgressCard .pay-progress-sub{font-size:10px!important;line-height:1.35;margin-top:3px!important}
+    #salesHubTopStrip .sales-hub-live-stats,#salesHubTopStrip #payProgressCard{
+      border:0!important;background:transparent!important;box-shadow:none!important;
+      padding:0!important;margin:0!important;border-radius:0!important;
+      min-height:0!important;height:auto!important
+    }
+    #salesHubTopStrip .sales-hub-live-stats .card-head{display:none!important}
+    #salesHubTopStrip .sales-hub-live-stats .mini-stats{
+      display:flex!important;gap:14px!important
+    }
+    #salesHubTopStrip .sales-hub-live-stats .mini-stats>div{
+      min-width:0;padding:0!important;border:0!important;border-right:1px solid #e5e7eb;padding-right:14px!important
+    }
+    #salesHubTopStrip .sales-hub-live-stats .mini-stats>div:last-child{border-right:0;padding-right:0!important}
+    #salesHubTopStrip .sales-hub-live-stats .mini-stats span{font-size:9px!important;line-height:1.15;text-transform:uppercase;font-weight:800;color:#6b7280}
+    #salesHubTopStrip .sales-hub-live-stats .mini-stats strong{font-size:16px!important;line-height:1.1;margin-top:2px;display:block}
+    #salesHubTopStrip #payProgressCard{display:flex!important;align-items:baseline;gap:8px}
+    #salesHubTopStrip #payProgressCard>strong:first-child{font-size:9px!important;text-transform:uppercase;font-weight:800;color:#6b7280;white-space:nowrap}
+    #salesHubTopStrip #payProgressCard .pay-progress-main{font-size:13px!important;font-weight:700;line-height:1.2;margin:0!important}
+    #salesHubTopStrip #payProgressCard .pay-progress-sub{display:none!important}
+    @media(max-width:700px){
+      #salesHubTopStrip{gap:10px;padding:8px 10px!important}
+      #salesHubTopStrip .sales-hub-live-stats .mini-stats{gap:10px}
+      #salesHubTopStrip .sales-hub-live-stats .mini-stats>div{padding-right:10px!important}
+    }
     #salesHubTopGrid .sales-hub-door-workflow{
       grid-area:door!important;
       min-width:0!important;
-      min-height:100%!important;
-      height:100%!important;
-      align-self:stretch!important;
       margin:0!important
     }
     #salesHubTopGrid .sales-hub-background-button-only{
@@ -230,12 +235,12 @@
         gap:6px!important
       }
       #salesHubLeftStack{height:auto;grid-template-rows:auto;gap:6px}
-      #salesHubLeftStack #payProgressCard{height:auto!important}
       #salesHubTopGrid .sales-hub-door-workflow{min-height:0!important;height:auto!important}
     }
     @media(max-width:560px){
       #salesHubLeftStack .sales-hub-workday{padding:7px 8px!important}
-      #salesHubLeftStack .sales-hub-live-stats .mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      #salesHubTopStrip .sales-hub-live-stats .mini-stats{gap:8px!important}
+      #salesHubTopStrip #payProgressCard{width:100%;padding-top:6px!important;margin-top:6px!important;border-top:1px solid #e5e7eb!important}
     }
   `;
   document.head.appendChild(style);
@@ -329,17 +334,25 @@
     }
     let left=byId('salesHubLeftStack');
     if(!left){left=document.createElement('div');left.id='salesHubLeftStack';left.setAttribute('aria-label','Field Session and workday statistics');}
+    let strip=byId('salesHubTopStrip');
+    if(!strip){strip=document.createElement('div');strip.id='salesHubTopStrip';strip.setAttribute('aria-label','Today at a glance');}
     fieldSession.classList.add('sales-hub-field-session');liveStats.classList.add('sales-hub-live-stats');
     workday?.classList.add('sales-hub-workday');pay?.classList.add('sales-hub-pay-progress');
     compactDoorWorkflow(door);makeBackgroundButtonOnly(fieldSession);
     // Insert only a missing or misplaced card. Existing form ancestors stay connected.
-    const leftChanged=placeChildren(left,[fieldSession,workday,liveStats,pay]);
+    // Live Stats and Pay Progress move into the strip above the grid rather than
+    // stacking in the left column -- kept as the same elements with the same
+    // internal ids (#elapsed, #payProgressMain, etc.), just relocated and
+    // restyled, so whatever else updates their numbers by id is unaffected.
+    if(strip.parentElement!==field)field.insertBefore(strip,top.isConnected?top:field.firstChild);
+    const leftChanged=placeChildren(left,[fieldSession,workday]);
+    const stripChanged=placeChildren(strip,[liveStats,pay]);
     const topChanged=placeChildren(top,[left,door]);
     const middle=byId('salesHubMiddleStack');if(middle&&!middle.children.length)middle.remove();
     if(coach){coach.classList.remove('sales-hub-field-coach');coach.classList.add('sales-hub-field-coach-below');if(top.nextElementSibling!==coach)top.insertAdjacentElement('afterend',coach);}
-    if(!announced||leftChanged||topChanged){
+    if(!announced||leftChanged||stripChanged||topChanged){
       announced=true;
-      const detail={ready:!!workday&&!!pay,workdayReady:!!workday,order:['Field Session','Sales / Hour Workday','Live Session Stats','Weekly Pay Progress'],doorWorkflowColumn:'right'};
+      const detail={ready:!!workday&&!!pay,workdayReady:!!workday,order:['Field Session','Sales / Hour Workday'],strip:['Live Session Stats','Weekly Pay Progress'],doorWorkflowColumn:'right'};
       window.dispatchEvent(new CustomEvent('mccoy-sales-hub-layout-ready',{detail}));
       window.dispatchEvent(new CustomEvent('mccoy-sales-hub-fieldcoach-workday-layout-ready',{detail}));
     }

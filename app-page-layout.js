@@ -38,7 +38,7 @@
   function loadSaleLifecycle(){
     for(const src of [
       'app-sale-lifecycle.js?v=2026082801',
-      'app-sales-hub-layout.js?v=2026091106',
+      'app-sales-hub-layout.js?v=2026092201',
       'app-sale-photo-staging.js?v=2026082803',
       'app-closest-lead-autofill-v2.js?v=2026091106',
       'app-sales-to-complete.js?v=2026091701',
