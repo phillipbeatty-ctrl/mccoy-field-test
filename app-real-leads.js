@@ -14,13 +14,66 @@
     return null;
   }
 
-  async function loadRealLeadRowsFromServer(onProgress=null){
+  // Classifies a failed page fetch so a page failure reads as "rate limited"
+  // or "timeout" rather than an opaque generic message -- the whole point of
+  // this pass is to know WHY a page failed, not just that it did. Falls back
+  // to 'other' with the raw message always preserved, since a wrong guess at
+  // classification shouldn't ever cost losing the actual error text.
+  function classifyLeadPageError(error){
+    const status=Number(error?.context?.status??error?.status??error?.context?.response?.status)||null;
+    const message=String(error?.message||error||'unknown_error');
+    if(status===429)return{type:'rate_limited',status,message};
+    if(status===504||status===408)return{type:'timeout',status,message};
+    if(status&&status>=500)return{type:'server_error',status,message};
+    if(status&&status>=400)return{type:'client_error',status,message};
+    if(/timeout|timed out/i.test(message))return{type:'timeout',status,message};
+    if(/network|failed to fetch|load failed/i.test(message))return{type:'network_error',status,message};
+    if(error?.name==='FunctionsFetchError')return{type:'network_error',status,message};
+    if(error?.name==='FunctionsRelayError')return{type:'relay_error',status,message};
+    return{type:'other',status,message};
+  }
+
+  // Reset once per top-level loadMcCoyLeads() call (not per internal retry),
+  // so by the time a load finishes -- successfully or not -- this holds the
+  // complete picture of every page attempted across however many retries it
+  // took. Bounded so a long session with many loads can't grow this forever.
+  function resetLeadLoadDiagnostics(){
+    window.MCCOY_LEAD_LOAD_DIAGNOSTICS={startedAt:new Date().toISOString(),pages:[]};
+  }
+  function recordLeadPageDiagnostic(entry){
+    const log=window.MCCOY_LEAD_LOAD_DIAGNOSTICS;
+    if(!log)return;
+    log.pages.push(entry);
+    if(log.pages.length>300)log.pages.splice(0,log.pages.length-300);
+  }
+  function summarizeLeadLoadFailure(){
+    const pages=window.MCCOY_LEAD_LOAD_DIAGNOSTICS?.pages||[];
+    const failures=pages.filter(p=>p.outcome==='failed');
+    if(!failures.length)return null;
+    const last=failures[failures.length-1];
+    // Only this same attempt's successes count -- each retry restarts from
+    // page 0 and discards the prior attempt's rows entirely, so summing
+    // across attempts would overstate what was actually usable at the end.
+    const loadedRows=pages.filter(p=>p.outcome==='success'&&p.attempt===last.attempt).reduce((sum,p)=>sum+(p.rowCount||0),0);
+    const statusPart=last.httpStatus?` (HTTP ${last.httpStatus})`:'';
+    return `page ${last.page} failed on attempt ${last.attempt}: ${last.errorType}${statusPart} — ${loadedRows.toLocaleString()} leads loaded before the failure`;
+  }
+
+  async function loadRealLeadRowsFromServer(onProgress=null,attemptNumber=1){
     const PAGE=4000,CONCURRENT=4;
     async function fetchPage(page,totalHint=0){
-      const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE,...(totalHint?{total_hint:totalHint}:{})}});
-      if(error)throw error;
-      if(!data?.ok)throw new Error(data?.error||'real_lead_server_read_failed');
-      return data;
+      const startedAt=Date.now();
+      try{
+        const {data,error}=await sb.functions.invoke('lead-admin',{body:{action:'list_real_leads',page,limit:PAGE,...(totalHint?{total_hint:totalHint}:{})}});
+        if(error)throw error;
+        if(!data?.ok)throw new Error(data?.error||'real_lead_server_read_failed');
+        recordLeadPageDiagnostic({attempt:attemptNumber,page,startedAt:new Date(startedAt).toISOString(),durationMs:Date.now()-startedAt,outcome:'success',rowCount:Array.isArray(data.leads)?data.leads.length:0});
+        return data;
+      }catch(e){
+        const classified=classifyLeadPageError(e);
+        recordLeadPageDiagnostic({attempt:attemptNumber,page,startedAt:new Date(startedAt).toISOString(),durationMs:Date.now()-startedAt,outcome:'failed',errorType:classified.type,httpStatus:classified.status,message:classified.message});
+        throw e;
+      }
     }
     const first=await fetchPage(0);
     const total=Math.max(0,Number(first.total||0));
@@ -30,10 +83,18 @@
     if(totalPages>120)throw new Error('real_lead_pagination_guard');
     if(totalPages>1&&typeof onProgress==='function')onProgress(resultForRows(rows.slice()));
     for(let next=1;next<totalPages;next+=CONCURRENT){
-      const requests=[];
-      for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)requests.push(fetchPage(page,total));
-      const responses=await Promise.all(requests);
-      for(const response of responses)rows.push(...(Array.isArray(response.leads)?response.leads:[]));
+      const pageNumbers=[];
+      for(let page=next;page<Math.min(totalPages,next+CONCURRENT);page++)pageNumbers.push(page);
+      // allSettled rather than all: every page in this batch gets its own
+      // recorded outcome above even when a sibling request fails, instead of
+      // Promise.all's short-circuit hiding what the other 3 concurrent
+      // requests were doing. Behavior is unchanged from the original --
+      // still aborts on the first rejection found, still discards this
+      // batch's rows on any failure -- only the visibility into WHY changes.
+      const settled=await Promise.allSettled(pageNumbers.map(page=>fetchPage(page,total)));
+      const rejected=settled.find(s=>s.status==='rejected');
+      if(rejected)throw rejected.reason;
+      for(const outcome of settled)rows.push(...(Array.isArray(outcome.value.leads)?outcome.value.leads:[]));
     }
     return resultForRows(rows);
   }
@@ -149,7 +210,7 @@
     return real;
   }
 
-  async function performLoad(){
+  async function performLoad(attemptNumber=1){
     const {data:{user}}=await sb.auth.getUser();
     if(!user)throw new Error('No authenticated user');
     const access=await waitForActiveAccess();
@@ -158,20 +219,22 @@
 
     setLeadLoadStatus('Loading real leads…');
     const started=typeof performance!=='undefined'?performance.now():Date.now();
-    const result=await loadRealLeadRowsFromServer(preview=>applyLoadedResult(preview,{partial:true}));
+    const result=await loadRealLeadRowsFromServer(preview=>applyLoadedResult(preview,{partial:true}),attemptNumber);
     const real=applyLoadedResult(result);startupComplete=true;const elapsed=Math.round((typeof performance!=='undefined'?performance.now():Date.now())-started);
     window.MCCOY_LAST_LEAD_LOAD={count:real.length,total:result.total,elapsed_ms:elapsed,page_size:4000};
     const missing=real.filter(l=>!Number.isFinite(Number(l.lat))||!Number.isFinite(Number(l.lng))).length;
     console.log(`McCoy Real Lead Pool loaded through lead-admin: ${real.length}/${result.total} leads; ${missing} awaiting verified placement.`);
+    if(attemptNumber>1&&real.length===result.total)setLeadLoadStatus(`Real leads loaded: ${real.length.toLocaleString()} of ${result.total.toLocaleString()} (recovered after ${attemptNumber-1} retry${attemptNumber-1===1?'':'ies'} -- see window.MCCOY_LEAD_LOAD_DIAGNOSTICS for what failed).`);
     return real;
   }
 
   async function loadMcCoyLeads(){
     if(loadPromise)return loadPromise;
     loadPromise=(async()=>{
+      resetLeadLoadDiagnostics();
       let lastErr=null;
       for(let attempt=1;attempt<=5;attempt++){
-        try{return await performLoad();}
+        try{return await performLoad(attempt);}
         catch(e){
           lastErr=e;
           console.warn(`Real lead server load attempt ${attempt} failed`,e);
@@ -179,7 +242,9 @@
         }
       }
       console.error('Real lead server load failed',lastErr);
-      const message=lastErr?.message||String(lastErr);
+      const genericMessage=lastErr?.message||String(lastErr);
+      const diagnosticSummary=summarizeLeadLoadFailure();
+      const message=diagnosticSummary?`${genericMessage} -- ${diagnosticSummary}`:genericMessage;
       window.MCCOY_LAST_LEAD_LOAD={count:0,total:0,page_size:4000,error:message};
       window.MCCOY_LAST_LEAD_LOAD_PHASE={phase:'error',count:0,total:0,error:message};
       setLeadLoadStatus(`Lead load error: ${message}`,true);

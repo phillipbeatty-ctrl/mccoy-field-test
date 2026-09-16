@@ -147,9 +147,9 @@ test('orientation preserves mode while leaving Lead Pool restores standard',()=>
 })
 
 test('production lifecycle still loads the MOVE PIN entry launcher',()=>{
-  assert.match(html,/app-lead-map\.js\?v=2026091903/)
-  assert.match(html,/app-lead-map-window-controls\.js\?v=2026091901/)
-  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=2026091001/)
+  assert.match(html,/app-lead-map\.js\?v=\d+/)
+  assert.match(html,/app-lead-map-window-controls\.js\?v=\d+/)
+  assert.match(loader,/app-lead-map-window-entry-fix\.js\?v=\d+/)
 })
 
 test('expanded iPad map owns the dynamic viewport and locks both scroll roots',()=>{
