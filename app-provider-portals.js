@@ -43,5 +43,7 @@ window.MCCOY_PROVIDER_PORTALS=Object.freeze({
     reportUrl:'https://oetool.vivint.com/',
     reportLabel:'OPEN VIVINT SALES REPORT'
   }),
+  EarthLink:Object.freeze({label:'EarthLink seller account',url:''}),
+  HawaiianTelecom:Object.freeze({label:'HawaiianTelecom seller account',url:''}),
   Other:Object.freeze({label:'Seller account',url:''})
 });

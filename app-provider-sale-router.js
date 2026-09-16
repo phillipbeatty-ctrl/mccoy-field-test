@@ -4,7 +4,7 @@
   if(window.MCCOY_PROVIDER_SALE_ROUTER)return;
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
 
-  const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
+  const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','Other'];
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const PORTAL_CONTEXT_STORAGE_KEY='mccoy_last_provider_portal_context_v1';
   const MAX_AUTO_RECOVERY_AGE_MS=30*60*1000;

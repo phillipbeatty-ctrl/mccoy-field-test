@@ -6,7 +6,7 @@
   window.MCCOY_CUSTOMER_LIST_ADMIN_CONTROLS=true;
 
   const speedOptions=[[200,'200 Mbps'],[300,'300 Mbps'],[500,'500 Mbps'],[600,'600 Mbps'],[940,'940 Mbps'],[1000,'1 GIG'],[2000,'2 GIG'],[3000,'3 GIG'],[5000,'5 GIG'],[8000,'8 GIG'],[10000,'10 GIG']];
-  const fallbackProviders=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','Other'];
+  const fallbackProviders=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','Other'];
   const state={records:[],users:[],loading:false,activeSale:null,reviewProviders:new Map()};
   const byId=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));

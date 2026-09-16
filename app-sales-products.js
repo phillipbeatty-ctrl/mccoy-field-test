@@ -3,7 +3,7 @@
   if(window.MCCOY_SALES_PRODUCTS_PATCHED)return;
   window.MCCOY_SALES_PRODUCTS_PATCHED=true;
   const byId=id=>document.getElementById(id);
-  const ISP_PROVIDERS=new Set(['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','Other']);
+  const ISP_PROVIDERS=new Set(['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','EarthLink','HawaiianTelecom','Other']);
 
   function client(requirements={}){
     return window.MCCOY_GET_SUPABASE_CLIENT?.(requirements)||null;
