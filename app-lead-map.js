@@ -117,6 +117,22 @@
     map.invalidateSize({pan:false});
     renderPins(false);
   },50);
+  // Proactive settle, independent of any specific external event firing.
+  // Confirmed with a real user report: opening the map and simply waiting --
+  // without backgrounding the app (which triggers the visibilitychange fix
+  // below) and without anything else touching this panel's style (which
+  // triggers the MutationObserver below) -- can leave it visibly undersized
+  // for roughly 30 seconds, until something else unrelated coincidentally
+  // fires an event that happens to correct it. Rather than keep hunting for
+  // that exact coincidental trigger, this polls invalidateSize a bounded
+  // number of times right after the map initializes, so correction is fast
+  // and guaranteed regardless of what else is or isn't happening.
+  let settleAttempts=0;
+  const settleInterval=setInterval(()=>{
+    settleAttempts++;
+    if(panel.style.display!=='none')map.invalidateSize({pan:false});
+    if(settleAttempts>=8)clearInterval(settleInterval);
+  },500);
 
   function correctionMsg(text){const el=document.getElementById('leadCorrectionMsg');if(el)el.textContent=text;}
   function fillCorrectionForm(l){document.getElementById('editLeadAddress1').value=l.address1||l.address||'';document.getElementById('editLeadAddress2').value=l.address2||'';document.getElementById('editLeadCity').value=l.city||'';document.getElementById('editLeadState').value=l.stateCode||'';document.getElementById('editLeadZip').value=l.zip||'';}
@@ -268,5 +284,18 @@
   document.getElementById('leadSearch')?.addEventListener('input',()=>{selectedIds.clear();clearLassoShape();restoreGrabCursor();clearTimeout(searchRenderTimer);searchRenderTimer=setTimeout(()=>renderPins(true),160);});
   window.addEventListener('mccoy-real-leads-loaded',()=>setTimeout(()=>{restoreGrabCursor();renderPins(true);geocodeStatus();},200));
   const obs=new MutationObserver(()=>{if(panel.style.display!=='none')setTimeout(()=>{map.invalidateSize();restoreGrabCursor();renderPins(firstFit);},50);});obs.observe(panel,{attributes:true,attributeFilter:['style']});
+  // The panel-visibility MutationObserver above only fires on a DOM change to
+  // this panel's own style attribute -- it never fires just because the OS
+  // backgrounds and later foregrounds the whole app, since nothing in the DOM
+  // itself changes during that transition. Leaflet still needs an explicit
+  // invalidateSize() whenever it becomes visible again after being backgrounded,
+  // the same as it does after any other visibility change; without this, the
+  // map can sit incorrectly sized until something else happens to touch the
+  // panel's style, which is why switching to another app and back "fixes" it
+  // immediately (a real visibilitychange fires) while just waiting does not.
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden||panel.style.display==='none')return;
+    setTimeout(()=>{map.invalidateSize({pan:false});restoreGrabCursor();renderPins(false);},50);
+  });
   setTimeout(()=>{map.setView([39.5,-98.35],4);restoreGrabCursor();renderPins(true);geocodeStatus();},800);
 })();
