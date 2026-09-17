@@ -11,6 +11,7 @@ export const edgePaywallTargets=new Map([
   ['lead-geocode','lead_management'],
   ['lead-gps-placement','lead_management'],
   ['lead-map-address-search','lead_management'],
+  ['reverse-geocode-nearest-address','lead_management'],
   ['lead-pin-snapshot','lead_management'],
   ['metrics-visibility','analytics'],
   ['pay-progress','sales_tracking'],

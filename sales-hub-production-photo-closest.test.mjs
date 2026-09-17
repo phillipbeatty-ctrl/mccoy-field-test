@@ -11,7 +11,7 @@ test('production loads the guarded PHOTO and closest-lead controls',()=>{
   assert.match(pageLayout,/app-sale-photo-staging\.js/)
   assert.match(pageLayout,/app-closest-lead-autofill-v2\.js/)
   assert.match(photo,/stageSalePhotoBtn/)
-  assert.match(closest,/get_closest_mccoy_lead/)
+  assert.match(closest,/reverse-geocode-nearest-address/)
 })
 
 test('PHOTO cannot open before a provider capture started in this Sales Hub attempt',()=>{
@@ -32,7 +32,7 @@ test('staged photo count, completion handoff, and abandoned deletion are present
 test('closest-lead autofill preserves typed addresses and remains tenant-scoped server-side',()=>{
   assert.match(closest,/hasManualAddress\(\)/)
   assert.match(closest,/if\(!lead\?\.address\|\|hasManualAddress\(\)\)return false/)
-  assert.match(closest,/get_closest_mccoy_lead/)
+  assert.match(closest,/reverse-geocode-nearest-address/)
   assert.match(closest,/mccoy-closest-lead-autofilled/)
 })
 

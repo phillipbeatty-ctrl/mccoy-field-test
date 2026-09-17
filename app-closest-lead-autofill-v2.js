@@ -71,7 +71,7 @@
     const display=byId('closestDoorAddress');if(!display||!lead?.address)return;
     const meters=Number(lead.distance_meters);
     const distance=Number.isFinite(meters)?meters<1609?`${Math.round(meters)} m`:`${(meters/1609.344).toFixed(2)} mi`:'';
-    display.textContent=`Closest McCoy lead${distance?` · ${distance}`:''} · ${lead.address}`;
+    display.textContent=`Closest address${distance?` · ${distance}`:''} · ${lead.address}`;
     display.dataset.mccoyClosestLeadId=lead.id||'';
   }
 
@@ -107,7 +107,7 @@
 
   async function run({force=false,allowGpsPrompt=false}={}){
     if(!autoNearestEnabled())return;
-    if(state.busy||!window.sb?.rpc||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
+    if(state.busy||!window.sb?.functions||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
     const now=Date.now();
     let gps=currentCoordinates();
     if(!gps&&allowGpsPrompt)gps=await getGpsOnce();
@@ -116,12 +116,14 @@
     if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
     state.busy=true;
     try{
-      const {data,error}=await sb.rpc('get_closest_mccoy_lead',{p_lat:gps.lat,p_lng:gps.lng});
+      const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng}});
       if(error)throw error;
-      state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;state.lastLead=data||null;
-      if(data?.address)applyLead(data);
-      else{const display=byId('closestDoorAddress');if(display)display.textContent='No mapped McCoy lead was found near the current location.';}
-    }catch(error){console.error('Closest McCoy lead auto-fill failed',error);}
+      state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;
+      const lead=data?.address?{id:data.google_place_id||'',address:data.address,distance_meters:null}:null;
+      state.lastLead=lead;
+      if(lead)applyLead(lead);
+      else{const display=byId('closestDoorAddress');if(display)display.textContent='No nearby address was found.';}
+    }catch(error){console.error('Nearest address auto-fill failed',error);}
     finally{state.busy=false;}
   }
 

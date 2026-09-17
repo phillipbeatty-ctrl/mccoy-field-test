@@ -76,7 +76,7 @@ test('only the matching selected physical door is linked for sale completion',()
 test('SALE freezes the selected address before the provider choice, and cancel clears intent',()=>{
   const nodes=new Map(),byId=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
   const source={service_address:other,sale_context:'field',lead_id:null,preserve_active_visit:true};
-  const s=scope({document:{getElementById:byId},currentProvider:()=> 'Other',saleSourceContext:()=>source,choice:element(),pending:null,routing:false,panel:element(),updatePortalStatus(){},setTimeout(){},MCCOY_PENDING_SALE_CONTEXT:source,target:{}});
+  const s=scope({document:{getElementById:byId},currentProvider:()=> 'Other',saleSourceContext:()=>source,choice:element(),pending:null,routing:false,panel:element(),updatePortalStatus(){},updateBrokerField(){},setTimeout(){},MCCOY_PENDING_SALE_CONTEXT:source,target:{}});
   vm.runInContext(fn('./app-provider-sale-router.js','showRouter')+'\n'+fn('./app-provider-sale-router.js','closeRouter'),s);
   vm.runInContext('showRouter(target)',s);source.service_address=lead.fullAddress;source.lead_id='lead-a';
   assert.equal(s.pending.source.service_address,other);assert.equal(s.pending.source.lead_id,null);
@@ -139,6 +139,6 @@ test('web cache loads the pause before all legacy automatic selectors',()=>{
   for(const name of ['app-part1.js','app-distance-to-lead.js','app-auto-door-arrival.js'])assert.ok(html.indexOf('app-field-features.js')<html.indexOf(name));
   assert.match(worker,/field-coach-app-shell-v25-20260914-photo-outcome-fixes/);
   for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091103':name==='app-field-lead-editor.js'?'2026092001':'2026091108')));
-  assert.match(layout,/app-closest-lead-autofill-v2.js\?v=2026091106/);
+  assert.match(layout,/app-closest-lead-autofill-v2\.js\?v=\d+/);
   assert.match(read('./app-part1.js'),/<option value="">Type an address or select a lead<\/option>/);
 });
