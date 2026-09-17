@@ -33,11 +33,29 @@
 
   function getGpsOnce(){
     if(!navigator.geolocation)return Promise.resolve(null);
-    return new Promise(resolve=>navigator.geolocation.getCurrentPosition(
-      position=>resolve({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy)}),
-      ()=>resolve(null),
-      {enableHighAccuracy:true,maximumAge:10000,timeout:8000}
-    ));
+    return new Promise(resolve=>{
+      let previous=null,watchId=null,settled=false;
+      const finish=result=>{
+        if(settled)return;settled=true;
+        if(watchId!=null)navigator.geolocation.clearWatch(watchId);
+        resolve(result);
+      };
+      const timeoutId=setTimeout(()=>finish(previous),15000);
+      watchId=navigator.geolocation.watchPosition(
+        position=>{
+          const current={lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy)};
+          // A single fix can land during GPS's settling phase and still report
+          // a plausible-looking accuracy value. Requiring two closely-agreeing
+          // readings in a row is a much stronger signal the position has
+          // actually locked in, not just that one reading looked confident.
+          if(previous&&distanceBetween(previous.lat,previous.lng,current.lat,current.lng)<20){
+            clearTimeout(timeoutId);finish(current);
+          }else previous=current;
+        },
+        ()=>{},
+        {enableHighAccuracy:true,maximumAge:0,timeout:15000}
+      );
+    });
   }
 
   function distanceBetween(aLat,aLng,bLat,bLng){
@@ -77,18 +95,18 @@
   async function run({force=false}={}){
     if(!autoNearestEnabled())return;
     if(state.busy||!window.sb?.functions||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
-    const now=Date.now();
-    const gps=await getGpsOnce();
-    if(!gps||!autoNearestEnabled())return;
-    if(Number.isFinite(gps.accuracy)&&gps.accuracy>MAX_TRUSTED_ACCURACY_METERS){
-      const display=byId('closestDoorAddress');
-      if(display)display.textContent=`Location signal too weak to auto-fill (accuracy ~${Math.round(gps.accuracy)}m). Please type or select the address.`;
-      return;
-    }
-    const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
-    if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
     state.busy=true;
     try{
+      const now=Date.now();
+      const gps=await getGpsOnce();
+      if(!gps||!autoNearestEnabled())return;
+      if(Number.isFinite(gps.accuracy)&&gps.accuracy>MAX_TRUSTED_ACCURACY_METERS){
+        const display=byId('closestDoorAddress');
+        if(display)display.textContent=`Location signal too weak to auto-fill (accuracy ~${Math.round(gps.accuracy)}m). Please type or select the address.`;
+        return;
+      }
+      const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
+      if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
       const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng}});
       if(error)throw error;
       state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;
