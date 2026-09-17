@@ -48,11 +48,11 @@ serveWithOrganizationAccess('lead_management', async request => {
     const googleKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || ''
     if (!googleKey) return json({ error: 'google_maps_key_not_configured' }, 503)
 
-    // Reverse geocode: same Google Geocoding API this codebase already uses
-    // for forward (address -> coordinates) lookups elsewhere, just passing
-    // latlng instead of address. Returns the nearest real-world street
-    // address Google knows about at this location -- regardless of whether
-    // it exists anywhere in our own leads table.
+    // Switched back from Nominatim after confirmed evidence of wrong results
+    // for accurate coordinates in this area (sparse OpenStreetMap coverage
+    // outside dense urban cores). Google's commercially-maintained dataset is
+    // already-working, already-credentialed infrastructure elsewhere in this
+    // codebase (lead-geocode, lead-map-address-search).
     const response = await maps.reverseGeocode({
       params: { latlng: { lat: point.latitude, lng: point.longitude }, key: googleKey },
       timeout: 10_000,
@@ -75,3 +75,5 @@ serveWithOrganizationAccess('lead_management', async request => {
     return json({ error: 'reverse_geocode_failed', detail: String((error as Error)?.message || error).slice(0, 240) }, 500)
   }
 })
+
+

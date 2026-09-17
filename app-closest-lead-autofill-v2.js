@@ -92,7 +92,7 @@
       const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng}});
       if(error)throw error;
       state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;
-      const lead=data?.address?{id:data.osm_id||'',address:data.address,distance_meters:null}:null;
+      const lead=data?.address?{id:data.google_place_id||'',address:data.address,distance_meters:null}:null;
       state.lastLead=lead;
       if(lead)applyLead(lead);
       else{const display=byId('closestDoorAddress');if(display)display.textContent='No nearby address was found.';}
