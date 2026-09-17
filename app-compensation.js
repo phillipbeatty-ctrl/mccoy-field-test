@@ -217,14 +217,21 @@
   ensureDashboardRankings();
 
   async function loadPayProgress(){
-    const main=document.getElementById('payProgressMain'),sub=document.getElementById('payProgressSub');
-    if(!main)return;
-    // No backend yet computes real weekly-threshold progress for this card --
-    // see compensation-settings' tiers for the configured thresholds
-    // themselves, which do exist and are shown correctly in the admin panel.
-    // This says so honestly rather than leaving "Loading..." up forever.
-    window.MCCOY_UI.text(main,'Not yet available');
-    if(sub)window.MCCOY_UI.text(sub,'Weekly pay progress tracking is not yet built.');
+    try{
+      const d=await invoke('pay-progress');
+      if(!d?.ok)return;
+      const main=document.getElementById('payProgressMain'),sub=document.getElementById('payProgressSub');
+      if(!main||!sub)return;
+      const estimate=Number(d.estimated_weekly_commission||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}),weekLabel=recordPeriodLabel('week',d.week_start),dateRule=`Current week: ${weekLabel}, based on order entry date.`;
+      if(!d.pay_level_assigned){
+        window.MCCOY_UI.text(main,`${d.weekly_sales} sales this week — pay level not assigned`);
+        window.MCCOY_UI.text(sub,`${dateRule} Ask an Admin to assign your commission pay level before the next sale. Verified sales remain recorded, but an exact commission estimate is unavailable.`);
+        return;
+      }
+      const progress=d.next_threshold==null?'highest extra-pay tier reached':`${d.sales_needed_for_next} more to reach ${d.next_threshold}`;
+      window.MCCOY_UI.text(main,`${d.pay_level_label} · ${d.weekly_sales} sales · ${progress}`);
+      window.MCCOY_UI.text(sub,`${dateRule} Estimated qualifying commission: ${estimate}. Current production increase: +$${d.current_increase_per_sale}/sale.${d.unpriced_sales?` ${d.unpriced_sales} sale${d.unpriced_sales===1?'':'s'} need Accounting review.`:''} ISP verification, Admin approval when required, installs, provider payment, and chargebacks control final pay.`);
+    }catch(e){console.error('Pay progress failed',e);}
   }
 
   async function invoke(name,body){const {data,error}=await sb.functions.invoke(name,body?{body}:undefined);if(error)throw error;return data;}
