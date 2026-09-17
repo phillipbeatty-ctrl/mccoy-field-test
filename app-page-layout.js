@@ -40,7 +40,7 @@
       'app-sale-lifecycle.js?v=2026082801',
       'app-sales-hub-layout.js?v=2026092201',
       'app-sale-photo-staging.js?v=2026082803',
-      'app-closest-lead-autofill-v2.js?v=2026091703',
+      'app-closest-lead-autofill-v2.js?v=2026091704',
       'app-sales-to-complete.js?v=2026091701',
       'app-sale-order-photo-confirm-popup.js?v=2026091701',
       'app-sale-order-photo-admin.js?v=2026091105',

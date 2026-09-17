@@ -41,7 +41,7 @@
   function getGpsOnce(){
     if(!navigator.geolocation)return Promise.resolve(null);
     return new Promise(resolve=>navigator.geolocation.getCurrentPosition(
-      position=>resolve({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude)}),
+      position=>resolve({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy)}),
       ()=>resolve(null),
       {enableHighAccuracy:true,maximumAge:10000,timeout:8000}
     ));
@@ -92,12 +92,19 @@
     return true;
   }
 
+  const MAX_TRUSTED_ACCURACY_METERS=150;
+
   async function run({force=false}={}){
     if(!autoNearestEnabled())return;
     if(state.busy||!window.sb?.functions||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
     const now=Date.now();
     const gps=await getGpsOnce();
     if(!gps||!autoNearestEnabled())return;
+    if(Number.isFinite(gps.accuracy)&&gps.accuracy>MAX_TRUSTED_ACCURACY_METERS){
+      const display=byId('closestDoorAddress');
+      if(display)display.textContent=`Location signal too weak to auto-fill (accuracy ~${Math.round(gps.accuracy)}m). Please type or select the address.`;
+      return;
+    }
     const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
     if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
     state.busy=true;
