@@ -1,79 +1,96 @@
-import { serveWithOrganizationAccess } from '../_shared/organization-paywall.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
-import { corsHeaders } from 'npm:@supabase/supabase-js@2.95.0/cors'
 import { Client as GoogleMapsClient } from 'npm:@googlemaps/google-maps-services-js@3.4.2'
 
-const maps = new GoogleMapsClient({})
-const json = (body: unknown, status = 200) => Response.json(body, {
-  status,
-  headers: { ...corsHeaders, 'Cache-Control': 'no-store' },
-})
+// Internal maintenance endpoint only -- not part of the rep-facing app, never
+// linked from client code, and not registered in the paywall classification
+// (it is not a normal feature; it is a one-time-plus-recurring data-repair
+// tool called only from a trusted server-side context: this session's own
+// SQL-driven batches now, and a pg_cron job going forward).
+const INTERNAL_TOKEN = '25cad34757d11a27490a224d0141b1c37654e05bcaf347cd9a532481555b9d8a'
 
-function validLatLng(lat: unknown, lng: unknown) {
-  const latitude = Number(lat)
-  const longitude = Number(lng)
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return null
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null
-  return { latitude, longitude }
+const maps = new GoogleMapsClient({})
+const ACCEPTABLE_LOCATION_TYPES = new Set(['ROOFTOP', 'RANGE_INTERPOLATED'])
+const json = (body: unknown, status = 200) => Response.json(body, { status })
+
+function fullAddress(lead: Record<string, unknown>) {
+  const parts = [lead.address1, lead.address2, lead.city, [lead.state, lead.zip].filter(Boolean).join(' ')]
+  return parts.filter(part => String(part || '').trim()).join(', ')
 }
 
-serveWithOrganizationAccess('lead_management', async request => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+Deno.serve(async request => {
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
+  if (request.headers.get('x-internal-token') !== INTERNAL_TOKEN) return json({ error: 'unauthorized' }, 401)
 
-  try {
-    const jwt = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/, '')
-    if (!jwt) return json({ error: 'unauthorized' }, 401)
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  )
+  const googleKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || ''
+  if (!googleKey) return json({ error: 'google_maps_key_not_configured' }, 503)
 
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    )
-    const { data: { user }, error: userError } = await admin.auth.getUser(jwt)
-    if (userError || !user?.email) return json({ error: 'unauthorized' }, 401)
+  const body = await request.json().catch(() => ({}))
+  const batchSize = Math.min(Math.max(Number(body?.batch_size) || 25, 1), 100)
 
-    const { data: access, error: accessError } = await admin
-      .from('app_user_access')
-      .select('active,role,organization_id')
-      .eq('email', user.email.toLowerCase())
-      .maybeSingle()
-    if (accessError) throw accessError
-    if (!access?.active) return json({ error: 'active_access_required' }, 403)
+  const { data: rows, error: fetchError } = await admin
+    .from('leads')
+    .select('id,address1,address2,city,state,zip')
+    .eq('geocode_status', 'zip_centroid_review')
+    .limit(batchSize)
+  if (fetchError) return json({ error: 'fetch_failed', detail: fetchError.message }, 500)
+  if (!rows?.length) return json({ ok: true, processed: 0, upgraded: 0, still_approximate: 0, errors: 0, remaining: 0, done: true })
 
-    const body = await request.json().catch(() => ({}))
-    const point = validLatLng(body?.lat, body?.lng)
-    if (!point) return json({ error: 'valid_location_required' }, 422)
+  let upgraded = 0, stillApproximate = 0, errors = 0
 
-    const googleKey = Deno.env.get('GOOGLE_MAPS_API_KEY') || ''
-    if (!googleKey) return json({ error: 'google_maps_key_not_configured' }, 503)
+  for (const lead of rows) {
+    const address = fullAddress(lead)
+    try {
+      const response = await maps.geocode({ params: { address, region: 'us', key: googleKey }, timeout: 10_000 })
+      const result = response.data?.results?.[0]
+      const locationType = result?.geometry?.location_type
+      const location = result?.geometry?.location
 
-    // Switched back from Nominatim after confirmed evidence of wrong results
-    // for accurate coordinates in this area (sparse OpenStreetMap coverage
-    // outside dense urban cores). Google's commercially-maintained dataset is
-    // already-working, already-credentialed infrastructure elsewhere in this
-    // codebase (lead-geocode, lead-map-address-search).
-    const response = await maps.reverseGeocode({
-      params: { latlng: { lat: point.latitude, lng: point.longitude }, key: googleKey },
-      timeout: 10_000,
-    })
-    const result = response.data?.results?.[0]
-    if (!result?.formatted_address) return json({ error: 'address_not_found' }, 404)
-
-    const location = result.geometry?.location
-    return json({
-      ok: true,
-      address: result.formatted_address,
-      latitude: location?.lat ?? point.latitude,
-      longitude: location?.lng ?? point.longitude,
-      google_place_id: result.place_id || null,
-      requested_latitude: point.latitude,
-      requested_longitude: point.longitude,
-    })
-  } catch (error) {
-    console.error('reverse-geocode-nearest-address', error)
-    return json({ error: 'reverse_geocode_failed', detail: String((error as Error)?.message || error).slice(0, 240) }, 500)
+      if (result && location && ACCEPTABLE_LOCATION_TYPES.has(locationType || '')) {
+        const { error: updateError } = await admin.from('leads').update({
+          latitude: location.lat,
+          longitude: location.lng,
+          geocode_status: 'matched',
+          geocode_provider: 'google_maps_geocoding',
+          geocode_precision: locationType === 'ROOFTOP' ? 'rooftop' : 'range_interpolated',
+          geocode_verification_status: null,
+          geocode_place_id: result.place_id || null,
+        }).eq('id', lead.id)
+        if (updateError) { errors++; console.error('update failed', lead.id, updateError.message) }
+        else upgraded++
+      } else {
+        const { error: updateError } = await admin.from('leads').update({
+          geocode_status: 'regeocode_attempted_still_approximate',
+          geocode_verification_status: 'needs_manual_review',
+        }).eq('id', lead.id)
+        if (updateError) errors++
+        else stillApproximate++
+      }
+    } catch (error) {
+      errors++
+      console.error('regeocode error', lead.id, String((error as Error)?.message || error))
+    }
+    // Conservative pacing: this key is shared with rep-facing features that
+    // should never be starved by a background maintenance batch.
+    await new Promise(resolve => setTimeout(resolve, 120))
   }
+
+  const { count: remaining } = await admin
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .eq('geocode_status', 'zip_centroid_review')
+
+  return json({
+    ok: true,
+    processed: rows.length,
+    upgraded,
+    still_approximate: stillApproximate,
+    errors,
+    remaining: remaining ?? null,
+    done: (remaining ?? 1) === 0,
+  })
 })
-
-

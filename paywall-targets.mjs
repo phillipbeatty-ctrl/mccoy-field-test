@@ -38,7 +38,8 @@ export const edgePaywallExemptions=new Map([
   ['auth-email-provider-webhook','signed_provider_webhook'],
   ['auth-email-resend','enumeration_safe_account_recovery'],
   ['auth-email-status','enumeration_safe_account_recovery'],
-  ['organization-access','organization_gate_endpoint']
+  ['organization-access','organization_gate_endpoint'],
+  ['admin-batch-regeocode-leads','internal_maintenance_token_protected']
 ])
 
 export const fieldCoachEntitlements=Object.freeze([

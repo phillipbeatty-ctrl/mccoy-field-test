@@ -21,7 +21,9 @@
   function verifiedDoor(lead){
     if(!lead||lead.isDemo===true||!lead.dbId)return false;
     const lat=Number(lead.lat),lng=Number(lead.lng),status=String(lead.geocodeStatus||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
-    return Number.isFinite(lat)&&Number.isFinite(lng)&&verifiedStatuses.has(status);
+    const precision=String(lead.geocodePrecision||'').trim().toLowerCase().replace(/[\s-]+/g,'_');
+    const trusted=verifiedStatuses.has(status)||(status==='matched'&&precision==='rooftop');
+    return Number.isFinite(lat)&&Number.isFinite(lng)&&trusted;
   }
   function closestVerifiedDoor(gps){
     let nearest=null;
