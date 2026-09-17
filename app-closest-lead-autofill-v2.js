@@ -34,26 +34,29 @@
   function getGpsOnce(){
     if(!navigator.geolocation)return Promise.resolve(null);
     return new Promise(resolve=>{
-      let previous=null,watchId=null,settled=false;
-      const finish=result=>{
+      const readings=[];let watchId=null,settled=false;
+      const weightedAverage=()=>{
+        if(!readings.length)return null;
+        let sumWeight=0,sumLat=0,sumLng=0,sumInverseVar=0;
+        for(const r of readings){
+          const variance=Math.max(r.accuracy,1)**2,weight=1/variance;
+          sumWeight+=weight;sumLat+=r.lat*weight;sumLng+=r.lng*weight;sumInverseVar+=weight;
+        }
+        return {lat:sumLat/sumWeight,lng:sumLng/sumWeight,accuracy:1/Math.sqrt(sumInverseVar),sampleCount:readings.length};
+      };
+      const finish=()=>{
         if(settled)return;settled=true;
         if(watchId!=null)navigator.geolocation.clearWatch(watchId);
-        resolve(result);
+        resolve(weightedAverage());
       };
-      const timeoutId=setTimeout(()=>finish(previous),15000);
+      const timeoutId=setTimeout(finish,10000);
       watchId=navigator.geolocation.watchPosition(
         position=>{
-          const current={lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy)};
-          // A single fix can land during GPS's settling phase and still report
-          // a plausible-looking accuracy value. Requiring two closely-agreeing
-          // readings in a row is a much stronger signal the position has
-          // actually locked in, not just that one reading looked confident.
-          if(previous&&distanceBetween(previous.lat,previous.lng,current.lat,current.lng)<20){
-            clearTimeout(timeoutId);finish(current);
-          }else previous=current;
+          readings.push({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude),accuracy:Number(position.coords.accuracy)||50});
+          if(readings.length>=6){clearTimeout(timeoutId);finish();}
         },
         ()=>{},
-        {enableHighAccuracy:true,maximumAge:0,timeout:15000}
+        {enableHighAccuracy:true,maximumAge:0,timeout:10000}
       );
     });
   }
@@ -65,11 +68,12 @@
     return 2*6371000*Math.asin(Math.min(1,Math.sqrt(a)));
   }
 
-  function setClosestDisplay(lead){
+  function setClosestDisplay(lead,accuracyMeters){
     const display=byId('closestDoorAddress');if(!display||!lead?.address)return;
     const meters=Number(lead.distance_meters);
     const distance=Number.isFinite(meters)?meters<1609?`${Math.round(meters)} m`:`${(meters/1609.344).toFixed(2)} mi`:'';
-    display.textContent=`Closest address${distance?` · ${distance}`:''} · ${lead.address}`;
+    const confidence=Number.isFinite(accuracyMeters)?` · GPS ±${Math.round(accuracyMeters*3.28084)}ft`:'';
+    display.textContent=`Closest address${distance?` · ${distance}`:''} · ${lead.address}${confidence}`;
     display.dataset.mccoyClosestLeadId=lead.id||'';
   }
 
@@ -85,7 +89,7 @@
     input.dispatchEvent(new Event('input',{bubbles:true}));
     input.dispatchEvent(new Event('change',{bubbles:true}));
     window.MCCOY_CLOSEST_MCCOY_LEAD=lead;
-    setClosestDisplay(lead);
+    setClosestDisplay(lead,lead.accuracyMeters);
     window.dispatchEvent(new CustomEvent('mccoy-closest-lead-autofilled',{detail:{lead}}));
     return true;
   }
@@ -102,15 +106,24 @@
       if(!gps||!autoNearestEnabled())return;
       if(Number.isFinite(gps.accuracy)&&gps.accuracy>MAX_TRUSTED_ACCURACY_METERS){
         const display=byId('closestDoorAddress');
-        if(display)display.textContent=`Location signal too weak to auto-fill (accuracy ~${Math.round(gps.accuracy)}m). Please type or select the address.`;
+        if(display)display.textContent=`Location signal too weak to auto-fill (accuracy ~${Math.round(gps.accuracy)}m / ${Math.round(gps.accuracy*3.28084)}ft). Please type or select the address.`;
         return;
       }
       const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
       if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
-      const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng}});
+      const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng,accuracy:gps.accuracy}});
       if(error)throw error;
       state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;
-      const lead=data?.address?{id:data.google_place_id||'',address:data.address,distance_meters:null}:null;
+      if(data?.ambiguous){
+        state.lastLead=null;
+        const display=byId('closestDoorAddress');
+        if(display){
+          const list=(data.candidates||[]).map(c=>`${c.address} (~${Math.round(c.distance_meters*3.28084)}ft)`).join('  ·  ');
+          display.textContent=`Multiple known addresses are within GPS range (±${Math.round((gps.accuracy||0)*3.28084)}ft) -- confirm which one before entering the order: ${list}`;
+        }
+        return;
+      }
+      const lead=data?.address?{id:data.google_place_id||'',address:data.address,distance_meters:null,accuracyMeters:gps.accuracy}:null;
       state.lastLead=lead;
       if(lead)applyLead(lead);
       else{const display=byId('closestDoorAddress');if(display)display.textContent='No nearby address was found.';}
