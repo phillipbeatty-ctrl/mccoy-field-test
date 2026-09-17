@@ -10,21 +10,14 @@
 
   function labelledAddressInput(){
     const labels=[...document.querySelectorAll('#field label')];
-    const label=labels.find(item=>/lead\s+or\s+service\s+address/i.test(item.textContent||''));
+    const label=labels.find(item=>/(lead\s+or\s+)?service\s+address/i.test(item.textContent||''));
     return label?.querySelector('input,textarea')||null;
   }
 
   function addressInput(){
-    return byId('leadOrServiceAddress')
-      ||byId('leadOrServiceAddressInput')
-      ||byId('fieldServiceAddress')
-      ||byId('fieldServiceAddressInput')
-      ||byId('fieldAddressInput')
-      ||byId('typedLeadAddress')
-      ||byId('typedLeadAddressInput')
-      ||byId('adHocLeadAddress')
+    return byId('fieldLeadAddressInput')
       ||labelledAddressInput()
-      ||document.querySelector('#field input[placeholder*="lead or service address" i],#field input[aria-label*="lead or service address" i],#field input[placeholder*="service address" i],#field input[aria-label*="service address" i]');
+      ||document.querySelector('#field input[placeholder*="service address" i],#field input[aria-label*="service address" i]');
   }
 
   function hasManualAddress(){
@@ -62,30 +55,17 @@
     display.dataset.mccoyClosestLeadId=lead.id||'';
   }
 
-  function selectExistingLeadOption(lead){
-    const select=byId('fieldLeadSelect');if(!select)return false;
-    const address=String(lead.address||'').trim().toLowerCase();
-    const id=String(lead.id||'');
-    const option=[...select.options].find(item=>String(item.value||'')===id||String(item.textContent||'').trim().toLowerCase().includes(address));
-    if(!option)return false;
-    select.value=option.value;
-    select.dataset.mccoyAutoClosest='1';
-    select.dispatchEvent(new Event('change',{bubbles:true}));
-    return true;
-  }
-
   const autoNearestEnabled=()=>window.MCCOY_FIELD_FEATURES?.automaticNearestLead===true;
   function applyLead(lead){
     if(!autoNearestEnabled())return false;
     if(!lead?.address||hasManualAddress())return false;
     const input=addressInput();
-    if(input){
-      input.value=lead.address;
-      input.dataset.mccoyAutoClosest='1';
-      input.dataset.mccoyClosestLeadId=lead.id||'';
-      input.dispatchEvent(new Event('input',{bubbles:true}));
-      input.dispatchEvent(new Event('change',{bubbles:true}));
-    }else selectExistingLeadOption(lead);
+    if(!input){console.warn('Nearest-address autofill: service address field not found; not falling back to a lead-pool match.');return false;}
+    input.value=lead.address;
+    input.dataset.mccoyAutoClosest='1';
+    input.dataset.mccoyClosestLeadId=lead.id||'';
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+    input.dispatchEvent(new Event('change',{bubbles:true}));
     window.MCCOY_CLOSEST_MCCOY_LEAD=lead;
     setClosestDisplay(lead);
     window.dispatchEvent(new CustomEvent('mccoy-closest-lead-autofilled',{detail:{lead}}));
