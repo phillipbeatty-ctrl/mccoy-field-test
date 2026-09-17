@@ -38,25 +38,12 @@
     return !!value&&!/select|choose|type|lead or service address/i.test(text);
   }
 
-  function currentCoordinates(){
-    const candidates=[];
-    try{candidates.push(window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()?.rep_location);}catch(_){}
-    try{candidates.push(window.MCCOY_DISTANCE_TO_LEAD_CONTROL?.current?.()?.gps);}catch(_){}
-    candidates.push(window.MCCOY_LAST_GPS,window.MCCOY_LATEST_GPS,window.state?.latestGps,window.MCCOY_LIVE_LOCATION?.latest);
-    for(const value of candidates){
-      const lat=Number(value?.latitude??value?.lat),lng=Number(value?.longitude??value?.lng);
-      if(Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lng)&&lng>=-180&&lng<=180)return{lat,lng};
-    }
-    return null;
-  }
-
   function getGpsOnce(){
-    const existing=currentCoordinates();if(existing)return Promise.resolve(existing);
     if(!navigator.geolocation)return Promise.resolve(null);
     return new Promise(resolve=>navigator.geolocation.getCurrentPosition(
       position=>resolve({lat:Number(position.coords.latitude),lng:Number(position.coords.longitude)}),
       ()=>resolve(null),
-      {enableHighAccuracy:true,maximumAge:30000,timeout:6500}
+      {enableHighAccuracy:true,maximumAge:10000,timeout:8000}
     ));
   }
 
@@ -105,12 +92,11 @@
     return true;
   }
 
-  async function run({force=false,allowGpsPrompt=false}={}){
+  async function run({force=false}={}){
     if(!autoNearestEnabled())return;
     if(state.busy||!window.sb?.functions||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
     const now=Date.now();
-    let gps=currentCoordinates();
-    if(!gps&&allowGpsPrompt)gps=await getGpsOnce();
+    const gps=await getGpsOnce();
     if(!gps||!autoNearestEnabled())return;
     const moved=state.lastLat==null?Infinity:distanceBetween(state.lastLat,state.lastLng,gps.lat,gps.lng);
     if(!force&&now-state.lastRun<15000&&moved<25){if(state.lastLead)applyLead(state.lastLead);return;}
@@ -119,7 +105,7 @@
       const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng}});
       if(error)throw error;
       state.lastRun=now;state.lastLat=gps.lat;state.lastLng=gps.lng;
-      const lead=data?.address?{id:data.google_place_id||'',address:data.address,distance_meters:null}:null;
+      const lead=data?.address?{id:data.osm_id||'',address:data.address,distance_meters:null}:null;
       state.lastLead=lead;
       if(lead)applyLead(lead);
       else{const display=byId('closestDoorAddress');if(display)display.textContent='No nearby address was found.';}
@@ -142,5 +128,5 @@
   },true);
   for(const name of ['mccoy-access-ready','mccoy-sales-hub-layout-ready','mccoy-leads-updated','mccoy-lead-pool-changed','mccoy-location-updated','mccoy-live-location-updated'])window.addEventListener(name,()=>schedule({force:name!=='mccoy-location-updated',allowGpsPrompt:false}));
   window.addEventListener('mccoy-door-visit-completed',()=>schedule({force:true,allowGpsPrompt:false}));
-  [250,700,1500,3000].forEach(delay=>setTimeout(()=>run({force:delay===3000,allowGpsPrompt:false}),delay));
+  [250,700,1500,3000].forEach(delay=>setTimeout(()=>run({force:delay===3000}),delay));
 })();
