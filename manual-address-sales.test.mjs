@@ -22,9 +22,9 @@ function fn(file,name){
 function scope(seed={}){const value={console,structuredClone,setTimeout,clearTimeout,Event:class{constructor(type){this.type=type}},...seed};value.window=value;return vm.createContext(value);}
 function element(value=''){return{value,disabled:false,textContent:'',classList:{add(){},remove(){}},focus(){},dispatchEvent(){}};}
 
-test('release defaults and missing configuration keep nearest automation paused',()=>{
+test('release defaults enable nearest automation, and explicit disablement still pauses each function',()=>{
   const s=scope();vm.runInContext(read('./app-field-features.js'),s);
-  assert.equal(s.MCCOY_FIELD_FEATURES.automaticNearestLead,false);assert.equal(Object.isFrozen(s.MCCOY_FIELD_FEATURES),true);
+  assert.equal(s.MCCOY_FIELD_FEATURES.automaticNearestLead,true);assert.equal(Object.isFrozen(s.MCCOY_FIELD_FEATURES),true);
   for(const [file,name,seed] of [
     ['./app-closest-lead-autofill-v2.js','run',{}],
     ['./app-closest-lead-autofill-v2.js','applyLead',{}],
@@ -134,11 +134,11 @@ test('blank optional contact fields cannot erase a matched existing lead',async(
   assert.deepEqual(copy(body),{address1:'100 Main St',address2:'',city:'Portland',state:'OR',zip:'97201'});
 });
 
-test('web cache loads the pause before all legacy automatic selectors',()=>{
+test('web cache loads the feature-flag file before all legacy automatic selectors',()=>{
   const html=read('./index.html'),worker=read('./service-worker.js'),layout=read('./app-page-layout.js');
   for(const name of ['app-part1.js','app-distance-to-lead.js','app-auto-door-arrival.js'])assert.ok(html.indexOf('app-field-features.js')<html.indexOf(name));
   assert.match(worker,/field-coach-app-shell-v25-20260914-photo-outcome-fixes/);
-  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091103':name==='app-field-lead-editor.js'?'2026092001':'2026091108')));
+  for(const name of ['app-field-features.js','app-typed-lead-address.js','app-provider-sale-router.js','app-field-lead-editor.js'])assert.ok(worker.includes(name+'?v='+(name==='app-provider-sale-router.js'?'2026091105':name==='app-field-features.js'?'2026091703':name==='app-field-lead-editor.js'?'2026092001':'2026091108')));
   assert.match(layout,/app-closest-lead-autofill-v2\.js\?v=\d+/);
   assert.match(read('./app-part1.js'),/<option value="">Type an address or select a lead<\/option>/);
 });

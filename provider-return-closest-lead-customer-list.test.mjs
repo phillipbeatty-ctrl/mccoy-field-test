@@ -38,7 +38,7 @@ test('nearest lead considers all usable mapped McCoy leads but excludes known lo
   assert.equal(core.nearestLead([lowPrecision,rooftop,imported,demo],gps).lead.dbId,'imported')
 })
 
-test('Door Workflow retains nearest selection behind the paused release switch',()=>{
+test('Door Workflow retains nearest selection behavior',()=>{
   assert.match(distance,/if\(nearest\)\{if\(String\(select\.value\)!==String\(nearest\.lead\.id\)\)chooseLead\(nearest\.lead,true\);\}/)
   assert.doesNotMatch(distance,/nearest&&nearest\.distance<=core\.QUARTER_MILE_METERS/)
   assert.match(distance,/function useClosest\(\).*if\(nearest\)chooseLead\(nearest\.lead,true\)/s)

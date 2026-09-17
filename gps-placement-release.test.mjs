@@ -15,14 +15,14 @@ test('production creation drift is reconciled against a frozen exact source, wit
   assert.match(endpoint,/serveWithOrganizationAccess\('lead_management'/);
   assert.match(endpoint,/p_actor_auth_id: user.id, p_actor_email: user.email.toLowerCase\(\)/);
 });
-test('every changed GPS script is versioned and the nearest-lead pause remains intact',()=>{
+test('every changed GPS script is versioned and nearest-lead automation is enabled',()=>{
   const html=read('./index.html'),loader=read('./app-page-layout.js'),worker=read('./service-worker.js');
   for(const name of ['app-gps-placement.js','app-part2.js','app-page-layout.js','app-field-lead-editor.js','app-lead-pool-independent-activity.js','app-auth.js','app-typed-lead-address.js']){
     const version=name==='app-gps-placement.js'?'2026091109':name==='app-auth.js'?'2026091110':name==='app-page-layout.js'?'2026091512':name==='app-field-lead-editor.js'?'2026092001':'2026091108';
     assert.ok((html+loader).includes(name+'?v='+version),name+' must be loaded');
     assert.ok(worker.includes(name+'?v='+version),name+' must be cached');
   }
-  assert.match(read('./app-field-features.js'),/automaticNearestLead:false/);
+  assert.match(read('./app-field-features.js'),/automaticNearestLead:true/);
 });
 test('all label writers say KNOCK DOOR and ADD ADDRESS/dispositions cannot invoke GPS placement',()=>{
   assert.match(read('./index.html'),/id="arriveDoorBtn"[^>]*>KNOCK DOOR</);
