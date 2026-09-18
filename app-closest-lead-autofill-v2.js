@@ -118,7 +118,10 @@
         state.lastLead=null;
         const display=byId('closestDoorAddress');
         if(display){
-          const list=(data.candidates||[]).map(c=>`${c.address} (~${Math.round(c.distance_meters*3.28084)}ft)`).join('  ·  ');
+          const coordsByAddress={};
+          for(const c of data.candidates||[])if(Number.isFinite(c.latitude)&&Number.isFinite(c.longitude))coordsByAddress[c.address]={lat:c.latitude,lng:c.longitude};
+          const annotated=window.MCCOY_CONFIRMED_ADDRESS_HISTORY?.annotateLikelyCandidate(data.candidates||[],coordsByAddress)||(data.candidates||[]);
+          const list=annotated.map(c=>`${c.address}${c.likely?' (likely, based on your recent stops)':''} (~${Math.round(c.distance_meters*3.28084)}ft)`).join('  ·  ');
           display.textContent=`Multiple known addresses are within GPS range (±${Math.round((gps.accuracy||0)*3.28084)}ft) -- confirm which one before entering the order: ${list}`;
         }
         return;
