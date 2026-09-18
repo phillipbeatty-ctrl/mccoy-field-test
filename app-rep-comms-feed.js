@@ -4,6 +4,13 @@
 // from Live Wins (which continues to own the sales_feed celebration popup
 // alone; no user message is ever mixed into it).
 //
+// DISPLAY timing is deferred (see app-deferred-message-queue.js): a message
+// that arrives while the tab is backgrounded, or while the app is fully
+// closed, is held and delivered once the rep actually returns, throttled
+// (see BACKLOG_THROTTLE_MS below) so each one still gets its own falling
+// animation on catch-up rather than all landing on the overflow banner at
+// once. Realtime delivery itself is unaffected -- only on-screen display.
+//
 // Physics: falls exactly 2 real inches using the CSS `in` unit (so the
 // duration is the same on a 13" tablet and a phone turned sideways -- a
 // fixed pixel distance would cover very different fractions of each), with
@@ -26,6 +33,7 @@
 
   const FALL_DURATION_MS=5000;
   const LANES=3;
+  const BACKLOG_THROTTLE_MS=1800; // Roughly how often a lane frees up at 3 lanes / 5s fall -- keeps catch-up from dumping everything into the overflow banner.
 
   const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
@@ -49,6 +57,7 @@
   const banner=document.createElement('div');banner.id='repCommsOverflowBanner';banner.textContent='Multiple Messages Incoming';document.body.appendChild(banner);
 
   const occupiedLanes=new Set();
+  const deliveredIds=new Set(); // guards against catch-up and realtime racing on the same message at startup
   let overflowHideTimer=null;
 
   function freeLane(){
@@ -63,6 +72,10 @@
   }
 
   function dropMessage(row){
+    if(row?.id!=null){
+      if(deliveredIds.has(row.id))return;
+      deliveredIds.add(row.id);
+    }
     const lane=freeLane();
     if(lane===null){showOverflowBanner();return;}
     occupiedLanes.add(lane);
@@ -72,6 +85,16 @@
     el.innerHTML=`<strong>${esc(row.sender_name||'Rep')}</strong>${esc(row.message||'')}`;
     layer.appendChild(el);
     setTimeout(()=>{el.remove();occupiedLanes.delete(lane);},FALL_DURATION_MS+150);
+  }
+
+  async function checkMissedComms(since){
+    try{
+      const {data,error}=await sb.rpc('list_recent_rep_comms_messages',{p_limit:50});
+      if(error)throw error;
+      const rows=(data||[]).filter(row=>!since||new Date(row.created_at)>new Date(since));
+      rows.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)); // RPC returns newest-first; play oldest-first on catch-up.
+      return rows;
+    }catch(error){console.error('Rep comms catch-up query failed',error);return [];}
   }
 
   let channel=null,statusChecked=false;
@@ -86,9 +109,15 @@
       console.error('Rep comms status check failed',error);
       return;
     }
+    window.MCCOY_DEFERRED_QUEUE?.registerSource('rep_comms',{
+      getTimestamp:row=>row.created_at,
+      deliver:async row=>{dropMessage(row);},
+      checkMissed:checkMissedComms,
+      throttleMs:BACKLOG_THROTTLE_MS,
+    });
     channel=sb.channel('mccoy-rep-comms')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'rep_comms_messages'},payload=>{
-        if(payload?.new)dropMessage(payload.new);
+        if(payload?.new)window.MCCOY_DEFERRED_QUEUE?.enqueue('rep_comms',payload.new);
       })
       .subscribe();
   }

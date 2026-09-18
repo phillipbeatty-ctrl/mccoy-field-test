@@ -1,7 +1,11 @@
 // One authenticated Realtime subscription drives rankings, Live Wins, and sale celebrations.
+// Celebration DISPLAY timing is deferred: see app-deferred-message-queue.js.
+// Realtime delivery still arrives instantly in the background; only the
+// on-screen full-bleed overlay is held until the page is actually visible,
+// so a backgrounded tab or a closed-then-reopened app never pops a
+// celebration nobody was there to see, and nothing is lost catching up.
 (()=>{
-  let channel=null,started=false,running=false;
-  const queue=[];
+  let channel=null;
   const style=document.createElement('style');
   style.textContent=`
     #liveWinCelebration{position:fixed;inset:0;z-index:190000;display:none;pointer-events:none;align-items:center;justify-content:center;padding:22px;background:rgba(15,23,42,.2)}
@@ -37,28 +41,43 @@
       particle.style.setProperty('--delay',(Math.random()*.18)+'s');root.appendChild(particle);
     }
   }
-  async function drain(){
-    if(running)return;running=true;
-    while(queue.length){
-      const row=queue.shift(),items=messages(row);if(!items.length)continue;
-      for(const message of items){
-        overlay.querySelector('.live-win-message').textContent=message;spray();overlay.classList.add('show');
-        await wait(2600);overlay.classList.remove('show');await wait(260);
-      }
+  async function playOne(row){
+    const key=seenKey(row);if(wasSeen(key))return;markSeen(key);
+    for(const message of messages(row)){
+      overlay.querySelector('.live-win-message').textContent=message;spray();overlay.classList.add('show');
+      await wait(2600);overlay.classList.remove('show');await wait(260);
     }
-    running=false;
   }
+  function eligible(row){return !!row?.animation_enabled&&!!Number(row.celebration_version||0);}
   function celebrate(row){
-    if(!row?.animation_enabled||!Number(row.celebration_version||0))return;
-    const key=seenKey(row);if(wasSeen(key))return;markSeen(key);queue.push(row);drain();
+    if(!eligible(row))return;
+    window.MCCOY_DEFERRED_QUEUE?.enqueue('live_wins',row);
+  }
+  async function checkMissedSalesFeed(since){
+    try{
+      let query=sb.from('sales_feed').select('id,message,celebration_messages,celebration_version,animation_enabled,created_at').eq('animation_enabled',true).gt('celebration_version',0).order('created_at',{ascending:true}).limit(25);
+      // No prior watermark on this device (first-ever launch here): only catch
+      // up on the last hour, not this org's entire celebration history.
+      query=query.gte('created_at',since||new Date(Date.now()-60*60*1000).toISOString());
+      const {data,error}=await query;
+      if(error)throw error;
+      return data||[];
+    }catch(error){console.error('Live Wins catch-up query failed',error);return [];}
   }
   function changed(payload){
     const row=payload?.new||null;
     window.dispatchEvent(new CustomEvent('mccoy-live-sales-changed',{detail:{eventType:payload?.eventType||null,row}}));
     if(payload?.eventType==='INSERT'||payload?.eventType==='UPDATE')celebrate(row);
   }
+  let started=false;
   function start(){
     if(started||!window.MCCOY_ACCESS?.access?.active)return;started=true;
+    window.MCCOY_DEFERRED_QUEUE?.registerSource('live_wins',{
+      getTimestamp:row=>row.created_at,
+      deliver:playOne,
+      checkMissed:checkMissedSalesFeed,
+      throttleMs:0, // playOne already awaits its own full display duration
+    });
     channel=sb.channel('mccoy-live-sales-authority')
       .on('postgres_changes',{event:'*',schema:'public',table:'sales_feed'},changed)
       .subscribe(status=>window.dispatchEvent(new CustomEvent('mccoy-live-sales-status',{detail:{status}})));
