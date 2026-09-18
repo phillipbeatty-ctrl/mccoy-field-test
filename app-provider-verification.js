@@ -1,7 +1,7 @@
 // Provider report ingestion: rep-account evidence is preliminary and dealer-account
 // evidence is authoritative for rankings, pay progress, and cancellation tracking.
 (function(){
-  const providers=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','Other'];
+  const providers=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','WOW!','Other'];
   const dealerProviders=['Mixed / Auto-detect',...providers];
   const reportLinks=Object.fromEntries(providers.map(provider=>{
     const portal=window.MCCOY_PROVIDER_PORTALS?.[provider]||{};

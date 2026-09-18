@@ -45,5 +45,6 @@ window.MCCOY_PROVIDER_PORTALS=Object.freeze({
   }),
   EarthLink:Object.freeze({label:'EarthLink seller account',url:''}),
   HawaiianTelecom:Object.freeze({label:'HawaiianTelecom seller account',url:''}),
+  'WOW!':Object.freeze({label:'WOW! seller account',url:''}),
   Other:Object.freeze({label:'Seller account',url:''})
 });

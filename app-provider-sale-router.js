@@ -4,7 +4,18 @@
   if(window.MCCOY_PROVIDER_SALE_ROUTER)return;
   window.MCCOY_PROVIDER_SALE_ROUTER=true;
 
-  const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','Other'];
+  const PROVIDERS=['Quantum','Brightspeed','AT&T','T-Mobile / T-Fiber','Kinetic','Fidium','Ziply','Ascend Fiber','Lightcurve','Ripple Fiber','Starlink','DIRECTV','Vivint','EarthLink','HawaiianTelecom','WOW!','Other'];
+  // Mirrors PROVIDER_BROKER_OPTIONS in supabase/functions/_shared/provider-sale-capture-core.mjs --
+  // keep both in sync. Brightspeed is the only provider with a real choice;
+  // the seven DSI-only providers get broker set silently since there's
+  // nothing to actually choose between, and everything else stays RS&I.
+  const PROVIDER_BROKERS={
+    Quantum:['RS&I'],Brightspeed:['RS&I','DSI'],'AT&T':['RS&I'],'T-Mobile / T-Fiber':['RS&I'],
+    Kinetic:['RS&I'],Fidium:['DSI'],Ziply:['DSI'],'Ascend Fiber':['RS&I'],Lightcurve:['RS&I'],
+    'Ripple Fiber':['DSI'],Starlink:['RS&I'],DIRECTV:['DSI'],Vivint:['DSI'],EarthLink:['DSI'],
+    HawaiianTelecom:['DSI'],'WOW!':['RS&I'],Other:['RS&I']
+  };
+  const BROKER_STORAGE_PREFIX='mccoy_broker_for_';
   const CAPTURE_STORAGE_KEY='mccoy_active_provider_sale_capture_v1';
   const PORTAL_CONTEXT_STORAGE_KEY='mccoy_last_provider_portal_context_v1';
   const MAX_AUTO_RECOVERY_AGE_MS=30*60*1000;
@@ -47,12 +58,29 @@
   panel.setAttribute('role','dialog');
   panel.setAttribute('aria-modal','true');
   panel.setAttribute('aria-labelledby','providerRouterTitle');
-  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose provider for this sale</h2><p id="providerRouterDescription" class="muted small">Select the Internet provider whose seller account will process this sale.</p><div class="provider-router-fields"><label>Internet Provider<select id="providerRouterChoice"></select></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
+  panel.innerHTML=`<div class="provider-router-card"><h2 id="providerRouterTitle">Choose provider for this sale</h2><p id="providerRouterDescription" class="muted small">Select the Internet provider whose seller account will process this sale.</p><div class="provider-router-fields"><label>Internet Provider<select id="providerRouterChoice"></select></label><label id="providerRouterBrokerField" style="display:none">Selling through<select id="providerRouterBroker"></select></label></div><div id="providerRouterStatus" class="muted small" aria-live="polite"></div><div class="provider-router-actions"><button id="providerRouterContinue" type="button" class="primary">CONTINUE</button><button id="providerRouterCancel" type="button" class="assign-btn">Cancel</button></div></div>`;
   document.body.appendChild(panel);
   const toast=document.createElement('div');toast.id='providerRouteToast';toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');document.body.appendChild(toast);
 
   const choice=document.getElementById('providerRouterChoice');
   for(const provider of PROVIDERS)choice.add(new Option(provider,provider));
+
+  const brokerField=document.getElementById('providerRouterBrokerField');
+  const brokerSelect=document.getElementById('providerRouterBroker');
+  function updateBrokerField(){
+    const provider=choice.value,options=PROVIDER_BROKERS[provider]||['RS&I'];
+    brokerSelect.innerHTML=options.map(x=>`<option>${x}</option>`).join('');
+    if(options.length>1){
+      const saved=localStorage.getItem(BROKER_STORAGE_PREFIX+provider);
+      brokerSelect.value=options.includes(saved)?saved:options[0];
+      brokerField.style.display='';
+    }else{
+      brokerSelect.value=options[0];
+      brokerField.style.display='none';
+    }
+  }
+  brokerSelect.addEventListener('change',()=>localStorage.setItem(BROKER_STORAGE_PREFIX+choice.value,brokerSelect.value));
+  function selectedBroker(){return brokerSelect.value||PROVIDER_BROKERS[choice.value]?.[0]||'RS&I';}
 
   let pending=null,toastTimer=null,routing=false,serverRecoveryStarted=false;
   let saleGuard=false,returnNotifiedFor=null,providerWindow=null,providerWindowTimer=null;
@@ -121,10 +149,10 @@
       await markCaptureReturned(true);
     }catch(error){serverRecoveryStarted=false;console.error('Provider sale capture recovery failed',error);}
   }
-  function startProviderCapture(provider,portalResult,source=saleSourceContext()){
+  function startProviderCapture(provider,portalResult,source=saleSourceContext(),broker=PROVIDER_BROKERS[provider]?.[0]||'RS&I'){
     if(!source?.service_address)throw new Error('Enter a complete service address before starting a sale.');
     const info=portalInfo(provider),draft={
-      client_request_id:newCaptureRequestId(),provider,sale_context:source.sale_context||'field',
+      client_request_id:newCaptureRequestId(),provider,broker,sale_context:source.sale_context||'field',
       service_address:source.service_address,lead_label:source.lead_label,session_id:source.session_id,
       lead_id:source.lead_id||null,source_door_visit_id:source.source_door_visit_id||null,
       preserve_active_visit:source.preserve_active_visit===true,customer_map_location:source.customer_map_location||null,
@@ -287,12 +315,12 @@
     choice.disabled=false;document.getElementById('providerRouterCancel').disabled=false;routing=false;
     // A maximized map sits above the provider chooser and sale-completion UI.
     window.MCCOY_LEAD_MAP_WINDOW?.restore?.();
-    updatePortalStatus();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
+    updatePortalStatus();updateBrokerField();panel.classList.add('show');setTimeout(()=>choice.focus(),30);
   }
   function closeRouter(){if(routing)return;panel.classList.remove('show');pending=null;window.MCCOY_PENDING_SALE_CONTEXT=null;}
 
   document.getElementById('providerRouterCancel').addEventListener('click',closeRouter);
-  choice.addEventListener('change',()=>{if(pending){delete pending.destination;delete pending.capture;}updatePortalStatus();});
+  choice.addEventListener('change',()=>{if(pending){delete pending.destination;delete pending.capture;}updatePortalStatus();updateBrokerField();});
   panel.addEventListener('click',event=>{if(event.target===panel)closeRouter();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('show'))closeRouter();});
   document.getElementById('providerRouterContinue').addEventListener('click',async()=>{
@@ -306,7 +334,7 @@
     window.MCCOY_TESTER_PKB_SALE=false;setProvider(provider);
     const destination=next.destination||sellerAccountDestination(provider);
     const reservedWindow=destination.opened?reserveProviderWindow():null;
-    const draft=next.capture||startProviderCapture(provider,destination,next.source);
+    const draft=next.capture||startProviderCapture(provider,destination,next.source,selectedBroker());
     if(destination.opened){
       document.getElementById('providerRouterStatus').textContent=reservedWindow?'Saving this provider attempt before loading the provider tab…':'The browser blocked a separate tab. McCoy will use a same-tab fallback after saving the capture.';
       await waitForCaptureReady(draft);panel.classList.remove('show');pending=null;routing=false;
