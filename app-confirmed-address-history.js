@@ -15,7 +15,7 @@
 (function(){
   if(window.MCCOY_CONFIRMED_ADDRESS_HISTORY)return;
   const STORAGE_KEY='mccoy_confirmed_address_history_v1';
-  const MIN_CONFIRMATIONS=2;
+  const MIN_CONFIRMATIONS=5;
 
   function readHistory(){
     try{return JSON.parse(sessionStorage.getItem(STORAGE_KEY)||'[]');}catch(_){return [];}

@@ -57,3 +57,29 @@ competitor comparisons, etc.).
 content written (not just a mechanism), likely coordinated with whoever owns
 sales training material today.
 
+---
+
+## Additional uses for confirmed-address history data
+
+**Logged:** 2026-09-18
+
+**Idea:** The confirmed-address history built for the predictive next-address
+feature (`app-confirmed-address-history.js`) has uses beyond that one
+feature, since it's effectively a timestamped record of where and when a rep
+was genuinely working:
+
+- **Work-pattern verification:** distinguishing a rep actively knocking
+  doors from one who is "going about their day doing errands," based on the
+  pacing and structure of confirmed stops.
+- **Fraud detection:** flagging reps who may be gaming hard-work bonus
+  payouts without genuinely closing sales. Explicitly deferred by the owner
+  until the company has a larger reserve fund -- not to be built now.
+- **Coverage-pattern analysis:** distinguishing genuinely efficient
+  neighborhood coverage from a rep who simply wrapped around at the end of a
+  street or worked a cul-de-sac loop, which could otherwise look similar in
+  raw movement data.
+
+**Status:** Idea only. None of this is built. The underlying history data
+already exists as of this session; these are directions for using it later,
+not current functionality.
+
