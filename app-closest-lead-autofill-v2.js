@@ -8,6 +8,30 @@
   const byId=id=>document.getElementById(id);
   const state={busy:false,lastRun:0,lastLat:null,lastLng:null,lastLead:null,timer:null};
 
+  function ensureRefreshButton(){
+    const display=byId('closestDoorAddress');
+    if(!display||byId('closestAddressRefreshBtn'))return;
+    const btn=document.createElement('button');
+    btn.type='button';btn.id='closestAddressRefreshBtn';
+    btn.textContent='REFRESH CLOSEST ADDRESS';
+    btn.style.cssText='margin-top:6px;font-size:11px;padding:5px 10px;border-radius:999px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;display:block';
+    btn.onclick=()=>{
+      const input=addressInput();
+      // Clearing first lets the normal pipeline repopulate cleanly -- both
+      // run() and applyLead() already refuse to overwrite a field that has
+      // a value, and typing your own address was never blocked and needs
+      // no special handling here; this button is specifically for forcing
+      // a fresh GPS search when the throttle (15s / 25m of movement) is
+      // holding onto a stale result from a spot the rep has since left.
+      if(input){input.value='';delete input.dataset.mccoyAutoClosest;delete input.dataset.mccoyClosestLeadId;}
+      state.lastLead=null;state.lastRun=0;
+      display.textContent='Searching for the closest address\u2026';
+      window.MCCOY_CLOSEST_MCCOY_LEAD=null;
+      run({force:true});
+    };
+    display.insertAdjacentElement('afterend',btn);
+  }
+
   function labelledAddressInput(){
     const labels=[...document.querySelectorAll('#field label')];
     const label=labels.find(item=>/(lead\s+or\s+)?service\s+address/i.test(item.textContent||''));
@@ -91,13 +115,23 @@
     window.MCCOY_CLOSEST_MCCOY_LEAD=lead;
     setClosestDisplay(lead,lead.accuracyMeters);
     window.dispatchEvent(new CustomEvent('mccoy-closest-lead-autofilled',{detail:{lead}}));
+    sb.functions.invoke('gamification',{body:{action:'log_autofill_shown',autofilled_address:lead.address}})
+      .then(({data})=>{if(data?.event_id)state.pendingAutofillEventId=data.event_id;})
+      .catch(()=>{});
     return true;
+  }
+
+  function resolveAutofillEvent(finalAddress){
+    if(!state.pendingAutofillEventId)return;
+    const eventId=state.pendingAutofillEventId;state.pendingAutofillEventId=null;
+    sb.functions.invoke('gamification',{body:{action:'log_autofill_resolved',event_id:eventId,final_address:finalAddress||''}}).catch(()=>{});
   }
 
   const MAX_TRUSTED_ACCURACY_METERS=150;
 
   async function run({force=false}={}){
     if(!autoNearestEnabled())return;
+    ensureRefreshButton();
     if(state.busy||!window.sb?.functions||!window.MCCOY_ACCESS?.access?.active||hasManualAddress())return;
     state.busy=true;
     try{
@@ -148,6 +182,7 @@
     if(event.target?.closest?.('#customerRefresh,#leadRefreshBtn,#salesRefreshBtn'))schedule({force:true,allowGpsPrompt:false});
   },true);
   for(const name of ['mccoy-access-ready','mccoy-sales-hub-layout-ready','mccoy-leads-updated','mccoy-lead-pool-changed','mccoy-location-updated','mccoy-live-location-updated'])window.addEventListener(name,()=>schedule({force:name!=='mccoy-location-updated',allowGpsPrompt:false}));
-  window.addEventListener('mccoy-door-visit-completed',()=>schedule({force:true,allowGpsPrompt:false}));
+  window.addEventListener('mccoy-door-visit-completed',()=>{resolveAutofillEvent(addressInput()?.value);schedule({force:true,allowGpsPrompt:false});});
+  window.addEventListener('mccoy-sale-saved',event=>resolveAutofillEvent(event?.detail?.serviceAddress||addressInput()?.value));
   [250,700,1500,3000].forEach(delay=>setTimeout(()=>run({force:delay===3000}),delay));
 })();
