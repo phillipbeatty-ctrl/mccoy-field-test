@@ -42,7 +42,7 @@
       <div class="pv-grid">
         <div class="pv-section">
           <h3>My Seller-Account Report</h3>
-          <p class="muted small">Run the provider report and export the order-result rows as Excel (.xls), CSV, or tab-delimited text, then choose the exact report date range and upload it here. A BASS report-definition XML lists columns and filters but contains no orders, so it cannot verify sales.</p>
+          <p id="pvRepExplain" class="muted small">Run the provider report and export the order-result rows as Excel (.xls), CSV, or tab-delimited text, then choose the exact report date range and upload it here. A BASS report-definition XML lists columns and filters but contains no orders, so it cannot verify sales.</p>
           <select id="pvRepProvider" aria-label="Provider for my seller-account report">${providers.map(provider=>`<option>${provider}</option>`).join('')}</select>
           <a id="pvRepReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN BASS ORDERS REPORT</a>
           <div class="pv-period"><label>Report start<input id="pvRepStart" type="date"></label><label>Report end<input id="pvRepEnd" type="date"></label></div>
@@ -61,7 +61,7 @@
         <div class="pv-grid" style="margin-top:14px">
           <div class="pv-section">
             <h3>Dealer-Level ISP Report</h3>
-            <p class="muted small">Run and export the authoritative dealer order results as Excel (.xls), CSV, or tab-delimited text. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact coverage dates before treating missing orders as discrepancies.</p>
+            <p id="pvDealerExplain" class="muted small">Run and export the authoritative dealer order results as Excel (.xls), CSV, or tab-delimited text. Every import automatically cross-references rep-account evidence and rechecks recorded sales. Enter the exact coverage dates before treating missing orders as discrepancies.</p>
             <select id="pvDealerProvider">${dealerProviders.map(provider=>`<option>${provider}</option>`).join('')}</select>
             <a id="pvDealerReportLink" class="assign-btn pv-report-link" href="https://bass.docxtract.com/Report/Orders_Report.aspx" target="_blank" rel="noopener noreferrer">OPEN CORPORATE BASS ORDERS REPORT</a>
             <div class="pv-period"><label>Coverage start<input id="pvDealerStart" type="date"></label><label>Coverage end<input id="pvDealerEnd" type="date"></label></div>
@@ -110,6 +110,8 @@
         </div>
       </div>
     </div>`;
+  window.MCCOY_WRAP_EXPLANATION?.(document.getElementById('pvRepExplain'),'What counts as a valid upload')
+  window.MCCOY_WRAP_EXPLANATION?.(document.getElementById('pvDealerExplain'),'What counts as a valid upload')
   document.body.appendChild(panel);
 
   async function call(action,payload={}){

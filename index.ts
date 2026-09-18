@@ -188,6 +188,39 @@ serveWithOrganizationAccess('field_coach_access', async request => {
       return json({ ok: true, leaderboard: data || [] })
     }
 
+    if (action === 'list_battle_objections') {
+      const { data, error } = await admin
+        .from('sales_coaching_objections')
+        .select('id,objection_text,options,correct_option_id,explanation,framework')
+        .eq('organization_id', access.organization_id)
+        .eq('active', true)
+        .in('framework', ['feel_felt_found', 'laer'])
+      if (error) throw error
+      return json({ ok: true, objections: data || [] })
+    }
+
+    if (action === 'record_battle_victory') {
+      const objectionId = String(body.objection_id || '')
+      if (!objectionId) return json({ error: 'objection_id_required' }, 400)
+      const { data: objection } = await admin.from('sales_coaching_objections').select('id').eq('id', objectionId).eq('organization_id', access.organization_id).maybeSingle()
+      if (!objection) return json({ error: 'objection_not_found' }, 404)
+      const { error: insertError } = await admin.from('game_battle_victories').insert({ rep_user_id: user.id, organization_id: access.organization_id, objection_id: objectionId })
+      const firstVictory = !insertError
+      if (firstVictory) await awardPoints(15, 'battle_victory', objectionId)
+      else if (insertError.code !== '23505') throw insertError
+      const { count } = await admin.from('game_battle_victories').select('id', { count: 'exact', head: true }).eq('rep_user_id', user.id)
+      const level = 1 + Math.floor((count || 0) / 3)
+      return json({ ok: true, first_victory: firstVictory, points_awarded: firstVictory ? 15 : 0, victories: count || 0, level })
+    }
+
+    if (action === 'game_status') {
+      const { count } = await admin.from('game_battle_victories').select('id', { count: 'exact', head: true }).eq('rep_user_id', user.id)
+      const victories = count || 0
+      const level = 1 + Math.floor(victories / 3)
+      const victoriesToNextLevel = 3 - (victories % 3)
+      return json({ ok: true, victories, level, victories_to_next_level: victoriesToNextLevel })
+    }
+
     return json({ error: 'unknown_action' }, 400)
   } catch (error) {
     console.error('gamification', error)
