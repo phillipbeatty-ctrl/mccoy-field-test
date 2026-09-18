@@ -58,7 +58,7 @@
       let query=sb.from('sales_feed').select('id,message,celebration_messages,celebration_version,animation_enabled,created_at').eq('animation_enabled',true).gt('celebration_version',0).order('created_at',{ascending:true}).limit(25);
       // No prior watermark on this device (first-ever launch here): only catch
       // up on the last hour, not this org's entire celebration history.
-      query=query.gte('created_at',since||new Date(Date.now()-60*60*1000).toISOString());
+      query=query.gt('created_at',since||new Date(Date.now()-60*60*1000).toISOString());
       const {data,error}=await query;
       if(error)throw error;
       return data||[];
