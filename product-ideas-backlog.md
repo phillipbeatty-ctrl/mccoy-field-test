@@ -128,4 +128,60 @@ mini-game = 1, Sales Coaching content bank = 2, Feel-Felt-Found/LAER content
 - **Commercial flashcard decks** (priority 5): skipped, as directed --
   paid products, not used as source material.
 
+---
+
+## Gamification build-out (2026-09-18)
+
+**Built and live, real schema and tested logic, not stubs:**
+
+- **Rewards system (priority 1):** an append-only points ledger, awarded
+  automatically from real door knocks (+1) and real sales (+25) via the
+  existing `mccoy-door-visit-completed` / `mccoy-sale-saved` events -- never
+  from time spent in the app. A badge catalog (First Knock, First Sale,
+  Week Strong, Marathon Month, Century Day) and a personalization store
+  (5 cosmetic app-color themes, real CSS, not decorative-only) that points
+  can be spent on.
+- **Personal goals (priority 2):** rep-set daily/weekly targets for doors
+  or sales, tracked against real activity.
+- **Door-knock competitions, others + own records (priority 3):** personal
+  bests (best day ever, doors and sales) computed from real history.
+- **Simple user-to-user competitions (priority 4):** a live today's-doors
+  leaderboard across the organization.
+- **Animation gamification (priority 5) + Arcade-style mini-games
+  (priority 9):** built as one shared visual-feedback module, since both
+  are the same delivery mechanism at different intensities -- a subtle
+  score-pop on every door knock, a bigger celebration sequence on a sale,
+  and a badge-unlock toast.
+- **Streak insurance (priority 6):** a real "days worked" streak (at least
+  one door visit that day), with the grace-day banking mechanic as
+  designed -- 1 banked day every 7 consecutive days worked, capped at 3,
+  automatically consumed to cover a missed day rather than resetting the
+  streak to zero. Verified against a hand-built scenario (8 days worked,
+  1 missed, 1 more worked -- streak correctly survived at 9 with the
+  banked day consumed).
+- **In-app game unrelated to work (priority 10):** built as "Door Dash," a
+  standalone, opt-in 30-second timing game using door/handshake/closed-door
+  emojis specifically per the owner's refinement (mirrors the real job
+  rather than being fully disconnected). Entirely separate from the core
+  workflow -- earns no real points, affects no real record.
+
+**Two real bugs caught and fixed during testing, not shipped broken:**
+1. The streak-evaluation function initially referenced the wrong schema
+   (`private.rep_work_streaks` instead of `public.rep_work_streaks`) --
+   caught immediately when the first test run errored.
+2. The streak function's first-ever run for any rep would have silently
+   produced a permanent zero streak for everyone, because the default
+   starting date made its own loop's start and end conditions identical.
+   Caught by manually verifying the test scenario's output against hand
+   computation before trusting it, not by assuming the code was correct
+   because it ran without error.
+
+**Not yet built, still open:**
+- **Conquering-area gaming (priority 7)** and **Make-it-fun knocking paths
+  (priority 8)** -- both need real map/geospatial integration work
+  (street-level territory claims, route-trail visualization) that wasn't
+  attempted in this pass, to avoid rushing the more novel, higher-risk
+  pieces of this list alongside everything above.
+
+
 

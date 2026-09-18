@@ -6,6 +6,7 @@ export const edgePaywallTargets=new Map([
   ['company-leaders','analytics'],
   ['compensation-settings','admin_controls'],
   ['field-analytics','analytics'],
+  ['gamification','field_coach_access'],
   ['lead-admin','lead_management'],
   ['lead-field-actions','lead_management'],
   ['lead-geocode','lead_management'],
