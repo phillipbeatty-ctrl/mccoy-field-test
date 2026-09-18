@@ -25,6 +25,7 @@ export const edgePaywallTargets=new Map([
   ['sale-order-photo','sales_tracking'],
   ['sale-order-photo-pilot','provider_integrations'],
   ['sale-submit','sales_tracking'],
+  ['sales-coaching','field_coach_access'],
   ['session-control','native_background_location'],
   ['spotio-import','lead_management']
 ])

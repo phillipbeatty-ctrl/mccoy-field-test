@@ -43,6 +43,7 @@
       'app-confirmed-address-history.js?v=2026091801',
       'app-closest-lead-autofill-v2.js?v=2026091803',
       'app-sales-to-complete.js?v=2026091801',
+      'app-sales-coaching.js?v=2026091801',
       'app-sale-order-photo-confirm-popup.js?v=2026091701',
       'app-sale-order-photo-admin.js?v=2026091105',
       'app-admin-session-history.js?v=2026082901',

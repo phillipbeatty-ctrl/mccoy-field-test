@@ -83,3 +83,49 @@ was genuinely working:
 already exists as of this session; these are directions for using it later,
 not current functionality.
 
+---
+
+## Gamification roadmap (owner-prioritized, 0-10, 1=build first, 10=build last)
+
+**Logged:** 2026-09-18
+
+1. Rewards-based system (badges, credits, personalization store) — **1, build first**
+2. User-created personal goals — **2**
+3. Door-knock competitions (vs. others and own records) — **3**
+4. Simple user-to-user competitions — **4**
+5. Animation gamification — **5**
+6. Streak insurance (grace-day banking against loss-aversion) — **6**
+7. Conquering-area gaming (map territory claiming) — **7**
+8. Make-it-fun knocking paths (route visualization) — **8**
+9. Arcade-style mini-games tied to real actions — **9**
+10. In-app games unrelated to work — **10, build last.** Owner refinement:
+    rather than a fully disconnected game, use emojis that replicate the
+    actual work reps are doing (a door icon, a house, a handshake) so the
+    "unrelated" game stays thematically tied to the job even while not
+    being functional -- directly softens the concern flagged for this idea
+    (a work-unrelated game has a built-in incentive to pull attention away
+    from selling). Not built -- last in the queue by design.
+
+None of items 1-10 above are built yet. All are ranked and ready to build
+in this order when picked up.
+
+## Sales Games — built this session
+
+**Built:** 2026-09-18, per owner direction (priorities: best-answer
+mini-game = 1, Sales Coaching content bank = 2, Feel-Felt-Found/LAER content
+= 3, commercial flashcard decks = 5/skipped).
+
+- **New feature: Sales Coaching** (`app-sales-coaching.js`,
+  `supabase/functions/sales-coaching/`). Did not previously exist under any
+  name -- built from scratch, not added to an existing area.
+- **Best-answer mini-game** (priority 1): live, seeded with 3 real
+  objection/response sets built on Feel-Felt-Found and LAER (public,
+  non-proprietary frameworks -- no licensing concern).
+- **Admin-editable tip bank** (priority 2): live, seeded with 3 real
+  door-to-door tactics from the session's research (time-of-day re-knocking,
+  referral-based expansion, benefit-framed openers). Admins can add, edit,
+  and delete both tips and mini-game questions directly in the app.
+- **Commercial flashcard decks** (priority 5): skipped, as directed --
+  paid products, not used as source material.
+
+
