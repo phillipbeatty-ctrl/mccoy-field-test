@@ -13,7 +13,7 @@
 
   const css=document.createElement('style');
   css.textContent=`
-    #providerVerificationBtn{position:fixed;right:14px;bottom:146px;z-index:2600;display:none;border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer}
+    #providerVerificationBtn{display:none;border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer;margin-top:10px}
     #providerVerificationPanel{position:fixed;inset:0;z-index:145000;background:rgba(17,24,39,.78);display:none;align-items:center;justify-content:center;padding:16px}
     #providerVerificationPanel.show{display:flex}.pv-card{width:min(1080px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}
     .pv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.pv-section{border:1px solid #e5e7eb;border-radius:12px;padding:14px}.pv-section h3{margin:0 0 8px}
@@ -27,7 +27,7 @@
 
   const btn=document.createElement('button');
   btn.id='providerVerificationBtn';btn.type='button';btn.textContent='Provider Reports';
-  document.body.appendChild(btn);
+  (document.querySelector('#settings .card')||document.body).appendChild(btn);
 
   const panel=document.createElement('div');
   panel.id='providerVerificationPanel';

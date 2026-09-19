@@ -70,19 +70,6 @@
     root.querySelectorAll('button').forEach(button=>button.onclick=()=>{const user=users.find(entry=>entry.email===button.dataset.email);if(!user)return;selectedEmail=user.email;list();detail(user)})
   }
 
-  function controls(data){
-    const panel=$('metricsAdminControls'),root=$('metricsAdminControlsBody')
-    if(!panel||!root)return
-    panel.hidden=!isAdmin()
-    if(!isAdmin())return
-    const global=data.global||{}
-    root.innerHTML='<div class="metrics-control"><div><strong>Users can view their own metrics</strong><small class="muted" style="display:block">Per-user access must also be enabled. Admin access is never blocked.</small></div><input id="metricsGlobalRep" type="checkbox" '+(global.global_rep_metrics_enabled?'checked':'')+'></div><div class="metrics-control"><div><strong>Managers and Trainers can view assigned users</strong><small class="muted" style="display:block">Assignment scope is enforced server-side. Admin can view every active user.</small></div><input id="metricsGlobalManager" type="checkbox" '+(global.global_manager_metrics_enabled?'checked':'')+'></div><h3>Per-user controls</h3>'+users.map((user,index)=>{const adminUser=user.role==='admin'||user.admin_always_visible;return '<div class="metrics-control"><div><strong>'+esc(user.display_name||user.email)+'</strong><small class="muted" style="display:block">'+esc(user.email)+' · '+esc(user.role||'user')+'</small></div><div>'+(adminUser?'<span class="metrics-always">ADMIN · ALWAYS VISIBLE</span>':'<label>Self <input id="metricsSelf'+index+'" type="checkbox" '+(user.visibility?.rep_metrics_enabled?'checked':'')+'></label> <label>Manager <input id="metricsManager'+index+'" type="checkbox" '+(user.visibility?.manager_metrics_enabled!==false?'checked':'')+'></label>')+'</div></div>'}).join('')
-    const saveGlobal=()=>visibility('POST',{action:'set_global',rep_enabled:$('metricsGlobalRep').checked,manager_enabled:$('metricsGlobalManager').checked})
-    $('metricsGlobalRep').onchange=saveGlobal
-    $('metricsGlobalManager').onchange=saveGlobal
-    users.forEach((user,index)=>{if(user.role==='admin'||user.admin_always_visible)return;const save=()=>visibility('POST',{action:'set_rep',rep_email:user.email,rep_metrics_enabled:$('metricsSelf'+index).checked,manager_metrics_enabled:$('metricsManager'+index).checked});$('metricsSelf'+index).onchange=save;$('metricsManager'+index).onchange=save})
-  }
-
   async function load(force=false){
     const notice=$('metricsPageNotice')
     if(!notice||(!force&&metrics.size))return
@@ -100,28 +87,22 @@
       list()
       const refreshedSelection=users.find(user=>user.email===selectedEmail)
       if(refreshedSelection)detail(refreshedSelection)
-      if(visibilityData)controls(visibilityData)
       notice.textContent='Updated '+new Date().toLocaleTimeString()+' · '+users.length+' active user'+(users.length===1?'':'s')+' visible'+(isAdmin()?' · Admin access always on':'')
     }catch(error){console.error(error);notice.textContent=error.message||'Unable to load metrics.'}
   }
 
   function setup(){
     if(ready)return
-    const nav=document.querySelector('.sidebar nav'),main=document.querySelector('main.main'),settings=$('settings')
-    if(!nav||!main)return
+    const teamsSection=$('teams')
+    if(!teamsSection)return
     ready=true
-    const button=document.createElement('button')
-    button.id='metricsPageButton';button.className='nav-btn';button.dataset.view='metrics-visibility';button.textContent='Metrics Visibility'
-    nav.insertBefore(button,nav.querySelector('[data-view="settings"]'))
-    const page=document.createElement('section')
-    page.id='metrics-visibility';page.className='view'
-    page.innerHTML='<div class="card"><div class="card-head"><div><h2>Metrics Visibility</h2><p id="metricsPageIntro" class="muted">Field performance and coaching for every active McCoy user. Admin can always see all users; other access remains role- and assignment-scoped.</p></div><button id="metricsPageRefresh" class="assign-btn">Refresh</button></div><div id="metricsPageNotice" class="muted small">Open this page to load metrics.</div></div><div class="metrics-grid"><div class="card"><h2>All Active Users</h2><div id="metricsRepList" class="metrics-list"></div></div><div id="metricsDetail" class="card"><span class="muted">Select a user.</span></div></div><div id="metricsAdminControls" class="card" style="margin-top:14px" hidden><h2>Admin Metric Controls</h2><p id="metricsAdminIntro" class="muted">Admin access to all active-user metrics is permanent and is not affected by the visibility switches below.</p><div id="metricsAdminControlsBody"></div></div>'
+    const block=document.createElement('div')
+    block.id='metrics-visibility-block'
+    block.innerHTML='<div class="card" style="margin-top:14px"><div class="card-head"><div><h2>Metrics Visibility</h2><p id="metricsPageIntro" class="muted">Field performance and coaching for every active McCoy user. Admin can always see all users; other access remains role- and assignment-scoped.</p></div><button id="metricsPageRefresh" class="assign-btn">Refresh</button></div><div id="metricsPageNotice" class="muted small">Open this page to load metrics.</div></div><div class="metrics-grid"><div class="card"><h2>All Active Users</h2><div id="metricsRepList" class="metrics-list"></div></div><div id="metricsDetail" class="card"><span class="muted">Select a user.</span></div></div>'
+    teamsSection.appendChild(block)
     window.MCCOY_WRAP_EXPLANATION?.(document.getElementById('metricsPageIntro'),'What this page shows')
-    window.MCCOY_WRAP_EXPLANATION?.(document.getElementById('metricsAdminIntro'),'About admin access')
-    settings?main.insertBefore(page,settings):main.appendChild(page)
-    button.onclick=event=>{event.preventDefault();document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view===page));document.querySelectorAll('.nav-btn').forEach(navButton=>navButton.classList.toggle('active',navButton===button));if($('pageTitle'))$('pageTitle').textContent='Metrics Visibility';load()}
+    document.querySelector('.nav-btn[data-view="teams"]')?.addEventListener('click',()=>load())
     $('metricsPageRefresh').onclick=()=>load(true)
-    if(isAdmin())$('metricsVisibilityBtn')?.style.setProperty('display','none','important')
   }
 
   window.addEventListener('mccoy-access-ready',setup)

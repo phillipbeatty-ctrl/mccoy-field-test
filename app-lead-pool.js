@@ -18,12 +18,12 @@
 
   const head=card.querySelector('.card-head');
   if(head){
-    head.innerHTML=`<div><h2>Lead Pool</h2><p class="muted">Real SPOTIO leads and isolated demo/test leads are kept separate.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="adminLeadImportBtn" class="assign-btn">IMPORT REAL LEADS</button><button id="addDemoLeadsBtn" class="primary">ADD 10 DEMO LEADS</button></div>`;
+    head.innerHTML=`<div><h2>Lead Pool</h2><p class="muted">Real SPOTIO leads and isolated demo/test leads are kept separate.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="addDemoLeadsBtn" class="primary">ADD 10 DEMO LEADS</button></div>`;
   }
 
   const toolbar=card.querySelector('.toolbar');
   if(toolbar){
-    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="leadMapView" class="primary">MAP / ASSIGN</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="assign-btn">LIST</button><button id="checkDuplicateLeadsBtn" type="button" class="assign-btn">CHECK DUPLICATES</button><span id="leadPoolCount" class="badge badge-demo"></span></div><div id="leadCleanupStatus" class="muted small" role="status" aria-live="polite" style="margin:-4px 0 10px">Duplicate check has not been run.</div>`);
+    toolbar.insertAdjacentHTML('beforebegin',`<div id="leadModeBar" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><button id="realLeadMode" class="primary">REAL LEADS</button><button id="leadMapView" class="primary">MAP / ASSIGN</button><button id="demoLeadMode" class="assign-btn">DEMO LEADS</button><button id="leadListView" class="assign-btn">LIST</button><button id="checkDuplicateLeadsBtn" type="button" class="assign-btn">CHECK DUPLICATES</button><span id="leadPoolCount" class="badge badge-demo"></span><button id="adminLeadImportBtn" class="assign-btn">IMPORT LEADS</button></div><div id="leadCleanupStatus" class="muted small" role="status" aria-live="polite" style="margin:-4px 0 10px">Duplicate check has not been run.</div>`);
     toolbar.insertAdjacentHTML('afterend',`<div id="leadPager" style="display:none;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><div><button id="leadPrev" class="assign-btn">Previous</button><button id="leadNext" class="assign-btn" style="margin-left:6px">Next</button></div><div><span id="leadPageLabel" class="muted small"></span><select id="leadPageSize" style="margin-left:8px;padding:7px"><option>50</option><option>100</option><option>250</option></select></div></div>`);
   }
 

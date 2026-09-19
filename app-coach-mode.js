@@ -1,13 +1,15 @@
 (function(){
   const style=document.createElement('style');
   style.textContent=`
-    #metricsVisibilityBtn{position:fixed;right:14px;bottom:58px;z-index:2500;display:none;border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer}
+    #metricsVisibilityBtn{border:0;border-radius:999px;padding:9px 13px;background:#111827;color:#fff;font-size:12px;cursor:pointer;display:none}
     #metricsVisibilityPanel{position:fixed;inset:0;z-index:130000;background:rgba(17,24,39,.78);display:none;align-items:center;justify-content:center;padding:16px}
     #metricsVisibilityPanel.show{display:flex}.metrics-card{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.metrics-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eef0f2}.metrics-muted{font-size:12px;color:#6b7280}.metrics-actions{display:flex;justify-content:flex-end;margin-top:14px}
   `;
   document.head.appendChild(style);
 
-  const visibilityBtn=document.createElement('button');visibilityBtn.id='metricsVisibilityBtn';visibilityBtn.textContent='Metric Visibility';document.body.appendChild(visibilityBtn);
+  const visibilityBtn=document.createElement('button');visibilityBtn.id='metricsVisibilityBtn';visibilityBtn.textContent='Metric Visibility';
+  const teamsCardHead=document.querySelector('#teams .card-head');
+  if(teamsCardHead)teamsCardHead.appendChild(visibilityBtn);else document.body.appendChild(visibilityBtn);
   const visibilityPanel=document.createElement('div');visibilityPanel.id='metricsVisibilityPanel';visibilityPanel.innerHTML='<div class="metrics-card"><h2>Metric Visibility</h2><div class="metrics-muted">Admin controls who can see coaching metrics. Admin always retains access.</div><div id="metricsVisibilityContent" style="margin-top:12px">Loading…</div><div class="metrics-actions"><button id="metricsVisibilityClose" class="assign-btn">Close</button></div></div>';document.body.appendChild(visibilityPanel);
   document.getElementById('metricsVisibilityClose').onclick=()=>visibilityPanel.classList.remove('show');
 

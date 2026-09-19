@@ -9,17 +9,6 @@
     settings:''
   };
 
-  function ensureSidebarImportStyles(){
-    if(document.getElementById('sidebarImportLeadStyles'))return;
-    const style=document.createElement('style');
-    style.id='sidebarImportLeadStyles';
-    style.textContent=`
-      .sidebar-import-leads-btn{display:block!important;border:0!important;background:transparent!important;color:#d1d5db!important;text-align:left!important;padding:11px 12px!important;border-radius:8px!important;cursor:pointer!important;width:100%!important;font-weight:400!important;box-sizing:border-box!important}
-      .sidebar-import-leads-btn[hidden]{display:none!important}.sidebar-import-leads-btn:hover{background:#1f2937!important;color:#fff!important}
-    `;
-    document.head.appendChild(style);
-  }
-
   function ensureHeaderLayout(){
     const title=document.getElementById('pageTitle');
     const topbar=title?.closest('.topbar');
@@ -32,8 +21,7 @@
 
   function setPageHeader(view,titleText){ensureHeaderLayout();const title=document.getElementById('pageTitle'),subtitle=document.getElementById('pageSubtitle');if(title)title.textContent=titleText||'';if(subtitle){const text=descriptions[view]||'';subtitle.textContent=text;subtitle.style.display=text?'block':'none';}}
   function activate(view){const btn=document.querySelector(`.nav-btn[data-view="${view}"]`),section=document.getElementById(view);if(!btn||!section)return;document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active',x===btn));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x===section));setPageHeader(view,btn.textContent.trim());if(view==='leads')setTimeout(()=>window.MCCOY_RENDER_LEAD_MAP?.(false),60);}
-  function moveImportButtonToSidebar(){ensureSidebarImportStyles();const nav=document.querySelector('.sidebar nav'),importBtn=document.getElementById('adminLeadImportBtn'),systemBtn=nav?.querySelector('.nav-btn[data-view="settings"]');if(!nav||!importBtn||!systemBtn)return;importBtn.textContent='IMPORT REAL LEADS';importBtn.className='sidebar-import-leads-btn';importBtn.removeAttribute('style');nav.insertBefore(importBtn,systemBtn);}
-  function reorderNav(){const nav=document.querySelector('.sidebar nav');if(!nav)return;['dashboard','field','customer-list','teams','leads'].forEach(view=>{const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);if(btn)nav.appendChild(btn);});moveImportButtonToSidebar();const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');if(systemBtn)nav.appendChild(systemBtn);}
+  function reorderNav(){const nav=document.querySelector('.sidebar nav');if(!nav)return;['dashboard','field','customer-list','teams','leads'].forEach(view=>{const btn=nav.querySelector(`.nav-btn[data-view="${view}"]`);if(btn)nav.appendChild(btn);});const systemBtn=nav.querySelector('.nav-btn[data-view="settings"]');if(systemBtn)nav.appendChild(systemBtn);}
   function bindHeaders(){document.querySelectorAll('.nav-btn').forEach(btn=>{if(btn.dataset.mccoyPageHeaderBound==='1')return;btn.dataset.mccoyPageHeaderBound='1';btn.addEventListener('click',()=>setTimeout(()=>setPageHeader(btn.dataset.view,btn.textContent.trim()),0));});}
   function loadSaleLifecycle(){
     for(const src of [
@@ -47,7 +35,6 @@
       'app-gamification-feedback.js?v=2026091801',
       'app-gamification.js?v=2026091801',
       'app-objection-quest.js?v=2026091901',
-      'app-route-quest-rpg.js?v=2026091801',
       'app-sale-order-photo-confirm-popup.js?v=2026091701',
       'app-sale-order-photo-admin.js?v=2026091105',
       'app-admin-session-history.js?v=2026082901',
@@ -63,6 +50,6 @@
       const script=document.createElement('script');script.src=src;script.async=false;document.body.appendChild(script);
     }
   }
-  function init(){ensureSidebarImportStyles();reorderNav();bindHeaders();ensureHeaderLayout();activate('dashboard');loadSaleLifecycle();setTimeout(moveImportButtonToSidebar,250);setTimeout(moveImportButtonToSidebar,900);}
+  function init(){reorderNav();bindHeaders();ensureHeaderLayout();activate('dashboard');loadSaleLifecycle();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
