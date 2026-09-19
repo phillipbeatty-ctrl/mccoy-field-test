@@ -22,18 +22,20 @@
   function resetDeparture(){departureCandidate=null;departureHits=0;}
 
   function calculate(){
-    const gps=state.latestGps||null,nearest=autoNearestEnabled()?core.nearestLead(state.leads||[],gps):null;
+    // Auto-populating the address is no longer this file's job. That now
+    // belongs entirely to app-closest-lead-autofill-v2.js, which does a
+    // genuine real-world lookup -- a server-side radius search against the
+    // full leads table, falling back to actual reverse geocoding -- rather
+    // than guessing from whatever happened to be sitting in this file's
+    // local, possibly-sparse lead cache with no real-world fallback and no
+    // distance limit. This function now only reports distance/arrival
+    // state for whatever lead is already selected; it never changes the
+    // selection itself.
+    const gps=state.latestGps||null;
     const context=addressContext(),typed=context.kind==='typed'?context:null;
-    if(autoNearestEnabled()&&!manualLeadLocked&&!typed&&!state.activeDoorVisit){
-      // The address box should always show the nearest usable McCoy lead when
-      // location is available. Quarter-mile remains a coaching/arrival signal,
-      // not a prerequisite for populating the address.
-      if(nearest){if(String(select.value)!==String(nearest.lead.id))chooseLead(nearest.lead,true);}
-      else if(select.value){autoChanging=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;}
-    }
-    if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,nearest,typed:true,address:typed.address,selectionSource:'typed_address'};
+    if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,typed:true,address:typed.address,selectionSource:'typed_address'};
     const current=selectedLead(),distance=core.distanceState(current,gps);
-    return{...distance,lead:current,nearest};
+    return{...distance,lead:current};
   }
 
   function render(){
@@ -66,8 +68,6 @@
     const current=render(),context=addressContext(),lead=current.lead||context.lead||null,contextAddress=context.valid?String(context.address||'').trim():'',leadAddress=lead?label(lead):'',address=contextAddress||providerAddress||leadAddress;
     return{ok:!!address,address,source:context.kind==='typed'?'typed_address':contextAddress?'lead':providerAddress?'provider':'lead',withinRange:current.withinRange,lead:context.kind==='typed'?null:lead,distanceMeters:current.distance,selectionSource:context.kind==='typed'?'typed_address':null};
   }
-
-  function useClosest(){if(!autoNearestEnabled())return render();manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest)chooseLead(nearest.lead,true);return render();}
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
@@ -122,6 +122,6 @@
   // The shared manual workflow remains installed; a paused release owns no automation timer.
   const timer=autoNearestEnabled()?setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750):null;
   window.addEventListener('beforeunload',()=>clearInterval(timer));
-  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,useClosest,correctLead};
+  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,correctLead};
   render();
 })();
