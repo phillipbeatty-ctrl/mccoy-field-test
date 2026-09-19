@@ -86,10 +86,10 @@
     root.className='ghost-ranking-admin';
     const minimums=settings.minimums||{};
     const fields=[
-      ['ghostDayGoal','day_goal',minimums.day||3],
-      ['ghostWeekGoal','week_goal',minimums.week||15],
-      ['ghostMonthGoal','month_goal',minimums.month||30],
-      ['ghostYearGoal','year_goal',minimums.year||600]
+      ['ghostDayGoal','day_goal',minimums.day||0],
+      ['ghostWeekGoal','week_goal',minimums.week||0],
+      ['ghostMonthGoal','month_goal',minimums.month||0],
+      ['ghostYearGoal','year_goal',minimums.year||0]
     ];
     if(!root.querySelector('#ghostDayGoal')){
       root.innerHTML='<strong>👻 Ghost Ranking Records · Admin Controlled</strong><p>Overtake comparison stays active. Ghost test sales remain available for testing and accounting, but Admin-set records control Ghost\'s day, week, month, and year rankings.</p><div class="ghost-goal-grid"><label>Best Day<input id="ghostDayGoal" type="number" inputmode="numeric"></label><label>Best Week<input id="ghostWeekGoal" type="number" inputmode="numeric"></label><label>Best Month<input id="ghostMonthGoal" type="number" inputmode="numeric"></label><label>Best Year<input id="ghostYearGoal" type="number" inputmode="numeric"></label></div><div class="ghost-ranking-actions"><button id="saveGhostRankingGoals" class="primary" type="button">Save Ghost Records</button><span id="ghostRankingSaveStatus" role="status" aria-live="polite"></span></div>';
@@ -101,7 +101,7 @@
     }
     for(const [id,key,minimum] of fields){
       const input=document.getElementById(id),value=String(Number(settings[key]||minimum));
-      input.min=String(minimum);input.max=key==='year_goal'?'100000':key==='month_goal'?'20000':key==='week_goal'?'5000':'1000';input._serverValue=value;
+      input._serverValue=value;
       if(input.dataset.dirty!=='1'&&document.activeElement!==input&&input.value!==value)input.value=value;
     }
     const save=document.getElementById('saveGhostRankingGoals'),status=document.getElementById('ghostRankingSaveStatus');
