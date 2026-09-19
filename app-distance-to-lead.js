@@ -21,21 +21,58 @@
   function resetArrival(){arrivalCandidate=null;arrivalHits=0;}
   function resetDeparture(){departureCandidate=null;departureHits=0;}
 
+  let realWorldLookup={busy:false,lastAttemptAt:0,lastLat:null,lastLng:null};
+
+  function metersMoved(lat,lng){
+    if(realWorldLookup.lastLat==null)return Infinity;
+    return core.metersBetween({lat,lng},{lat:realWorldLookup.lastLat,lng:realWorldLookup.lastLng});
+  }
+
+  async function fetchRealWorldNearest(gps){
+    // Same proven lookup app-closest-lead-autofill-v2.js already uses: a
+    // real, radius-bounded search of the full leads table server-side,
+    // falling back to actual Google reverse geocoding when nothing in our
+    // own data is genuinely close. This is the real-world fallback for
+    // when the local lead cache has nothing usable nearby.
+    const {data,error}=await sb.functions.invoke('reverse-geocode-nearest-address',{body:{lat:gps.lat,lng:gps.lng,accuracy:gps.accuracy}});
+    if(error||!data?.address||data.ambiguous)return null;
+    return{id:data.google_place_id?`realworld:${data.google_place_id}`:`realworld:${gps.lat.toFixed(5)},${gps.lng.toFixed(5)}`,
+      dbId:null,address:data.address,fullAddress:data.address,isAdHoc:true,selectionSource:'automatic_nearest_realworld'};
+  }
+
+  function maybeFallbackToRealWorld(gps,localNearest){
+    if(!gps||typeof sb==='undefined'||!sb?.functions)return;
+    if(localNearest&&localNearest.distance<=core.QUARTER_MILE_METERS)return;
+    if(realWorldLookup.busy||Date.now()-realWorldLookup.lastAttemptAt<15000)return;
+    if(metersMoved(gps.lat,gps.lng)<25&&realWorldLookup.lastAttemptAt>0)return;
+    realWorldLookup.busy=true;realWorldLookup.lastAttemptAt=Date.now();realWorldLookup.lastLat=gps.lat;realWorldLookup.lastLng=gps.lng;
+    fetchRealWorldNearest(gps).then(lead=>{
+      // Re-check conditions on arrival -- an async response should never
+      // clobber a manual selection, typed address, or active visit that
+      // started while this was in flight. Using setLead directly, not
+      // chooseLead: this synthetic, real-world-only lead is never added
+      // to state.leads, and the select's own change-sync (syncFromSelect)
+      // looks up the label from state.leads -- it would never find this
+      // one, leaving the visible Service Address box unchanged even
+      // though the underlying hidden select technically updated.
+      if(lead&&autoNearestEnabled()&&!manualLeadLocked&&addressContext().kind!=='typed'&&!state.activeDoorVisit){
+        window.MCCOY_LEAD_ADDRESS?.setLead?.(lead,'automatic_nearest_realworld');
+      }
+    }).catch(error=>console.error('Real-world nearest-address fallback failed',error))
+      .finally(()=>{realWorldLookup.busy=false;});
+  }
+
   function calculate(){
-    // Auto-populating the address is no longer this file's job. That now
-    // belongs entirely to app-closest-lead-autofill-v2.js, which does a
-    // genuine real-world lookup -- a server-side radius search against the
-    // full leads table, falling back to actual reverse geocoding -- rather
-    // than guessing from whatever happened to be sitting in this file's
-    // local, possibly-sparse lead cache with no real-world fallback and no
-    // distance limit. This function now only reports distance/arrival
-    // state for whatever lead is already selected; it never changes the
-    // selection itself.
-    const gps=state.latestGps||null;
+    const gps=state.latestGps||null,nearest=autoNearestEnabled()?core.nearestLead(state.leads||[],gps):null;
     const context=addressContext(),typed=context.kind==='typed'?context:null;
-    if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,typed:true,address:typed.address,selectionSource:'typed_address'};
+    if(autoNearestEnabled()&&!manualLeadLocked&&!typed&&!state.activeDoorVisit){
+      if(nearest){if(String(select.value)!==String(nearest.lead.id))chooseLead(nearest.lead,true);}
+      else if(select.value){autoChanging=true;select.value='';select.dispatchEvent(new Event('change',{bubbles:true}));autoChanging=false;}
+      if(gps)maybeFallbackToRealWorld(gps,nearest);
+    }
+    if(typed)return{withinRange:false,distance:null,reason:'typed_address',lead:null,nearest,typed:true,address:typed.address,selectionSource:'typed_address'};
     const current=selectedLead(),distance=core.distanceState(current,gps);
-    return{...distance,lead:current};
+    return{...distance,lead:current,nearest};
   }
 
   function render(){
@@ -68,6 +105,8 @@
     const current=render(),context=addressContext(),lead=current.lead||context.lead||null,contextAddress=context.valid?String(context.address||'').trim():'',leadAddress=lead?label(lead):'',address=contextAddress||providerAddress||leadAddress;
     return{ok:!!address,address,source:context.kind==='typed'?'typed_address':contextAddress?'lead':providerAddress?'provider':'lead',withinRange:current.withinRange,lead:context.kind==='typed'?null:lead,distanceMeters:current.distance,selectionSource:context.kind==='typed'?'typed_address':null};
   }
+
+  function useClosest(){if(!autoNearestEnabled())return render();manualLeadLocked=false;window.MCCOY_LEAD_ADDRESS?.clear?.('use_closest');const nearest=core.nearestLead(state.leads||[],state.latestGps||null);if(nearest)chooseLead(nearest.lead,true);return render();}
 
   async function resumeWorkflow(){
     if(resumeAttempted)return;resumeAttempted=true;
@@ -122,6 +161,6 @@
   // The shared manual workflow remains installed; a paused release owns no automation timer.
   const timer=autoNearestEnabled()?setInterval(()=>{try{evaluateAutomation();}catch(error){console.error('Silent door automation failed',error);}},750):null;
   window.addEventListener('beforeunload',()=>clearInterval(timer));
-  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,correctLead};
+  window.MCCOY_DISTANCE_TO_LEAD_CONTROL={render,current:saleContext,useClosest,correctLead};
   render();
 })();
