@@ -13,13 +13,16 @@ const core=loadCore()
 const schemaMigration=fs.readFileSync(new URL('./supabase/migrations/20260824020000_distance_to_lead_door_workflow.sql',import.meta.url),'utf8')
 const migration=fs.readFileSync(new URL('./supabase/migrations/20260824152622_coaching_only_door_location.sql',import.meta.url),'utf8')
 
-test('quarter-mile boundary and closest verified lead are deterministic',()=>{
+test('closest lead wins by raw distance regardless of geocode-confidence status',()=>{
   assert.equal(core.QUARTER_MILE_METERS,402.336)
   const now=Date.now(),gps={lat:45,lng:-122,accuracy:8,capturedAt:now}
   const near={dbId:'a',lat:45.0001,lng:-122,geocodeStatus:'manual'}
   const far={dbId:'b',lat:45.001,lng:-122,geocodeStatus:'field_verified'}
-  const approximate={dbId:'c',lat:45,lng:-122,geocodeStatus:'approx_zip'}
-  assert.equal(core.nearestLead([far,approximate,near],gps).lead.dbId,'a')
+  const closer={dbId:'c',lat:45,lng:-122,geocodeStatus:'approx_zip'}
+  // 'closer' is genuinely nearest (exactly at the GPS point) and correctly
+  // wins despite its lower-confidence status -- nearest-address selection
+  // is no longer tied to geocode confidence, only real-world distance.
+  assert.equal(core.nearestLead([far,closer,near],gps).lead.dbId,'c')
   assert.equal(core.distanceState(near,gps).withinRange,true)
 })
 

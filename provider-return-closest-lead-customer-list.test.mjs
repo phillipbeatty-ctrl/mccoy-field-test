@@ -25,7 +25,7 @@ test('provider dashboard opens in a separately closable tab with same-tab fallba
   assert.match(router,/window\.location\.assign\(destination\.url\)/)
 })
 
-test('nearest lead considers all usable mapped McCoy leads but excludes known low-precision candidates',()=>{
+test('nearest lead is chosen by real-world distance, not geocode-confidence status',()=>{
   const now=Date.now(),gps={lat:45,lng:-122,accuracy:8,capturedAt:now}
   const imported={dbId:'imported',lat:45.0001,lng:-122,geocodeStatus:'matched',isDemo:false}
   const rooftop={dbId:'rooftop',lat:45.0002,lng:-122,geocodeStatus:'google_rooftop',isDemo:false}
@@ -33,9 +33,13 @@ test('nearest lead considers all usable mapped McCoy leads but excludes known lo
   const demo={dbId:'demo',lat:45,lng:-122,geocodeStatus:'manual',isDemo:true}
   assert.equal(core.nearestCandidateLead(imported),true)
   assert.equal(core.nearestCandidateLead(rooftop),true)
-  assert.equal(core.nearestCandidateLead(lowPrecision),false)
+  assert.equal(core.nearestCandidateLead(lowPrecision),true)
   assert.equal(core.nearestCandidateLead(demo),false)
-  assert.equal(core.nearestLead([lowPrecision,rooftop,imported,demo],gps).lead.dbId,'imported')
+  // 'lowPrecision' is genuinely nearest (exactly at the GPS point) and
+  // correctly wins over 'imported', which is farther -- geocode status no
+  // longer excludes a candidate, only being a real, non-demo lead with a
+  // usable coordinate does.
+  assert.equal(core.nearestLead([lowPrecision,rooftop,imported,demo],gps).lead.dbId,'low')
 })
 
 test('Door Workflow retains nearest selection behavior',()=>{

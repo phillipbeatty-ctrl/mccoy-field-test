@@ -57,16 +57,15 @@
     return lead?.isDemo!==true&&lead?.dbId&&finiteCoordinate(lead?.lat??lead?.latitude,-90,90)!==null&&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null&&statuses.has(status);
   }
 
-  // Nearest-address population uses every real McCoy lead that has a usable map
-  // coordinate. Explicitly low-precision or mismatch candidates remain excluded.
-  // Physical auto-arrival continues to use verifiedLead() below.
+  // Nearest-address population uses every real McCoy lead with a usable map
+  // coordinate, full stop -- not tied to geocode-confidence status. A
+  // genuinely closer lead is never skipped in favor of a farther one just
+  // because it's more confidently geocoded. Physical auto-arrival
+  // continues to use verifiedLead() below, which is unaffected by this.
   function nearestCandidateLead(lead){
-    const excluded=new Set(['approx_zip','google_low_precision','google_address_mismatch','pending_google','unmapped','failed']);
-    const status=normalizedStatus(lead);
     return lead?.isDemo!==true&&lead?.dbId
       &&finiteCoordinate(lead?.lat??lead?.latitude,-90,90)!==null
-      &&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null
-      &&!excluded.has(status);
+      &&finiteCoordinate(lead?.lng??lead?.longitude,-180,180)!==null;
   }
 
   function nearestLead(leads,gps){
